@@ -25,3 +25,41 @@
 - **결정**: 개발 환경이 Windows PowerShell
 - **영향**: bash `\` 줄바꿈이 동작하지 않음(패키지명으로 인식됨). 문서의 명령어를
   한 줄로 실행하거나 백틱 사용. CLAUDE.md 알려진 이슈에 추가 완료
+
+## 2026-08-22 | PowerShell 히어독 금지
+
+- **사건**: @'...'@ 히어독을 터미널에 붙여넣을 때 명령어가 파일 내용으로 기록되는
+  사고가 3회 발생 (supabase/.gitignore, repair.ps1, eas.json)
+- **원칙**: 파일 내용 작성은 에디터에서 직접 한다.
+  터미널로 파일을 만들 때는 한 줄 명령만 사용한다.
+- **검증**: JSON 작성 후 반드시 `Get-Content x.json -Raw | ConvertFrom-Json` 실행
+
+## 2026-08-22 | .gitignore 선행 원칙
+
+- **사건**: .gitignore 없이 git add를 실행해 node_modules가 커밋됨.
+  supabase.exe(121MB)가 GitHub 100MB 제한을 넘겨 푸시 거부.
+- **조치**: .git 삭제 후 .gitignore부터 작성하고 재초기화
+- **원칙**: git init 직후 .gitignore를 먼저 만들고,
+  `git status --short`로 node_modules/.env가 안 잡히는지 확인한 뒤에 add한다
+
+  ## 2026-08-22 | PowerShell 히어독 금지
+
+- **사건**: @'...'@ 히어독을 터미널에 붙여넣을 때 명령어가 파일 내용으로 기록되는
+  사고가 3회 발생 (supabase/.gitignore, repair.ps1, eas.json)
+- **원칙**: 파일 내용 작성은 에디터에서 직접 한다. 터미널로 만들 때는 한 줄 명령만.
+- **검증**: JSON 작성 후 `Get-Content x.json -Raw | ConvertFrom-Json` 필수
+
+## 2026-08-22 | Windows 방화벽 8081
+
+- **사건**: Dev Build에서 "Unable to load script" — Metro(8081)로 접속 불가
+- **원인**: Windows Defender가 Node.js 인바운드 차단
+- **조치**: New-NetFirewallRule -DisplayName "Metro 8081" -Direction Inbound
+  -LocalPort 8081 -Protocol TCP -Action Allow
+- **대안**: adb reverse tcp:8081 tcp:8081 (USB, 네트워크 무관)
+
+## 2026-08-22 | .gitignore 선행 원칙
+
+- **사건**: .gitignore 없이 git add로 node_modules 커밋 → supabase.exe(121MB)가
+  GitHub 100MB 제한 초과로 푸시 거부
+- **원칙**: git init 직후 .gitignore부터 작성하고,
+  git status로 node_modules/.env가 안 잡히는지 확인한 뒤 add한다

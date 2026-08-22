@@ -6,10 +6,13 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "ondolog",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ondolog.app"
     },
     "android": {
+      "package": "com.ondolog.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,16 +27,12 @@
     "plugins": [
       "expo-router",
       "expo-status-bar"
-    ]
-  }
-}
-
-
-{
-  "expo": {
-    "scheme": "ondolog",
-    "plugins": ["expo-router"],
-    "ios":     { "bundleIdentifier": "com.ondolog.app" },
-    "android": { "package": "com.ondolog.app" }
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "93ac299b-aee1-4d19-98e8-64d884b01c8d"
+      }
+    }
   }
 }

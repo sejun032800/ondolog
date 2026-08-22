@@ -1,11 +1,42 @@
-
-.env
-.env.local
-
-.env
-.env.local
+﻿# dependencies
 node_modules/
 
+# expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# native
+ios/
+android/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# env - never commit
 .env
-.env.local
-node_modules/
+.env.*
+!.env.example
+
+# metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# os
+.DS_Store
+Thumbs.db
+
+# supabase local state
+supabase/.temp/
+supabase/.branches/
+
+# local scratch
+.claude/state/SCRATCH.md
