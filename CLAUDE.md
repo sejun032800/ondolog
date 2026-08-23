@@ -64,3 +64,5 @@ docs/         # 기획 문서 4종
 
 ## 상태 파일
 작업 시작 전 `.claude/state/PROGRESS.md`를 읽고, 작업 후 갱신한다.
+
+- `docs/ONDOLOG_ROADMAP.md` — Phase 계획과 현재 위치
