@@ -15,5 +15,10 @@ export const supabase = createClient(url, anonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE: signInWithOAuth가 code_challenge를 생성하고, 콜백에서 받은
+    // `code`를 exchangeCodeForSession으로 교환한다(액세스 토큰이 리다이렉트
+    // URL에 노출되는 implicit 플로우 대신). React Native 수동 OAuth 플로우의
+    // 3단계(socialAuth.ts)가 이 설정을 전제로 한다.
+    flowType: 'pkce',
   },
 });

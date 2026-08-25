@@ -1,6 +1,6 @@
 # 진행 상황
 
-최종 갱신: 2026-08-25 (화면 6 약관 동의 개정판 구현)
+최종 갱신: 2026-08-25 (카카오 OAuth PKCE 플로우 구현)
 
 ## 현재 Phase
 
@@ -213,6 +213,48 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
     7. 동의 없이 profiles 레코드 생성 안 됨 — ✅ (버튼 게이팅 +
        useEffect 방어적 재검사 + DB default 제거 3중)
 
+- [x] 카카오 소셜 로그인 OAuth 플로우 구현 (2026-08-25, 메인 세션)
+  - 배경: Supabase 대시보드에 카카오 프로바이더 설정 + Redirect URL
+    등록(`ondolog://**`, `exp://**`) 완료됨(사람 작업). 앱 코드에서
+    수동 OAuth 3단계를 처리하도록 구현.
+  - **수정**: `src/services/supabase.ts` — `flowType: 'pkce'` 추가
+    (기존 implicit 기본값이던 것을 명시적으로 전환. exchangeCodeForSession
+    이 동작하려면 클라이언트가 PKCE 모드여야 함)
+  - **수정**: `src/services/socialAuth.ts` — 기존에는
+    `expo-auth-session`의 `makeRedirectUri` + URL 프래그먼트에서
+    access_token/refresh_token을 뽑아 `setSession`하는 implicit 방식
+    이었음. 이번에 요청 명세대로 재작성:
+    1) `signInWithOAuth({ skipBrowserRedirect: true })`로 URL만 획득
+    2) `expo-web-browser`의 `openAuthSessionAsync`로 브라우저 세션 열고
+       앱 스킴 복귀 대기
+    3) 복귀 URL 쿼리에서 `code` 추출 → `exchangeCodeForSession`으로
+       세션 교환
+    - redirectTo는 `expo-linking`의 `createURL('auth/callback')`으로
+      생성(요청 명세대로 — `expo-auth-session` 대신). `expo-auth-session`
+      의존성은 이제 이 파일에서 미사용(package.json에는 남아있음, 제거는
+      범위 밖으로 판단해 안 건드림).
+  - **수정**: `app/(onboarding)/auth.tsx` — `handlePress`에서
+    `provider !== 'kakao'`이면 OAuth 호출 자체를 시작하지 않고 "준비
+    중이에요" 안내 얼럿만 띄우도록 분기 추가(구글/애플은 프로바이더
+    미설정 상태). 동의 체크리스트 상태(`consent`)는 이 분기·인증
+    실패·취소 어느 경로에서도 리셋되지 않음(기존 6-5 보장 방식 그대로
+    유지 — React 로컬 state, 리셋 코드 경로 없음).
+  - **미변경(기존 동작 유지)**: 화면 2~5 세션 데이터의 서버 귀속
+    (`createProfileAndAssessment`)과 화면 7 이동은 `useEffect`가
+    `session` 변화를 구독하는 기존 구조 그대로 — `exchangeCodeForSession`
+    성공 시 `onAuthStateChange`가 SIGNED_IN을 쏘면 `useSession` 훅을
+    통해 동일 경로로 이어진다.
+  - **검증**: `npx tsc --noEmit -p .` app/src 전 파일 0 에러(테스트
+    파일 jest 전역 타입 미설정은 기존 상태, 무관). `npx jest --ci
+    --watchAll=false` 145개 전부 통과(회귀 없음, 이번 작업은 신규
+    테스트를 추가하지 않음 — OAuth 브라우저 왕복은 유닛 테스트로
+    검증하기 어려운 영역이라 실기기 확인이 필요한 부분으로 남김).
+  - **실기기 검증 불가**(기존 사유 그대로): `.env` anon key 플레이스홀더
+    상태라 카카오 로그인 E2E를 이 세션에서 확인 못 함. 사람이 anon key
+    채운 뒤 Dev Build로 직접 확인 필요(완료 기준의 "profiles 레코드
+    생성 + 화면 7 이동 + 취소 시 화면 6 유지" 3가지 모두 코드 경로는
+    구현됐으나 실행 검증은 대기).
+
 ## 진행 중
 
 - (없음)
@@ -224,10 +266,10 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
 - `.env`의 anon key가 플레이스홀더 상태 — Phase 3 소셜 로그인/DB 저장
   코드 전부 작성 완료했으나 이 값이 없어 실기기 E2E 테스트 불가
   (HANDOFF.md 참조, 대시보드에서 복사 필요)
-- Supabase Auth 카카오/구글/애플 프로바이더 대시보드 설정 여부 미확인
-  — `mcp__claude_ai_Supabase__list_projects`/`get_project`로는 Auth
-  프로바이더 설정이 노출되지 않음(이 MCP 도구 세트의 범위 밖). 사람이
-  대시보드(Authentication → Providers)에서 직접 확인·설정 필요
+- **(2026-08-25 해결)** Supabase Auth 카카오 프로바이더 + Redirect URL
+  (`ondolog://**`, `exp://**`) 대시보드 설정 완료(사람 작업) — 앱 코드
+  쪽 수동 OAuth 플로우 구현도 완료(위 "완료" 절 참조). 구글/애플은
+  여전히 프로바이더 미설정 상태(화면에서 안내 문구로 막아둠).
 - avatars Storage 버킷 정책 미정 (경로 규칙 확정 필요, HANDOFF.md 참조
   — Phase 3는 대표사진 업로드 UI를 만들지 않아 이번엔 영향 없음)
 - love_type_labels 36종 **네이밍·카피는 확보됨**(`src/constants/loveTypeLabels.ts`,

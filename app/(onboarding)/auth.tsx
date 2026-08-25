@@ -133,6 +133,16 @@ export default function AuthScreen() {
 
   const handlePress = async (provider: SocialProvider) => {
     if (!canProceed) return // 방어적 가드 — 버튼은 이미 비활성 상태다.
+
+    if (provider !== 'kakao') {
+      // Supabase 대시보드에 구글/애플 프로바이더가 아직 설정되지 않았다
+      // (`.claude/state/HANDOFF.md`). 동의 체크 상태는 건드리지 않는다 —
+      // OAuth 호출 자체를 시작하지 않으므로 6-5(실패 시 동의 유지)와
+      // 무관하게 유지된다.
+      Alert.alert('준비 중이에요', '지금은 카카오 로그인만 이용할 수 있어요.')
+      return
+    }
+
     setPendingProvider(provider)
     try {
       const { cancelled } = await signInWithSocialProvider(provider)
