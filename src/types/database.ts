@@ -962,6 +962,10 @@ export type Database = {
           },
         ]
       }
+      // ⚠️ 017_profiles_marketing_consent.sql 반영을 위해 수동 편집됨
+      // (marketing_agreed_at 추가, terms/privacy_agreed_at의 Insert 필수화).
+      // 마이그레이션을 원격에 적용한 뒤 `supabase gen types`로 재생성해
+      // 이 주석을 지우고 실제 생성 결과와 대조할 것.
       profiles: {
         Row: {
           ai_usage_agreed_at: string | null
@@ -973,6 +977,7 @@ export type Database = {
           display_name: string
           gender: Database["public"]["Enums"]["gender_type"]
           id: string
+          marketing_agreed_at: string | null
           mbti: string | null
           onboarding_step: number
           photo_scan_completed_at: string | null
@@ -994,15 +999,16 @@ export type Database = {
           display_name: string
           gender: Database["public"]["Enums"]["gender_type"]
           id: string
+          marketing_agreed_at?: string | null
           mbti?: string | null
           onboarding_step?: number
           photo_scan_completed_at?: string | null
           photo_scan_cursor?: string | null
           photo_sync_enabled?: boolean
-          privacy_agreed_at?: string
+          privacy_agreed_at: string
           purge_scheduled_at?: string | null
           reference_photo_path?: string | null
-          terms_agreed_at?: string
+          terms_agreed_at: string
           updated_at?: string
         }
         Update: {
@@ -1015,6 +1021,7 @@ export type Database = {
           display_name?: string
           gender?: Database["public"]["Enums"]["gender_type"]
           id?: string
+          marketing_agreed_at?: string | null
           mbti?: string | null
           onboarding_step?: number
           photo_scan_completed_at?: string | null

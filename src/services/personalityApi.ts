@@ -9,11 +9,23 @@
  * 세이브포인트 정수는 `src/constants/onboardingStep.ts`(SCHEMA.md
  * `profiles.onboarding_step` 0~3 CHECK 제약) 참조.
  *
+ * `createProfileAndAssessment`는 화면 6 동의 체크리스트
+ * (`ConsentChecklist`)가 필수 항목 전체 체크를 확인한 뒤에만 호출된다
+ * (`app/(onboarding)/auth.tsx`) — terms_agreed_at/privacy_agreed_at/
+ * ai_usage_agreed_at는 이 호출 시점의 `now()`를 그대로 쓴다(MASTER.md
+ * 6-5 데이터 처리 다이어그램과 동일: "인증 성공 시 profiles 레코드
+ * 생성 → terms_agreed_at = now() …"). marketing_agreed_at은 선택
+ * 항목이라 체크 여부(`marketingAgreed`)에 따라 now() 또는 null이다.
+ * 017 마이그레이션이 terms_agreed_at/privacy_agreed_at의 default now()를
+ * 제거했으므로, 이 함수를 거치지 않고는(즉 동의 없이는) profiles
+ * insert 자체가 not-null 제약 위반으로 실패한다.
+ *
  * ⚠️ `.env`의 EXPO_PUBLIC_SUPABASE_ANON_KEY가 플레이스홀더 상태라 이
  * 파일의 호출부는 실기기/에뮬레이터에서 아직 end-to-end 검증이
  * 불가능하다(.claude/state/HANDOFF.md 참조). 스키마·RLS 정책
  * (`supabase/migrations/003_profiles.sql`, `004_personality.sql`,
- * `012_rls_policies.sql`)과 대조해 컬럼명은 맞춰뒀다.
+ * `012_rls_policies.sql`, `017_profiles_marketing_consent.sql`)과
+ * 대조해 컬럼명은 맞춰뒀다.
  */
 
 import { ONBOARDING_STEP } from '../constants/onboardingStep'
@@ -43,6 +55,8 @@ export interface CreateProfileAndAssessmentInput {
   q4: QuizChoice
   q5: QuizChoice
   result: LoveTypeInferenceResult
+  /** 화면 6 "마케팅 정보 수신 동의(선택)" 체크 여부. */
+  marketingAgreed: boolean
 }
 
 /**
@@ -50,10 +64,11 @@ export interface CreateProfileAndAssessmentInput {
  * — 이후 앱이 죽어도 화면 7부터 정상 재개할 수 있어야 하므로, 원본
  * 응답(q1~q5)과 산출값을 이 시점에 전부 저장한다.
  *
- * 표준 boilerplate 안내 문구만으로 terms_agreed_at/privacy_agreed_at을
- * 채운다 — Part 9-1 8화면 스펙에 별도의 약관 동의 화면이 없어 실제
- * 법적 동의 UI(체크박스 + 약관 링크)는 미확정 상태다. 상세는
- * `.claude/state/HANDOFF.md` 참조.
+ * 필수 동의 3종(terms/privacy/ai_usage)은 이 함수가 불리는 시점 자체가
+ * "동의 체크 완료 → 소셜 로그인 성공"을 의미하므로 전부 `now()`로
+ * 채운다. 호출부(`app/(onboarding)/auth.tsx`)가 `ConsentChecklist`의
+ * 필수 항목이 전부 체크된 경우에만 로그인 버튼을 활성화하므로, 동의
+ * 없이 이 함수가 호출되는 경로는 없다.
  */
 export async function createProfileAndAssessment(
   input: CreateProfileAndAssessmentInput,
@@ -70,6 +85,8 @@ export async function createProfileAndAssessment(
       onboarding_step: ONBOARDING_STEP.AUTH,
       terms_agreed_at: now,
       privacy_agreed_at: now,
+      ai_usage_agreed_at: now,
+      marketing_agreed_at: input.marketingAgreed ? now : null,
     },
     { onConflict: 'id' },
   )

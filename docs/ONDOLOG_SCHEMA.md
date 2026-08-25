@@ -180,10 +180,14 @@ create table public.profiles (
   -- 얼굴 인식 기준 '개인 대표사진' 1장 (사진 원본만. 벡터 아님)
   reference_photo_path      text,
 
-  -- 약관
-  terms_agreed_at           timestamptz not null default now(),
-  privacy_agreed_at         timestamptz not null default now(),
+  -- 약관 (화면 6 개정판, 017 마이그레이션 — MASTER.md "화면 6 약관 동의 명세")
+  -- terms_agreed_at/privacy_agreed_at은 원래 default now()였으나 제거했다.
+  -- 기본값이 있으면 동의 없이도 레코드가 생성돼 "동의 없이 profiles 레코드가
+  -- 생성되지 않는다"(화면 6 6-6 완료기준)를 강제할 수 없기 때문.
+  terms_agreed_at           timestamptz not null,
+  privacy_agreed_at         timestamptz not null,
   ai_usage_agreed_at        timestamptz,                   -- 채팅 AI 활용 고지 동의
+  marketing_agreed_at       timestamptz,                   -- 선택 동의. null=미동의, 철회 시 null로 복귀
 
   -- 탈퇴 (7일 유예 → 하드 삭제)
   deleted_at                timestamptz,

@@ -1,6 +1,6 @@
 # 진행 상황
 
-최종 갱신: 2026-08-24 (Phase 3 완료)
+최종 갱신: 2026-08-25 (화면 6 약관 동의 개정판 구현)
 
 ## 현재 Phase
 
@@ -172,6 +172,47 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
     상태, 이번 작업으로 생긴 문제 아님, 테스트 실행 자체는 babel-jest
     경유라 무관)
 
+- [x] 화면 6(약관 동의) 개정판 구현 (2026-08-25, 메인 세션)
+  - 근거: docs/ONDOLOG_MASTER.md "MASTER Part 9-1 보강 — 화면 6 약관
+    동의 명세"(개정판)
+  - **신규**: `src/constants/consent.ts`(MIN_AGE_YEARS=14, 잠정값),
+    `src/constants/legalDocuments.ts`(이용약관/개인정보처리방침/AI
+    데이터 활용/마케팅 4종 — 전부 "[자리표시자]" 안내형, 실제 조문
+    아님), `src/utils/age.ts`(calculateAge, 순수 함수),
+    `src/components/Checkbox.tsx`, `src/components/LegalDocumentModal.tsx`,
+    `src/components/ConsentChecklist.tsx`
+  - **수정**: `app/(onboarding)/auth.tsx`(체크리스트 통합, 소셜 로그인
+    버튼 3개를 필수 동의 미충족 시 비활성화하는 방식으로 6-1 CTA
+    구현), `src/services/personalityApi.ts`(marketing_agreed_at 저장
+    추가, ai_usage_agreed_at을 이제 실제로 채움)
+  - **스키마**: `supabase/migrations/017_profiles_marketing_consent.sql`
+    (marketing_agreed_at 컬럼 신설 + terms/privacy_agreed_at의
+    default now() 제거) — **원격 미적용, db-architect/사람 작업
+    필요**(HANDOFF.md 4번). docs/ONDOLOG_SCHEMA.md도 함께 갱신.
+  - **테스트**: `__tests__/utils/age.test.ts`(6개, 생일 경계·윤년 포함),
+    `__tests__/components/ConsentChecklist.test.tsx`(8개) — 신규 14개.
+    기존 131개 + 신규 14개 = **145개 전부 통과**
+    (`npx jest --ci --watchAll=false`)
+  - **정적 검증**: `npx tsc --noEmit -p .` — app/src 전 파일 0 에러
+    (테스트 파일 jest 전역 타입 미설정은 Phase 2부터의 기존 상태,
+    이번 작업으로 생긴 문제 아님)
+  - **완료기준 자가 점검** (MASTER.md 6-6, 7개 중 6개 충족 확인 +
+    1개는 해석 판단 필요 — 상세 근거 `.claude/state/DECISIONS.md`
+    2026-08-25 항목):
+    1. 필수 항목(만14세+약관+개인정보+AI활용) 전체 체크해야 버튼
+       활성화 — ✅
+    2. 각 항목에 전문 [보기] 링크 — ②③④⑤는 ✅, ①(만14세)은 문서
+       자체가 없어 링크를 두지 않음 — **해석 판단, 코디네이터 확인
+       필요**
+    3. birth_date 기준 만 14세 미만 가입 차단 — ✅ (버튼 비활성화로
+       구조적 차단)
+    4. AI 활용 동의가 이용약관과 분리된 별도 항목 — ✅
+    5. 생체정보 동의 항목 없음 — ✅
+    6. 인증 실패 후 재시도 시 동의 상태 유지 — ✅ (React 로컬 state,
+       리셋 경로 없음)
+    7. 동의 없이 profiles 레코드 생성 안 됨 — ✅ (버튼 게이팅 +
+       useEffect 방어적 재검사 + DB default 제거 3중)
+
 ## 진행 중
 
 - (없음)
@@ -197,11 +238,9 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
 - "미확정 4곳"(온도 결합공식/DNA base_score 궁합공식/OVR 포지션
   가중치/베이지안 수축보정) — 여전히 미해결, Phase 4(메인 탭) 착수 전
   확정 필요(메인 탭 히어로가 온도값을 노출하므로)
-- 온보딩 화면 6(약관 동의) — Part 9-1 8화면 스펙에 별도 약관 동의 UI가
-  없는데 `profiles.terms_agreed_at`/`privacy_agreed_at`은 NOT NULL이다.
-  이번엔 표준 boilerplate 안내 문구 한 줄만 넣고 가입 시각을 그대로
-  채워 넣는 임시 처리로 막아뒀다(`src/services/personalityApi.ts`
-  docblock 참조) — 실제 법적 동의 화면(체크박스+약관 링크) 설계 필요
+- **(2026-08-25 해결)** 온보딩 화면 6(약관 동의) 실제 UI 구현 완료 —
+  위 "완료" 절 참조. 남은 것은 017 마이그레이션 원격 적용과 약관 본문
+  작성(둘 다 사람 작업, HANDOFF.md 4번)
 - "이미지로 저장"(화면5) — `react-native-view-shot` 등 뷰 캡처 라이브러리
   미설치라 버튼만 있고 안내 alert만 뜬다. 후속 작업으로 남김
 - 화면 5 "가입 버튼이 공유 버튼보다 강조되지 않음"은 스타일 코드

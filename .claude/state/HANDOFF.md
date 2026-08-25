@@ -97,12 +97,19 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
 3. **iOS Dev Build 없음** — Apple 로그인은 iOS 실기기가 있어야 검증
    가능(Apple Developer 계정 대기 중). Android에서는 카카오/구글
    웹 리다이렉트 플로우를 안드로이드 Dev Build로 검증 가능할 수 있다.
-4. **온보딩 화면 6 약관 동의 UI 부재** — Part 9-1 8화면 스펙에 별도
-   약관 동의 화면이 없는데 `profiles.terms_agreed_at`/`privacy_agreed_at`은
-   NOT NULL이다. 지금은 표준 안내 문구 한 줄 + 가입 시각 자동 기록으로
-   막아뒀다 — 실제 법적 동의 절차(체크박스, 약관/처리방침 문서 링크)
-   설계가 필요하다(ROADMAP.md "채팅 데이터 개인정보 동의 절차 설계"
-   항목과 함께 처리하는 게 효율적일 수 있음).
+4. **(2026-08-25 구현 완료) 017 마이그레이션 원격 미적용** — 화면 6
+   약관 동의 UI는 구현 완료(`app/(onboarding)/auth.tsx`,
+   `src/components/ConsentChecklist.tsx` 등). 단
+   `supabase/migrations/017_profiles_marketing_consent.sql`
+   (marketing_agreed_at 컬럼 추가 + terms/privacy_agreed_at
+   default now() 제거)을 원격에 아직 push하지 않았다 — 사람이
+   `npx supabase db push` 실행 후 `supabase gen types`로
+   `src/types/database.ts` 재생성 필요(지금은 수동 패치 상태).
+   미적용 상태에서는 marketing_agreed_at upsert가 실패한다.
+   상세는 `.claude/state/DECISIONS.md` 2026-08-25 항목 참조.
+   약관/개인정보처리방침/AI 활용 고지 **본문은 여전히 자리표시자**다
+   (`src/constants/legalDocuments.ts`) — 출시 전 법무 검토 본문으로
+   교체 필요.
 5. **avatars Storage 버킷 정책 미정** — 개인/커플 대표사진 경로 규칙
    (`{user_id}/...` vs `{couple_id}/...`)이 SCHEMA.md에 없어 결정을
    미뤘다(Phase 3는 사진 업로드 화면이 없어 영향 없었음). 대표사진
