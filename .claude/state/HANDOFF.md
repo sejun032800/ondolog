@@ -105,25 +105,49 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
 `compatibility.ts` 파일 상단 docblock에 상세 근거 기록. **콘텐츠팀
 확인 후 원문이 다르게 확정되면 이 항목만 교체할 것.**
 
+## Phase 5(채팅 실시간) 산출 요약 — Phase 6+가 가져다 쓰는 용도
+
+- **`src/hooks/useRealtimeMessages.ts`**가 채팅 화면의 유일한 데이터 소스다.
+  `messages`/`stories` 조회·전송·읽음처리 로직은 전부 `src/services/chatApi.ts`에
+  있다 — 다른 Phase가 채팅 데이터를 건드릴 일이 있으면(예: Phase 7 AI 감정
+  태깅 배치가 `warmth_score`를 채우는 쪽) 이 파일들의 쿼리 패턴을 참고할 것.
+  `warmth_score`/`sentiment`/`analyzed_at`은 Phase 5 어디에서도 읽거나 쓰지
+  않는다(의도적 — Phase 7 전용).
+- **오프라인 큐는 메모리 상주**(`useRealtimeMessages` 내부 `useRef`,
+  AsyncStorage 영속화 없음) — 앱이 강제 종료되면 큐도 사라진다. "재전송해도
+  중복 삽입 안 됨"만 요구사항이었고 "앱 재시작 후에도 큐가 남아있어야
+  한다"는 이번 범위에 없었다. 필요해지면 이 훅에 영속화를 추가해야 한다.
+- **`client_msg_id` 멱등 재전송 패턴**: insert 시도 → 유니크 제약 위반(23505)이면
+  기존 행을 재조회해 성공으로 간주(`src/services/chatApi.ts` `sendMessage`).
+  다른 테이블에도 같은 멱등 재전송이 필요해지면(예: 피드 업로드) 이 패턴을
+  재사용할 수 있다.
+
 ## 여전히 필요한 처리 (사람 작업)
 
-1. **`.env`의 `EXPO_PUBLIC_SUPABASE_ANON_KEY`가 플레이스홀더 상태** —
+1. **`supabase_realtime` publication에 `messages`(및 필요 시 `stories`)가
+   빠져 있다** — 원격 프로젝트에 직접 쿼리(`select * from
+   pg_publication_tables where pubname = 'supabase_realtime'`)해 확인함,
+   결과 0행. `alter publication supabase_realtime add table
+   public.messages;`를 마이그레이션으로 적용해야 상대방 기기가 채팅을
+   실시간으로 수신한다(현재는 화면 재진입 시에만 최신화됨). db-architect
+   영역 — Phase 5는 읽기 전용 확인만 하고 적용하지 않았다(작업 지시 준수).
+2. **`.env`의 `EXPO_PUBLIC_SUPABASE_ANON_KEY`가 플레이스홀더 상태** —
    Supabase 대시보드(Project Settings → API)에서 실제 anon public key를
    복사해 채워야 소셜 로그인/DB 저장 코드가 실제로 동작한다. Phase 3
    코드는 이 값이 채워지는 즉시 동작하도록 전부 작성돼 있다(anon
    key는 클라이언트 노출이 전제인 공개 키라 이 세션이 대신 채워도
    되는지 애매해 손대지 않았다 — 필요하면 다음 턴에 MCP로 조회해
    채워 넣을 수 있다).
-2. **Supabase Auth 대시보드에 카카오/구글/애플 OAuth 프로바이더가
+3. **Supabase Auth 대시보드에 카카오/구글/애플 OAuth 프로바이더가
    설정돼 있는지 미확인** — `mcp__claude_ai_Supabase__list_projects`/
    `get_project`로는 Auth 프로바이더 설정이 노출되지 않아 이 세션에서
    확인 불가했다. Authentication → Providers에서 3종 활성화 + 각
    프로바이더 개발자 콘솔에 리다이렉트 URI
    (`https://<project-ref>.supabase.co/auth/v1/callback`) 등록 필요.
-3. **iOS Dev Build 없음** — Apple 로그인은 iOS 실기기가 있어야 검증
+4. **iOS Dev Build 없음** — Apple 로그인은 iOS 실기기가 있어야 검증
    가능(Apple Developer 계정 대기 중). Android에서는 카카오/구글
    웹 리다이렉트 플로우를 안드로이드 Dev Build로 검증 가능할 수 있다.
-4. **(2026-08-25 구현 완료) 017 마이그레이션 원격 미적용** — 화면 6
+5. **(2026-08-25 구현 완료) 017 마이그레이션 원격 미적용** — 화면 6
    약관 동의 UI는 구현 완료(`app/(onboarding)/auth.tsx`,
    `src/components/ConsentChecklist.tsx` 등). 단
    `supabase/migrations/017_profiles_marketing_consent.sql`
@@ -136,12 +160,12 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
    약관/개인정보처리방침/AI 활용 고지 **본문은 여전히 자리표시자**다
    (`src/constants/legalDocuments.ts`) — 출시 전 법무 검토 본문으로
    교체 필요.
-5. **avatars Storage 버킷 정책 미정** — 개인/커플 대표사진 경로 규칙
+6. **avatars Storage 버킷 정책 미정** — 개인/커플 대표사진 경로 규칙
    (`{user_id}/...` vs `{couple_id}/...`)이 SCHEMA.md에 없어 결정을
    미뤘다(Phase 3는 사진 업로드 화면이 없어 영향 없었음). 대표사진
    업로드 UI를 만드는 Phase에서 경로 규칙 확정 + 후속 마이그레이션
    (017 등)으로 정책 추가 필요.
-6. **연애 온도 결합 공식이 없다** (`src/engine/temperature.ts`) — Part 9-2
+7. **연애 온도 결합 공식이 없다** (`src/engine/temperature.ts`) — Part 9-2
    "선행 프로젝트의 연애 일치율 로직 계승"의 원문이 저장소 어디에도
    없다. 기본값(36.5)·클램프만 구현된 상태. **(2026-08-25 갱신)** Phase
    4는 이미 완료됐다 — 메인 탭은 저장값이 없으면 숫자 대신 대기 문구를
@@ -149,18 +173,18 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
    다만 이 공식 자체는 **일 배치 Edge Function을 실제로 만드는 시점에는
    반드시 확정돼야 한다** — 그 전까지는 연결된 커플도 온도가 계속
    "측정 준비 중"으로만 보인다.
-7. **DNA base_score 궁합 공식 + 애니어그램 9×9 매트릭스**
+8. **DNA base_score 궁합 공식 + 애니어그램 9×9 매트릭스**
    (`src/engine/dnaScore.ts`) — Part 17-2 가중치 미확정. Phase 3의
    `src/constants/compatibility.ts`(애니어그램 코어 궁합, 화면 7용)와는
    **별개**다 — 그건 1인 상태에서 보는 구조적 참고 자료이고, 이건
    커플 연결 후 빅5·스턴버그·애착까지 결합한 실제 DNA 일치율 계산용.
-8. **OVR 포지션 가중치 표 + 연애 포지션 네이밍이 없다**
+9. **OVR 포지션 가중치 표 + 연애 포지션 네이밍이 없다**
    (`src/engine/leagueStats.ts`). 현재 6개 스탯 단순 평균.
-9. **베이지안 수축(shrinkage) 보정 파라미터가 없다**
+10. **베이지안 수축(shrinkage) 보정 파라미터가 없다**
    (`src/engine/leagueStats.ts`).
-10. **`daily_temperature.engine_version` 컬럼 부재** — db-architect 판단
+11. **`daily_temperature.engine_version` 컬럼 부재** — db-architect 판단
     필요.
-11. **화면 5 "이미지로 저장" 미구현** — `react-native-view-shot` 등 뷰
+12. **화면 5 "이미지로 저장" 미구현** — `react-native-view-shot` 등 뷰
     캡처 라이브러리가 미설치라 안내 alert만 뜬다. 공유하기(OS 공유
     시트)는 실제로 동작한다.
 

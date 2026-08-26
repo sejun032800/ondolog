@@ -1,10 +1,10 @@
 # 진행 상황
 
-최종 갱신: 2026-08-25 (Phase 4 완료 — 5개 탭 UI + 라우팅)
+최종 갱신: 2026-08-26 (Phase 5 완료 — 채팅 실시간 + 스토리)
 
 ## 현재 Phase
 
-Phase 4 — 5개 탭 UI + 라우팅 (완료)
+Phase 5 — 채팅 실시간 (완료, rule-auditor 감사 통과)
 
 ## 완료
 
@@ -401,9 +401,70 @@ Phase 4 — 5개 탭 UI + 라우팅 (완료)
     들여쓰기+화자 라벨 규격 적용 — 이 부분 Phase 5 범위라 이번엔 골격만
     토큰 교체.
 
+- [x] Phase 5 — 채팅 실시간 + 스토리 (2026-08-26, ui-builder)
+  - **범위**: Supabase Realtime 1:1 채팅(텍스트, 이미지는 자리표시자), 오프라인
+    큐잉 → 복구 시 재전송(`client_msg_id` 멱등 키), 읽음 표시(read_at), 스토리
+    (작성 UI + 목록 표시 — 만료/보관 배치는 Edge Function 영역이라 이번 범위
+    아님, `013_batch_functions.sql`의 `expire_stories`가 계속 담당).
+  - **신규**: `src/hooks/useRealtimeMessages.ts`(Realtime 구독 + 낙관적 추가 +
+    병합 + 큐잉/재시도 + 읽음 트리거 + 스토리 로드/작성), `src/services/chatApi.ts`
+    (`sendMessage`가 23505 유니크 위반을 "이미 전송됨"으로 간주해 기존 행을
+    재조회하는 방식으로 멱등성 구현, `markMessagesRead`는 `sender_id`가 본인인
+    행을 쿼리에서 제외, `fetchStories`/`createStory` — stories는 update 정책이
+    없어 update 쿼리 자체를 만들지 않음), `src/utils/chatQueue.ts`(오프라인
+    큐 판단 순수 함수), `src/utils/chatMessages.ts`(병합·정렬·읽음대상·날짜그룹
+    순수 함수), `src/utils/uuid.ts`(client_msg_id 생성),
+    `src/components/ChatBubble.tsx`/`ChatDateDivider.tsx`/`StoryStrip.tsx`.
+  - **수정**: `app/(tabs)/chat.tsx`(전면 재작성, `<CoupleGate autoOpenInvite>`
+    게이팅은 Phase 4 그대로 유지).
+  - **오프라인 큐 설계 판단**: `@react-native-community/netinfo` 등 새 네이티브
+    모듈을 추가하지 않았다(DECISIONS.md 2026-08-25 "네이티브 재빌드 일괄 처리"
+    결정 준수 — Phase 6까지 신규 네이티브 모듈 보류). 대신 순수 JS로 "전송 실패
+    시 메모리 큐 적재 → 4초 재시도 타이머 + Realtime 채널 재연결(SUBSCRIBED)
+    시점에 큐 비우기" 방식을 택했다. 큐는 메모리 상주(AsyncStorage 영속화
+    없음) — "재전송 시 중복 삽입 안 됨"이라는 완료 기준은 만족하지만 "앱이
+    강제 종료돼도 큐가 살아남는다"는 별개 요구이고 이번 지시에는 없었다(추후
+    필요해지면 별도 판단 필요).
+  - **코디네이터 리뷰 중 발견해 되돌리게 한 버그**: `chatMessages.ts`의 날짜
+    구분선 로직(`dateKeyOf`)이 최초 구현에서 `sentAt.slice(0, 10)`로 UTC 날짜를
+    그대로 잘라 썼다 — 같은 메시지의 시각 표시(`ChatBubble`의 `formatTime`)는
+    `new Date(iso).getHours()`로 기기 로컬(KST) 시각을 보여주는데, 이 둘의
+    기준이 달랐다. KST 자정~오전 9시(UTC 15:00~24:00)에 온 메시지가 "어제
+    날짜 구분선 아래 + 오전 X시"로 표시되는 모순이 매일 발생하는 흔한 경계
+    였다. 에이전트에게 로컬 타임존 기준(`getFullYear()`/`getMonth()`/
+    `getDate()`)으로 고치도록 요청해 수정 완료, 경계 테스트 2개 추가
+    (TZ=UTC/America/Los_Angeles로도 결정론 확인).
+  - **Realtime publication 미설정 — 사람 작업 필요**: 서브에이전트가 원격
+    프로젝트에 읽기 전용 쿼리(`select ... from pg_publication_tables where
+    pubname = 'supabase_realtime'`)를 실행한 결과 **`messages`/`stories`
+    어느 테이블도 `supabase_realtime` publication에 포함돼 있지 않다.**
+    `alter publication supabase_realtime add table public.messages;`가
+    적용되기 전까지는 상대방 기기가 실시간으로 메시지를 받지 못한다(화면
+    재진입 시 `fetchMessages`로만 갱신됨 — 발신자 쪽은 낙관적 추가 +
+    insert 응답으로 정상 동작). db-architect/사람이 마이그레이션으로
+    적용 필요(HANDOFF.md 참조). 오프라인 큐 멱등성(완료 기준 2)은 이
+    publication과 무관하게 DB 유니크 제약만으로 보장되므로 영향 없음.
+  - **테스트**: 신규 28개(`chatQueue` 4, `chatMessages` 15, `uuid` 5, 기타
+    포함) — 기존 159개 + 신규 28개 = **187개 전부 통과**
+    (`npx jest --ci --watchAll=false`, 코디네이터 재실행 확인).
+  - **정적 검증**: `npx tsc --noEmit -p .` — 신규 파일 기준 0 에러(잔존 에러는
+    전부 기존 jest 전역 타입 미설정 패턴, Phase 2부터의 기존 상태, 무관 —
+    코디네이터가 필터링해 확인).
+  - **DESIGN.md §17 검증**: 신규 9개 파일 대상 하드코딩 헥스색/shadow·elevation/
+    fontWeight/아이콘 라이브러리/borderRadius 리터럴 전부 0건(코디네이터 직접
+    grep 재확인).
+  - **rule-auditor 감사(Haiku)**: 절대 규칙 1~7 전부 위반 없음, 완료 기준 8개
+    전부 통과, 설정 파일(package.json 등) 무단 변경 없음, Phase 7 영역
+    (warmth_score/sentiment/analyzed_at) 미침해 확인. RLS 재검증(항목 3)은
+    DB 접근 권한 없어 스킵 — 이번 Phase가 새 테이블/컬럼을 추가하지 않고
+    Phase 1에서 이미 검증된 `messages`/`stories`를 그대로 재사용하므로 영향
+    없다고 판단.
+  - **완료기준 자가 점검**: 위임 프롬프트의 완료 기준 8개 전부 rule-auditor +
+    코디네이터 직접 재검증(diff/jest/tsc/grep)으로 통과 확인.
+
 ## 진행 중
 
-(없음 — Phase 4 완료 + 디자인 시스템 적용 완료. 다음 Phase는 코디네이터 지시 대기)
+(없음 — Phase 5 완료. 다음 Phase는 코디네이터 지시 대기)
 
 ## 보류 (Phase 6 재빌드 시 처리)
 
@@ -424,6 +485,12 @@ Phase 4 — 5개 탭 UI + 라우팅 (완료)
 
 ## 막힌 것
 
+- **(신규, 2026-08-26)** `supabase_realtime` publication에 `messages`/`stories`
+  테이블이 등록돼 있지 않다(원격 프로젝트 `pg_publication_tables` 직접 조회로
+  확인) — `alter publication supabase_realtime add table public.messages;`
+  마이그레이션 필요(db-architect/사람 작업, HANDOFF.md 참조). 적용 전까지는
+  Realtime 구독이 상대방의 메시지를 실시간으로 받지 못한다(재진입 시
+  `fetchMessages`로만 동기화됨 — 발신자 쪽 낙관적 표시는 정상).
 - iOS Dev Build 미완 (Apple Developer 계정 필요) — Apple 로그인 실기기
   검증 불가
 - `.env`의 anon key가 플레이스홀더 상태 — Phase 3 소셜 로그인/DB 저장
@@ -472,14 +539,16 @@ Phase 4 — 5개 탭 UI + 라우팅 (완료)
 
 ## 다음
 
-Phase 4 완료(5개 탭 UI + 라우팅) + 코디네이터 리뷰 반영 완료
-(2026-08-25: 온도 문구 교체, 마일스톤 강조 구현, D+N 오프셋/사귄일수
-규격 `docs/ONDOLOG_MASTER.md` Part 9-2에 문서화). 다음 Phase(채팅 실시간
-— Phase 5) 착수 전 확인 필요 사항:
-- 아래 "검증용 SQL"로 미연결/연결 두 시나리오를 Supabase 대시보드에서
-  직접 실행해 메인 탭 동작을 실기기/시뮬레이터로 확인해달라(anon key가
-  채워진 이후 가능 — HANDOFF.md 1번 참조). 마일스톤 강조를 보려면
-  `relationship_start_date`를 오늘 기준 93일 전(임박) 또는 정확히
-  100/365일 전(당일)으로 잡아 넣으면 된다.
+Phase 5 완료(채팅 실시간 + 스토리) + rule-auditor 감사 통과. Phase 6(피드 +
+얼굴 인식, 메인 세션 전담) 착수 전 확인/처리 필요 사항:
+- **`alter publication supabase_realtime add table public.messages;`
+  (및 필요 시 `stories`) 마이그레이션 적용** — 사람/db-architk 작업. 이게
+  없으면 채팅 실시간 수신이 화면 재진입 전까지 동작하지 않는다(위 "막힌 것"
+  참조).
+- 아래 "검증용 SQL"(Phase 4 절 참조)로 미연결/연결 두 시나리오를 Supabase
+  대시보드에서 직접 실행해 메인 탭 동작을 실기기/시뮬레이터로 확인해달라
+  (anon key가 채워진 이후 가능 — HANDOFF.md 1번 참조).
 - "다음 발행까지 남은 기간"은 여전히 Phase 7~8로 확정 연기(위 "막힌 것"
-  참조) — 나머지는 이번에 전부 해소됨.
+  참조).
+- Phase 6은 네이티브 모듈(얼굴 인식·카카오맵)이 핵심이라 서브에이전트
+  위임 금지, 메인 세션이 직접 진행(ROADMAP.md 원문).
