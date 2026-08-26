@@ -5,7 +5,7 @@
  * 추가하지 않는다 — DateInput.tsx가 같은 이유로 택한 패턴).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { COLORS } from '../constants/theme'
+import { useTheme } from '../theme'
 
 interface CheckboxProps {
   checked: boolean
@@ -27,6 +27,8 @@ export function Checkbox({
   onPressLink,
   testID,
 }: CheckboxProps) {
+  const { colors, typography, radius } = useTheme()
+
   return (
     <View style={styles.row}>
       <Pressable
@@ -37,10 +39,23 @@ export function Checkbox({
         testID={testID}
         hitSlop={4}
       >
-        <View style={[styles.box, checked && styles.boxChecked]}>
-          {checked && <Text style={styles.check}>✓</Text>}
+        <View
+          style={[
+            styles.box,
+            { borderColor: colors.inkFull, borderRadius: radius.touch },
+            checked && { backgroundColor: colors.inkFull },
+          ]}
+        >
+          {checked && <Text style={[styles.check, { color: colors.paper }]}>✓</Text>}
         </View>
-        <Text style={[styles.label, bold && styles.labelBold]}>{label}</Text>
+        <Text
+          style={[
+            bold ? typography.title : typography.body,
+            { color: colors.inkFull, flexShrink: 1 },
+          ]}
+        >
+          {label}
+        </Text>
       </Pressable>
       {linkLabel && onPressLink && (
         <Pressable
@@ -49,7 +64,11 @@ export function Checkbox({
           hitSlop={8}
           testID={testID ? `${testID}-link` : undefined}
         >
-          <Text style={styles.link}>{linkLabel}</Text>
+          <Text
+            style={[typography.caption, { color: colors.inkFull, textDecorationLine: 'underline' }]}
+          >
+            {linkLabel}
+          </Text>
         </Pressable>
       )}
     </View>
@@ -61,16 +80,10 @@ const styles = StyleSheet.create({
   pressable: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 10 },
   box: {
     alignItems: 'center',
-    borderColor: COLORS.border,
-    borderRadius: 6,
     borderWidth: 1.5,
     height: 22,
     justifyContent: 'center',
     width: 22,
   },
-  boxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  check: { color: COLORS.primaryText, fontSize: 14, fontWeight: '700' },
-  label: { color: COLORS.text, flexShrink: 1, fontSize: 14 },
-  labelBold: { fontWeight: '700' },
-  link: { color: COLORS.accent, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
+  check: { fontSize: 14 },
 })

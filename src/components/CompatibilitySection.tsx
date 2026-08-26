@@ -23,6 +23,7 @@ import {
   COMPATIBILITY_FRAMING_TEXT,
 } from '../constants/compatibility'
 import { ENNEAGRAM_CORE_EN, ENNEAGRAM_CORE_KO } from '../constants/loveTypeLabels'
+import { useTheme } from '../theme'
 import type { EnneagramCore } from '../constants/enneagram'
 
 interface CompatibilitySectionProps {
@@ -32,38 +33,57 @@ interface CompatibilitySectionProps {
 
 export function CompatibilitySection({ enneagramCore }: CompatibilitySectionProps) {
   const entry = COMPATIBILITY[enneagramCore]
+  const { colors, typography, spacing, lines } = useTheme()
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>궁합</Text>
+    <View style={{ gap: spacing.s5 }}>
+      <Text style={[typography.headline, { color: colors.inkFull }]}>궁합</Text>
 
-      <View style={styles.block}>
-        <Text style={styles.blockTitle}>온도가 잘 맞는 유형</Text>
+      <View style={{ gap: spacing.s3 }}>
+        <Text style={[typography.title, { color: colors.inkFull }]}>온도가 잘 맞는 유형</Text>
         {entry.best.map((item) => (
-          <View key={item.core} style={styles.row}>
-            <Text style={styles.coreLabel}>
+          <View
+            key={item.core}
+            style={[styles.row, { borderTopColor: colors.rule, borderTopWidth: lines.hairline, paddingTop: spacing.s2, gap: 2 }]}
+          >
+            <Text style={[typography.body, { color: colors.inkFull }]}>
               {item.core} {ENNEAGRAM_CORE_EN[item.core]} {ENNEAGRAM_CORE_KO[item.core]}
             </Text>
-            <Text style={styles.reasonText}>{item.reason}</Text>
+            <Text style={[typography.caption, { color: colors.inkMute }]}>{item.reason}</Text>
           </View>
         ))}
       </View>
 
-      <View style={styles.block}>
-        <Text style={styles.blockTitle}>온도차가 있는 유형</Text>
+      <View style={{ gap: spacing.s3 }}>
+        <Text style={[typography.title, { color: colors.inkFull }]}>온도차가 있는 유형</Text>
 
         {/* Part 10-6-0/10-6-6: 이 문구는 조건 없이 항상 렌더링한다. */}
-        <Text testID="compatibility-framing-text" style={styles.framingText}>
+        <Text
+          testID="compatibility-framing-text"
+          style={[
+            typography.caption,
+            {
+              backgroundColor: colors.paperAlt,
+              borderColor: colors.rule,
+              borderWidth: lines.hairline,
+              color: colors.inkMute,
+              padding: spacing.s3,
+            },
+          ]}
+        >
           {COMPATIBILITY_FRAMING_TEXT}
         </Text>
 
         {entry.contrast.map((item) => (
-          <View key={item.core} style={styles.row}>
-            <Text style={styles.coreLabel}>
+          <View
+            key={item.core}
+            style={[styles.row, { borderTopColor: colors.rule, borderTopWidth: lines.hairline, paddingTop: spacing.s2, gap: 2 }]}
+          >
+            <Text style={[typography.body, { color: colors.inkFull }]}>
               {item.core} {ENNEAGRAM_CORE_EN[item.core]} {ENNEAGRAM_CORE_KO[item.core]}
             </Text>
-            <Text style={styles.reasonText}>{item.reason}</Text>
-            <Text style={styles.tipText}>실행 팁 · {item.tip}</Text>
+            <Text style={[typography.caption, { color: colors.inkMute }]}>{item.reason}</Text>
+            <Text style={[typography.caption, { color: colors.inkFull }]}>실행 팁 · {item.tip}</Text>
           </View>
         ))}
       </View>
@@ -72,20 +92,5 @@ export function CompatibilitySection({ enneagramCore }: CompatibilitySectionProp
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '700' },
-  block: { gap: 10 },
-  blockTitle: { fontSize: 15, fontWeight: '700' },
-  framingText: {
-    backgroundColor: '#F1F0EC',
-    borderRadius: 12,
-    color: '#54504A',
-    fontSize: 13,
-    lineHeight: 20,
-    padding: 12,
-  },
-  row: { gap: 2 },
-  coreLabel: { fontSize: 14, fontWeight: '700' },
-  reasonText: { color: '#4A463F', fontSize: 13, lineHeight: 19 },
-  tipText: { color: '#B9591F', fontSize: 13, fontWeight: '600' },
+  row: {},
 })

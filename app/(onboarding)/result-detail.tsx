@@ -14,18 +14,18 @@
  */
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native'
 import { Big5Bars } from '../../src/components/Big5Bars'
 import { CompatibilitySection } from '../../src/components/CompatibilitySection'
-import { PrimaryButton } from '../../src/components/PrimaryButton'
+import { Button } from '../../src/components/Button'
 import { ScoreBar } from '../../src/components/ScoreBar'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { SecondaryButton } from '../../src/components/SecondaryButton'
+import { TypeLabel } from '../../src/components/TypeLabel'
 import { SternbergTriangle } from '../../src/components/SternbergTriangle'
 import type { EnneagramCore } from '../../src/constants/enneagram'
 import { ATTACHMENT_REFRAME_KO } from '../../src/constants/attachmentDisplay'
 import { ENNEAGRAM_CORE_EN, ENNEAGRAM_CORE_KO, LOVE_TYPE_LABEL_BY_CODE } from '../../src/constants/loveTypeLabels'
-import { COLORS } from '../../src/constants/theme'
+import { useTheme } from '../../src/theme'
 import { useSession } from '../../src/hooks/useSession'
 import {
   ensurePersonalityProfile,
@@ -44,6 +44,7 @@ const ALL_CORES: EnneagramCore[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 export default function ResultDetailScreen() {
   const router = useRouter()
+  const { colors, typography, spacing, radius, attachmentClimate } = useTheme()
   const { session, loading: sessionLoading } = useSession()
   const [assessment, setAssessment] = useState<AssessmentRow | null>(null)
   const [profile, setProfile] = useState<ProfileRow | null>(null)
@@ -81,8 +82,8 @@ export default function ResultDetailScreen() {
   if (sessionLoading || loading || !assessment || !profile) {
     return (
       <ScreenContainer>
-        <View style={styles.center}>
-          <ActivityIndicator color={COLORS.primary} size="large" />
+        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.inkFull} size="large" />
         </View>
       </ScreenContainer>
     )
@@ -90,6 +91,7 @@ export default function ResultDetailScreen() {
 
   const effectiveCore = (profile.enneagram_effective ?? profile.enneagram_inferred) as EnneagramCore
   const label = LOVE_TYPE_LABEL_BY_CODE[profile.love_type_code]
+  const climate = label ? attachmentClimate[label.attachment] : 'ember'
   const candidates = profile.enneagram_override
     ? []
     : getEnneagramCandidates(assessment.q1, profile.enneagram_inferred as EnneagramCore)
@@ -111,16 +113,22 @@ export default function ResultDetailScreen() {
 
   return (
     <ScreenContainer
-      footer={
-        <PrimaryButton label="다음" onPress={() => router.push('/invite')} />
-      }
+      footer={<Button label="다음" onPress={() => router.push('/invite')} />}
     >
       {/* ① 연애유형 라벨 + 상세 설명 */}
-      <View style={styles.section}>
-        <Text style={styles.loveTypeCode}>{profile.love_type_code} · {label?.labelEn}</Text>
-        <Text style={styles.labelKo}>{label?.labelKo ?? profile.love_type_code}</Text>
-        {label?.copyKo && <Text style={styles.copyKo}>{label.copyKo}</Text>}
-        {label?.descriptionKo && <Text style={styles.description}>{label.descriptionKo}</Text>}
+      <View style={{ gap: spacing.s3 }}>
+        <Text style={[typography.caption, { color: colors.inkMute }]}>
+          {profile.love_type_code} · {label?.labelEn}
+        </Text>
+        <TypeLabel
+          labelEn={label?.labelEn ?? profile.love_type_code}
+          labelKo={label?.labelKo ?? profile.love_type_code}
+          copyKo={label?.copyKo}
+          climate={climate}
+        />
+        {label?.descriptionKo && (
+          <Text style={[typography.bodySerif, { color: colors.inkFull }]}>{label.descriptionKo}</Text>
+        )}
       </View>
 
       {/* ② 빅5 5축 막대그래프 */}
@@ -138,16 +146,16 @@ export default function ResultDetailScreen() {
 
       {/* ③ 애니어그램 코어 설명 + 후보 2개 */}
       <Section title="애니어그램 코어">
-        <Text style={styles.coreTitle}>
+        <Text style={[typography.headline, { color: colors.inkFull }]}>
           {effectiveCore} {ENNEAGRAM_CORE_EN[effectiveCore]} {ENNEAGRAM_CORE_KO[effectiveCore]}
         </Text>
-        <Text style={styles.coreGroup}>
+        <Text style={[typography.caption, { color: colors.inkMute }]}>
           {HORNEVIAN_GROUP_KO[effectiveCore]} · {HARMONIC_GROUP_KO[effectiveCore]}
         </Text>
         {candidates.length > 0 && (
-          <View style={styles.candidateBox}>
+          <View style={{ gap: 4, marginTop: 4 }}>
             {candidates.map((c) => (
-              <Text key={c} style={styles.candidateText}>
+              <Text key={c} style={[typography.caption, { color: colors.inkFull }]}>
                 {c} {ENNEAGRAM_CORE_EN[c]} {ENNEAGRAM_CORE_KO[c]}일 수도 있어요
               </Text>
             ))}
@@ -168,46 +176,50 @@ export default function ResultDetailScreen() {
 
       {/* ⑤ 애착 유형 설명 */}
       <Section title="애착">
-        {attachmentReframe && <Text style={styles.copyKo}>{attachmentReframe}</Text>}
+        {attachmentReframe && (
+          <Text style={[typography.body, { color: colors.inkMute }]}>{attachmentReframe}</Text>
+        )}
         <ScoreBar label="불안 축" value={assessment.attach_anxiety} />
         <ScoreBar label="회피 축" value={assessment.attach_avoidance} />
       </Section>
 
       {/* ⑥ 궁합 */}
-      <View style={styles.section}>
+      <View style={{ gap: spacing.s3 }}>
         <CompatibilitySection enneagramCore={effectiveCore} />
       </View>
 
       {/* ⑦ "결과와 달라요" */}
-      <View style={styles.section}>
+      <View style={{ gap: spacing.s3 }}>
         {!showOverride ? (
-          <SecondaryButton label="결과와 달라요" onPress={() => setShowOverride(true)} />
+          <Button variant="secondary" label="결과와 달라요" onPress={() => setShowOverride(true)} />
         ) : (
-          <View style={styles.overrideBox}>
-            <Text style={styles.overrideTitle}>어떤 유형에 더 가까운가요?</Text>
-            <View style={styles.overrideGrid}>
-              {ALL_CORES.map((core) => (
-                <Pressable
-                  key={core}
-                  disabled={overriding}
-                  onPress={() => handleOverride(core)}
-                  style={[
-                    styles.overrideChip,
-                    core === effectiveCore && styles.overrideChipSelected,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.overrideChipText,
-                      core === effectiveCore && styles.overrideChipTextSelected,
-                    ]}
+          <View style={{ gap: spacing.s4 }}>
+            <Text style={[typography.title, { color: colors.inkFull }]}>어떤 유형에 더 가까운가요?</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s2 }}>
+              {ALL_CORES.map((core) => {
+                const isSelected = core === effectiveCore
+                return (
+                  <Pressable
+                    key={core}
+                    disabled={overriding}
+                    onPress={() => handleOverride(core)}
+                    style={{
+                      backgroundColor: isSelected ? colors.inkFull : colors.paperAlt,
+                      borderColor: colors.rule,
+                      borderRadius: radius.touch,
+                      borderWidth: 1,
+                      paddingHorizontal: spacing.s4,
+                      paddingVertical: spacing.s3,
+                    }}
                   >
-                    {core} {ENNEAGRAM_CORE_EN[core]}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text style={[typography.caption, { color: isSelected ? colors.paper : colors.inkFull }]}>
+                      {core} {ENNEAGRAM_CORE_EN[core]}
+                    </Text>
+                  </Pressable>
+                )
+              })}
             </View>
-            <SecondaryButton label="닫기" onPress={() => setShowOverride(false)} />
+            <Button variant="secondary" label="닫기" onPress={() => setShowOverride(false)} />
           </View>
         )}
       </View>
@@ -216,38 +228,11 @@ export default function ResultDetailScreen() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const { colors, typography, spacing } = useTheme()
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={{ gap: spacing.s3 }}>
+      <Text style={[typography.title, { color: colors.inkFull }]}>{title}</Text>
       {children}
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  center: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  section: { gap: 10 },
-  sectionTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
-  loveTypeCode: { color: COLORS.textMuted, fontSize: 13, fontWeight: '700' },
-  labelKo: { color: COLORS.text, fontSize: 26, fontWeight: '800' },
-  copyKo: { color: COLORS.textMuted, fontSize: 15, lineHeight: 22 },
-  description: { color: COLORS.text, fontSize: 14, lineHeight: 21 },
-  coreTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800' },
-  coreGroup: { color: COLORS.textMuted, fontSize: 13 },
-  candidateBox: { gap: 4, marginTop: 4 },
-  candidateText: { color: COLORS.accent, fontSize: 13 },
-  overrideBox: { gap: 12 },
-  overrideTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-  overrideGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  overrideChip: {
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  overrideChipSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  overrideChipText: { color: COLORS.text, fontSize: 13, fontWeight: '700' },
-  overrideChipTextSelected: { color: COLORS.primaryText },
-})

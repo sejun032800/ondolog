@@ -22,10 +22,10 @@
 - `src/engine/dnaScore.ts` — `clampDnaScore`/`computeTotalScore`. base_score
   궁합 공식 없음(아래 "미확정" 참조).
 
-## Phase 3(온보딩 UI) 산출 요약 — Phase 4(메인 탭)가 가져다 쓰는 용도
+## Phase 3(온보딩 UI) 산출 요약 — 이후 Phase가 가져다 쓰는 용도
 
 - **세션 분기**: `app/index.tsx`가 앱 실행 시 세션 유무 +
-  `profiles.onboarding_step`로 라우팅을 전부 결정한다. Phase 4가 메인
+  `profiles.onboarding_step`로 라우팅을 전부 결정한다. 새 Phase가 메인
   탭 진입 로직을 따로 만들 필요 없음 — `onboarding_step`이
   `ONBOARDING_STEP.COMPLETE`(3)면 이미 `/main`으로 보낸다.
 - **`src/constants/onboardingStep.ts`**: `profiles.onboarding_step`은
@@ -33,18 +33,6 @@
   Part 11-1 문서는 "완료/미완료"만 규정하고 구체 정수는 스키마 쪽
   원문(주석 "0=가입직후 … 3=온보딩완료")을 따랐다 — 새 화면을 끼워
   넣더라도 이 범위를 벗어나면 DB insert/update가 즉시 실패한다.
-- **`src/store/coupleStore.ts`** (`isConnected` 등가 상태, Part 9-1 화면 8
-  "전역 상태 coupleStore.isConnected" 원문 명명 그대로 — 실제 필드명은
-  `status: 'unknown'|'loading'|'disconnected'|'connected'`):
-  `refresh(userId)`가 `couples` 테이블을 조회해 상태를 채운다. 연결 시
-  `temperature`는 아직 `daily_temperature` 실제 값을 조회하지 않고
-  36.5 기본값을 유지한다 — **Phase 4가 여기에 실제 조회를 붙여야 한다**
-  (온도 결합 공식이 확정된 뒤에나 의미 있는 값이 나온다는 점 유의).
-- **`src/components/CoupleGate.tsx`**: 커플 전용 기능 공통 래퍼. 기본
-  프롭은 `fallback`(커스텀 잠금 UI)과 `autoOpenInvite`(true면 진입 즉시
-  `/couple-gate` 모달). Phase 4의 메인 탭 커플 전용 섹션, Phase 5(채팅),
-  Phase 7(매거진)에서 이미 배선된 자리(각 탭 파일의 `<CoupleGate>`
-  호출부)에 실제 콘텐츠만 채우면 된다.
 - **`src/services/coupleApi.ts`**: 초대 코드 발급(`getOrCreateInvite`)/
   참여(`redeemInviteCode`)/스킵(`completeOnboardingWithoutCouple`)/
   사귄날짜(`setOrConfirmStartDate`) 전부 RLS 정책만으로 클라이언트
@@ -63,6 +51,44 @@
   그룹 3개로 좁히고 Q2가 그중 1개를 확정 → 나머지 2개가 후보). MBTI
   사전분포(enneagramPrevalence.ts)와는 무관 — 그건 화면 5 "희귀 조합"
   배지 전용으로 그대로 분리 유지했다.
+
+## Phase 4(5개 탭 UI) 산출 요약 — Phase 5+가 가져다 쓰는 용도
+
+- **`src/store/coupleStore.ts`** (`isConnected` 등가 상태, Part 9-1 화면 8
+  "전역 상태 coupleStore.isConnected" 원문 명명 그대로 — 실제 필드명은
+  `status: 'unknown'|'loading'|'disconnected'|'connected'`). 이번
+  Phase에서 필드 확장:
+  - `partnerId: string | null` — 연결 시 상대 profiles.id
+  - `nickname: string | null` — 커플 닉네임(`couples.nickname`)
+  - `temperature: number | null` — **타입이 `number`에서 바뀌었다.**
+    미연결이면 항상 `DISCONNECTED_TEMPERATURE`(36.5), 연결이면
+    `daily_temperature` 최신 저장값(없으면 `null` — 아직 배치가 한
+    번도 안 돎). **null을 절대로 임의 숫자로 대체하지 말 것** — 화면은
+    null일 때 숫자 대신 대기 상태 문구를 보여줘야 한다(작업 지시
+    "미연결 36.5도 외에는 노출 금지" 계약, `app/(tabs)/main.tsx`
+    docblock 참조).
+  - `temperatureDateOn: string | null` — 위 temperature가 계산된 날짜.
+  - `refresh(userId)`가 이제 `daily_temperature`도 실제로 조회한다
+    (기존엔 36.5 기본값만 유지했었음).
+- **`src/components/CoupleGate.tsx`**: 변경 없음(Phase 3 그대로). 단
+  **메인 탭은 이 컴포넌트를 쓰지 않는다** — Part 9-2가 연결/미연결을
+  "같은 화면의 잠긴 기능"이 아니라 처음부터 별개 표로 정의해서다.
+  `<CoupleGate>`는 "같은 화면 안에서 기능 하나만 잠기는" 경우
+  전용으로 남겨뒀다 — 실제 사용처: 채팅 탭(`autoOpenInvite`), 피드
+  탭(통합 타임라인 섹션만), 매거진 탭(발행물 영역 전체). 새 Phase가
+  커플 전용 기능을 추가할 때 이 두 패턴(전용 화면 vs 부분 잠금) 중
+  어느 쪽인지 먼저 판단할 것.
+- **`src/utils/relationshipDays.ts`** (`computeDaysTogether`): 사귄
+  일수 D+N 계산 순수 함수, `now` 인자 주입 가능(테스트 결정론용).
+  시작일을 1일차로 세는 관행을 채택했다(원문에 오프셋 명시 없음,
+  파일 상단 docblock에 근거 기록) — 원문이 다르게 확정되면 이 파일만
+  교체.
+- **탭 하나 새로 열 때 잊지 말 것**: `<CoupleGate>`를 쓰는 화면은
+  마운트 시 `useCoupleStore.getState().refresh(userId)`를 직접
+  호출하거나 `useEffect`로 트리거해야 한다 — 하지 않으면 store가
+  `status: 'unknown'`에 멈춰 `<CoupleGate>`가 계속 빈 화면(`null`)을
+  반환한다(피드 탭에서 실제로 이 버그를 발견해 고쳤다 — Phase 4
+  완료 절 참조).
 
 ## 문서 불일치 발견 — 콘텐츠팀/코디네이터 확인 필요
 
@@ -117,8 +143,12 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
    (017 등)으로 정책 추가 필요.
 6. **연애 온도 결합 공식이 없다** (`src/engine/temperature.ts`) — Part 9-2
    "선행 프로젝트의 연애 일치율 로직 계승"의 원문이 저장소 어디에도
-   없다. 기본값(36.5)·클램프만 구현된 상태. **Phase 4(메인 탭) 착수
-   전 확정 필요** — 메인 탭 히어로가 이 값을 실제로 노출한다.
+   없다. 기본값(36.5)·클램프만 구현된 상태. **(2026-08-25 갱신)** Phase
+   4는 이미 완료됐다 — 메인 탭은 저장값이 없으면 숫자 대신 대기 문구를
+   보여주는 방식으로 이 공식 없이도 구현 가능했다(`app/(tabs)/main.tsx`).
+   다만 이 공식 자체는 **일 배치 Edge Function을 실제로 만드는 시점에는
+   반드시 확정돼야 한다** — 그 전까지는 연결된 커플도 온도가 계속
+   "측정 준비 중"으로만 보인다.
 7. **DNA base_score 궁합 공식 + 애니어그램 9×9 매트릭스**
    (`src/engine/dnaScore.ts`) — Part 17-2 가중치 미확정. Phase 3의
    `src/constants/compatibility.ts`(애니어그램 코어 궁합, 화면 7용)와는

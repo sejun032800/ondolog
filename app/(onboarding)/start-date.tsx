@@ -13,15 +13,16 @@ import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Text, View } from 'react-native'
 import { DateInput } from '../../src/components/DateInput'
-import { PrimaryButton } from '../../src/components/PrimaryButton'
+import { Button } from '../../src/components/Button'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { COLORS } from '../../src/constants/theme'
+import { useTheme } from '../../src/theme'
 import { useSession } from '../../src/hooks/useSession'
 import { markStartDateOnboardingComplete, setOrConfirmStartDate } from '../../src/services/coupleApi'
 import { useCoupleStore } from '../../src/store/coupleStore'
 
 export default function StartDateScreen() {
   const router = useRouter()
+  const { colors, typography } = useTheme()
   const { session } = useSession()
   const coupleId = useCoupleStore((s) => s.coupleId)
   const refresh = useCoupleStore((s) => s.refresh)
@@ -52,7 +53,7 @@ export default function StartDateScreen() {
     return (
       <ScreenContainer>
         <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
-          <ActivityIndicator color={COLORS.primary} size="large" />
+          <ActivityIndicator color={colors.inkFull} size="large" />
         </View>
       </ScreenContainer>
     )
@@ -63,11 +64,11 @@ export default function StartDateScreen() {
       title="언제부터 사귀었나요?"
       subtitle="온도 기록은 이 날짜를 기준으로 시작해요."
       footer={
-        <PrimaryButton label="확인" onPress={handleConfirm} disabled={!date} loading={submitting} />
+        <Button label="확인" onPress={handleConfirm} disabled={!date} loading={submitting} />
       }
     >
       <DateInput value={date} onChange={setDate} maxYear={new Date().getFullYear()} />
-      <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
+      <Text style={[typography.caption, { color: colors.inkMute }]}>
         상대가 먼저 입력했다면 확인만 하면 돼요.
       </Text>
     </ScreenContainer>

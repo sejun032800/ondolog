@@ -10,9 +10,8 @@
  */
 import { useState } from 'react'
 import { ActivityIndicator, Alert, Share, StyleSheet, Text, TextInput, View } from 'react-native'
-import { PrimaryButton } from './PrimaryButton'
-import { SecondaryButton } from './SecondaryButton'
-import { COLORS } from '../constants/theme'
+import { Button } from './Button'
+import { useTheme } from '../theme'
 import {
   getOrCreateInvite,
   redeemInviteCode,
@@ -88,33 +87,46 @@ export function InvitePanel({ userId, onConnected, onSkip }: InvitePanelProps) {
     }
   }
 
+  const { colors, typography, spacing, lines, radius } = useTheme()
+
   return (
-    <View style={styles.container}>
-      <View style={styles.block}>
+    <View style={{ gap: spacing.s4 }}>
+      <View style={{ gap: spacing.s3 }}>
         {inviteCode ? (
-          <View style={styles.codeBox}>
-            <Text style={styles.codeLabel}>내 초대 코드</Text>
-            <Text style={styles.codeText}>{inviteCode}</Text>
-            <PrimaryButton label="코드 공유하기" onPress={handleShareCode} />
+          <View
+            style={[
+              styles.codeBox,
+              { backgroundColor: colors.paperAlt, borderColor: colors.rule, gap: spacing.s2, padding: spacing.s5 },
+            ]}
+          >
+            <Text style={[typography.caption, { color: colors.inkMute }]}>내 초대 코드</Text>
+            {/* §13-7 화면 8 "초대 코드를 numeral로 크게" — 코드가 영숫자라 소수부
+                분리(Numeral 컴포넌트)는 쓰지 않고 numeral 타이포 스타일만 입힌다. */}
+            <Text style={[typography.numeral, { color: colors.inkFull }]}>{inviteCode}</Text>
+            <Button label="코드 공유하기" onPress={handleShareCode} />
           </View>
         ) : (
-          <PrimaryButton label="초대코드 발급하기" onPress={handleIssue} loading={issuing} />
+          <Button label="초대코드 발급하기" onPress={handleIssue} loading={issuing} />
         )}
       </View>
 
-      <View style={styles.divider} />
+      <View style={{ backgroundColor: colors.rule, height: lines.hairline }} />
 
-      <View style={styles.block}>
-        <Text style={styles.blockTitle}>상대 코드 입력</Text>
+      <View style={{ gap: spacing.s3 }}>
+        <Text style={[typography.title, { color: colors.inkFull }]}>상대 코드 입력</Text>
         <TextInput
           value={enteredCode}
           onChangeText={(t) => setEnteredCode(t.toUpperCase())}
           placeholder="코드를 입력해주세요"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={colors.inkFaint}
           autoCapitalize="characters"
-          style={styles.input}
+          style={[
+            typography.body,
+            styles.input,
+            { backgroundColor: colors.paperAlt, borderColor: colors.rule, borderRadius: radius.touch, color: colors.inkFull },
+          ]}
         />
-        <PrimaryButton
+        <Button
           label="연결하기"
           onPress={handleRedeem}
           disabled={enteredCode.trim().length === 0}
@@ -122,13 +134,13 @@ export function InvitePanel({ userId, onConnected, onSkip }: InvitePanelProps) {
         />
       </View>
 
-      <View style={styles.skipRow}>
+      <View style={{ gap: spacing.s3 }}>
         {finishing ? (
-          <ActivityIndicator color={COLORS.primary} />
+          <ActivityIndicator color={colors.inkFull} />
         ) : (
           <>
-            <SecondaryButton label="나중에 할게요" onPress={handleSkip} />
-            <SecondaryButton label="솔로예요" onPress={handleSkip} />
+            <Button variant="secondary" label="나중에 할게요" onPress={handleSkip} />
+            <Button variant="secondary" label="솔로예요" onPress={handleSkip} />
           </>
         )}
       </View>
@@ -137,30 +149,15 @@ export function InvitePanel({ userId, onConnected, onSkip }: InvitePanelProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 16 },
-  block: { gap: 10 },
-  blockTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-  divider: { backgroundColor: COLORS.border, height: StyleSheet.hairlineWidth },
   codeBox: {
     alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    gap: 8,
-    padding: 20,
-  },
-  codeLabel: { color: COLORS.textMuted, fontSize: 13 },
-  codeText: { color: COLORS.text, fontSize: 28, fontWeight: '800', letterSpacing: 4 },
-  input: {
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 12,
     borderWidth: 1,
-    color: COLORS.text,
-    fontSize: 18,
+  },
+  input: {
+    borderWidth: 1,
     letterSpacing: 2,
     paddingHorizontal: 14,
     paddingVertical: 12,
     textAlign: 'center',
   },
-  skipRow: { gap: 10 },
 })

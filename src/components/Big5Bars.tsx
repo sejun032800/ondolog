@@ -5,6 +5,7 @@
  */
 import { View } from 'react-native'
 import { ScoreBar } from './ScoreBar'
+import { useTheme } from '../theme'
 import type { Big5Scores } from '../engine/loveTypeInference'
 
 const AXES: Array<{ key: keyof Big5Scores; label: string }> = [
@@ -16,8 +17,9 @@ const AXES: Array<{ key: keyof Big5Scores; label: string }> = [
 ]
 
 export function Big5Bars({ big5 }: { big5: Big5Scores }) {
+  const { spacing } = useTheme()
   return (
-    <View style={{ gap: 10 }}>
+    <View style={{ gap: spacing.s3 }}>
       {AXES.map((axis) => (
         <ScoreBar key={axis.key} label={axis.label} value={big5[axis.key]} />
       ))}

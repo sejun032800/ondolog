@@ -23,16 +23,16 @@
  */
 import { useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, StyleSheet, Text, View } from 'react-native'
+import { Alert, Text, View } from 'react-native'
 import {
   ConsentChecklist,
   INITIAL_CONSENT_VALUE,
   type ConsentValue,
 } from '../../src/components/ConsentChecklist'
-import { PrimaryButton } from '../../src/components/PrimaryButton'
+import { Button } from '../../src/components/Button'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
 import { MIN_AGE_YEARS } from '../../src/constants/consent'
-import { COLORS } from '../../src/constants/theme'
+import { useTheme } from '../../src/theme'
 import { useSession } from '../../src/hooks/useSession'
 import { createProfileAndAssessment } from '../../src/services/personalityApi'
 import { signInWithSocialProvider, type SocialProvider } from '../../src/services/socialAuth'
@@ -157,14 +157,16 @@ export default function AuthScreen() {
     }
   }
 
+  const { colors, typography, spacing } = useTheme()
+
   return (
     <ScreenContainer
       title="시작하기"
       subtitle="약관에 동의하고 소셜 계정으로 간편하게 시작해요."
     >
-      <View style={styles.buttons}>
+      <View style={{ gap: spacing.s3 }}>
         {PROVIDERS.map((p) => (
-          <PrimaryButton
+          <Button
             key={p.key}
             label={p.label}
             onPress={() => handlePress(p.key)}
@@ -179,15 +181,12 @@ export default function AuthScreen() {
       </View>
 
       {!canProceed && (
-        <Text style={styles.gateNotice}>필수 항목에 모두 동의하면 버튼이 활성화돼요.</Text>
+        <Text style={[typography.caption, { color: colors.inkMute, textAlign: 'center' }]}>
+          필수 항목에 모두 동의하면 버튼이 활성화돼요.
+        </Text>
       )}
 
       <ConsentChecklist value={consent} onChange={setConsent} ageEligible={ageEligible} />
     </ScreenContainer>
   )
 }
-
-const styles = StyleSheet.create({
-  buttons: { gap: 12 },
-  gateNotice: { color: COLORS.textMuted, fontSize: 12, textAlign: 'center' },
-})

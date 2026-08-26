@@ -23,11 +23,11 @@
  * 갖는다(6-3 "공통" 요구사항) — 전문은 `LegalDocumentModal`이 연다.
  */
 import { useState } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { Checkbox } from './Checkbox'
 import { LegalDocumentModal } from './LegalDocumentModal'
 import { LEGAL_DOCUMENTS, type LegalDocumentKey } from '../constants/legalDocuments'
-import { COLORS, SPACING } from '../constants/theme'
+import { useTheme } from '../theme'
 
 export interface ConsentValue {
   terms: boolean
@@ -81,6 +81,7 @@ const ITEMS: Array<{
 
 export function ConsentChecklist({ value, onChange, ageEligible }: ConsentChecklistProps) {
   const [openDocKey, setOpenDocKey] = useState<LegalDocumentKey | null>(null)
+  const { colors, typography, spacing, lines } = useTheme()
 
   const allChecked = TOGGLE_KEYS.every((k) => value[k])
 
@@ -94,16 +95,21 @@ export function ConsentChecklist({ value, onChange, ageEligible }: ConsentCheckl
   }
 
   return (
-    <View style={styles.container} testID="consent-checklist">
+    <View style={{ gap: spacing.s2 }} testID="consent-checklist">
       <Checkbox checked={allChecked} onPress={toggleAll} label="전체 동의" testID="consent-all" bold />
-      <View style={styles.divider} />
+      <View style={{ backgroundColor: colors.rule, height: lines.hairline, marginVertical: 2 }} />
 
-      <View style={styles.ageRow} testID="consent-age">
-        <Text style={[styles.ageLabel, !ageEligible && styles.ageLabelError]}>
+      <View style={{ gap: 4 }} testID="consent-age">
+        <Text
+          style={[
+            ageEligible ? typography.body : typography.title,
+            { color: colors.inkFull },
+          ]}
+        >
           {ageEligible ? '✓' : '✕'} [필수] 만 14세 이상입니다
         </Text>
         {!ageEligible && (
-          <Text style={styles.ageError} testID="consent-age-error">
+          <Text style={[typography.caption, { color: colors.inkFull }]} testID="consent-age-error">
             만 14세 미만은 서비스를 이용할 수 없습니다
           </Text>
         )}
@@ -128,12 +134,3 @@ export function ConsentChecklist({ value, onChange, ageEligible }: ConsentCheckl
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { gap: SPACING.sm },
-  divider: { backgroundColor: COLORS.border, height: StyleSheet.hairlineWidth, marginVertical: 2 },
-  ageRow: { gap: 4 },
-  ageLabel: { color: COLORS.text, fontSize: 14 },
-  ageLabelError: { color: COLORS.danger, fontWeight: '700' },
-  ageError: { color: COLORS.danger, fontSize: 12 },
-})

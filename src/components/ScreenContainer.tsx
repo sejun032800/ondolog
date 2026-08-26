@@ -1,6 +1,6 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { COLORS, SPACING } from '../constants/theme'
+import { useTheme } from '../theme'
 
 interface ScreenContainerProps {
   title?: string
@@ -18,37 +18,46 @@ export function ScreenContainer({
   footer,
   scroll = true,
 }: ScreenContainerProps) {
+  const { colors, typography, spacing, layout, lines } = useTheme()
   const Body = scroll ? ScrollView : View
+
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={{ backgroundColor: colors.paper, flex: 1 }} edges={['bottom']}>
       <Body
-        style={styles.body}
-        contentContainerStyle={scroll ? styles.scrollContent : styles.content}
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: scroll ? 1 : undefined,
+          flex: scroll ? undefined : 1,
+          gap: spacing.s5,
+          paddingHorizontal: layout.pageMarginX,
+          paddingTop: layout.pageTopMargin,
+          paddingBottom: layout.scrollBottomPadding,
+        }}
       >
         {(title || subtitle) && (
-          <View style={styles.header}>
-            {title && <Text style={styles.title}>{title}</Text>}
-            {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+          <View style={{ gap: spacing.s2 }}>
+            {title && (
+              <Text style={[typography.display, { color: colors.inkFull }]}>{title}</Text>
+            )}
+            {subtitle && (
+              <Text style={[typography.body, { color: colors.inkMute }]}>{subtitle}</Text>
+            )}
           </View>
         )}
         {children}
       </Body>
-      {footer && <View style={styles.footer}>{footer}</View>}
+      {footer && (
+        <View
+          style={{
+            borderTopColor: colors.rule,
+            borderTopWidth: lines.hairline,
+            paddingHorizontal: layout.pageMarginX,
+            paddingVertical: spacing.s4,
+          }}
+        >
+          {footer}
+        </View>
+      )}
     </SafeAreaView>
   )
 }
-
-const styles = StyleSheet.create({
-  safe: { backgroundColor: COLORS.bg, flex: 1 },
-  body: { flex: 1 },
-  scrollContent: { flexGrow: 1, gap: SPACING.lg, padding: SPACING.lg },
-  content: { flex: 1, gap: SPACING.lg, padding: SPACING.lg },
-  header: { gap: SPACING.xs },
-  title: { color: COLORS.text, fontSize: 22, fontWeight: '800' },
-  subtitle: { color: COLORS.textMuted, fontSize: 14, lineHeight: 20 },
-  footer: {
-    borderTopColor: COLORS.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    padding: SPACING.lg,
-  },
-})

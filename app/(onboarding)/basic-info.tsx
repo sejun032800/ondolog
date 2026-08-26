@@ -6,17 +6,20 @@
  *   용도: 생년월일은 나이 확인용(사귄 일수 계산과 무관)
  *   저장: 메모리
  *   AC: 필수값 미입력 시 "다음" 비활성화, 뒤로가기 시 입력값 유지
+ * docs/ONDOLOG_DESIGN.md §13-7 화면 2 — "지면 헤더 없음. display 질문 +
+ * 입력 필드." 네이티브 Stack 헤더(작은 타이틀)는 유지하되, 본문에는
+ * `<PageHeader>`(지면 헤더)를 두지 않는다 — 화면 2만의 예외.
  *
  * "뒤로가기 시 입력값 유지"는 필드를 sessionStore(zustand, 메모리)에
  * 직접 바인딩해 만족한다 — 화면이 언마운트돼도 스토어는 앱이 살아있는
  * 동안 값을 들고 있다(앱 종료 시에는 의도적으로 소멸한다).
  */
 import { useRouter } from 'expo-router'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
+import { Button } from '../../src/components/Button'
 import { DateInput } from '../../src/components/DateInput'
-import { PrimaryButton } from '../../src/components/PrimaryButton'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { COLORS } from '../../src/constants/theme'
+import { useTheme } from '../../src/theme'
 import { useSessionStore, type Gender } from '../../src/store/sessionStore'
 
 const GENDER_OPTIONS: Array<{ value: Gender; label: string }> = [
@@ -27,6 +30,7 @@ const GENDER_OPTIONS: Array<{ value: Gender; label: string }> = [
 
 export default function BasicInfoScreen() {
   const router = useRouter()
+  const { colors, typography, spacing, radius } = useTheme()
   const name = useSessionStore((s) => s.name)
   const gender = useSessionStore((s) => s.gender)
   const birthDate = useSessionStore((s) => s.birthDate)
@@ -41,86 +45,69 @@ export default function BasicInfoScreen() {
       title="반가워요"
       subtitle="온돌로그를 시작하기 전, 몇 가지만 알려주세요."
       footer={
-        <PrimaryButton
-          label="다음"
-          onPress={() => router.push('/mbti')}
-          disabled={!canProceed}
-        />
+        <Button label="다음" onPress={() => router.push('/mbti')} disabled={!canProceed} />
       }
     >
-      <View style={styles.field}>
-        <Text style={styles.label}>이름</Text>
+      <View style={{ gap: spacing.s2 }}>
+        <Text style={[typography.title, { color: colors.inkFull }]}>이름</Text>
         <TextInput
           value={name}
           onChangeText={setName}
           placeholder="이름을 입력해주세요"
-          placeholderTextColor={COLORS.textMuted}
-          style={styles.textInput}
+          placeholderTextColor={colors.inkFaint}
+          style={[
+            typography.body,
+            {
+              backgroundColor: colors.paperAlt,
+              borderColor: colors.rule,
+              borderRadius: radius.touch,
+              borderWidth: 1,
+              color: colors.inkFull,
+              paddingHorizontal: spacing.s4,
+              paddingVertical: spacing.s3,
+            },
+          ]}
           maxLength={20}
         />
       </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>성별</Text>
-        <View style={styles.genderRow}>
-          {GENDER_OPTIONS.map((opt) => (
-            <Pressable
-              key={opt.value}
-              onPress={() => setGender(opt.value)}
-              style={[
-                styles.genderButton,
-                gender === opt.value && styles.genderButtonSelected,
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: gender === opt.value }}
-            >
-              <Text
-                style={[
-                  styles.genderText,
-                  gender === opt.value && styles.genderTextSelected,
-                ]}
+      <View style={{ gap: spacing.s2 }}>
+        <Text style={[typography.title, { color: colors.inkFull }]}>성별</Text>
+        <View style={{ flexDirection: 'row', gap: spacing.s3 }}>
+          {GENDER_OPTIONS.map((opt) => {
+            const selected = gender === opt.value
+            return (
+              <Pressable
+                key={opt.value}
+                onPress={() => setGender(opt.value)}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: selected ? colors.inkFull : colors.paperAlt,
+                  borderColor: colors.rule,
+                  borderRadius: radius.touch,
+                  borderWidth: 1,
+                  flex: 1,
+                  paddingVertical: spacing.s4,
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
               >
-                {opt.label}
-              </Text>
-            </Pressable>
-          ))}
+                <Text style={[typography.title, { color: selected ? colors.paper : colors.inkFull }]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            )
+          })}
         </View>
       </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>생년월일</Text>
-        <Text style={styles.hint}>나이 확인용이에요. 사귄 날짜와는 별개예요.</Text>
+      <View style={{ gap: spacing.s2 }}>
+        <Text style={[typography.title, { color: colors.inkFull }]}>생년월일</Text>
+        <Text style={[typography.caption, { color: colors.inkMute, marginTop: -4 }]}>
+          나이 확인용이에요. 사귄 날짜와는 별개예요.
+        </Text>
         <DateInput value={birthDate} onChange={setBirthDate} />
       </View>
     </ScreenContainer>
   )
 }
-
-const styles = StyleSheet.create({
-  field: { gap: 8 },
-  label: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-  hint: { color: COLORS.textMuted, fontSize: 12, marginTop: -4 },
-  textInput: {
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    color: COLORS.text,
-    fontSize: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  genderRow: { flexDirection: 'row', gap: 10 },
-  genderButton: {
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    flex: 1,
-    paddingVertical: 14,
-  },
-  genderButtonSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  genderText: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
-  genderTextSelected: { color: COLORS.primaryText },
-})

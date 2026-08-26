@@ -15,8 +15,10 @@
 
 import { useRouter } from 'expo-router'
 import { useEffect } from 'react'
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import { Button } from './Button'
 import { useCoupleStore } from '../store/coupleStore'
+import { useTheme } from '../theme'
 
 interface CoupleGateProps {
   children: React.ReactNode
@@ -42,6 +44,7 @@ export function CoupleGate({
   const status = useCoupleStore((s) => s.status)
   const isConnected = status === 'connected'
   const isSettled = status === 'connected' || status === 'disconnected'
+  const { colors, typography, spacing } = useTheme()
 
   useEffect(() => {
     if (autoOpenInvite && isSettled && !isConnected) {
@@ -58,20 +61,21 @@ export function CoupleGate({
   if (fallback) return <>{fallback}</>
 
   return (
-    <View style={[styles.card, style]}>
-      <Text style={styles.emoji}>🔒</Text>
-      <Text style={styles.title}>연인과 연결하면 열려요</Text>
-      <Text style={styles.body}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.paperAlt, borderColor: colors.rule, gap: spacing.s2, padding: spacing.s5 },
+        style,
+      ]}
+    >
+      <Text style={[typography.title, { color: colors.inkFull }]}>연인과 연결하면 열려요</Text>
+      <Text style={[typography.body, { color: colors.inkMute, textAlign: 'center' }]}>
         상대만 있으면 이 기능이 바로 열립니다. 아직 초대하지 않았다면
         지금 코드를 보내보세요.
       </Text>
-      <Pressable
-        style={styles.button}
-        onPress={() => router.push('/couple-gate')}
-        accessibilityRole="button"
-      >
-        <Text style={styles.buttonText}>초대하기</Text>
-      </Pressable>
+      <View style={{ marginTop: spacing.s2, width: '100%' }}>
+        <Button label="초대하기" onPress={() => router.push('/couple-gate')} />
+      </View>
     </View>
   )
 }
@@ -79,20 +83,7 @@ export function CoupleGate({
 const styles = StyleSheet.create({
   card: {
     alignItems: 'center',
-    backgroundColor: '#F7F3EE',
-    borderRadius: 16,
-    gap: 8,
-    padding: 24,
+    borderRadius: 0,
+    borderWidth: 1,
   },
-  emoji: { fontSize: 32 },
-  title: { fontSize: 17, fontWeight: '700' },
-  body: { color: '#6B6258', fontSize: 14, textAlign: 'center' },
-  button: {
-    backgroundColor: '#E86A3E',
-    borderRadius: 999,
-    marginTop: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  buttonText: { color: '#fff', fontWeight: '700' },
 })

@@ -21,6 +21,9 @@
 5. Supabase 테이블 생성 시 RLS 정책을 반드시 함께 작성한다.
 6. 커밋·푸시·배포를 스스로 실행하지 않는다. 사람이 검토 후 직접 한다.
 7. service_role key를 앱 코드에 넣지 않는다. Edge Function 환경변수 전용.
+8. 지시받지 않은 파일을 변경하지 않는다. 특히 package.json의 scripts,
+   app.json, eas.json, tsconfig.json은 명시적 지시 없이 손대지 않는다.
+   불가피하게 변경했다면 최종 보고서에 반드시 명시한다.
 
 ## 코너 생성 원칙
 원문 우선, AI는 맥락만. 없는 걸 지어내지 않는다.

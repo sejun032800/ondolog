@@ -51,6 +51,13 @@ grep -rn "AsyncStorage" app/\(onboarding\)/
 ## 8. 완료 기준 대조
 `docs/ONDOLOG_MASTER.md` Part 13에서 해당 Phase 항목을 발췌해 하나씩 확인
 
+## 9. 설정 파일 무단 변경
+```bash
+git diff --stat
+git diff package.json app.json eas.json tsconfig.json
+```
+→ 이번 Phase 지시서에 없는 설정 변경이 있으면 보고
+
 # 출력 형식
 
 ```

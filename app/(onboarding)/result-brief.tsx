@@ -7,10 +7,11 @@
  *   설계 원칙: 공유 가치 > 가입 유도. 가입 버튼이 공유 버튼보다
  *     시각적 우선순위가 높지 않을 것.
  *
- * 여기서는 "공유하기"를 PrimaryButton(채워진 버튼), "더 자세히
- * 보기"(=가입 유도)를 SecondaryButton(테두리만)으로 둬서 가입 버튼이
- * 공유 버튼보다 강조되지 않게 한다 — 완료 기준을 스타일 코드로
- * 확인 가능하게 하기 위한 의도적 배치다.
+ * 여기서는 "공유하기"를 `Button`(variant=primary, 채워진 버튼), "이미지로
+ * 저장"을 secondary(테두리만), "더 자세히 보기"(=가입 유도)를 text(밑줄
+ * 텍스트, 가장 약한 강조)로 둬서 가입 버튼이 공유 버튼보다 강조되지
+ * 않게 한다 — 완료 기준을 스타일 코드로 확인 가능하게 하기 위한
+ * 의도적 배치다(docs/ONDOLOG_DESIGN.md §5-1).
  *
  * "이미지 저장"은 뷰를 이미지로 캡처해야 하는데(`react-native-view-shot`
  * 류) 현재 package.json에 해당 네이티브 의존성이 없다(Phase 3 산출물
@@ -19,17 +20,17 @@
  */
 import { useRouter } from 'expo-router'
 import { Alert, Share, Text } from 'react-native'
-import { PrimaryButton } from '../../src/components/PrimaryButton'
+import { Button } from '../../src/components/Button'
 import { ResultCard } from '../../src/components/ResultCard'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { SecondaryButton } from '../../src/components/SecondaryButton'
 import { LOVE_TYPE_LABEL_BY_CODE } from '../../src/constants/loveTypeLabels'
 import { MBTI_ENNEAGRAM_PREVALENCE } from '../../src/constants/enneagramPrevalence'
-import { COLORS } from '../../src/constants/theme'
+import { useTheme } from '../../src/theme'
 import { useSessionStore } from '../../src/store/sessionStore'
 
 export default function ResultBriefScreen() {
   const router = useRouter()
+  const { colors, typography, spacing } = useTheme()
   const result = useSessionStore((s) => s.result)
   const mbti = useSessionStore((s) => s.mbti)
 
@@ -37,7 +38,7 @@ export default function ResultBriefScreen() {
     // 정상 플로우라면 화면 4에서 계산을 마치고 들어온다.
     return (
       <ScreenContainer title="결과를 계산하는 중이에요">
-        <Text style={{ color: COLORS.textMuted }}>이전 화면으로 돌아가 질문을 완료해주세요.</Text>
+        <Text style={[typography.body, { color: colors.inkMute }]}>이전 화면으로 돌아가 질문을 완료해주세요.</Text>
       </ScreenContainer>
     )
   }
@@ -66,7 +67,10 @@ export default function ResultBriefScreen() {
       title="결과가 나왔어요"
       subtitle="가입하지 않아도 결과는 그대로예요. 공유만 해도 충분해요."
       footer={
-        <SecondaryButton label="더 자세히 보기" onPress={() => router.push('/auth')} />
+        // Part 9-1 화면 5 설계 원칙 "공유 가치 > 가입 유도" — 가입 유도
+        // 버튼은 세 버튼 중 가장 약한 text variant로 둬 시각적 우선순위가
+        // 공유(primary)·이미지 저장(secondary)보다 낮게 유지되도록 한다.
+        <Button variant="text" label="더 자세히 보기" onPress={() => router.push('/auth')} />
       }
     >
       <ResultCard
@@ -75,8 +79,8 @@ export default function ResultBriefScreen() {
         loveTypeCode={result.loveTypeCode}
         isRare={isRare}
       />
-      <PrimaryButton label="공유하기" onPress={handleShare} />
-      <SecondaryButton label="이미지로 저장" onPress={handleSaveImage} />
+      <Button label="공유하기" onPress={handleShare} />
+      <Button variant="secondary" label="이미지로 저장" onPress={handleSaveImage} />
     </ScreenContainer>
   )
 }

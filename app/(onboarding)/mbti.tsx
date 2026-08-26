@@ -14,11 +14,10 @@
  */
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { PrimaryButton } from '../../src/components/PrimaryButton'
+import { Pressable, Text, View } from 'react-native'
+import { Button } from '../../src/components/Button'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { SecondaryButton } from '../../src/components/SecondaryButton'
-import { COLORS } from '../../src/constants/theme'
+import { useTheme } from '../../src/theme'
 import { QUICK_MBTI_AXIS_MAP, type QuickMbtiChoice } from '../../src/constants/quickMbti'
 import type { MbtiType } from '../../src/constants/quizTypes'
 import { useSessionStore } from '../../src/store/sessionStore'
@@ -71,6 +70,7 @@ const QUICK_QUESTIONS: Array<{
 
 export default function MbtiScreen() {
   const router = useRouter()
+  const { colors, typography, spacing, radius } = useTheme()
   const [mode, setMode] = useState<Mode>('choose')
   const storeMbti = useSessionStore((s) => s.mbti)
   const setMbtiSelfReported = useSessionStore((s) => s.setMbtiSelfReported)
@@ -83,9 +83,13 @@ export default function MbtiScreen() {
   if (mode === 'choose') {
     return (
       <ScreenContainer title="MBTI를 알고 있나요?" subtitle="알고 있다면 바로 선택해주세요.">
-        <View style={styles.choiceGap}>
-          <PrimaryButton label="알아요" onPress={() => setMode('known')} />
-          <SecondaryButton label="몰라요, 간단히 알려주세요" onPress={() => setMode('unknown')} />
+        <View style={{ gap: spacing.s3 }}>
+          <Button label="알아요" onPress={() => setMode('known')} />
+          <Button
+            variant="secondary"
+            label="몰라요, 간단히 알려주세요"
+            onPress={() => setMode('unknown')}
+          />
         </View>
       </ScreenContainer>
     )
@@ -100,7 +104,7 @@ export default function MbtiScreen() {
         title="MBTI 선택"
         subtitle="네 가지 지표를 골라주세요."
         footer={
-          <PrimaryButton
+          <Button
             label="다음"
             disabled={!complete}
             onPress={() => {
@@ -111,28 +115,29 @@ export default function MbtiScreen() {
         }
       >
         {MBTI_AXES.map((ax) => (
-          <View key={ax.key} style={styles.axisRow}>
-            {[ax.left, ax.right].map((letter) => (
-              <Pressable
-                key={letter}
-                onPress={() =>
-                  setKnownLetters((prev) => ({ ...prev, [ax.key]: letter }))
-                }
-                style={[
-                  styles.letterButton,
-                  knownLetters[ax.key] === letter && styles.letterButtonSelected,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.letterText,
-                    knownLetters[ax.key] === letter && styles.letterTextSelected,
-                  ]}
+          <View key={ax.key} style={{ flexDirection: 'row', gap: spacing.s3 }}>
+            {[ax.left, ax.right].map((letter) => {
+              const selected = knownLetters[ax.key] === letter
+              return (
+                <Pressable
+                  key={letter}
+                  onPress={() => setKnownLetters((prev) => ({ ...prev, [ax.key]: letter }))}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: selected ? colors.inkFull : colors.paperAlt,
+                    borderColor: colors.rule,
+                    borderRadius: radius.touch,
+                    borderWidth: 1,
+                    flex: 1,
+                    paddingVertical: spacing.s5,
+                  }}
                 >
-                  {letter}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text style={[typography.numeral, { color: selected ? colors.paper : colors.inkFull, fontSize: 20, lineHeight: 24 }]}>
+                    {letter}
+                  </Text>
+                </Pressable>
+              )
+            })}
           </View>
         ))}
       </ScreenContainer>
@@ -148,65 +153,37 @@ export default function MbtiScreen() {
       title="몇 가지만 물어볼게요"
       subtitle="네 개의 질문으로 MBTI를 추정해요."
       footer={
-        <PrimaryButton label="다음" disabled={!allAnswered || !storeMbti} onPress={goNext} />
+        <Button label="다음" disabled={!allAnswered || !storeMbti} onPress={goNext} />
       }
     >
       {QUICK_QUESTIONS.map((q) => {
         const selected = quickAnswers[q.axis]
         return (
-          <View key={q.axis} style={styles.questionBlock}>
-            <Text style={styles.questionPrompt}>{q.prompt}</Text>
-            {(['A', 'B'] as QuickMbtiChoice[]).map((choice) => (
-              <Pressable
-                key={choice}
-                onPress={() => setQuickMbtiAnswer(q.axis, choice)}
-                style={[
-                  styles.optionButton,
-                  selected === choice && styles.optionButtonSelected,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    selected === choice && styles.optionTextSelected,
-                  ]}
+          <View key={q.axis} style={{ gap: spacing.s2 }}>
+            <Text style={[typography.title, { color: colors.inkFull }]}>{q.prompt}</Text>
+            {(['A', 'B'] as QuickMbtiChoice[]).map((choice) => {
+              const isSelected = selected === choice
+              return (
+                <Pressable
+                  key={choice}
+                  onPress={() => setQuickMbtiAnswer(q.axis, choice)}
+                  style={{
+                    backgroundColor: isSelected ? colors.inkFull : colors.paperAlt,
+                    borderColor: colors.rule,
+                    borderRadius: radius.touch,
+                    borderWidth: 1,
+                    padding: spacing.s3,
+                  }}
                 >
-                  {choice === 'A' ? q.a : q.b}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text style={[typography.body, { color: isSelected ? colors.paper : colors.inkFull }]}>
+                    {choice === 'A' ? q.a : q.b}
+                  </Text>
+                </Pressable>
+              )
+            })}
           </View>
         )
       })}
     </ScreenContainer>
   )
 }
-
-const styles = StyleSheet.create({
-  choiceGap: { gap: 12 },
-  axisRow: { flexDirection: 'row', gap: 12 },
-  letterButton: {
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    flex: 1,
-    paddingVertical: 18,
-  },
-  letterButtonSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  letterText: { color: COLORS.text, fontSize: 20, fontWeight: '800' },
-  letterTextSelected: { color: COLORS.primaryText },
-  questionBlock: { gap: 8 },
-  questionPrompt: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-  optionButton: {
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-  },
-  optionButtonSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  optionText: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
-  optionTextSelected: { color: COLORS.primaryText },
-})

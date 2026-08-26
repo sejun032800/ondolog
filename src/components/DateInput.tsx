@@ -9,7 +9,7 @@
  */
 import { useState } from 'react'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
-import { COLORS } from '../constants/theme'
+import { useTheme } from '../theme'
 
 interface DateInputProps {
   value: string | null
@@ -60,9 +60,16 @@ export function DateInput({
     }
   }
 
+  const { colors, typography, spacing, radius } = useTheme()
+  const inputStyle = [
+    typography.body,
+    styles.input,
+    { backgroundColor: colors.paperAlt, borderColor: colors.rule, borderRadius: radius.touch, color: colors.inkFull },
+  ]
+
   return (
-    <View style={styles.row}>
-      <View style={styles.field}>
+    <View style={[styles.row, { gap: spacing.s3 }]}>
+      <View style={[styles.field, { gap: spacing.s2 }]}>
         <TextInput
           value={year}
           onChangeText={(t) => {
@@ -71,14 +78,14 @@ export function DateInput({
             emit(v, month, day)
           }}
           placeholder="YYYY"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={colors.inkFaint}
           keyboardType="number-pad"
           maxLength={4}
-          style={styles.input}
+          style={inputStyle}
         />
-        <Text style={styles.unit}>년</Text>
+        <Text style={[typography.caption, { color: colors.inkMute }]}>년</Text>
       </View>
-      <View style={styles.field}>
+      <View style={[styles.field, { gap: spacing.s2 }]}>
         <TextInput
           value={month}
           onChangeText={(t) => {
@@ -87,14 +94,14 @@ export function DateInput({
             emit(year, v, day)
           }}
           placeholder="MM"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={colors.inkFaint}
           keyboardType="number-pad"
           maxLength={2}
-          style={styles.input}
+          style={inputStyle}
         />
-        <Text style={styles.unit}>월</Text>
+        <Text style={[typography.caption, { color: colors.inkMute }]}>월</Text>
       </View>
-      <View style={styles.field}>
+      <View style={[styles.field, { gap: spacing.s2 }]}>
         <TextInput
           value={day}
           onChangeText={(t) => {
@@ -103,31 +110,25 @@ export function DateInput({
             emit(year, month, v)
           }}
           placeholder="DD"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={colors.inkFaint}
           keyboardType="number-pad"
           maxLength={2}
-          style={styles.input}
+          style={inputStyle}
         />
-        <Text style={styles.unit}>일</Text>
+        <Text style={[typography.caption, { color: colors.inkMute }]}>일</Text>
       </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 10 },
-  field: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 6 },
+  row: { flexDirection: 'row' },
+  field: { alignItems: 'center', flex: 1, flexDirection: 'row' },
   input: {
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 12,
     borderWidth: 1,
-    color: COLORS.text,
     flex: 1,
-    fontSize: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
     textAlign: 'center',
   },
-  unit: { color: COLORS.textMuted, fontSize: 13 },
 })

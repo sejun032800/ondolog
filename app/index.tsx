@@ -10,13 +10,13 @@
  */
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
-import { PrimaryButton } from '../src/components/PrimaryButton'
-import { COLORS, SPACING } from '../src/constants/theme'
+import { ActivityIndicator, Text, View } from 'react-native'
+import { Button } from '../src/components/Button'
 import { ONBOARDING_STEP } from '../src/constants/onboardingStep'
 import { useSession } from '../src/hooks/useSession'
 import { fetchProfile } from '../src/services/personalityApi'
 import { useCoupleStore } from '../src/store/coupleStore'
+import { useTheme } from '../src/theme'
 
 export default function LogoStart() {
   const router = useRouter()
@@ -74,36 +74,33 @@ export default function LogoStart() {
     }
   }, [loading, session, router])
 
+  const { colors, typography, spacing } = useTheme()
+
   if (loading || resolving) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={COLORS.primary} size="large" />
+      <View style={{ alignItems: 'center', backgroundColor: colors.paper, flex: 1, justifyContent: 'center' }}>
+        <ActivityIndicator color={colors.inkFull} size="large" />
       </View>
     )
   }
 
   if (session) {
     // 세션은 있지만 아직 라우팅 결정 전(useEffect가 위에서 처리) — 빈 화면.
-    return <View style={styles.center} />
+    return <View style={{ backgroundColor: colors.paper, flex: 1 }} />
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.center}>
-        <Text style={styles.logo}>ONDOLOG</Text>
-        <Text style={styles.slogan}>우리의 온도를 기록하는 잡지</Text>
+    <View style={{ backgroundColor: colors.paper, flex: 1 }}>
+      <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+        {/* §13-7 화면 1: "화면 중앙 O N D O L O G(label-en) + 하단 시작하기" */}
+        <Text style={[typography.labelEn, { color: colors.inkFull }]}>ONDOLOG</Text>
+        <Text style={[typography.caption, { color: colors.inkMute, marginTop: spacing.s2 }]}>
+          우리의 온도를 기록하는 잡지
+        </Text>
       </View>
-      <View style={styles.footer}>
-        <PrimaryButton label="시작하기" onPress={() => router.push('/basic-info')} />
+      <View style={{ padding: spacing.s5 }}>
+        <Button label="시작하기" onPress={() => router.push('/basic-info')} />
       </View>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { backgroundColor: COLORS.bg, flex: 1 },
-  center: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  logo: { color: COLORS.text, fontSize: 36, fontWeight: '800', letterSpacing: 1 },
-  slogan: { color: COLORS.textMuted, fontSize: 15, marginTop: SPACING.sm },
-  footer: { padding: SPACING.lg },
-})

@@ -4,19 +4,29 @@
  * 근거: docs/ONDOLOG_MASTER.md Part 9-1 화면 4 — "Part 10 전체 참조.
  * MBTI 유형별로 5문항이 다르게 제시된다." 문항 원문은
  * `src/data/onboardingQuestions.ts`(Part 10-3 원문 그대로, 요약·의역 없음).
+ *
+ * docs/ONDOLOG_DESIGN.md §13-7 화면 4 — "진행 표시는 0 1 / 0 5(kicker-en).
+ * 프로그레스 바 금지." `ScreenContainer`의 `title`(display, 큰 헤드라인)
+ * 대신 진행 표시 전용의 작은 kicker-en 텍스트를 본문 최상단에 별도로
+ * 그린다 — 문서가 명시한 배치를 그대로 따르기 위한 화면 4만의 예외.
  */
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { PrimaryButton } from '../../src/components/PrimaryButton'
+import { Pressable, Text, View } from 'react-native'
+import { Button } from '../../src/components/Button'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { COLORS } from '../../src/constants/theme'
+import { useTheme } from '../../src/theme'
 import { ONBOARDING_QUESTIONS } from '../../src/data/onboardingQuestions'
 import type { QuizChoice } from '../../src/constants/quizTypes'
 import { useSessionStore } from '../../src/store/sessionStore'
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
 export default function LoveQuizScreen() {
   const router = useRouter()
+  const { colors, typography, spacing, radius } = useTheme()
   const mbti = useSessionStore((s) => s.mbti)
   const q1 = useSessionStore((s) => s.q1)
   const q2 = useSessionStore((s) => s.q2)
@@ -51,10 +61,9 @@ export default function LoveQuizScreen() {
 
   return (
     <ScreenContainer
-      title={`${index + 1} / ${questions.length}`}
       footer={
         isLast ? (
-          <PrimaryButton
+          <Button
             label="결과 보기"
             disabled={!allAnswered}
             onPress={() => {
@@ -65,46 +74,44 @@ export default function LoveQuizScreen() {
         ) : undefined
       }
     >
-      <Text style={styles.prompt}>{question.prompt}</Text>
-      <View style={styles.options}>
-        {question.options.map((opt) => (
-          <Pressable
-            key={opt.choice}
-            onPress={() => handleSelect(opt.choice)}
-            style={[styles.option, selected === opt.choice && styles.optionSelected]}
-          >
-            <Text
-              style={[
-                styles.optionText,
-                selected === opt.choice && styles.optionTextSelected,
-              ]}
+      <Text style={[typography.kickerEn, { color: colors.inkMute }]}>
+        {pad2(index + 1).split('').join(' ')} / {pad2(questions.length).split('').join(' ')}
+      </Text>
+
+      <Text style={[typography.headline, { color: colors.inkFull, marginTop: spacing.s3 }]}>
+        {question.prompt}
+      </Text>
+
+      <View style={{ gap: spacing.s3 }}>
+        {question.options.map((opt) => {
+          const isSelected = selected === opt.choice
+          return (
+            <Pressable
+              key={opt.choice}
+              onPress={() => handleSelect(opt.choice)}
+              style={{
+                backgroundColor: isSelected ? colors.inkFull : colors.paperAlt,
+                borderColor: colors.rule,
+                borderRadius: radius.touch,
+                borderWidth: 1,
+                padding: spacing.s4,
+              }}
             >
-              {opt.text}
-            </Text>
-          </Pressable>
-        ))}
+              <Text style={[typography.bodySerif, { color: isSelected ? colors.paper : colors.inkFull }]}>
+                {opt.text}
+              </Text>
+            </Pressable>
+          )
+        })}
       </View>
+
       {index > 0 && (
-        <Pressable onPress={() => setIndex((i) => Math.max(0, i - 1))}>
-          <Text style={styles.backLink}>이전 질문</Text>
+        <Pressable onPress={() => setIndex((i) => Math.max(0, i - 1))} hitSlop={8}>
+          <Text style={[typography.caption, { color: colors.inkMute, textAlign: 'center' }]}>
+            이전 질문
+          </Text>
         </Pressable>
       )}
     </ScreenContainer>
   )
 }
-
-const styles = StyleSheet.create({
-  prompt: { color: COLORS.text, fontSize: 18, fontWeight: '700', lineHeight: 26 },
-  options: { gap: 10 },
-  option: {
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-  },
-  optionSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  optionText: { color: COLORS.text, fontSize: 15, lineHeight: 21 },
-  optionTextSelected: { color: COLORS.primaryText },
-  backLink: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center' },
-})

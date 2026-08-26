@@ -14,17 +14,19 @@ import { InvitePanel } from '../../src/components/InvitePanel'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
 import { useSession } from '../../src/hooks/useSession'
 import { useCoupleStore } from '../../src/store/coupleStore'
+import { useTheme } from '../../src/theme'
 
 export default function CoupleGateModal() {
   const router = useRouter()
   const { session } = useSession()
   const refresh = useCoupleStore((s) => s.refresh)
+  const { colors } = useTheme()
 
   useEffect(() => {
     if (session) refresh(session.user.id)
   }, [session, refresh])
 
-  if (!session) return <View />
+  if (!session) return <View style={{ backgroundColor: colors.paper, flex: 1 }} />
 
   return (
     <ScreenContainer

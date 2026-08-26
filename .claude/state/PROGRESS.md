@@ -1,10 +1,10 @@
 # 진행 상황
 
-최종 갱신: 2026-08-25 (카카오 OAuth PKCE 플로우 구현)
+최종 갱신: 2026-08-25 (Phase 4 완료 — 5개 탭 UI + 라우팅)
 
 ## 현재 Phase
 
-Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
+Phase 4 — 5개 탭 UI + 라우팅 (완료)
 
 ## 완료
 
@@ -103,7 +103,14 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
 1. **연애 온도 결합 공식** (`src/engine/temperature.ts`) — Part 9-2는
    "선행 프로젝트의 연애 일치율 로직 계승"이라고만 하고 그 로직 원문이
    문서 어디에도 없음. 대화량/응답속도/감정 톤을 실제로 결합하는 함수
-   자체가 없음(기본값·클램프만 구현).
+   자체가 없음(기본값·클램프만 구현). **(2026-08-25 갱신)** 이 항목
+   자체는 여전히 미해결이지만, Phase 4(메인 탭)를 막던 블로커는
+   해소됐다 — 작업 지시가 "미연결 36.5도 외에는 노출하지 않는다"를
+   명시해, 앱이 `daily_temperature` 저장값만 읽고 값이 없으면 숫자
+   대신 대기 상태를 보여주는 방식으로 확정했다(`app/(tabs)/main.tsx`).
+   결합 공식 자체는 여전히 Edge Function(일 배치) 쪽에서 확정돼야
+   한다 — 이 파일의 계약(앱 클라이언트에서 계산 함수 호출 금지)은
+   그대로 유효.
 2. **DNA base_score 궁합 공식** (`src/engine/dnaScore.ts`) — Part 17-2는
    "빅5·애니어그램·스턴버그·애착 조합"이라고만 하고 가중치가 없음.
    애니어그램 9×9 best/worst 궁합 매트릭스도 Part 16-1 미확정.
@@ -255,9 +262,165 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
     생성 + 화면 7 이동 + 취소 시 화면 6 유지" 3가지 모두 코드 경로는
     구현됐으나 실행 검증은 대기).
 
+- [x] Phase 4 — 5개 탭 UI + 라우팅 (2026-08-25, ui-builder)
+  - **판단**: "미확정 4곳" 중 온도 결합공식이 메인 탭 히어로를 막는
+    블로커였으나(위 "다음" 절 구 항목), 이번 작업 지시(작업 프롬프트
+    "주의" 절)가 "미연결 36.5도 외에는 이 값들을 화면에 노출하지
+    않는다"를 명시적으로 확정해 블로커가 해소됐다. Part 9-2 "앱 동작 |
+    저장된 값을 읽기만 함"과 결합해 다음 규칙으로 구현: 연결 상태에서
+    `daily_temperature` 최신 저장값이 있으면 그 값을 그대로 표시(계산은
+    어디서도 하지 않음 — 순수 읽기), 없으면(배치 Edge Function이 아직
+    없어 사실상 항상 이 경우) 숫자 대신 "측정 준비 중" 텍스트만 표시.
+    이렇게 하면 "저장값만 읽는다"(AC 13-2-2)와 "미확정 공식 기반 숫자를
+    노출하지 않는다"(작업 지시)가 동시에 성립한다.
+    - **(2026-08-25 후속, 코디네이터 리뷰)** 문구를 "측정 준비 중"에서
+      "아직 온도를 잴 기록이 없어요"로 교체. 시스템 상태가 아니라 유저
+      행동으로 프레이밍해 채팅 탭 사용을 유도하는 방향(Part 17-2 DNA
+      일치율이 채팅으로 움직이는 것과 같은 맥락). `docs/ONDOLOG_MASTER.md`
+      Part 9-2 "표시 상태" 표로 문서화 완료(DECISIONS.md 동일 날짜 항목).
+  - **라우팅/탭 골격**: `app/(tabs)/_layout.tsx`, `app/(modals)/couple-gate.tsx`,
+    `app/index.tsx`, `app/_layout.tsx`는 Phase 3에서 이미 Part 11-3
+    그대로 구현돼 있었다(5개 탭 항상 표시, onboarding_step 분기, 초대
+    모달) — 이번 Phase는 그 골격 위에 각 탭의 실제 콘텐츠를 채웠다.
+  - **메인 탭** (`app/(tabs)/main.tsx`, 전면 재작성): Part 9-2 두 표
+    (연결/미연결) 그대로 구현.
+    - 연결: 양측 프로필칩 + 커플 닉네임, 히어로 온도(위 판단 참조),
+      사귄일수 D+N(`src/utils/relationshipDays.ts`, 시작일=1일차 —
+      국내 커플앱 관행 채택, 원문 오프셋 미기재라 docblock에 근거 기록),
+      하단 최근 발행물(issues_public 뷰만 조회 — CLAUDE.md 절대 규칙 3)
+      → 매거진 탭 진입점
+    - 미연결: 본인 프로필칩 + "빈 슬롯", 히어로 36.5 고정, 온보딩 결과
+      요약(`ResultCard` 재사용 — PII 없음, Phase 3 산출물 그대로),
+      연인 초대 CTA
+    - 이 화면은 `<CoupleGate>`를 쓰지 않는다(의도적) — 두 상태가 "같은
+      화면의 잠긴/열린 기능"이 아니라 Part 9-2 원문부터 별개 표로
+      정의돼 있어서다. `<CoupleGate>`는 채팅(진입 즉시 모달)·피드
+      통합뷰처럼 "같은 화면 안에서 기능 하나만 잠기는" 경우 전용으로
+      유지했다(main.tsx 상단 docblock에 근거 기록).
+    - **(2026-08-25 후속, 코디네이터 확정)** "기념일 임박 시 강조"는
+      최초 구현 시 임박 기준이 문서에 없어 스킵했으나, 코디네이터가
+      기준을 확정해 `docs/ONDOLOG_MASTER.md` Part 9-2 "사귄 일수 표시
+      규격" 표로 보강함 — 100일 단위/연 단위 마일스톤, 7일 전부터 강조,
+      당일 별도 축하 표시. `src/utils/relationshipDays.ts`
+      `getMilestoneStatus`(순수 함수, 신규 테스트 8개)로 구현하고
+      `main.tsx` 히어로에 반영 완료(아래 "막힌 것"에서 제거).
+  - **채팅 탭**: 기존 게이팅(`autoOpenInvite`) 유지, 연결 상태 빈 화면을
+    "채팅 기능은 곧 열려요" 텍스트로 교체(빈 View였던 것 개선).
+  - **피드 탭**: Part 9-4 "부분 게이팅"(혼자 기록은 항상 가능, 통합
+    뷰만 커플 전용)을 반영해 섹션을 둘로 나누고 통합 타임라인 섹션만
+    `<CoupleGate>`로 감쌌다. coupleStore.refresh() 호출 누락을 추가로
+    발견해 보강(다른 탭과 동일 패턴 적용 — 없으면 store가 'unknown'
+    상태로 멈춰 CoupleGate가 빈 화면을 반환하는 버그였음).
+  - **매거진 탭**: 기존 게이팅 유지, 미연결 fallback에 "연인 초대하기"
+    버튼을 추가해 "초대 유도"(Part 11-2)를 텍스트뿐 아니라 실제 CTA로
+    구현.
+  - **설정 탭**: 변경 없음(Part 9-6 그룹 대부분이 Phase 5+ 기능에
+    종속돼 있어 이번엔 손대지 않음 — 로그아웃만 있는 기존 상태 유지).
+  - **스토어**: `src/store/coupleStore.ts` 확장 — `partnerId`/`nickname`
+    필드 추가, `temperature`를 `number` → `number | null`로 변경(연결
+    상태에서 배치 데이터 없음을 표현하기 위함), `refresh()`가
+    `daily_temperature` 최신 행을 실제로 조회하도록 구현(HANDOFF.md의
+    "Phase 4가 여기에 실제 조회를 붙여야 한다" 요청 반영).
+  - **신규 유틸**: `src/utils/relationshipDays.ts`(`computeDaysTogether`,
+    순수 함수 — `now` 인자 주입 가능해 테스트 결정론 확보).
+  - **테스트**: `__tests__/utils/relationshipDays.test.ts` 신규 6개
+    (경계값·시간대 무관성·결정론·방어적 입력 포함). 기존 145개 + 신규
+    6개 = 151개 전부 통과 (`npx jest --ci --watchAll=false`).
+    **(2026-08-25 후속)** 마일스톤 강조 구현 시 `getMilestoneStatus`
+    테스트 8개 추가(당일/임박 경계·마일스톤 겹침·결정론 포함) —
+    151개 + 8개 = **159개 전부 통과**.
+  - **정적 검증**: `npx tsc --noEmit -p .` — app/src 전 파일(main.tsx
+    포함) 0 에러. 테스트 파일 jest 전역 타입 미설정 에러는 Phase 2부터
+    있던 기존 상태로 무관(신규 `relationshipDays.test.ts`도 동일 패턴).
+    후속 마일스톤 변경 반영 후 재확인해도 0 에러.
+  - **완료기준 자가 점검** (Part 13-2 메인 탭 3개 + Part 13-8 전역
+    2개 확인):
+    1. 미연결 유저 온도 36.5 고정 — ✅ (`useCoupleStore` 초기값·
+       disconnected 분기 둘 다 상수 재사용, 하드코딩 중복 없음)
+    2. 연결 유저 온도는 저장값만 읽음, 실시간 계산 없음 — ✅ (위 "판단"
+       참조 — 값이 없으면 아예 숫자를 안 보여줌으로써 이 계약을 더
+       엄격히 지킴)
+    3. 사귄일수가 시작일 기준 정확히 계산 — ✅ (단위 테스트 6개)
+    4. 미연결 유저에게 5개 탭 모두 표시 — ✅ (Phase 3부터 유지)
+    5. 커플 전용 기능 탭 시 초대 모달 + 동일 컴포넌트 재사용 — ✅
+       (채팅 `autoOpenInvite`, `InvitePanel`이 화면 8과 `couple-gate.tsx`
+       양쪽에서 동일 컴포넌트)
+  - **검증용 SQL(사람이 직접 실행)**: 최종 보고서(대화 로그) 참조 —
+    미연결/연결 두 시나리오 INSERT문을 세션 응답에 남겼다(이 파일에는
+    중복 기록하지 않음).
+
+- [x] 디자인 시스템 적용 — Phase 3~4 화면 리팩터링 (2026-08-26, ui-builder)
+  - **배경**: `docs/ONDOLOG_DESIGN.md`(§0~17, 구현 명세 §11~17 포함)가 확정돼
+    테마 시스템을 구축하고 온보딩 8화면 + 탭 5개 + couple-gate 모달의 시각
+    토큰을 교체했다. 기능 로직·데이터 흐름은 변경 대상이 아니었다(순수
+    시각 리팩터링). Phase 5(채팅 실시간)는 착수하지 않음.
+  - **신규**: `src/theme/`(`palette.ts` 라이트/다크/별지/4기후,
+    `inkHierarchy.ts` `ink('metric'|'narrative'|'verbatim')` §9-2 API,
+    `typography.ts` §11-4 표 그대로, `spacing.ts` 4pt 그리드, `index.ts`
+    `useTheme()` — 시스템 감지 + 수동 전환, AsyncStorage로 영속화·기존
+    의존성 재사용), `src/components/Button.tsx`(§5-1, PrimaryButton/
+    SecondaryButton 대체)·`PageHeader.tsx`(§4-1/§13-1)·`Numeral.tsx`
+    (§2-3/§11-7 소수부 45%)·`TypeLabel.tsx`(§5-4), `jest.setup.js`
+    (AsyncStorage jest mock).
+  - **삭제**: `src/constants/theme.ts`(임시 팔레트, 사용처 전부 이관 확인 후
+    삭제), `src/components/PrimaryButton.tsx`/`SecondaryButton.tsx`.
+  - **수정**: 온보딩 8화면, 탭 5개 + `_layout.tsx`, `couple-gate.tsx`,
+    `app/_layout.tsx`(§11-6 폰트 로드 스캐폴드 — 아래 참조), Phase 3 공유
+    컴포넌트 다수(`Big5Bars`/`Checkbox`/`CompatibilitySection`/
+    `ConsentChecklist`/`CoupleGate`/`DateInput`/`InvitePanel`/
+    `LegalDocumentModal`/`ResultCard`/`ScoreBar`/`ScreenContainer`/
+    `SternbergTriangle`) — 전부 로직 유지, 색·서체·간격·모서리만 토큰 교체.
+  - **폰트**: `assets/fonts/`에 MaruBuri·Pretendard 5종 TTF가 아직 없음.
+    `app/_layout.tsx`의 `useFonts` 호출은 **주석 처리**해뒀다(파일 부재 시
+    `require()`가 메트로 번들 시점에 에러를 내기 때문 — 조건부 로드로
+    우회 불가). `typography.ts`의 fontFamily 값은 문서 그대로 유지, 파일이
+    추가되면 주석만 해제하면 된다(Phase 6 재빌드 시).
+  - **§17 검증 5개 — 코디네이터가 직접 재실행해 확인, 전부 0건**:
+    하드코딩 헥스색(`app/`,`src/components/`,`src/screens/`) / shadow·
+    elevation / fontWeight / 아이콘 라이브러리 / borderRadius 4 이상.
+  - **테스트/타입**: `npx jest --ci --watchAll=false` 159/159 통과(회귀
+    없음, 코디네이터 재실행 확인). `npx tsc --noEmit -p .` 0 에러(테스트
+    파일 jest 전역 타입 미설정은 Phase 2부터의 기존 상태, 무관 — 확인).
+  - **코디네이터가 리뷰 중 발견해 되돌린 것**: `package.json`의
+    `scripts.android`/`scripts.ios`가 `expo start --android`/`--ios`에서
+    `expo run:android`/`run:ios`로 바뀌어 있었다 — 작업 지시서 어디에도
+    없는 변경이고 에이전트 최종 보고서도 이 변경을 언급하지 않았다
+    (보고서는 "jest.setupFiles 추가"만 명시). `expo run:*`는 로컬 네이티브
+    빌드 툴체인(Gradle/Xcode)을 요구해 기존 `expo start --*` 개발 흐름과
+    동작이 다르다 — 근거 없는 변경으로 판단해 원래 값으로 되돌렸다
+    (`jest.setupFiles` 추가는 유지).
+  - **에이전트가 스스로 내린 판단(문서 배치 미기재 구간, `AskUserQuestion`
+    없이 기본 방침으로 해소)**: 온보딩 진행 표시 "0 1 / 0 5" 자소 간
+    리터럴 스페이스(§13 mockup 문자열 그대로 재현), 설정 탭에 실제 동작하는
+    "테마" 행 추가(§13-6/§7 명시 항목)하되 없는 기능(프로필 편집 등) 자리는
+    새로 만들지 않음, 에러색 부재 시 `narrative` 톤 사용(빨강 등 새 색
+    발명 안 함), ScoreBar/SternbergTriangle 시각화는 문서에 레이아웃이
+    없어 기존 Phase 3 방식 유지·톤만 교체. 코디네이터 검토 결과 전부 타당.
+  - **정책 그대로 유지된 것(문서화 목적으로 기록)**: 채팅 탭 말풍선은
+    §4-4 예외(§13-3)대로 실시간 대화 전용으로 말풍선 유지, 인용된 대화만
+    들여쓰기+화자 라벨 규격 적용 — 이 부분 Phase 5 범위라 이번엔 골격만
+    토큰 교체.
+
 ## 진행 중
 
-- (없음)
+(없음 — Phase 4 완료 + 디자인 시스템 적용 완료. 다음 Phase는 코디네이터 지시 대기)
+
+## 보류 (Phase 6 재빌드 시 처리)
+
+- [ ] assets/fonts/에 TTF 5개 배치 (MaruBuri Light/Regular/SemiBold + Pretendard Regular/SemiBold)
+- [ ] app/_layout.tsx의 useFonts 주석 해제
+- [ ] expo-web-browser 네이티브 모듈 (Phase 3에서 발생)
+- [ ] 얼굴 인식·카카오맵 SDK (Phase 6 본작업)
+
+## 보류 (실기기 검증 대기)
+
+- 카카오 로그인 E2E — 기존에 알려진 `.env` anon key 플레이스홀더 문제에 더해,
+  `expo-web-browser`가 네이티브 모듈이라 기존 EAS Dev Build에는 포함되어
+  있지 않다는 점을 이번에 확인함. Dev Build 재빌드가 필요.
+- 위 재빌드는 단독으로 하지 않고 Phase 6의 얼굴인식·카카오맵 네이티브 패키지와
+  함께 일괄 처리하기로 함(사유는 DECISIONS.md 2026-08-25 "네이티브 재빌드
+  일괄 처리" 항목 참조). 그 전까지 카카오 로그인 실기기 E2E는 이 항목으로도
+  막혀 있음(기존 anon key 이슈와는 별개 원인 — 둘 다 해소돼야 검증 가능).
 
 ## 막힌 것
 
@@ -270,6 +433,9 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
   (`ondolog://**`, `exp://**`) 대시보드 설정 완료(사람 작업) — 앱 코드
   쪽 수동 OAuth 플로우 구현도 완료(위 "완료" 절 참조). 구글/애플은
   여전히 프로바이더 미설정 상태(화면에서 안내 문구로 막아둠).
+- **(신규, 2026-08-25)** 카카오 로그인 네이티브 재빌드 필요 — 위 "보류" 절
+  참조. anon key와 별개로 `expo-web-browser` 자체가 미빌드 상태라, anon key를
+  채워도 이 항목이 남아있는 한 실기기 E2E는 여전히 불가.
 - avatars Storage 버킷 정책 미정 (경로 규칙 확정 필요, HANDOFF.md 참조
   — Phase 3는 대표사진 업로드 UI를 만들지 않아 이번엔 영향 없음)
 - love_type_labels 36종 **네이밍·카피는 확보됨**(`src/constants/loveTypeLabels.ts`,
@@ -278,8 +444,23 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
   화면 7은 이 값이 null이면 해당 섹션을 조건부로 숨기는 방식으로 이미
   대응해뒀다(완료 기준 4)
 - "미확정 4곳"(온도 결합공식/DNA base_score 궁합공식/OVR 포지션
-  가중치/베이지안 수축보정) — 여전히 미해결, Phase 4(메인 탭) 착수 전
-  확정 필요(메인 탭 히어로가 온도값을 노출하므로)
+  가중치/베이지안 수축보정) — 4곳 모두 여전히 미해결(엔진 자체는
+  Phase 2 자리표시자 상태 그대로). 단 온도 항목은 Phase 4를 막던
+  블로커가 아니게 됐다(위 "미확정 4곳" 절 2026-08-25 갱신 참조) —
+  메인 탭은 저장값이 없으면 숫자를 아예 노출하지 않는 방식으로
+  우회했을 뿐, 결합 공식 원문 확정은 여전히 필요(일 배치 Edge Function
+  구현 시점에 반드시 필요해짐 — DNA/OVR 3곳은 Phase 4에 영향 없음,
+  DNA는 커플 연결 후 상세 화면, OVR은 스탯 화면 쪽이라 아직 미착수).
+- **(2026-08-25 해결)** "기념일 임박 시 강조" — 코디네이터가 기준을
+  확정(`docs/ONDOLOG_MASTER.md` Part 9-2 "사귄 일수 표시 규격": 100일/연
+  단위, 7일 전 강조, 당일 별도 축하)해 `getMilestoneStatus`로 구현·
+  테스트 완료(위 "완료" 절 참조).
+- 메인 탭 "다음 발행까지 남은 기간"(Part 9-2 하단) — 발행 주기 config
+  (`daily`/`monthly`)가 앱 코드에 아직 연결돼 있지 않아(Phase 7~8 범위)
+  구현하지 않았다. "최근 발행물" 유무만 `issues_public` 뷰로 조회해
+  매거진 탭 진입점으로 연결해뒀다. **(2026-08-25 코디네이터 확인)**
+  Part 7 이후 구현 방침이 `docs/ONDOLOG_MASTER.md` Part 9-2에 명시적으로
+  기록됨 — 더 이상 미확인 스킵이 아니라 확정된 연기.
 - **(2026-08-25 해결)** 온보딩 화면 6(약관 동의) 실제 UI 구현 완료 —
   위 "완료" 절 참조. 남은 것은 017 마이그레이션 원격 적용과 약관 본문
   작성(둘 다 사람 작업, HANDOFF.md 4번)
@@ -291,5 +472,14 @@ Phase 3 — 온보딩 8화면 + 공유 카드 ✅ 완료
 
 ## 다음
 
-Phase 4 — 메인 탭(온도 결합공식 확정 선행 필요) 또는 온도/DNA/OVR
-공식 확정 작업 우선 진행을 코디네이터가 판단.
+Phase 4 완료(5개 탭 UI + 라우팅) + 코디네이터 리뷰 반영 완료
+(2026-08-25: 온도 문구 교체, 마일스톤 강조 구현, D+N 오프셋/사귄일수
+규격 `docs/ONDOLOG_MASTER.md` Part 9-2에 문서화). 다음 Phase(채팅 실시간
+— Phase 5) 착수 전 확인 필요 사항:
+- 아래 "검증용 SQL"로 미연결/연결 두 시나리오를 Supabase 대시보드에서
+  직접 실행해 메인 탭 동작을 실기기/시뮬레이터로 확인해달라(anon key가
+  채워진 이후 가능 — HANDOFF.md 1번 참조). 마일스톤 강조를 보려면
+  `relationship_start_date`를 오늘 기준 93일 전(임박) 또는 정확히
+  100/365일 전(당일)으로 잡아 넣으면 된다.
+- "다음 발행까지 남은 기간"은 여전히 Phase 7~8로 확정 연기(위 "막힌 것"
+  참조) — 나머지는 이번에 전부 해소됨.

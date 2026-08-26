@@ -4,7 +4,7 @@
  * [보기] 링크를 둔다. 링크 없이 체크박스만 두면 동의로 인정되지 않는다."
  */
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { COLORS, SPACING } from '../constants/theme'
+import { useTheme } from '../theme'
 import type { LegalDocument } from '../constants/legalDocuments'
 
 interface LegalDocumentModalProps {
@@ -13,21 +13,35 @@ interface LegalDocumentModalProps {
 }
 
 export function LegalDocumentModal({ document, onClose }: LegalDocumentModalProps) {
+  const { colors, typography, spacing, lines } = useTheme()
+
   return (
     <Modal visible={!!document} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet} testID="legal-document-sheet">
+        <View
+          style={[styles.sheet, { backgroundColor: colors.paper, padding: spacing.s5 }]}
+          testID="legal-document-sheet"
+        >
           {document && (
             <>
-              <View style={styles.header}>
-                <Text style={styles.title}>{document.title}</Text>
+              <View
+                style={[
+                  styles.header,
+                  { borderBottomColor: colors.rule, borderBottomWidth: lines.hairline, marginBottom: spacing.s4, paddingBottom: spacing.s3 },
+                ]}
+              >
+                <Text style={[typography.headline, { color: colors.inkFull }]}>{document.title}</Text>
                 <Pressable onPress={onClose} hitSlop={8} testID="legal-document-close">
-                  <Text style={styles.close}>닫기</Text>
+                  <Text
+                    style={[typography.title, { color: colors.inkFull, textDecorationLine: 'underline' }]}
+                  >
+                    닫기
+                  </Text>
                 </Pressable>
               </View>
-              <ScrollView contentContainerStyle={styles.body}>
+              <ScrollView contentContainerStyle={{ gap: spacing.s2, paddingBottom: spacing.s5 }}>
                 {document.body.map((paragraph, i) => (
-                  <Text key={i} style={styles.paragraph}>
+                  <Text key={i} style={[typography.body, { color: colors.inkMute }]}>
                     {paragraph}
                   </Text>
                 ))}
@@ -43,20 +57,12 @@ export function LegalDocumentModal({ document, onClose }: LegalDocumentModalProp
 const styles = StyleSheet.create({
   backdrop: { backgroundColor: 'rgba(0,0,0,0.4)', flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: COLORS.bg,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 0,
     maxHeight: '80%',
-    padding: SPACING.lg,
   },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: SPACING.md,
   },
-  title: { color: COLORS.text, fontSize: 18, fontWeight: '800' },
-  close: { color: COLORS.accent, fontSize: 14, fontWeight: '700' },
-  body: { gap: SPACING.sm, paddingBottom: SPACING.lg },
-  paragraph: { color: COLORS.textMuted, fontSize: 14, lineHeight: 21 },
 })

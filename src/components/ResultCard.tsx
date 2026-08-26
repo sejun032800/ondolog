@@ -5,14 +5,20 @@
  *   "UI: 결과 카드 1장 — 연애유형 라벨, 한 줄 요약, `MBTI · 애니어그램 코어`,
  *   희귀 조합 배지, 앱 로고"
  *   "개인정보: 유저 이름 미노출 — 공유 부담 최소화"
+ * docs/ONDOLOG_DESIGN.md §13-7 화면 5 — "§5-4 라벨 카드 + 공유/저장 버튼".
+ * §5-4 유형 라벨 컴포넌트(`TypeLabel`)를 그대로 쓴다. 카드 자체(테두리+
+ * paper-alt 배경)는 "공유 이미지"라는 예외적 성격상 §3-4의 무카드 원칙
+ * 대신 §1-1 paper-alt(인용 지면) 토큰으로 감싼다 — 그림자·둥근 모서리는
+ * 여전히 없다.
  *
  * ⚠️ 이 컴포넌트에는 이름·생년월일 등 어떤 개인 식별 정보도 props로
  * 받지 않는다(타입 자체에 그런 필드가 없다) — 실수로라도 넣을 수 없게
  * 인터페이스를 좁혀뒀다.
  */
 import { StyleSheet, Text, View } from 'react-native'
+import { TypeLabel } from './TypeLabel'
 import { LOVE_TYPE_LABEL_BY_CODE } from '../constants/loveTypeLabels'
-import { COLORS } from '../constants/theme'
+import { useTheme } from '../theme'
 import type { EnneagramCore } from '../constants/enneagram'
 import type { MbtiType } from '../constants/quizTypes'
 
@@ -25,56 +31,40 @@ export interface ResultCardProps {
 }
 
 export function ResultCard({ mbti, enneagramCore, loveTypeCode, isRare }: ResultCardProps) {
+  const { colors, typography, spacing, attachmentClimate } = useTheme()
   const label = LOVE_TYPE_LABEL_BY_CODE[loveTypeCode]
+  const climate = label ? attachmentClimate[label.attachment] : 'ember'
 
   return (
-    <View style={styles.card}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.paperAlt, borderColor: colors.rule, gap: spacing.s4, padding: spacing.s5 },
+      ]}
+    >
       {isRare && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>희귀 조합</Text>
-        </View>
+        <Text style={[typography.caption, { color: colors.inkMute }]}>희귀 조합</Text>
       )}
 
-      <Text style={styles.labelKo}>{label?.labelKo ?? loveTypeCode}</Text>
-      {label?.copyKo && <Text style={styles.copyKo}>{label.copyKo}</Text>}
+      <TypeLabel
+        labelEn={label?.labelEn ?? loveTypeCode}
+        labelKo={label?.labelKo ?? loveTypeCode}
+        copyKo={label?.copyKo}
+        climate={climate}
+      />
 
-      <View style={styles.metaRow}>
-        <Text style={styles.metaText}>
-          {mbti} · 애니어그램 {enneagramCore}유형
-        </Text>
-      </View>
+      <Text style={[typography.caption, { color: colors.inkMute }]}>
+        {mbti} · 애니어그램 {enneagramCore}유형
+      </Text>
 
-      <Text style={styles.logo}>ONDOLOG</Text>
+      <Text style={[typography.labelEn, { color: colors.inkFaint }]}>ONDOLOG</Text>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.border,
-    borderRadius: 20,
+    borderRadius: 0,
     borderWidth: 1,
-    gap: 12,
-    padding: 24,
-  },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.accent,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  labelKo: { color: COLORS.text, fontSize: 24, fontWeight: '800' },
-  copyKo: { color: COLORS.textMuted, fontSize: 15, lineHeight: 22 },
-  metaRow: { marginTop: 4 },
-  metaText: { color: COLORS.textMuted, fontSize: 13, fontWeight: '600' },
-  logo: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginTop: 12,
   },
 })
