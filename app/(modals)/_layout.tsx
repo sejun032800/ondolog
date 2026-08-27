@@ -19,6 +19,8 @@ export default function ModalsLayout() {
       }}
     >
       <Stack.Screen name="couple-gate" options={{ title: '연인 초대' }} />
+      <Stack.Screen name="biometric-consent" options={{ title: '생체정보 동의' }} />
+      <Stack.Screen name="reference-photo" options={{ title: '대표사진 등록' }} />
     </Stack>
   )
 }

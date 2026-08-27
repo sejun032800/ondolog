@@ -13,7 +13,7 @@
  * 사용자를 오도하지 않는다.
  */
 
-export type LegalDocumentKey = 'terms' | 'privacy' | 'aiUsage' | 'marketing'
+export type LegalDocumentKey = 'terms' | 'privacy' | 'aiUsage' | 'marketing' | 'biometric'
 
 export interface LegalDocument {
   key: LegalDocumentKey
@@ -23,6 +23,21 @@ export interface LegalDocument {
   /** 문단 배열. 실제 조문이 아니라 "무엇이 들어가야 하는지"에 대한 안내다. */
   body: string[]
 }
+
+/**
+ * 화면 A(생체정보 동의) "3. 온디바이스 처리 고지" — 화면에 **직접** 노출되는
+ * (전문 [보기] 링크 뒤에 숨기지 않는) 4개 요지. MASTER.md "온디바이스 처리
+ * 고지 — 반드시 포함할 문구 요지" 원문 그대로다. `BiometricConsentPanel`이
+ * 이 배열을 화면에 그대로 렌더링하고, 아래 `LEGAL_DOCUMENTS.biometric`
+ * (전문 모달)도 같은 배열을 재사용한다 — 두 곳이 서로 다른 말로 어긋나지
+ * 않게 하기 위함이다.
+ */
+export const BIOMETRIC_ON_DEVICE_NOTICE_POINTS: readonly string[] = [
+  '얼굴 특징 정보는 이 기기 안에서만 처리되며 서버로 전송되지 않습니다.',
+  '대표사진 원본(사진 파일 자체)은 서버에 저장될 수 있으나, 그로부터 추출한 얼굴 특징 데이터는 저장되지 않습니다.',
+  '동의는 언제든 설정 탭에서 철회할 수 있으며, 철회 시 기기에 저장된 얼굴 특징 데이터가 즉시 삭제됩니다.',
+  '이 동의를 거부해도 앱의 다른 기능(수동 업로드 포함)은 그대로 이용할 수 있습니다.',
+]
 
 export const LEGAL_DOCUMENTS: Record<LegalDocumentKey, LegalDocument> = {
   terms: {
@@ -77,6 +92,16 @@ export const LEGAL_DOCUMENTS: Record<LegalDocumentKey, LegalDocument> = {
       '이용에는 제한이 없습니다.',
       '동의 시 이벤트·혜택 등 마케팅 정보를 수신할 수 있습니다.',
       '동의 후에도 설정에서 언제든 철회할 수 있습니다.',
+    ],
+  },
+  biometric: {
+    key: 'biometric',
+    title: '생체정보(얼굴 인식) 동의',
+    isPlaceholder: true,
+    body: [
+      '[자리표시자] 생체정보(얼굴 인식) 처리방침 전문이 아직 작성되지 않았습니다.',
+      '출시 전 법무 검토를 거쳐 아래 내용을 포함한 정식 고지문으로 교체됩니다.',
+      ...BIOMETRIC_ON_DEVICE_NOTICE_POINTS.map((point) => `· ${point}`),
     ],
   },
 }

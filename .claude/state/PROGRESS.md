@@ -1,10 +1,11 @@
 # 진행 상황
 
-최종 갱신: 2026-08-27 (Phase 5 후속 — 채팅 전송 큐 보완)
+최종 갱신: 2026-08-27 (Phase 6 — 대표사진 등록 화면)
 
 ## 현재 Phase
 
-Phase 5 — 채팅 실시간 (완료, rule-auditor 감사 통과)
+Phase 6 — 피드 + 얼굴 인식 (착수, 1~2단계 완료 — 동의 흐름 + 대표사진
+등록 UI. 실제 갤러리·SDK 연동은 메인 세션 예정)
 
 ## 완료
 
@@ -370,11 +371,10 @@ Phase 5 — 채팅 실시간 (완료, rule-auditor 감사 통과)
     `ConsentChecklist`/`CoupleGate`/`DateInput`/`InvitePanel`/
     `LegalDocumentModal`/`ResultCard`/`ScoreBar`/`ScreenContainer`/
     `SternbergTriangle`) — 전부 로직 유지, 색·서체·간격·모서리만 토큰 교체.
-  - **폰트**: `assets/fonts/`에 MaruBuri·Pretendard 5종 TTF가 아직 없음.
-    `app/_layout.tsx`의 `useFonts` 호출은 **주석 처리**해뒀다(파일 부재 시
-    `require()`가 메트로 번들 시점에 에러를 내기 때문 — 조건부 로드로
-    우회 불가). `typography.ts`의 fontFamily 값은 문서 그대로 유지, 파일이
-    추가되면 주석만 해제하면 된다(Phase 6 재빌드 시).
+  - **폰트**: `assets/fonts/`에 MaruBuri·Pretendard 5종이 배치됐고
+    (2026-08-26 사람 작업), `app/_layout.tsx`의 `useFonts` 주석을
+    해제했다(2026-08-27, 아래 "완료"에 반영). 원래는 파일 부재로 주석
+    처리해뒀던 것 — 상세는 아래 2026-08-27 항목 참조.
   - **§17 검증 5개 — 코디네이터가 직접 재실행해 확인, 전부 0건**:
     하드코딩 헥스색(`app/`,`src/components/`,`src/screens/`) / shadow·
     elevation / fontWeight / 아이콘 라이브러리 / borderRadius 4 이상.
@@ -499,14 +499,107 @@ Phase 5 — 채팅 실시간 (완료, rule-auditor 감사 통과)
   - **범위 밖**: 이미지 메시지 재시도, NetInfo 기반 즉시 재시도(원칙
     유지), 다중 실패 항목 우선순위 조정.
 
+- [x] 폰트 활성화 (2026-08-27)
+  - **배경**: 사람이 `assets/fonts/`에 MaruBuri Light/Regular/SemiBold(.ttf)
+    + Pretendard Regular/SemiBold(.otf) 5개를 배치 완료(2026-08-26)했다는
+    보고를 받아 `app/_layout.tsx`의 `useFonts` 주석을 해제.
+  - **주의(주석 해제만으로는 안 됐던 부분)**: 기존 주석 코드는 Pretendard도
+    `.ttf` 확장자로 `require`하고 있었는데, 실제 배치된 파일은 `.otf`였다
+    (MaruBuri는 `.ttf`가 맞음) — 그대로 해제했으면 번들 시점에
+    "module not found"로 즉시 깨졌을 것. `require` 경로의 Pretendard
+    두 개만 `.otf`로 고쳐서 해제했다. `src/theme/typography.ts`의
+    fontFamily 키(`'MaruBuri-Light'` 등)는 `useFonts`의 키와 정확히
+    일치함을 대조 확인(수정 없음, 문서 값 그대로 유지).
+  - **검증**: `npx tsc --noEmit -p .` 신규 에러 0건(기존 `supabase.ts`의
+    `process` 타입 미설정 에러만 무관하게 잔존), `npx jest` 214개 전부
+    통과(폰트 로드는 jest 환경에서 실행되지 않는 네이티브 경로라
+    테스트 대상 아님).
+  - **후속 조치 필요(사람 작업)**: 이 변경은 JS/TS 파일만 건드렸고 폰트
+    자체는 이미 Metro가 번들할 수 있는 애셋이라 **네이티브 재빌드 없이도
+    Dev Build 재시작(`expo start` 캐시 초기화)만으로 반영될 가능성이
+    높다** — 다만 `.otf`가 이 프로젝트에서 처음 쓰이는 애셋 확장자라
+    Metro assetExts에 이미 포함되는지(Expo 기본값엔 포함됨) 실기기에서
+    최종 확인 필요.
+
+- [x] Phase 6 1단계 — 생체정보(얼굴 인식) 동의 흐름 (2026-08-27)
+  - **범위**: docs/ONDOLOG_MASTER.md "MASTER 보강 — 생체정보(얼굴 인식)
+    별도 동의"의 화면 A(동의)만. SDK 연동·화면 B(권한)·화면 C(대표사진
+    등록)는 명시적으로 범위 밖 — 메인 세션이 이어서 진행.
+  - **산출물**:
+    - `src/utils/biometricConsent.ts` — `isBiometricConsentActive` 순수
+      판정 함수(동의 시각 있고 철회 시각 없음 = 유효)
+    - `src/store/profileStore.ts` — `biometric_consent_at`/
+      `biometric_consent_revoked_at` 상태 + refresh/agree/revoke
+      (coupleStore와 같은 패턴 — 서버가 진실 소스)
+    - `src/components/BiometricConsentPanel.tsx` — 화면 A 본문(헤드라인·
+      3단계 설명·온디바이스 처리 고지 4요지·전문 보기 링크·체크박스
+      또는 철회 버튼). `mode: 'consent' | 'manage'`로 최초 동의/설정 탭
+      재확인을 겸한다
+    - `app/(modals)/biometric-consent.tsx` + `_layout.tsx` 라우트 등록
+    - `app/(tabs)/feed.tsx` — 미동의 시 "사진 자동으로 정리해드릴까요?"
+      안내 카드, 동의 완료 시 "연동 준비 중" 안내로 전환
+    - `app/(tabs)/settings.tsx` — "개인정보 & 약관" 그룹 신설, 동의
+      상태 표시 행 + `/biometric-consent` 진입점, 로그아웃 시
+      `profileStore.reset()` 추가
+    - `src/constants/legalDocuments.ts` — `biometric` 키 + 온디바이스
+      처리 고지 4요지 배열(`BIOMETRIC_ON_DEVICE_NOTICE_POINTS`) 추가,
+      기존 자리표시자 패턴 그대로(법률 문구 창작 없음)
+    - `src/components/Button.tsx` — `testID` prop 추가(하위 호환, 테스트
+      선택자 확보 목적)
+  - **자체 판단 사항 4곳**: 세부 근거는 `.claude/state/DECISIONS.md`
+    2026-08-27 "Phase 6 첫 단계" 항목 참조 — ① 화면 A를 consent/manage
+    두 모드의 단일 컴포넌트로 구현 ② 재동의 시 `revoked_at`을 null로
+    되돌리는 파생 규칙 ③ 피드 탭 안내 카드 표시 기준을
+    `photo_sync_enabled`가 아니라 생체정보 동의 상태로 둠 ④ 철회 시
+    로컬 얼굴 데이터 삭제는 SDK 미연동으로 구현하지 않음(QA 체크리스트
+    항목으로 아래 "막힌 것"에 기록).
+  - **테스트**: 신규 14개 — `biometricConsent.test.ts`(4, 동의 유효
+    판정 전수), `BiometricConsentPanel.test.tsx`(10, 4요지 노출·전문
+    모달·체크 전 진행 차단·체크 후 진행·나중에·관리 모드 철회 확인
+    다이얼로그 승인/취소). 기존 214개 + 신규 14개 = **228개 전부 통과**.
+  - **정적 검증**: `npx tsc --noEmit -p .` 신규 에러 0건.
+
+- [x] Phase 6 2단계 — 대표사진 등록 화면(화면 C) (2026-08-27)
+  - **범위**: docs/ONDOLOG_MASTER.md "연인 인식용 대표사진"(개인 1장 +
+    커플 1장). "사진 선택"은 실제 갤러리가 아니라 번들 자산 플레이스홀더
+    (코디네이터 승인, `.claude/state/DECISIONS.md` 참조) — 그 이후
+    미리보기·Storage 업로드·DB 반영은 전부 실제 동작.
+  - **산출물**:
+    - `supabase/migrations/019_avatars_storage_policies.sql` — 015가
+      미확정으로 남겼던 avatars 버킷 경로 규칙을 확정(개인
+      `{user_id}/reference`, 커플 `{couple_id}/reference`). **원격
+      미적용** — 사람이 `supabase db push` 필요(적용 전까지 업로드는
+      전부 RLS 거부로 실패한다)
+    - `src/services/referencePhotoApi.ts` — 업로드(Storage + DB 반영)
+      + 미리보기용 서명 URL 발급
+    - `src/constants/referencePhotoPlaceholders.ts` — 플레이스홀더
+      자산 3개 + `Image.resolveAssetSource` 래퍼(실제 갤러리 연동 시
+      이 파일만 교체하면 됨)
+    - `src/components/ReferencePhotoSlot.tsx` — 슬롯 하나(선택·미리보기·
+      저장·잠금) 재사용 컴포넌트
+    - `app/(modals)/reference-photo.tsx` + `_layout.tsx` 라우트 등록 —
+      개인/커플 두 슬롯을 한 화면에서 관리, 커플 섹션은 미연결 시 잠금
+    - `src/store/profileStore.ts`에 `referencePhotoPath` +
+      `setPersonalReferencePhoto` 추가
+    - `src/store/coupleStore.ts`에 `referencePhotoPath` +
+      `setReferencePhoto` 추가
+    - `app/(tabs)/settings.tsx` — "사진 & 데이터" 그룹 신설, 등록 상태
+      표시 + `/reference-photo` 진입점
+  - **테스트**: 신규 7개(`ReferencePhotoSlot.test.tsx`). 기존 228개 +
+    신규 7개 = **235개 전부 통과**.
+  - **정적 검증**: `npx tsc --noEmit -p .` 신규 에러 0건.
+
 ## 진행 중
 
-(없음 — Phase 5 + 채팅 전송 큐 보완 완료. 다음 Phase는 코디네이터 지시 대기)
+Phase 6 — 1~2단계(생체정보 동의 흐름 + 대표사진 등록 UI) 완료. 3단계
+(실제 `expo-image-picker` 연동·사진 라이브러리 권한·온디바이스 얼굴
+인식 SDK 연동)는 메인 세션이 이어서 진행(서브에이전트 위임 금지 —
+ROADMAP.md 원문). **선행 필요**: `019_avatars_storage_policies.sql`
+원격 적용(아래 "막힌 것" 참조) — 적용 전까지는 대표사진 저장이 전부
+실패한다.
 
 ## 보류 (Phase 6 재빌드 시 처리)
 
-- [ ] assets/fonts/에 TTF 5개 배치 (MaruBuri Light/Regular/SemiBold + Pretendard Regular/SemiBold)
-- [ ] app/_layout.tsx의 useFonts 주석 해제
 - [ ] expo-web-browser 네이티브 모듈 (Phase 3에서 발생)
 - [ ] 얼굴 인식·카카오맵 SDK (Phase 6 본작업)
 
@@ -522,6 +615,22 @@ Phase 5 — 채팅 실시간 (완료, rule-auditor 감사 통과)
 
 ## 막힌 것
 
+- **(신규, 2026-08-27)** `019_avatars_storage_policies.sql` 원격 미적용
+  — `npx supabase db push` 필요(사람 작업, CLAUDE.md 절대 규칙 6).
+  적용 전까지는 대표사진(개인/커플) 업로드가 `avatars` 버킷 RLS 거부로
+  전부 실패한다(`app/(modals)/reference-photo.tsx`). 상세 근거는
+  `.claude/state/DECISIONS.md` 2026-08-27 "Phase 6 — 대표사진 등록
+  화면" 항목 참조.
+- **(신규, 2026-08-27, QA 체크리스트 — 자동 검증 불가)** 생체정보 동의
+  철회 시 "기기 로컬의 얼굴 특징 데이터 삭제"(MASTER.md "철회 시
+  반드시 함께 일어나야 하는 일" 3번)가 구현되지 않았다 — 얼굴 인식
+  SDK 자체가 아직 연동되지 않아 삭제할 온디바이스 데이터가 없기
+  때문(`revokeBiometricConsent`, `src/store/profileStore.ts`). SDK 연동
+  (Phase 6 3단계, 메인 세션)이 끝나면 그 삭제 호출을 revoke 로직에
+  반드시 추가해야 한다. MASTER.md 본문이 "rule-auditor가 검증할 수 없는
+  유일한 항목이라 QA 체크리스트에 수동으로 남겨야 한다"고 직접
+  명시한 항목이라 자동화 테스트로 대체할 수 없다 — 실기기 수동 검증
+  필요.
 - **(신규, 2026-08-26)** `supabase_realtime` publication에 `messages`/`stories`
   테이블이 등록돼 있지 않다(원격 프로젝트 `pg_publication_tables` 직접 조회로
   확인) — `alter publication supabase_realtime add table public.messages;`

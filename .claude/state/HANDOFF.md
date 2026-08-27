@@ -127,6 +127,53 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
   다른 테이블에도 같은 멱등 재전송이 필요해지면(예: 피드 업로드) 이 패턴을
   재사용할 수 있다.
 
+## Phase 6 1~2단계(생체정보 동의 + 대표사진 등록) 산출 요약 — Phase 6 3단계(메인 세션)가 가져다 쓰는 용도
+
+- **동의 상태의 단일 진실 소스는 `profiles.biometric_consent_at`/
+  `biometric_consent_revoked_at`이다.** "현재 동의가 유효한가"는 어디서도
+  직접 두 컬럼을 비교하지 말고 `src/utils/biometricConsent.ts`의
+  `isBiometricConsentActive(consentAt, revokedAt)`를 불러 써라 — 재동의 시
+  `revoked_at`을 `null`로 되돌리는 규칙(문서에 없는 자체 판단,
+  `.claude/state/DECISIONS.md` 2026-08-27 항목 참조)이 이 함수 안에만
+  있고 다른 곳에 중복돼 있지 않다.
+- **`src/store/profileStore.ts`/`src/store/coupleStore.ts`가 대표사진
+  경로(`referencePhotoPath`)까지 함께 들고 있다.**
+  `setPersonalReferencePhoto(userId, localUri)`(profileStore)/
+  `setReferencePhoto(localUri)`(coupleStore, 연결 상태에서만)가 업로드
+  + DB 반영 + 로컬 상태 갱신을 한 번에 한다. 실제 업로드는
+  `src/services/referencePhotoApi.ts`(`uploadReferencePhoto`,
+  `getReferencePhotoSignedUrl`)에 있다 — Storage 경로 규칙은 아래
+  참조.
+- **⚠️ `019_avatars_storage_policies.sql`을 원격에 적용해야 대표사진
+  업로드가 동작한다.** 개인 `{user_id}/reference`, 커플
+  `{couple_id}/reference` 규칙으로 경로를 확정했다(015가 미확정으로
+  남겨뒀던 부분). 적용 전까지는 `app/(modals)/reference-photo.tsx`의
+  저장이 전부 RLS 거부(42501)로 실패한다 — `.claude/state/PROGRESS.md`
+  "막힌 것" 참조.
+- **화면 C(대표사진 등록)는 이미 완성돼 재사용 가능하다.**
+  `src/components/ReferencePhotoSlot.tsx`(프레젠테이션, 개인/커플 공용) +
+  `app/(modals)/reference-photo.tsx`(라우팅/스토어 연결). "사진 선택"만
+  플레이스홀더다(`src/constants/referencePhotoPlaceholders.ts`) — 실제
+  갤러리 연동 시 이 상수 파일의 소스를 `expo-image-picker` 결과로
+  바꾸고, `ReferencePhotoSlot`에 넘기는 `onSave` 콜백 인자(로컬 URI)
+  타입만 유지하면 나머지(미리보기·업로드·DB 반영)는 그대로 동작한다.
+- **`profiles.photo_sync_enabled`/`photo_scan_completed_at`/
+  `photo_scan_cursor`는 여전히 전혀 건드리지 않았다.** 피드 탭 안내
+  카드(`app/(tabs)/feed.tsx`의 `PhotoSyncPromptCard`)는 생체정보 동의
+  상태만으로 두 상태(미동의/동의완료)를 보여준다 — 화면 B(권한)·SDK
+  연동 후에는 이 카드를 "동의 완료 → 권한 미허용 → 대표사진 등록
+  완료 → 스캔 중"처럼 더 세분화해야 할 것이다.
+- **⚠️ 철회 시 로컬 얼굴 데이터 삭제가 구현되지 않았다.** MASTER.md
+  "철회 시 반드시 함께 일어나야 하는 일" 3번 — SDK 연동 시
+  `revokeBiometricConsent`(`src/store/profileStore.ts`) 안에 온디바이스
+  삭제 호출을 반드시 추가할 것. 자동 테스트로 강제할 수 없는 항목이라
+  QA 체크리스트에 수동으로 남아 있다(`.claude/state/PROGRESS.md`
+  "막힌 것" 참조).
+- **법률 문구는 여전히 자리표시자다** — `src/constants/legalDocuments.ts`
+  의 `biometric` 항목. 실제 법무 검토 텍스트로 교체 필요(다른 3개
+  문서와 동일한 미해결 상태, "여전히 필요한 처리" 5번 항목에 함께
+  추적).
+
 ## 여전히 필요한 처리 (사람 작업)
 
 1. **`supabase_realtime` publication에 `messages`(및 필요 시 `stories`)가
@@ -164,12 +211,17 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
    상세는 `.claude/state/DECISIONS.md` 2026-08-25 항목 참조.
    약관/개인정보처리방침/AI 활용 고지 **본문은 여전히 자리표시자**다
    (`src/constants/legalDocuments.ts`) — 출시 전 법무 검토 본문으로
-   교체 필요.
-6. **avatars Storage 버킷 정책 미정** — 개인/커플 대표사진 경로 규칙
-   (`{user_id}/...` vs `{couple_id}/...`)이 SCHEMA.md에 없어 결정을
-   미뤘다(Phase 3는 사진 업로드 화면이 없어 영향 없었음). 대표사진
-   업로드 UI를 만드는 Phase에서 경로 규칙 확정 + 후속 마이그레이션
-   (017 등)으로 정책 추가 필요.
+   교체 필요. **(2026-08-27 추가)** 같은 파일의 `biometric`(생체정보
+   동의) 항목도 동일하게 자리표시자 — 아래 "Phase 6 1단계" 절 참조.
+6. **(2026-08-27 구현 완료, 원격 미적용) avatars Storage 버킷 정책** —
+   경로 규칙을 개인 `{user_id}/reference` / 커플 `{couple_id}/reference`로
+   확정하고 `supabase/migrations/019_avatars_storage_policies.sql`
+   작성 완료(`app/(modals)/reference-photo.tsx` 대표사진 등록 화면이
+   이 정책에 의존한다). **`npx supabase db push`로 원격 적용 필요** —
+   적용 전까지는 대표사진 업로드가 전부 RLS 거부(42501)로 실패한다.
+   적용 후 `supabase gen types typescript --linked`로
+   `src/types/database.ts` 재생성은 불필요(테이블 컬럼이 아니라
+   Storage 정책만 추가했다).
 7. **연애 온도 결합 공식이 없다** (`src/engine/temperature.ts`) — Part 9-2
    "선행 프로젝트의 연애 일치율 로직 계승"의 원문이 저장소 어디에도
    없다. 기본값(36.5)·클램프만 구현된 상태. **(2026-08-25 갱신)** Phase

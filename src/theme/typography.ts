@@ -4,10 +4,9 @@
  * - 굵기 지정용 스타일 속성(RN `TextStyle`의 weight 필드)을 쓰지 않는다.
  *   웨이트는 `fontFamily`로만 구분한다(§11-3).
  * - `letterSpacing`은 §11-4에 이미 pt로 환산된 값이다. em 재환산 금지(§11-5).
- * - 폰트 파일(MaruBuri/Pretendard 5종)은 아직 `assets/fonts/`에 없다
- *   (§11-6). `app/_layout.tsx`가 로드를 시도하되 실패해도 앱이 뜨도록
- *   처리하고, 이 파일의 fontFamily 값은 파일 유무와 무관하게 문서 그대로
- *   유지한다 — 파일이 없으면 RN이 시스템 폰트로 폴백한다.
+ * - 폰트 파일(MaruBuri/Pretendard 5종)은 `assets/fonts/`에 배치됐고
+ *   (2026-08-26) `app/_layout.tsx`가 `useFonts`로 로드한다(§11-6). 이
+ *   파일의 fontFamily 값은 그 `useFonts` 키와 정확히 일치해야 한다.
  */
 import type { TextStyle } from 'react-native'
 

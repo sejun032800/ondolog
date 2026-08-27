@@ -21,6 +21,7 @@ interface ButtonProps {
   variant?: ButtonVariant
   disabled?: boolean
   loading?: boolean
+  testID?: string
 }
 
 export function Button({
@@ -29,6 +30,7 @@ export function Button({
   variant = 'primary',
   disabled = false,
   loading = false,
+  testID,
 }: ButtonProps) {
   const { colors, typography, radius } = useTheme()
   const isDisabled = disabled || loading
@@ -41,6 +43,7 @@ export function Button({
         onPress={onPress}
         disabled={isDisabled}
         hitSlop={8}
+        testID={testID}
         style={({ pressed }) => [pressed && styles.pressed]}
       >
         {loading ? (
@@ -71,6 +74,7 @@ export function Button({
       accessibilityState={{ disabled: isDisabled }}
       onPress={onPress}
       disabled={isDisabled}
+      testID={testID}
       style={({ pressed }) => [
         styles.button,
         { borderRadius: radius.touch },

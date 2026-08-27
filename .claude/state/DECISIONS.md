@@ -444,3 +444,162 @@
   `npx tsc --noEmit -p .`에서 `src/`, `app/` 소스 파일 신규 에러 0건
   (테스트 파일의 jest 전역 타입 미설정 에러는 기존부터 있던 무관한
   상태 — 2026-08-25 기록과 동일).
+
+## 2026-08-27 | 폰트 활성화 — Pretendard는 `.otf`, MaruBuri는 `.ttf`
+
+- **배경**: 사람이 `assets/fonts/`에 MaruBuri Light/Regular/SemiBold +
+  Pretendard Regular/SemiBold 5개를 배치 완료했다고 보고, `app/_layout.tsx`
+  의 주석 처리된 `useFonts` 호출 해제를 요청받음.
+- **발견**: 기존 주석 코드는 5개 파일을 전부 `.ttf`로 `require`하고
+  있었는데, 실제 배치된 Pretendard 두 파일의 실제 확장자는 `.otf`였다
+  (`ls assets/fonts/`로 직접 확인 — MaruBuri 3개는 `.ttf`가 맞음).
+  주석만 그대로 해제했다면 Metro가 `Pretendard-Regular.ttf`/
+  `Pretendard-SemiBold.ttf` 모듈을 찾지 못해 번들 시점에 즉시 깨졌을
+  것이다.
+- **결정**: `require` 경로 중 Pretendard 두 개만 `.otf`로 고쳐서
+  주석을 해제했다. `src/theme/typography.ts`의 `FONT_FAMILY` 키
+  (`'MaruBuri-Light'` 등)는 `useFonts`에 전달하는 키와 정확히 일치함을
+  대조 확인했고 값 자체는 바꾸지 않았다(문서 §11-4 원문 그대로 유지 —
+  fontFamily 이름 자체는 확장자와 무관하다).
+- **영향**: `app/_layout.tsx`, `src/theme/typography.ts`(docblock만) 수정.
+  기타 폰트 파일 4개(MaruBuri-Bold/ExtraLight, Pretendard-Bold)는
+  `assets/fonts/`에 있지만 §11-4 스케일 표에 대응하는 웨이트가 없어
+  `useFonts`에 포함하지 않았다(문서에 없는 웨이트를 임의로 쓰지 않음).
+- **검증**: `npx tsc --noEmit -p .` 신규 에러 0건, `npx jest` 214개 전부
+  통과(폰트 로드 자체는 네이티브 경로라 테스트 대상 아님).
+- **후속 확인 필요(실기기)**: `.otf`가 이 프로젝트에서 처음 쓰인 폰트
+  확장자다. Expo/Metro 기본 `assetExts`에 `otf`가 포함돼 있어 이론상
+  추가 설정 없이 번들되지만, 실제 Dev Build 재시작 후 Pretendard가
+  화면에 반영되는지 사람이 최종 확인할 것.
+
+## 2026-08-27 | Phase 6 첫 단계 — 생체정보(얼굴 인식) 동의 흐름
+
+- **배경**: docs/ONDOLOG_MASTER.md "MASTER 보강 — 생체정보(얼굴 인식)
+  별도 동의"를 근거로 화면 A(동의)만 구현. 얼굴 인식 SDK 연동·화면
+  B(사진 라이브러리 권한)·화면 C(대표사진 등록)는 명시적으로 범위 밖
+  (메인 세션이 Phase 6 본작업에서 진행).
+
+- **결정 1 — 화면 A를 'consent'/'manage' 두 모드를 갖는 단일 컴포넌트로
+  구현.** 문서 원문 "설정 탭에서 탭하면 화면 A와 동일한 내용을 다시
+  보여주고, 하단에 [동의 철회] 버튼을 둔다"는 재사용을 명시하지만
+  "같은 화면 파일" vs "구조만 같은 별도 화면"까지는 규정하지 않는다.
+  진입 경로(피드 탭 안내 카드 vs 설정 탭 행)가 아니라 **서버에 저장된
+  실제 동의 상태**(`isBiometricConsentActive`)로 모드를 판정하게
+  했다 — 예를 들어 설정 탭에서 아직 미동의 상태로 진입해도(이론상
+  도달 가능성은 낮지만) 자동으로 동의 모드가 뜬다. 화면 자체
+  (`app/(modals)/biometric-consent.tsx`)는 라우팅/스토어 연결만 하는
+  얇은 wrapper이고, 실제 레이아웃은 `src/components/BiometricConsentPanel.tsx`
+  (프레젠테이션 전용, `ConsentChecklist`와 같은 결의 컴포넌트)에 있다.
+
+- **결정 2 — "동의 유효 여부" 파생 규칙과 재동의 시 `revoked_at` 처리.**
+  스키마(003_profiles.sql)의 CHECK 제약은 "철회는 동의 이후에만
+  가능하다"만 강제하고, 재동의 시 과거 철회 기록을 어떻게 다룰지는
+  문서에 없다. `agreeBiometricConsent`가 `biometric_consent_at`을 갱신할
+  때 `biometric_consent_revoked_at`도 함께 `null`로 되돌리도록 정했다
+  — 그래서 "현재 동의가 유효한가"를 `consent_at이 있고 revoked_at이
+  없다`는 단순한 두 컬럼 판정(`src/utils/biometricConsent.ts`
+  `isBiometricConsentActive`)만으로 항상 계산할 수 있다. 이 판정
+  함수를 스토어(`profileStore`)·화면(`biometric-consent.tsx`)·피드 탭
+  안내 카드·설정 탭 행 4곳이 전부 공유해 어긋날 여지를 없앴다.
+
+- **결정 3 — 피드 탭 안내 카드의 표시 기준은 `photo_sync_enabled`가
+  아니라 생체정보 동의 상태.** `profiles.photo_sync_enabled`는 스키마상
+  "실제 백그라운드 스캔이 도는가"에 더 가깝고, 그 상태로 가려면 아직
+  구현하지 않은 화면 B(권한)·C(등록)를 거쳐야 한다. 이번 범위(동의
+  흐름만)에서 그 컬럼을 true로 만들 방법이 없으므로, 카드는 대신
+  "생체정보 동의가 됐는가"를 기준으로 두 상태만 보여준다: 미동의→
+  기존 안내 카드([연동하기]), 동의 완료→"사진 라이브러리 연동은 준비
+  중이에요" 안내. 완료 기준 "[나중에] 선택 시 피드 탭 복귀, 수동
+  업로드는 계속 가능"은 이 카드가 다른 어떤 기능도 잠그지 않는
+  방식(게이팅 없음, 안내만)으로 구조적으로 충족된다 — 다만 피드 탭
+  자체에 "수동 업로드" 버튼이 아직 없어(Phase 6 본작업 범위) 이
+  완료기준은 "막지 않는다"까지만 검증 가능하고 실제 업로드 동작은
+  검증 대상이 아니다.
+
+- **결정 4 — 철회 시 "기기 로컬 얼굴 특징 데이터 삭제"(문서의 3번
+  항목)는 이번에 구현하지 않는다.** 얼굴 인식 자체가 아직 연동되지
+  않아 삭제할 온디바이스 데이터가 존재하지 않는다. `revokeBiometricConsent`
+  는 문서의 1·2번(`biometric_consent_revoked_at` 기록,
+  `reference_photo_path` null화)만 수행하고, 3번 자리에 "SDK 연동 시
+  이 지점에 로컬 삭제 호출을 추가해야 한다"는 주석을 남겼다. MASTER.md
+  본문도 이 항목을 "rule-auditor가 검증할 수 없는 유일한 항목이라
+  QA 체크리스트에 수동으로 남겨야 한다"고 명시한다 — HANDOFF.md에
+  QA 체크리스트 항목으로 기록.
+
+- **결정 5 — `Button` 컴포넌트에 `testID` prop 추가(하위 호환).**
+  기존에는 `Checkbox`/`LegalDocumentModal`만 testID를 지원해 버튼을
+  RTL로 선택할 방법이 없었다. optional prop이라 기존 호출부(전달
+  안 함)는 동작이 그대로다 — `BiometricConsentPanel.test.tsx`가
+  각 버튼의 활성/비활성·클릭 결과를 검증하는 데 사용.
+
+- **검증**: 기존 214개 + 신규 14개(`biometricConsent.test.ts` 4개,
+  `BiometricConsentPanel.test.tsx` 10개) = 228개 전부 통과. `npx tsc
+  --noEmit -p .` 신규 에러 0건.
+
+- **범위 밖(다음 단계, 메인 세션)**: 화면 B(사진 라이브러리 권한),
+  화면 C(대표사진 등록), 실제 얼굴 인식 SDK 연동(온디바이스),
+  `photo_sync_enabled`/`photo_scan_*` 컬럼 갱신, 철회 시 로컬 얼굴
+  데이터 삭제(위 결정 4).
+
+## 2026-08-27 | Phase 6 — 대표사진 등록 화면(화면 C)
+
+- **배경**: docs/ONDOLOG_MASTER.md "연인 인식용 대표사진"(개인 1장 +
+  커플 1장, 프로필처럼 관리, 설정 탭에서 언제든 교체) 및 "얼굴 인식
+  아키텍처 보강" "구현 순서" 3번. 실제 얼굴 탐지 SDK는 다음 단계
+  (메인 세션)이고, 이번 범위는 사진 선택·미리보기·저장 UI다.
+
+- **사전 확인 질문(코디네이터 승인)**: "갤러리에서 1장 선택"을 실제로
+  구현하려면 `expo-image-picker`(네이티브 모듈, package.json 변경 필요)가
+  있어야 하는데, 그 시점에 없었다. 세 가지 안(① 지금 설치 ② 플레이스홀더
+  선택 + 실제 업로드 로직 ③ 화면만 스캐폴드, 저장 로직 보류)을 제시했고
+  코디네이터가 **②**를 선택했다 — "지시받지 않은 설정 파일 변경 금지"
+  원칙과 "실제 얼굴 탐지 SDK는 다음 단계" 원칙을 동시에 지키면서도
+  완료 기준(저장까지 실제로 동작)을 충족하는 절충안.
+
+- **결정 1 — "사진 선택"은 번들 자산(`assets/icon.png` 등 기존 앱
+  자산 3개) 중 하나를 고르는 것으로 대체하고, 그 이후(미리보기·Storage
+  업로드·DB 반영)는 전부 실제로 구현한다.** `src/constants/
+  referencePhotoPlaceholders.ts`에 격리해뒀다 — 실제 갤러리 연동 시
+  이 배열의 소스만 `expo-image-picker` 결과로 바꾸면 되고,
+  `ReferencePhotoSlot`의 선택/미리보기/저장 로직은 변경 없이 재사용
+  가능하도록 설계했다. 화면에 "실제 갤러리 연동 전 임시 선택입니다
+  (개발용)"라고 명시해 실제 사진 선택 기능인 것처럼 보이지 않게 했다
+  (legalDocuments.ts의 "[자리표시자]" 패턴과 같은 투명성 원칙).
+
+- **결정 2 — `avatars` Storage 버킷 정책을 이번에 확정해 추가했다
+  (`019_avatars_storage_policies.sql`).** 015_storage_policies.sql이
+  "경로 규칙(`{couple_id}/...` vs `{user_id}/...`)이 SCHEMA.md에
+  없다"는 이유로 의도적으로 비워뒀던 부분 — 이번 작업의 "실제 업로드
+  로직"이 정책 없이는 전부 RLS 거부로 실패하므로 더 이상 미룰 수
+  없었다. 확정한 규칙: 개인 대표사진(`profiles.reference_photo_path`)은
+  `{user_id}/reference`(커플 매칭 전에도 존재해야 해서 `is_couple_member`를
+  못 쓴다 — `auth.uid()` 직접 비교), 커플 대표사진
+  (`couples.reference_photo_path`)은 `{couple_id}/reference`
+  (entries/messages/stories/magazine과 동일하게 `is_couple_member()`).
+  확장자 없는 고정 파일명(`reference`)을 써서 upsert 시 과거 확장자의
+  고아 파일이 남지 않게 했다. 개인 대표사진은 본인만 읽을 수 있고
+  파트너에게는 공개하지 않는다(`profiles_select` RLS는 파트너의 DB
+  행 열람은 허용하지만, 이 정책은 Storage 파일 자체는 본인에게만
+  허용 — 개인 대표사진은 소셜 프로필 사진이 아니라 얼굴 인식 내부
+  앵커라는 판단). **원격에 push하지 않음** — CLAUDE.md 절대 규칙 6에
+  따라 마이그레이션 파일만 작성, 적용은 사람 몫(017과 동일한 절차).
+
+- **결정 3 — 개인/커플 두 슬롯을 한 화면(`reference-photo.tsx`)에서
+  같이 관리한다.** MASTER.md가 "프로필처럼 관리"라고만 하고 화면을
+  둘로 나누라는 지시가 없어, `<CoupleGate>`의 "게이팅이지 진입 차단이
+  아니다" 원칙을 그대로 따라 커플 섹션만 잠그는(연결 전) 단일 화면으로
+  구현했다. 설정 탭에서도 같은 화면으로 재진입해 "언제든 교체"를
+  만족한다.
+
+- **테스트**: 신규 7개(`ReferencePhotoSlot.test.tsx`) — 미등록/등록됨
+  미리보기, 선택 후 저장 활성화, 저장 성공 시 콜백 인자·선택 초기화,
+  저장 실패 시 재시도 가능, locked 모드에서 선택/저장 UI 숨김. jest-expo의
+  이미지 asset mock이 `Image.resolveAssetSource`에 `.uri` 없는 값을
+  주는 환경 차이가 있어 테스트에서만 `Image.resolveAssetSource`를
+  결정론적으로 모킹했다(실제 기기/번들 환경은 RN 표준 동작 그대로).
+  기존 228개 + 신규 7개 = **235개 전부 통과**.
+- **정적 검증**: `npx tsc --noEmit -p .` 신규 에러 0건.
+
+- **범위 밖(다음 단계, 메인 세션)**: 실제 `expo-image-picker` 연동(화면
+  B, 사진 라이브러리 권한 포함), 얼굴 탐지·임베딩 서비스 래퍼, 대표사진
+  등록 완료 후 `photo_sync_enabled` 전환.

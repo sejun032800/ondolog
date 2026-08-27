@@ -29,6 +29,7 @@
 import { create } from 'zustand'
 import { DISCONNECTED_TEMPERATURE } from '../engine/temperature'
 import { supabase } from '../services/supabase'
+import { uploadReferencePhoto } from '../services/referencePhotoApi'
 
 interface CoupleState {
   /** 서버 조회를 아직 하지 않은 초기 상태와 "조회했지만 미연결"을 구분한다. */
@@ -47,9 +48,17 @@ interface CoupleState {
   /** temperature가 계산된 날짜(daily_temperature.date_on). null이면 temperature도 null. */
   temperatureDateOn: string | null
   relationshipStartDate: string | null
+  /**
+   * 커플 대표사진 Storage 경로(`{couple_id}/reference`). 미연결이거나
+   * 아직 등록 전이면 null — "혼자서도 개인 대표사진만으로 동작"
+   * (MASTER.md "미연결 유저") 원칙상 커플 대표사진은 연결 후에만 의미가 있다.
+   */
+  referencePhotoPath: string | null
 
   /** 로그인한 유저 기준으로 couples 테이블을 조회해 상태를 갱신한다. */
   refresh: (userId: string) => Promise<void>
+  /** 화면 C(대표사진 등록) "[저장]" — 커플 대표사진을 업로드하고 경로를 반영한다. 연결 상태에서만 호출 가능. */
+  setReferencePhoto: (localUri: string) => Promise<void>
   reset: () => void
 }
 
@@ -61,9 +70,10 @@ const DISCONNECTED_FIELDS = {
   temperature: DISCONNECTED_TEMPERATURE,
   temperatureDateOn: null,
   relationshipStartDate: null,
+  referencePhotoPath: null,
 }
 
-export const useCoupleStore = create<CoupleState>((set) => ({
+export const useCoupleStore = create<CoupleState>((set, get) => ({
   status: 'unknown',
   coupleId: null,
   partnerId: null,
@@ -71,13 +81,14 @@ export const useCoupleStore = create<CoupleState>((set) => ({
   temperature: DISCONNECTED_TEMPERATURE,
   temperatureDateOn: null,
   relationshipStartDate: null,
+  referencePhotoPath: null,
 
   refresh: async (userId: string) => {
     set({ status: 'loading' })
 
     const { data, error } = await supabase
       .from('couples')
-      .select('id, relationship_start_date, nickname, user_a_id, user_b_id')
+      .select('id, relationship_start_date, nickname, user_a_id, user_b_id, reference_photo_path')
       .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
       .eq('status', 'active')
       .maybeSingle()
@@ -106,7 +117,15 @@ export const useCoupleStore = create<CoupleState>((set) => ({
       relationshipStartDate: data.relationship_start_date,
       temperature: tempRow?.temperature ?? null,
       temperatureDateOn: tempRow?.date_on ?? null,
+      referencePhotoPath: data.reference_photo_path,
     })
+  },
+
+  setReferencePhoto: async (localUri: string) => {
+    const { coupleId } = get()
+    if (!coupleId) throw new Error('커플로 연결된 상태에서만 커플 대표사진을 등록할 수 있습니다.')
+    const path = await uploadReferencePhoto({ target: 'couple', ownerId: coupleId, localUri })
+    set({ referencePhotoPath: path })
   },
 
   reset: () =>
@@ -118,5 +137,6 @@ export const useCoupleStore = create<CoupleState>((set) => ({
       temperature: DISCONNECTED_TEMPERATURE,
       temperatureDateOn: null,
       relationshipStartDate: null,
+      referencePhotoPath: null,
     }),
 }))
