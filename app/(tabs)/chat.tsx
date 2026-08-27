@@ -83,10 +83,8 @@ function ChatConversation() {
   const [caption, setCaption] = useState('')
   const [inputText, setInputText] = useState('')
 
-  const { messages, loading, sendText, stories, postStory } = useRealtimeMessages(
-    coupleId,
-    currentUserId,
-  )
+  const { messages, loading, sendText, retryFailed, cancelPending, stories, postStory } =
+    useRealtimeMessages(coupleId, currentUserId)
 
   const { colors, typography, spacing, lines, radius } = useTheme()
   const listRef = useRef<FlatList<ChatRow>>(null)
@@ -202,7 +200,12 @@ function ChatConversation() {
             item.type === 'divider' ? (
               <ChatDateDivider label={item.label} />
             ) : (
-              <ChatBubble message={item.message} isMine={item.message.senderId === currentUserId} />
+              <ChatBubble
+                message={item.message}
+                isMine={item.message.senderId === currentUserId}
+                onRetry={retryFailed}
+                onCancel={cancelPending}
+              />
             )
           }
         />

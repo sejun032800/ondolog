@@ -113,10 +113,15 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
   태깅 배치가 `warmth_score`를 채우는 쪽) 이 파일들의 쿼리 패턴을 참고할 것.
   `warmth_score`/`sentiment`/`analyzed_at`은 Phase 5 어디에서도 읽거나 쓰지
   않는다(의도적 — Phase 7 전용).
-- **오프라인 큐는 메모리 상주**(`useRealtimeMessages` 내부 `useRef`,
-  AsyncStorage 영속화 없음) — 앱이 강제 종료되면 큐도 사라진다. "재전송해도
-  중복 삽입 안 됨"만 요구사항이었고 "앱 재시작 후에도 큐가 남아있어야
-  한다"는 이번 범위에 없었다. 필요해지면 이 훅에 영속화를 추가해야 한다.
+- **(2026-08-27 해소)** 오프라인 큐가 AsyncStorage로 영속화됐다
+  (`chat_queue:{coupleId}`, `src/utils/chatQueue.ts`
+  `chatQueueStorageKey`/`parseQueuedMessages`) — 앱 강제 종료 후
+  재실행해도 미전송 메시지가 pending으로 복원되고 재시도가 재개된다.
+  재시도 정책(최대 5회, 지수 백오프 2s→4s→8s→16s→32s, 에러 유형별
+  즉시 실패 분기)과 사용자 조작("다시 시도"/취소)도 함께 구현됨 —
+  스케줄링은 `src/utils/chatRetryQueue.ts`(`ChatRetryQueue`, React
+  비의존이라 fake timer로 테스트됨), 상세 판단 근거는
+  `.claude/state/DECISIONS.md` 2026-08-27 항목 참조.
 - **`client_msg_id` 멱등 재전송 패턴**: insert 시도 → 유니크 제약 위반(23505)이면
   기존 행을 재조회해 성공으로 간주(`src/services/chatApi.ts` `sendMessage`).
   다른 테이블에도 같은 멱등 재전송이 필요해지면(예: 피드 업로드) 이 패턴을

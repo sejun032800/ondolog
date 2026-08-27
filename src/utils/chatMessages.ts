@@ -17,6 +17,7 @@
  * 방어).
  */
 import type { Database } from '../types/database'
+import type { QueuedMessage } from './chatQueue'
 
 type MessageRow = Database['public']['Tables']['messages']['Row']
 
@@ -30,8 +31,10 @@ export interface ChatMessage {
   mediaPath: string | null
   sentAt: string
   readAt: string | null
-  /** true면 아직 서버 확정 전(낙관적 로컬 항목 또는 큐 대기 중). */
+  /** true면 전송 중(낙관적 로컬 항목 또는 재시도 큐 대기 중) — §13-3 "전송 중". */
   pending?: boolean
+  /** true면 재시도 소진 또는 영구 실패로 자동 재시도가 멈춘 상태 — §13-3 "전송 실패". */
+  failed?: boolean
 }
 
 export function rowToChatMessage(row: MessageRow): ChatMessage {
@@ -81,6 +84,40 @@ export function mergeMessage(list: ChatMessage[], incoming: ChatMessage): ChatMe
 
 export function mergeMessages(list: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
   return incoming.reduce(mergeMessage, list)
+}
+
+/** 오프라인 큐 항목을 화면에 그릴 말풍선으로 바꾼다 — `sentAt`을 그대로 물려받아 낙관적 말풍선과 같은 자리(같은 날짜 그룹)에 복원된다. */
+export function queuedMessageToChatMessage(item: QueuedMessage): ChatMessage {
+  return {
+    id: `local:${item.clientMsgId}`,
+    clientMsgId: item.clientMsgId,
+    coupleId: item.coupleId,
+    senderId: item.senderId,
+    body: item.body,
+    mediaPath: null,
+    sentAt: item.sentAt,
+    readAt: null,
+    pending: item.status === 'pending',
+    failed: item.status === 'failed',
+  }
+}
+
+/**
+ * 오프라인 큐 상태를 메시지 목록에 반영한다.
+ *   1) 큐에 있는 항목은 병합(추가 또는 갱신)한다.
+ *   2) 아직 서버 확정 전(pending/failed)인데 큐에서는 사라진 로컬 항목은
+ *      제거한다 — "말풍선 길게 누르기 → 전송 취소, 큐와 화면에서 제거"
+ *      완료 기준이 여기서 성립한다. 이미 서버가 확정한 메시지
+ *      (`pending`도 `failed`도 아님)는 큐와 무관하게 항상 유지한다.
+ */
+export function syncQueuedMessages(list: ChatMessage[], queue: QueuedMessage[]): ChatMessage[] {
+  const queuedIds = new Set(queue.map((item) => item.clientMsgId))
+  const withoutCancelled = list.filter((m) => {
+    if (!m.pending && !m.failed) return true
+    if (!m.clientMsgId) return true
+    return queuedIds.has(m.clientMsgId)
+  })
+  return mergeMessages(withoutCancelled, queue.map(queuedMessageToChatMessage))
 }
 
 /**

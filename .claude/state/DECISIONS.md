@@ -378,4 +378,69 @@
 - **영향**: Phase 3~5의 실기기 E2E 검증이 Phase 6까지 연기됨.
   대신 Supabase 대시보드 수동 데이터 삽입으로 UI 검증
 
-  
+## 2026-08-27 | 채팅 전송 큐 보완 — AsyncStorage 영속화 + 재시도 정책 도입
+
+- **배경**: 2026-08-26 결정("오프라인 큐를 메모리 상주로 한정")의 트레이드오프
+  — 앱 강제 종료 시 큐가 소실되고, 'failed' 상태로 가는 경로 자체가 없어
+  네트워크가 계속 실패하면 4초 인터벌로 영원히 재시도하는 문제 —
+  가 실사용 리스크(유저가 "보냈다"고 믿는 메시지가 흔적 없이 사라짐)로
+  지목되어 작업 지시로 보완을 요청받음.
+
+- **결정 1 — AsyncStorage 영속화, 신규 네이티브 모듈 추가 없음.**
+  `chat_queue:{coupleId}`(`chatQueueStorageKey`) 키로 큐 변경 시마다
+  즉시 저장한다. AsyncStorage는 이미 프로젝트 의존성(테마 프리퍼런스에
+  이미 사용 중)이라 신규 네이티브 모듈이 아니다. 온보딩 비로그인 구간
+  (`app/(onboarding)` 화면 2~5)의 "AsyncStorage 금지"는 그 구간 전용
+  규칙이라 이 변경과 무관함을 작업 지시서에 명시적으로 확인받음.
+
+- **결정 2 — 아키텍처를 3계층으로 분리(테스트 가능성이 목적).**
+  1) `src/utils/chatQueue.ts` — 순수 판단 함수(에러 분류, 백오프 시간
+     계산, 상태 전이, 영속화 직렬화/역직렬화). React도 타이머도 모른다.
+  2) `src/utils/chatRetryQueue.ts`(`ChatRetryQueue`) — `setTimeout` 기반
+     스케줄링 + 사용자 조작(다시 시도/취소). React를 모른다 — 그래서
+     `__tests__/utils/chatRetryQueue.test.ts`가 `jest.useFakeTimers()` +
+     `advanceTimersByTimeAsync`로 2s→4s→8s→16s→32s 백오프를 실제로
+     몇십 초 기다리지 않고 결정론적으로 검증한다.
+  3) `src/hooks/useRealtimeMessages.ts` — 위 둘을 React state/AsyncStorage에
+     연결하는 얇은 바인딩만 담당.
+  기존 구조(순수 함수는 `chatQueue.ts`, React 통합은 훅)를 그대로
+  확장한 것 — `chatQueue.ts` 자체에 재시도 스케줄링(부수효과)을 넣지
+  않고 별도 파일로 분리한 이유가 바로 이 테스트 가능성이다.
+
+- **결정 3 — 재시도 횟수 계산: "최초 시도는 카운트하지 않는다".**
+  "최대 5회, 2s→4s→8s→16s→32s"를 "최초 전송 실패 이후 재시도 5회,
+  그 사이 대기시간이 각각 2/4/8/16/32초"로 해석했다(최초 시도 자체는
+  재시도가 아니므로 0회차). `retryCount`는 "지금까지 소진한 재시도
+  횟수"를 뜻하고, `MAX_RETRY_COUNT(5)`에 도달하면 그 재시도가 곧
+  5번째이자 마지막이므로 failed로 전환한다. 총 네트워크 시도 횟수는
+  최초 1회 + 재시도 5회 = 6회.
+
+- **결정 4 — 에러 분류: 코드가 없으면 재시도, 있으면 코드 클래스로 판단.**
+  `classifySendError`(`chatQueue.ts`): 코드 자체가 없는 에러(fetch 실패,
+  타임아웃 등 네트워크 계층 실패로 PostgREST/Postgres 에러 객체가
+  아예 생성되지 않는 경우)는 retryable. `42501`(RLS 거부)은 permanent.
+  PostgreSQL 공식 에러 코드 부록(Appendix A)의 클래스 `08`
+  (connection_exception) · `53`(insufficient_resources) ·
+  `57`(operator_intervention)은 서버 쪽 일시 장애(5xx급)로 보아
+  retryable. 그 외(제약 위반 `23xxx` 등)는 permanent. 문서에 없는
+  자체 판단이지만, 창작한 규칙이 아니라 PostgreSQL이 공식 문서화한
+  에러 코드 클래스 구분을 그대로 따랐다.
+
+- **결정 5 — 표시 상태는 `ChatMessage.pending`/`failed` 두 불리언으로
+  표현.** 기존 `pending` 필드(§13-3 "전송 중")를 그대로 유지해 기존
+  테스트(`chatMessages.test.ts`)를 건드리지 않고, "전송 실패" 표시를
+  위한 `failed` 필드만 추가했다. `docs/ONDOLOG_DESIGN.md` §13-3 "전송
+  상태" 표는 이미 이 작업 지시서와 동일한 내용으로 갱신돼 있어(§13-3
+  확인 결과 사전 반영됨) 문서 수정은 하지 않았다.
+
+- **범위 밖(이번에 다루지 않음)**: 이미지/미디어 메시지 재시도(현재
+  텍스트만 대상), 네트워크 재연결 감지에 따른 즉시 재시도(NetInfo
+  미사용 원칙 유지 — 각 항목의 백오프 타이머가 유일한 스케줄 소스),
+  큐 항목 여러 개 동시 실패 시 우선순위 조정.
+
+- **검증**: 기존 187개 + 신규 27개(`chatQueue.test.ts` 확장,
+  `chatRetryQueue.test.ts` 신설 — `hydrate`로 "큐 생성~AsyncStorage 복원
+  완료 사이 창"의 유실 방지 테스트 포함) = 214개 전부 통과.
+  `npx tsc --noEmit -p .`에서 `src/`, `app/` 소스 파일 신규 에러 0건
+  (테스트 파일의 jest 전역 타입 미설정 에러는 기존부터 있던 무관한
+  상태 — 2026-08-25 기록과 동일).

@@ -7,7 +7,10 @@
  *   `client_msg_id`로 insert를 시도하고, `uq_messages_client_id` 유니크
  *   제약 위반(23505)이면 "이미 전송됨"으로 간주해 기존 행을 다시
  *   조회해 돌려준다(에러를 삼킨다 — 호출부가 실패로 오인해 사용자에게
- *   또 보여주지 않도록).
+ *   또 보여주지 않도록). 그 외 실패는 `classifySendError`(`chatQueue.ts`)로
+ *   재시도 가능 여부를 분류해 함께 반환한다 — 네트워크 실패(fetch 자체가
+ *   던지는 경우 포함, try/catch로 감쌌다)는 재시도, RLS 거부/제약
+ *   위반은 즉시 실패로 큐가 판단할 수 있게 한다.
  * - `markMessagesRead`: `sender_id`가 나 자신인 행은 절대 갱신 대상에
  *   포함하지 않는다(`.neq('sender_id', currentUserId)`) — RLS
  *   `messages_update`가 발신자 제한을 두지 않으므로 앱 로직이 지켜야
@@ -20,7 +23,12 @@
  *   경로(`{couple_id}/placeholder`)를 쓴다 — 실제 Storage 객체는 없다.
  */
 import { supabase } from './supabase'
-import { isDuplicateInsertError, type OutgoingMessage } from '../utils/chatQueue'
+import {
+  classifySendError,
+  isDuplicateInsertError,
+  type OutgoingMessage,
+  type SendErrorClass,
+} from '../utils/chatQueue'
 import type { Database } from '../types/database'
 
 export type MessageRow = Database['public']['Tables']['messages']['Row']
@@ -29,29 +37,35 @@ export type StoryRow = Database['public']['Tables']['stories']['Row']
 export type SendMessageResult =
   | { status: 'sent'; row: MessageRow }
   | { status: 'already_sent'; row: MessageRow | null }
-  | { status: 'failed'; error: unknown }
+  | { status: 'failed'; errorClass: SendErrorClass; error: unknown }
 
 /** 완료 기준 2 — 동일 client_msg_id로 재시도해도 중복 삽입되지 않는다. */
 export async function sendMessage(input: OutgoingMessage): Promise<SendMessageResult> {
-  const { data, error } = await supabase
-    .from('messages')
-    .insert({
-      couple_id: input.coupleId,
-      sender_id: input.senderId,
-      body: input.body,
-      client_msg_id: input.clientMsgId,
-    })
-    .select()
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        couple_id: input.coupleId,
+        sender_id: input.senderId,
+        body: input.body,
+        client_msg_id: input.clientMsgId,
+      })
+      .select()
+      .single()
 
-  if (!error && data) return { status: 'sent', row: data }
+    if (!error && data) return { status: 'sent', row: data }
 
-  if (error && isDuplicateInsertError(error)) {
-    const existing = await fetchMessageByClientId(input.coupleId, input.clientMsgId)
-    return { status: 'already_sent', row: existing }
+    if (error && isDuplicateInsertError(error)) {
+      const existing = await fetchMessageByClientId(input.coupleId, input.clientMsgId)
+      return { status: 'already_sent', row: existing }
+    }
+
+    return { status: 'failed', errorClass: classifySendError(error), error }
+  } catch (error) {
+    // fetch 자체가 던진 경우(네트워크 끊김 등) — Postgrest 에러 객체가
+    // 아니라 code가 없으므로 classifySendError가 재시도 대상으로 분류한다.
+    return { status: 'failed', errorClass: classifySendError(null), error }
   }
-
-  return { status: 'failed', error }
 }
 
 export async function fetchMessageByClientId(

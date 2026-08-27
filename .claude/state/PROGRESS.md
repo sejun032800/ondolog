@@ -1,6 +1,6 @@
 # 진행 상황
 
-최종 갱신: 2026-08-26 (Phase 5 완료 — 채팅 실시간 + 스토리)
+최종 갱신: 2026-08-27 (Phase 5 후속 — 채팅 전송 큐 보완)
 
 ## 현재 Phase
 
@@ -462,9 +462,46 @@ Phase 5 — 채팅 실시간 (완료, rule-auditor 감사 통과)
   - **완료기준 자가 점검**: 위임 프롬프트의 완료 기준 8개 전부 rule-auditor +
     코디네이터 직접 재검증(diff/jest/tsc/grep)으로 통과 확인.
 
+- [x] Phase 5 후속 — 채팅 전송 큐 보완 (2026-08-27)
+  - **배경**: 2026-08-26 결정("오프라인 큐 메모리 상주")의 두 가지 트레이드오프
+    — 앱 강제 종료 시 큐 소실, 'failed' 전환 경로 없이 무한 재시도 — 를
+    해소하는 작업 지시. 상세 판단 근거는 `.claude/state/DECISIONS.md`
+    2026-08-27 항목 참조.
+  - **큐 영속화**: `src/utils/chatQueue.ts`에 `chatQueueStorageKey`/
+    `parseQueuedMessages` 추가. AsyncStorage 키 `chat_queue:{coupleId}`에
+    큐 변경마다 즉시 저장, 앱 시작 시 복원해 pending 항목은 재시도를
+    바로 재개한다(`src/hooks/useRealtimeMessages.ts`).
+  - **재시도 정책**: `src/utils/chatQueue.ts`에 `classifySendError`(RLS
+    거부·제약 위반·기타 4xx급은 permanent 즉시 실패, 네트워크 오류·
+    연결 예외/자원부족/운영자개입 클래스는 retryable), `computeBackoffDelayMs`
+    (2s→4s→8s→16s→32s), `recordFailedRetry`/`resetForRetry`(최대 5회 소진 시
+    failed 전환) 구현. 실제 `setTimeout` 스케줄링은 신규 파일
+    `src/utils/chatRetryQueue.ts`(`ChatRetryQueue`, React 비의존 —
+    fake timer 테스트 가능)로 분리.
+  - **사용자 조작**: `ChatBubble`에 "전송 실패 · 다시 시도" 캡션 탭
+    (hitSlop 16, ink-mute)과 말풍선 길게 누르기(취소) 추가.
+    `useRealtimeMessages`가 `retryFailed`/`cancelPending`을 노출하고
+    `app/(tabs)/chat.tsx`가 연결.
+  - **표시 규격**: `docs/ONDOLOG_DESIGN.md` §13-3 "전송 상태" 표는
+    이미 이 작업 지시서와 동일한 내용으로 반영돼 있어 문서 수정 없음
+    (확인만 함). `ChatMessage`에 `failed?: boolean` 필드 추가(`pending`은
+    기존 그대로 유지 — 기존 테스트 무변경).
+  - **테스트**: 신규 27개 — `chatQueue.test.ts` 확장(에러 분류·백오프
+    계산·상태 전이·영속화 파싱), `chatRetryQueue.test.ts` 신설
+    (`jest.useFakeTimers()` + `advanceTimersByTimeAsync`로 2s→4s→8s→16s→32s
+    백오프·5회 소진 후 failed 전환·즉시 permanent 실패·다시 시도·취소·
+    복원 후 재개·`hydrate`(큐 생성~AsyncStorage 복원 완료 사이의 유실
+    방지)를 전부 결정론적으로 검증). 기존 187개 + 신규 27개 =
+    **214개 전부 통과**(`npx jest --ci --watchAll=false`).
+  - **정적 검증**: `npx tsc --noEmit -p .` — `src/`, `app/` 소스 파일 기준
+    신규 에러 0건(테스트 파일 jest 전역 타입 미설정은 기존부터 있던
+    무관한 상태).
+  - **범위 밖**: 이미지 메시지 재시도, NetInfo 기반 즉시 재시도(원칙
+    유지), 다중 실패 항목 우선순위 조정.
+
 ## 진행 중
 
-(없음 — Phase 5 완료. 다음 Phase는 코디네이터 지시 대기)
+(없음 — Phase 5 + 채팅 전송 큐 보완 완료. 다음 Phase는 코디네이터 지시 대기)
 
 ## 보류 (Phase 6 재빌드 시 처리)
 
