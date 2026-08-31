@@ -74,6 +74,21 @@
 
 ---
 
+### 0-8. Phase 2 확장 코너는 별도 섹션으로 분리
+
+우리 사이 인터뷰·특별 게스트는 **MVP 범위 밖**이라 §9-B에 모아두었다. 마이그레이션도 021로 후순위에 둔다.
+
+두 코너의 스키마가 기존 테이블에 얹히지 않고 독립된 이유:
+
+| 코너 | 이유 |
+|---|---|
+| 인터뷰 | `predicted_partner_answer`(상대 답 예측)라는 컬럼이 일반 Q&A에 없다 |
+| 특별 게스트 | **인증되지 않은 외부인이 INSERT**한다. RLS로 처리 불가, Edge Function 필요 |
+
+반면 **오프라인 셋로그는 새 테이블이 필요 없다.** `data_entries.entry_type`에 `'setlog'` 값을 추가하는 것으로 끝난다.
+
+---
+
 ## 1. 확장 및 공통
 
 ```sql
@@ -112,7 +127,10 @@ create type subscription_tier  as enum ('free', 'paid');
 
 create type couple_status      as enum ('pending', 'active', 'dissolving', 'dissolved');
 
-create type entry_type         as enum ('photo', 'memo', 'drawing');
+create type entry_type         as enum ('photo', 'memo', 'drawing', 'setlog');
+-- 'setlog' — 오프라인 셋로그 (MASTER Part 17-7).
+-- 데이트 아카이브와 달리 date_id가 항상 null이며, 매거진 제작 탭에서만 입력된다.
+-- date_id 유무로 추론하지 않고 명시적 타입으로 구분한다.
 
 -- 무료 티어 3개월 초과분은 'low'로 다운그레이드
 create type resolution_tier    as enum ('original', 'low');
@@ -144,6 +162,10 @@ create type dissolution_reason as enum ('unlink', 'withdrawal');
 
 -- 5문항 응답: 전 문항 3지선다
 create type quiz_choice        as enum ('A', 'B', 'C');
+
+-- Phase 2 확장 코너용
+create type interview_status   as enum ('open', 'partial', 'complete', 'expired');
+create type milestone_type     as enum ('hundred_days', 'anniversary', 'birthday');
 ```
 
 ---
@@ -986,6 +1008,201 @@ insert into public.app_config (key, value, description) values
 
 ---
 
+## 9-B. Phase 2 확장 코너
+
+> MASTER Part 17-6(우리 사이 인터뷰), 17-8(특별 게스트) 대응.
+> MVP 범위 밖이므로 마이그레이션 순서상 후순위(021 이후)에 적용한다.
+
+### 9-B-1. `interview_questions` — 고정 질문 풀
+
+```sql
+create table public.interview_questions (
+  id          uuid primary key default gen_random_uuid(),
+  category    text not null check (category in ('taste', 'observation', 'relation')),
+  text        text not null,
+  active      boolean not null default true,
+  created_at  timestamptz not null default now()
+);
+
+create index idx_interview_questions_active
+  on public.interview_questions (category)
+  where active;
+```
+
+참조 데이터. Q4(AI 생성)는 여기 저장하지 않는다.
+
+### 9-B-2. `interview_rounds` — 주차별 회차
+
+```sql
+create table public.interview_rounds (
+  id                  uuid primary key default gen_random_uuid(),
+  couple_id           uuid not null references public.couples(id) on delete cascade,
+
+  period_start        date not null,
+  period_end          date not null,
+
+  question_ids        uuid[] not null,        -- 고정 풀 3개 참조
+  generated_question  jsonb,                  -- Q4: {text, basis, source_ref}. nullable
+
+  status              interview_status not null default 'open',
+  opened_at           timestamptz not null default now(),
+  completed_at        timestamptz,
+
+  unique (couple_id, period_start),
+  constraint chk_interview_period check (period_end >= period_start),
+  constraint chk_question_count   check (array_length(question_ids, 1) = 3)
+);
+
+create index idx_interview_rounds_timeline
+  on public.interview_rounds (couple_id, period_start desc);
+
+comment on column public.interview_rounds.generated_question is
+  'Q4(AI 맞춤 생성). 커플·주차마다 다르므로 질문 뱅크가 아니라 회차에 직접 저장한다.
+   그 주 데이터가 부족하면 null — 3문항으로 발행된다.';
+```
+
+### 9-B-3. `interview_answers` — 응답
+
+```sql
+create table public.interview_answers (
+  id                        uuid primary key default gen_random_uuid(),
+  round_id                  uuid not null references public.interview_rounds(id) on delete cascade,
+  couple_id                 uuid not null references public.couples(id) on delete cascade,  -- RLS용
+  user_id                   uuid not null references public.profiles(id) on delete cascade,
+
+  question_ref              text not null,    -- 'q1'|'q2'|'q3'|'q4'
+
+  own_answer                text not null,
+  predicted_partner_answer  text not null,
+
+  answered_at               timestamptz not null default now(),
+
+  unique (round_id, user_id, question_ref)
+);
+
+create index idx_interview_answers_round on public.interview_answers (round_id, user_id);
+
+comment on column public.interview_answers.predicted_partner_answer is
+  '"상대는 뭐라고 답했을까" 예측. 이 컬럼이 이 코너의 핵심이며 일반 Q&A와 구조가 다른 지점이다.';
+```
+
+> **공개 조건**: 양쪽이 모든 문항을 완료해야 서로의 답을 볼 수 있다. 먼저 본 쪽이 답을 맞춰갈 수 있기 때문. 애플리케이션 레벨에서 `status = 'complete'` 판정 후 노출한다.
+
+### 9-B-4. `guest_invites` — 특별 게스트 링크
+
+```sql
+create table public.guest_invites (
+  id               uuid primary key default gen_random_uuid(),
+  couple_id        uuid not null references public.couples(id) on delete cascade,
+
+  token            text not null unique
+                     check (token ~ '^[A-Za-z0-9_-]{16,64}$'),
+
+  milestone_type   milestone_type not null,
+  milestone_date   date not null,
+
+  question_ids     uuid[] not null,          -- 고정 2개
+  custom_question  text,                     -- 커플 작성 1개
+
+  expires_at       timestamptz not null,
+  max_responses    smallint not null default 10 check (max_responses between 1 and 50),
+  revoked_at       timestamptz,
+
+  created_by       uuid not null references public.profiles(id),
+  created_at       timestamptz not null default now(),
+
+  constraint chk_guest_expiry check (expires_at > created_at)
+);
+
+create index idx_guest_invites_token
+  on public.guest_invites (token)
+  where revoked_at is null;
+
+create index idx_guest_invites_couple
+  on public.guest_invites (couple_id, created_at desc);
+
+comment on column public.guest_invites.revoked_at is
+  '커플이 언제든 즉시 무효화할 수 있다. 링크가 의도치 않은 곳으로 퍼졌을 때 유일한 대응 수단.';
+```
+
+### 9-B-5. `guest_responses` — 외부인 답변
+
+```sql
+create table public.guest_responses (
+  id             uuid primary key default gen_random_uuid(),
+  invite_id      uuid not null references public.guest_invites(id) on delete cascade,
+  couple_id      uuid not null references public.couples(id) on delete cascade,  -- RLS용
+
+  question_ref   text not null,             -- 'q1'|'q2'|'custom'
+
+  nickname       text not null check (char_length(nickname) between 1 and 20),
+  answer_text    text not null check (char_length(answer_text) between 1 and 500),
+
+  ai_filtered    boolean not null default false,   -- 1차 필터 제외 여부
+
+  approved_by_a  boolean not null default false,
+  approved_by_b  boolean not null default false,
+
+  responded_at   timestamptz not null default now()
+);
+
+create index idx_guest_responses_invite on public.guest_responses (invite_id);
+
+create index idx_guest_responses_publishable
+  on public.guest_responses (couple_id)
+  where approved_by_a and approved_by_b and not ai_filtered;
+
+comment on table public.guest_responses is
+  '앱에서는 전체 목록을 볼 수 있고, 지면에는 양쪽이 모두 승인한 답변만 실린다.
+   기본값 미승인 — 아무것도 안 하면 게재되지 않는다.';
+comment on column public.guest_responses.approved_by_a is
+  '양쪽 동의를 요구하는 이유: 한 사람은 괜찮은데 다른 사람은 불편한 답변이 있을 수 있다.
+   한쪽만 승인하면 상대의 불편을 대신 판단하는 셈이 된다.';
+```
+
+### 9-B-6. RLS
+
+```sql
+alter table public.interview_questions enable row level security;
+alter table public.interview_rounds    enable row level security;
+alter table public.interview_answers   enable row level security;
+alter table public.guest_invites       enable row level security;
+alter table public.guest_responses     enable row level security;
+
+-- 질문 풀: 전체 읽기
+create policy interview_questions_select on public.interview_questions
+  for select to authenticated using (active);
+
+create policy interview_rounds_select on public.interview_rounds
+  for select to authenticated using (public.is_couple_member(couple_id));
+
+create policy interview_answers_all on public.interview_answers
+  for all to authenticated
+  using (public.is_couple_member(couple_id))
+  with check (public.is_couple_member(couple_id) and user_id = auth.uid());
+
+create policy guest_invites_all on public.guest_invites
+  for all to authenticated
+  using (public.is_couple_member(couple_id))
+  with check (public.is_couple_member(couple_id) and created_by = auth.uid());
+
+create policy guest_responses_select on public.guest_responses
+  for select to authenticated using (public.is_couple_member(couple_id));
+
+create policy guest_responses_update on public.guest_responses
+  for update to authenticated
+  using (public.is_couple_member(couple_id))
+  with check (public.is_couple_member(couple_id));
+```
+
+> ⚠️ **`guest_responses`의 INSERT는 인증되지 않은 외부인이 수행한다.** 클라이언트 RLS로 처리할 수 없으므로 **Edge Function이 `service_role`로 삽입**한다. 그 함수가 토큰 유효성·만료·응답 수 상한을 검증한다.
+
+### 9-B-7. 미해결 — 외부인 응답 웹 페이지
+
+특별 게스트는 **앱 밖에 웹 페이지가 필요하다.** 링크를 받은 사람이 앱 설치 없이 답변하는 화면이다. Supabase Edge Function 서빙 또는 별도 호스팅이 필요하며, Phase 2 확장 시점에 결정한다.
+
+---
+
 ## 10. RLS (Row Level Security)
 
 ### 10-1. 헬퍼 함수
@@ -1536,8 +1753,23 @@ supabase/migrations/
 ├── 013_batch_functions.sql          -- expire_stories 등
 ├── 014_cron.sql                     -- pg_cron 스케줄
 ├── 015_storage_policies.sql         -- 버킷 정책
-└── 016_seed_love_type_labels.sql    -- 36종 라벨 시드
+├── 016_seed_love_type_labels.sql    -- 36종 라벨 시드
+│
+│   ── 이후는 개발 진행 중 추가된 것 ──
+├── 017_profiles_marketing_consent.sql  -- marketing_agreed_at,
+│                                       --   terms/privacy default now() 제거
+├── 018_realtime_publication.sql        -- messages·stories를 supabase_realtime에
+├── 019_avatars_storage_policies.sql    -- 대표사진 버킷 경로·정책
+├── 020_seed_love_type_descriptions.sql -- 36종 description_ko 시드
+│
+│   ── Phase 2 확장 (미착수) ──
+└── 021_phase2_corners.sql              -- interview_*, guest_* (§9-B)
+                                        --   entry_type에 'setlog' 추가
 ```
+
+**016과 020의 순서 주의**: `love_type_labels`에 라벨 행이 먼저 INSERT되어 있어야 020의 `description_ko` UPDATE가 매칭된다. 016이 비어 있으면 020은 **에러 없이 0건 갱신**되어 조용히 실패한다.
+
+**021은 MVP 범위 밖이다.** Phase 2 확장 착수 시점에 적용한다.
 
 ---
 
@@ -1610,7 +1842,9 @@ where table_schema = 'public'
 ## 16. 남은 결정
 
 - [ ] `stat_snapshots.position_code` — 연애 포지션(애니어그램×빅5) 네이밍 체계 미확정
-- [ ] `corners.content` 스키마 — 코너 타입별 jsonb 구조 정의 (12종 각각)
+- [ ] `corners.content` 스키마 — 미착수 3종(어깨너머·부록·협찬)의 jsonb 구조. 나머지 9종은 CORNER_CONTENT.md 참조
+- [ ] `guest_responses` INSERT용 Edge Function — 토큰 검증·만료·응답 수 상한 처리 (§9-B-6)
+- [ ] 외부인 응답 웹 페이지 호스팅 방식 (§9-B-7)
 - [ ] `messages` 파티셔닝 임계치 — 커플당 메시지 수가 어느 규모에서 필요한지
 - [ ] 저해상도 변환 실제 파라미터 — 현재 `app_config`에 1280px/quality 70으로 임시 설정
 - [ ] `engine_version` 관리 정책 — 로직 변경 시 과거 결과 재계산 여부
