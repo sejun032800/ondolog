@@ -310,7 +310,6 @@ UI 없이 단독 검증이 가능한 유일한 구간이다. 여기서 로직을
 |---|---|---|
 | Phase 3 전 | iOS Dev Build (Apple Developer 계정) | 인프라 |
 | Phase 3 전 | Supabase Auth 프로바이더 3종 설정 + redirect URI | 인프라 |
-| Phase 3 전 | 36종 연애유형 상세 설명문 (`description_ko`) | 콘텐츠 |
 | Phase 3 전 | 80문항 워딩·톤 최종 다듬기 | 콘텐츠 |
 | Phase 6 전 | ~~생체정보 별도 동의 UI/문구~~ (UI 완료 2026-08-27, 법무 문구만 잔존) | 법무 (필수) |
 | Phase 6 전 | 얼굴 인식 라이브러리 선정 | 기술 |

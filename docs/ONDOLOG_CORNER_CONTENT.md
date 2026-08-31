@@ -52,18 +52,13 @@ interface CornerEnvelope<P> {
 
 ### 0-4. 금지 키 (전 코너 공통)
 
-Part 3-7의 "AI는 편집자이지 평론가가 아니다" 원칙을 스키마 수준에서 강제한다.
+Part 3-7의 "AI는 판정하지 않는다" 원칙을 스키마 수준에서 강제한다.
 
-```ts
-const FORBIDDEN_KEYS = [
-  'rating', 'score',        // ← love_dna·league는 예외(§1-2 참조)
-  'praise', 'compliment', 'evaluation', 'assessment',
-  'advice', 'suggestion',   // ← date_archive의 closingQuestions는 예외
-  'grade', 'ranking', 'verdict', 'judgement',
-];
-```
+> **주의**: 이 목록은 **판정성 필드**를 막는 것이지 서술 자체를 막는 게 아니다.
+> AI가 감정을 짚어주거나 긍정적인 목소리를 내는 것은 허용된다 (Part 3-7).
+> 금지하는 것은 점수·등급·판결을 구조화된 필드로 저장하는 행위다.
 
-허용 예외는 코너별 스키마에 명시된 필드에 한정한다. 그 외 위치에서 위 키가 발견되면 **재생성**한다.
+const FORBIDDEN_KEYS = [ ... ];
 
 ---
 
