@@ -1,6 +1,6 @@
 # 진행 상황
 
-최종 갱신: 2026-09-02 (문서 갱신 — 엔진 자리표시자 해소 + Phase 10 신설)
+최종 갱신: 2026-09-02 (`UNRESOLVED` 규격 1단계 완료 확정 + tsconfig.json `types` 배열 신설 — 엔진 자리표시자 해소 + Phase 10 신설)
 
 ## 현재 Phase
 
@@ -198,6 +198,28 @@ Phase 6 — 피드 + 얼굴 인식 (착수, UI 단계(동의 흐름 + 대표사�
 > 목록에 없는 키는 그 자체가 감사 위반이다. Phase 착수 조건에
 > `grep -rn "UNRESOLVED" src/engine/` 0건(해당 Phase가 소비하는 키 기준)을
 > 걸고 `rule-auditor`에 편입한다.
+>
+> **(2026-09-02 — 1단계 완료 확정)** `engine-dev`가
+> `src/engine/constants/unresolved.ts` + `__tests__/engine/unresolved.test.ts`를
+> 작성했다. 등록 키 3종(`temperature.activityScore` phase 7 /
+> `leagueStats.shrinkage` phase 7 / `faceMatch.threshold` phase 6) 전부
+> throw만 검증(값 기대 테스트 없음), 미등록 키는 `UnknownUnresolvedKeyError`로
+> 등록 키(`UnresolvedConstantError`)와 다른 타입으로 실패, `@ts-expect-error`로
+> 타입 레벨 거부까지 검증. 결정론(동일 키 100회 반복 → 동일 메시지) 포함.
+> 기존 257개 전부 통과 + 신규 10개 = 267개. `grep -rn "UNRESOLVED"
+> src/engine/`는 이 한 파일에서만 3종 전부 검출됨 — `faceMatch.ts`는
+> **미착수(2단계 대기)**, 호출부도 조사 결과 존재하지 않는다(`isMatch`/
+> `matchAgainstReferences`를 참조하는 코드는 `faceMatch.ts` 자신과
+> `faceMatch.test.ts`뿐).
+>
+> `npx tsc --noEmit -p .`는 최초 보고 시점엔 저장소 전체가 720에러였다
+> (이 작업 이전부터의 기존 상태, jest뿐 아니라 node 전역도 자동 인식이
+> 안 되고 있었음). 코디네이터가 원인을 추적해 `tsconfig.json`에
+> `"types": ["jest", "node"]`를 추가(2026-09-02, CLAUDE.md 절대 규칙 8에
+> 따라 지시받은 변경 — 상세 근거 HANDOFF.md 참조)한 뒤 **전체 0에러,
+> `npx jest` 267/267 그대로 pass**로 확인됐다. `@ts-expect-error` 2곳도
+> 이 상태에서 유효성이 증명됐다(0에러에는 "unused directive" 경고도
+> 포함되지 않으므로).
 
 ## 스키마 불일치 발견 (기록만, 직접 수정하지 않음 — db-architect 영역)
 
@@ -819,9 +841,10 @@ Phase 6 — 생체정보 동의 흐름 + 대표사진 등록 UI + 매칭 순수 
 
 ### 2026-09-02 기준 착수 가능 (폰 불필요)
 
-1. **`UNRESOLVED` 규격 구현** — `src/engine/constants/unresolved.ts`.
-   **다른 엔진 작업의 선행 조건이다.** 이것 없이 착수하면 에이전트가
-   미확정 계수를 지어낸다(Phase 2에서 실제로 발생).
+1. ~~**`UNRESOLVED` 규격 구현** — `src/engine/constants/unresolved.ts`.~~
+   **(2026-09-02 1단계 완료)** 위 "자리표시자 상태 → 남은 미확정" 절
+   참조. **2단계(호출부 적용, 특히 `faceMatch.ts` 호출부 신설 여부)는
+   아직 승인 대기 — 별도 지시 전까지 착수하지 않는다.**
 2. **규준집단 전수 열거 산출** — 3,888 프로파일의 6각 스탯·OVR 계산.
    완료 기준에 **에니어그램 9종별 OVR 분포 점검** 포함(MASTER 10-8-2).
    자리표시자 2개(규준집단·사전평균)가 실물화된다.

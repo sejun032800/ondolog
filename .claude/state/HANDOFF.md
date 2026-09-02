@@ -4,6 +4,56 @@
 > 이 파일이 유일한 인수인계 수단이다.
 > **완료된 항목은 즉시 삭제할 것** — 누적되면 컨텍스트가 오염된다.
 
+## `tsconfig.json` `types` 배열 신설 (2026-09-02, 코디네이터 지시) — CLAUDE.md 절대 규칙 8 명시
+
+**변경 전**: `compilerOptions`에 `types`/`typeRoots` 키 없음(로컬·`expo/tsconfig.base`
+병합본 `--showConfig`로 확인 — 둘 다 부재).
+**변경 후**: `"types": ["jest", "node"]` 추가.
+
+**원인**: 자동 `@types/*` 스캔이 jest뿐 아니라 node(`fs`/`path`/`__dirname`)까지
+전부 안 되고 있었다(baseline 720에러 중 8건이 이미 `TS2591` node 관련 —
+jest 전용 문제라는 최초 라벨이 부정확했음). `npx tsc --noEmit --types jest`
+단독 시험 720→15, `--types jest,node` 시험 720→0으로 원인을 확정한 뒤 반영.
+`node_modules/@types/jest`·`node`는 원래도 정상 설치돼 있었다(호이스팅
+문제 아님) — 그저 아무 것도 자동 로드되지 않고 있었을 뿐.
+
+**검증**: `npx tsc --noEmit -p .` 전체 0에러(신규 파일 포함), `npx jest` 267/267
+그대로 pass(회귀 없음). `unresolved.test.ts`의 `@ts-expect-error` 2곳도
+이제 유효성이 증명됐다 — tsc가 "Unused '@ts-expect-error' directive"를
+전혀 보고하지 않았으므로(0에러에 포함되려면 이 경고도 없어야 한다) 두
+디렉티브 모두 실제로 타입 에러를 억제하고 있다는 뜻이다.
+
+## `UNRESOLVED` 규격 1단계 — 완료 확정 (2026-09-02) — 2단계는 승인 대기
+
+`src/engine/constants/unresolved.ts` + `__tests__/engine/unresolved.test.ts`
+작성 완료. **2단계(호출부 적용)는 이 인수인계 이후 별도 지시가 있어야
+착수한다 — 아직 진행하지 않았다.**
+
+- **등록된 키 3종과 소비 예정 Phase** (Part 16-2 목록과 1:1):
+  - `temperature.activityScore` — Phase 7 (`MASTER Part 10-7-3`)
+  - `leagueStats.shrinkage` — Phase 7 (`MASTER Part 10-8-3`)
+  - `faceMatch.threshold` — Phase 6 (`MASTER Part 9-4`)
+- **`faceMatch.ts` 호출부 존재 여부 조사 결과: 없음.** `isMatch`/
+  `matchAgainstReferences`를 참조하는 코드는 저장소 전체에서
+  `src/engine/faceMatch.ts` 자신과 `__tests__/engine/faceMatch.test.ts`뿐
+  (`app/`, `src/services/`, `src/hooks/` 등 어디에도 caller 없음).
+  프롬프트 지시대로 **호출부를 새로 만들지 않았다** — `faceMatch.ts`
+  파일 자체도 이번 작업에서 전혀 건드리지 않았다. **2단계(호출부 적용)는
+  진행하지 않는다** — 없는 호출부를 새로 만드는 것은 Phase 6 스캔
+  파이프라인 설계를 이 세션이 선점하는 것이 되어, 별도 지시 없이 하지
+  않는다(CLAUDE.md 절대 규칙 8과 같은 성격). `faceMatch.threshold`는
+  레지스트리에 등록된 채 소비자를 기다리는 것이 이 규격이 의도한
+  정상 상태다.
+  > ⚠️ **Phase 6 스캔 파이프라인 구현 시 반드시 지킬 것**: `isMatch`의
+  > `threshold` 인자는 `UNRESOLVED('faceMatch.threshold')`를 통해
+  > 주입한다. 숫자를 직접 넣지 않는다. 값은 실기기 캘리브레이션 후
+  > 확정된다.
+- **이 변경으로 영향받은 기존 테스트: 없음.** `__tests__/engine/unresolved.test.ts`는
+  신규 파일이고, 기존 파일은 하나도 수정하지 않았다. `npx jest` 전체
+  실행 결과 22 suites / 267 tests 전부 pass(기존 257 + 신규 10).
+- **`npx tsc --noEmit -p .`: 0에러 (위 `tsconfig.json` `types` 배열 신설 항목
+  참조).** 신규 파일 포함 전체 통과, `@ts-expect-error` 2곳 유효성도 확인됨.
+
 ## Phase 2(엔진) 산출 타입 요약 — 여전히 유효, 그대로 참조
 
 전부 `src/engine/*.ts`에서 export. 상세는 각 파일 상단 docblock 참조.
