@@ -763,6 +763,8 @@ comment on table public.daily_temperature is
   '일 단위 배치(자정 Edge Function)로만 갱신된다. 앱은 읽기 전용 — 실시간 계산 금지.';
 comment on column public.daily_temperature.temperature is
   '미연결 커플은 36.5 고정. 데이터 없는 평온한 기본 체온이라는 의미.';
+comment on column public.daily_temperature.factors is
+  '산출 근거 + 계수 버전. baselineTemperature / activityDelta / 활동 원재료 / coeffVersion을 함께 기록한다. 이 테이블에는 engine_version 컬럼이 없으므로 버전을 factors 안에 넣는다(stat_snapshots와 방식이 다름). 버전 기록 없는 산출은 허용하지 않는다 — 발행물에 실린 값은 재현 가능해야 한다. 계산 규격은 MASTER Part 10-7.';
 ```
 
 ### 8-2. `stat_snapshots` — 연애리그 6각 스탯 시계열
@@ -788,13 +790,16 @@ create table public.stat_snapshots (
   -- OVR (120점 만점, 규준집단 백분위 매핑 = 상대평가 유지)
   ovr             smallint not null check (ovr between 0 and 120),
   ovr_percentile  numeric(5, 2) check (ovr_percentile between 0 and 100),
-  position_code   text,                                  -- 연애 포지션 (네이밍 체계 미확정)
+  position_code   text,                                  -- 연애 포지션 (표시용 라벨. OVR 계산에 미관여 — MASTER Part 10-8-2. 네이밍 확정까지 null)
 
   -- 월간판 "능력치 배분표"용: 각 스탯의 입력별 기여도
   inputs          jsonb not null default '{}'::jsonb,
   -- 전기 대비 증감 (주간판 ▲▼ 표시 / 월간판 변동 해설 근거)
   delta           jsonb not null default '{}'::jsonb,
 
+  -- engine_version = 엔진 코드 버전. 규준집단 버전은 inputs.normVersion에 별도 기록한다.
+  -- 엔진 코드가 그대로인 채 규준집단만 자사 데이터로 교체되는 상황이 예정돼 있어 독립적으로 변한다.
+  -- 규준 산출 규격은 MASTER Part 10-8-1·10-8-3.
   engine_version  text not null,
   computed_at     timestamptz not null default now(),
 

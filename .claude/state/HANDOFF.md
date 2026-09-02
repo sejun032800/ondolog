@@ -11,16 +11,34 @@
 - `src/engine/loveTypeInference.ts` — `inferLoveType`, `resolveMbtiFromQuickQuiz`,
   개별 `compute*` 함수들, `LOVE_TYPE_ENGINE_VERSION`. Phase 3에서 그대로
   소비했다(`src/store/sessionStore.ts`, `src/services/personalityApi.ts`).
-- `src/engine/leagueStats.ts` — `computeSixStats`/`computeOvrRawScore`(자리
-  표시자)/`percentileRank`/`mapPercentileToOvr`. Phase 3에서는 미사용
-  (메인 탭 범위).
+- `src/engine/leagueStats.ts` — `computeSixStats`/`computeOvrRawScore`/
+  `percentileRank`/`mapPercentileToOvr`. Phase 3에서는 미사용(메인 탭 범위).
+  **(2026-09-02)** `computeOvrRawScore`는 **더 이상 자리표시자가 아니다.**
+  OVR은 6각 스탯의 산술평균(반올림)으로 확정됐고(MASTER Part 10-8-2)
+  현행 구현이 이미 그 형태다 — 포지션 가중치 단계 자체가 삭제됐다.
+  `percentileRank`가 쓸 규준집단도 확정(전수 열거 3,888, Part 10-8-1).
+  **남은 미확정은 베이지안 수축 강도 하나** →
+  `UNRESOLVED('leagueStats.shrinkage')`.
 - `src/engine/temperature.ts` — `resolveDisconnectedTemperature`(36.5 고정),
-  `clampTemperature`. **앱 클라이언트에서 이 파일의 함수를 호출하지
+  `clampTemperature`.
+  **(2026-09-02)** 계산 규격이 **MASTER Part 10-7**로 확정됐다 —
+  `baselineTemperature`(성격 기저) + `activityDelta`(14일 이동창).
+  **다만 두 함수는 아직 구현되지 않았다.** 구현 시 제약:
+  계수를 **인자로만** 받고, 이 파일에서 DB·네트워크·환경변수에
+  접근하지 않는다(계수 조회는 호출부 책임). 엔진 안에서 supabase
+  클라이언트를 import하면 함수가 비동기가 되어 순수성이 사라지는데
+  기존 결정론 grep에는 걸리지 않는 **조용한 실패**다.
+  식별자: `temperature`(최종) / `baselineTemperature`(기저) /
+  `activityDelta`(변동) / `typeAffinity`(유형 궁합 — **온도 어근을 쓰지
+  않는다**). **앱 클라이언트에서 이 파일의 함수를 호출하지
   않는다**(파일 상단 계약) — Phase 3의 `src/store/coupleStore.ts`는
   `DISCONNECTED_TEMPERATURE` **상수**만 재노출하고 함수는 호출하지 않는
   방식으로 이 계약을 지켰다. Phase 4(메인 탭)도 동일 원칙 유지할 것.
 - `src/engine/dnaScore.ts` — `clampDnaScore`/`computeTotalScore`. base_score
   궁합 공식 없음(아래 "미확정" 참조).
+  **(2026-09-02)** 여전히 미확정이지만 범위가 좁아졌다 — 궁합 매트릭스는
+  MASTER **Part 10-6-5**에 이미 있고 **범주형**(잘 맞음 / 중립 / 온도차)이다.
+  없는 것은 **범주 → 점수 변환 규칙** 하나. 마스터 PM 확정 대기.
 
 ## Phase 3(온보딩 UI) 산출 요약 — 이후 Phase가 가져다 쓰는 용도
 
@@ -169,12 +187,39 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
   삭제 호출을 반드시 추가할 것. 자동 테스트로 강제할 수 없는 항목이라
   QA 체크리스트에 수동으로 남아 있다(`.claude/state/PROGRESS.md`
   "막힌 것" 참조).
+- **(2026-09-02) `src/engine/faceMatch.ts`의 `threshold` 인자는 다섯 번째
+  자리표시자였다** — 어느 문서에도 값이 없었고 자리표시자 목록에도 없었다.
+  코드는 규칙을 정확히 지켰지만(인자로 받고 하드코딩하지 않음) 그래서
+  아무도 추적하지 않았다. **판정 정책은 확정됐다** — MASTER Part 9-4:
+  **오탐 회피 우선**, 판정이 애매한 구간은 매칭하지 않는다. 이중 임계값은
+  범위 밖(분포 관측 후 Phase 10과 재검토).
+  **값은 실기기 캘리브레이션 대기** → `UNRESOLVED('faceMatch.threshold')`.
+  SDK 반환값이 유사도인지 거리인지, 정규화 범위가 무엇인지, 실제 커플
+  사진에서 어느 대역에 분포하는지가 재빌드 후에만 관측된다. 측정은
+  **온디바이스에서 하고 사람이 화면에서 읽어 손으로 기록한다** — 유사도
+  로그나 특징 벡터를 서버로 보내면 절대 규칙 1 위반이다. 실기기
+  작업이므로 위임 대상이 아니다.
 - **법률 문구는 여전히 자리표시자다** — `src/constants/legalDocuments.ts`
   의 `biometric` 항목. 실제 법무 검토 텍스트로 교체 필요(다른 3개
   문서와 동일한 미해결 상태, "여전히 필요한 처리" 5번 항목에 함께
   추적).
 
 ## 여전히 필요한 처리 (사람 작업)
+
+### 2026-09-02 추가
+
+- **`docs/` 5종 교체** — MASTER·DESIGN·ROADMAP·SCHEMA·CORNER_CONTENT.
+- **`ui-builder_phase6_guard.md` 내용을 `.claude/agents/ui-builder.md`
+  끝에 이어 붙이기** — 새 파일이 아니다. Phase 6(생체정보 동의) +
+  Phase 10(매거진 제작 탭) 주의사항.
+- **마스터 PM 문서 / 프롬프트 엔지니어 인수인계서를 `docs/`에 넣을지 결정**
+  — 현재 저장소 밖이라 버전 관리가 안 된다. 마스터 PM 문서는 "새 세션에서
+  문서 하나로 복구"가 존재 이유라 특히 그렇다.
+- **`018_realtime_publication.sql` 원격 적용 여부 확인** — 로컬 파일 존재와
+  원격 적용은 별개다. 아래 1번과 같은 사안이며, 0831 대조 문서가 "다음
+  확인 3가지"로 올렸으나 그 문서는 스냅샷이라 갱신되지 않는다.
+
+### 기존
 
 1. **`supabase_realtime` publication에 `messages`(및 필요 시 `stories`)가
    빠져 있다** — 원격 프로젝트에 직접 쿼리(`select * from
