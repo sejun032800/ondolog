@@ -4,6 +4,101 @@
 > 이 파일이 유일한 인수인계 수단이다.
 > **완료된 항목은 즉시 삭제할 것** — 누적되면 컨텍스트가 오염된다.
 
+## 규준집단 전수 열거 (`synthetic-v1`) — 완료 (2026-09-02, engine-dev)
+
+Phase 7 선행 #2. 응답 공간 3,888개(Q1~Q5 3지선다 3⁵=243 × MBTI 16)를
+전수 열거해 규준집단 데이터 파일을 생성하고, 백분위 조회 함수를 추가했다.
+
+### 재사용한 기존 채점·스탯 함수 (재구현 없음)
+
+전부 그대로 import만 했다. 열거용 재구현은 하지 않았다.
+
+| 함수 | 시그니처 | 파일 |
+|---|---|---|
+| `inferLoveType` | `(input: LoveTypeInput) => LoveTypeInferenceResult` | `src/engine/loveTypeInference.ts` |
+| `computeSixStats` | `(input: SixStatsInput) => SixStats` | `src/engine/leagueStats.ts` |
+| `computeOvrRawScore` | `(stats: SixStats) => number` (6각 스탯 산술평균 = 합성값) | `src/engine/leagueStats.ts` |
+| `percentileRank` | `(rawScore: number, population: readonly number[]) => number` | `src/engine/leagueStats.ts` (신규 조회 함수가 내부에서 호출) |
+| `roundTo` | `(value: number, decimals: number) => number` | `src/engine/numeric.ts` (열거 통계의 유일 반올림 지점) |
+
+문서 대조: `loveTypeInference`/`leagueStats`의 채점·스탯 로직을 MASTER
+Part 10-2 / 10-1-3 / 17-3과 대조했고 어긋남 없음(호나이·하모닉 삼분법 매핑,
+빅5 보정, 애착 축 20/50/85, 6각 가중합 전부 문서와 일치).
+
+### `engineVersions` 맵 (파일에 기록됨, 기존 상수를 읽어 넣음)
+
+| 키 | 값 | 상수 | 파일 경로 |
+|---|---|---|---|
+| `loveTypeInference` | `"1.0.0"` | `LOVE_TYPE_ENGINE_VERSION` | `src/engine/loveTypeInference.ts:52` |
+| `leagueStats` | `"1.0.0"` | `LEAGUE_STATS_ENGINE_VERSION` | `src/engine/leagueStats.ts:34` |
+
+문자열을 직접 타이핑하지 않았다 — `enumerateNormData()`가 두 상수를
+import해 그대로 넣는다. 열거가 직접 import하는 엔진 모듈은 이 둘뿐이며,
+`numeric.ts`는 버전 상수가 없는 순수 반올림 유틸(설계상)이라 맵에서 제외했다.
+
+### 산출물 경로
+
+| 경로 | 내용 |
+|---|---|
+| `src/engine/normPercentile.ts` | 백분위 조회 순수 함수 + `NormData` 스키마 타입. **규준 JSON을 정적 import하지 않는다** — `lookupCompositePercentile(compositeRawScore, norm)`처럼 데이터를 인자로 받는다. `lookupStatPercentile`는 기각된 (b) 방식 대조용으로 함께 노출(파이프라인 미사용). |
+| `src/engine/data/norm-synthetic-v1.json` | 규준 데이터. **352,336 bytes (약 344 KB)** — 번들 영향. 커진다면 지연 로딩 검토(Part 10-8-3). |
+| `scripts/norm/enumerate.ts` | 열거 순수 함수 `enumerateNormData()` / `enumerateProfiles()`. **파일 I/O 없음.** 드리프트 테스트가 재호출. |
+| `scripts/norm/distribution.ts` | 결정론적 분포 요약(모표준편차 = N으로 나눔, nearest-rank 분위수). |
+| `scripts/norm/serialize.ts` | `serializeNormData()` — 생성기·드리프트 테스트 공용 정규 직렬화. |
+| `scripts/generate-norm.ts` | 파일 쓰기 담당. 실행법은 파일 상단 docblock(1회용 `npx tsc` 컴파일 후 `node`; ts-node/tsx 없음, Node 네이티브 TS는 확장자 없는 import 미해석). |
+| `__tests__/engine/normDrift.test.ts` | **드리프트 감지 테스트.** 열거를 재호출→직렬화→커밋 파일과 **바이트 단위** 대조. 채점을 고치고 엔진 버전 상수를 안 올려도 이 테스트가 깨진다. 깨지면 "규준 재산출 + (채점이 바뀌었으면) 버전 상수 올리기" 신호. |
+| `__tests__/engine/normPercentile.test.ts` | 조회 함수 순수성·단조성·데이터 주입·결정론(100회 반복) 검증. |
+
+**기존 파일 수정 없음** — `git status`에 `M` 없음(전부 신규). `leagueStats.ts`,
+`loveTypeInference.ts`, `constants/unresolved.ts`, 설정 파일 전부 미변경.
+`grep -c` 레지스트리 엔트리 여전히 3(`temperature.activityScore` /
+`leagueStats.shrinkage` / `faceMatch.threshold`). `leagueStats.shrinkage`는
+`UNRESOLVED` 그대로 — 수축은 적용하지 않았다(원점수 기준 열거, Part 10-8-1).
+
+### 점검 ① 분산 지배 (스탯별 표준편차 — `leagueStats.shrinkage` 확정 입력)
+
+원점수(수축 전) 기준, 3,888개 전수.
+
+| 스탯 | 평균 | 표준편차 |
+|---|---|---|
+| PUS | 49.750000 | **17.020209** |
+| EMP | 54.753086 | **9.107087** (최소) |
+| ATT | 47.000000 | **21.489015** (최대) |
+| DEF | 44.222222 | **19.423799** |
+| TAC | 45.416667 | **16.359460** |
+| REA | 53.333333 | **13.707257** |
+
+최대/최소 비 ≈ 2.36배 (ATT 21.49 / EMP 9.11). 합성값(6개 산술평균) 분포는
+평균 49.079218 · 표준편차 3.540467. **판단은 하지 않음** — 평균 전 표준화
+도입 여부는 마스터 PM 결정(Part 10-8-2).
+
+### 점검 ② 에니어그램 코어 9종별 합성값 분포 (Part 10-8-2 검증 조건)
+
+각 코어 표본 수 432로 균등(코어는 (Q1,Q2)만으로 결정 → 9쌍이 9코어에 전단사).
+
+| 코어 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|
+| 1 | 45.800926 | 2.869455 | 38.333333 | 53.000000 | 432 |
+| 2 | 47.092593 | 2.884642 | 39.666667 | 54.333333 | 432 |
+| 3 | 49.717593 | 2.869411 | 42.166667 | 56.833333 | 432 |
+| 4 | 50.427469 | 2.867197 | 42.833333 | 57.666667 | 432 |
+| 5 | 50.260802 | 2.867197 | 42.666667 | 57.500000 | 432 |
+| 6 | 45.967593 | 2.869455 | 38.500000 | 53.166667 | 432 |
+| 7 | 51.009259 | 2.884597 | 43.500000 | 58.166667 | 432 |
+| 8 | 49.884259 | 2.869411 | 42.333333 | 57.000000 | 432 |
+| 9 | 51.552469 | 2.882395 | 44.000000 | 58.833333 | 432 |
+
+코어 평균의 폭: 최저 45.80(코어 1) ~ 최고 51.55(코어 9), 약 5.75점 차
+(합성값 전체 표준편차 3.54 대비 약 1.6σ). 코어 1·6이 구조적으로 하위,
+코어 7·9가 상위. **판단은 하지 않음** — 가중치 도입은 마스터 PM 결정.
+
+### 검증 상태
+
+- `npx jest` : 24 suites / **289 tests** 전부 pass (기존 267 + 신규 22, 회귀 0)
+- `npx tsc --noEmit -p .` : **0 에러**
+- 재실행 바이트 동일 : `norm-synthetic-v1.json` SHA-256 재생성 전후 동일 확인
+- 드리프트 테스트 : `__tests__/engine/normDrift.test.ts` pass
+
 ## `tsconfig.json` `types` 배열 신설 (2026-09-02, 코디네이터 지시) — CLAUDE.md 절대 규칙 8 명시
 
 **변경 전**: `compilerOptions`에 `types`/`typeRoots` 키 없음(로컬·`expo/tsconfig.base`
