@@ -26,7 +26,7 @@
  * 등록된 미해결 계수 하나의 메타데이터.
  *
  * `phase`는 **이 키를 소비하는 Phase**를 뜻한다 — 계수가 해소되는
- * 시점이 아니다. Part 16-2가 세 키를 "Phase 7 선행"으로 묶은 것은
+ * 시점이 아니다. Part 16-2가 일부 키를 "Phase 7 선행"으로 묶은 것은
  * 해소 작업에 착수하는 시점 기준이고, 이 레지스트리의 `phase`는 각
  * 계수가 실제로 코드에서 쓰이는(소비되는) Phase다. 두 기준은 서로
  * 다른 축이며 모순되지 않는다.
@@ -43,8 +43,8 @@ export interface UnresolvedConstantMeta {
 }
 
 /**
- * 미해결 상수 레지스트리. Part 16-2 "엔진 자리표시자 (Phase 7 선행)"
- * 목록 중 `UNRESOLVED(...)`로 명시된 3개 항목과 1:1 대응한다.
+ * 미해결 상수 레지스트리. Part 16-2 "`UNRESOLVED` 레지스트리 (코드와 1:1
+ * 대응)" 표의 4개 항목과 1:1 대응한다.
  *
  * 새 미해결 계수가 생기면 이 객체에 항목을 추가하는 것으로 등록이
  * 끝난다 — 호출부는 `phase`/`doc`을 따로 적지 않고 `key`만 넘긴다.
@@ -54,18 +54,25 @@ export const UNRESOLVED_REGISTRY = {
     phase: 7,
     doc: 'MASTER Part 10-7-3',
     resolutionCondition:
-      '하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터 필요',
+      '하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터',
   },
   'leagueStats.shrinkage': {
     phase: 7,
     doc: 'MASTER Part 10-8-3',
     resolutionCondition:
-      '베이지안 수축 강도. 전수 열거 분포의 분산 관측 후',
+      '베이지안 수축 강도. 채팅 사후확률 갱신의 관측 분산 확보 후(사전 분산만으로는 부족 — 10-8-3 참조)',
   },
   'faceMatch.threshold': {
     phase: 6,
     doc: 'MASTER Part 9-4',
-    resolutionCondition: '얼굴 매칭 임계값. 실기기 캘리브레이션 필요',
+    resolutionCondition:
+      '얼굴 매칭 임계값. 판정 정책은 확정, 값만 실기기 캘리브레이션',
+  },
+  'dnaScore.chatDelta': {
+    phase: 7,
+    doc: 'MASTER Part 17-2',
+    resolutionCondition:
+      '채팅 질 → 점수 변환. 범위 [−10, +25]는 확정, 산출식이 실사용 데이터 대기',
   },
 } as const satisfies Record<string, UnresolvedConstantMeta>
 

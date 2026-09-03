@@ -196,6 +196,7 @@ Phase 6 — 피드 + 얼굴 인식 (착수, UI 단계(동의 흐름 + 대표사�
 | `UNRESOLVED('leagueStats.shrinkage')` | 관측 대기 | 전수 열거 분포의 분산 |
 | `UNRESOLVED('temperature.activityScore')` | 관측 대기 (2026-09-03: 소비 지점 신설 — `computeDailyActivityScore`/`computeActivityDelta`/`computeDailyTemperature`) | 하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터 |
 | `UNRESOLVED('faceMatch.threshold')` | 실기기 대기 | 판정 정책은 확정(MASTER 9-4). **값만** 캘리브레이션 |
+| `UNRESOLVED('dnaScore.chatDelta')` | 관측 대기 (2026-09-03 레지스트리 등재, 소비부 없음) | 채팅 질 → 점수 변환. 범위 [−10, +25]는 확정, 산출식이 실사용 데이터 대기 (MASTER Part 17-2) |
 
 > **미해결 상수 규격 (`UNRESOLVED`) — 2026-09-02 도입.**
 > 미확정 계수는 값이 아니라 `src/engine/constants/unresolved.ts`의
@@ -235,6 +236,49 @@ Phase 6 — 피드 + 얼굴 인식 (착수, UI 단계(동의 흐름 + 대표사�
 > `npx jest` 267/267 그대로 pass**로 확인됐다. `@ts-expect-error` 2곳도
 > 이 상태에서 유효성이 증명됐다(0에러에는 "unused directive" 경고도
 > 포함되지 않으므로).
+>
+> **(2026-09-03 — Part 16-2 전수 대조 동기화, engine-dev)**
+> Part 16-2 "`UNRESOLVED` 레지스트리" 표가 4행으로 늘었는데 코드
+> 레지스트리는 3항목이었다. **문서에 키가 추가돼도 코드 반영이 자동으로
+> 따라오지 않는다** — 표 전체를 대조하는 작업으로만 잡힌다.
+> - **표에만 있어 추가**: `dnaScore.chatDelta` (phase 7 / `MASTER Part 17-2` /
+>   해소 조건 "채팅 질 → 점수 변환. 범위 [−10, +25]는 확정, 산출식이 실사용
+>   데이터 대기"). 표의 key·phase·doc·해소 조건을 그대로 옮김.
+> - **양쪽 존재·일치(미수정)**: `temperature.activityScore`,
+>   `faceMatch.threshold`. `resolutionCondition` 문구가 표와 경미하게 다르나
+>   phase·doc 일치 → 손대지 않음.
+> - **코드에만 있는 키**: 없음.
+> - **내용 불일치(보고만, 미수정)**: `leagueStats.shrinkage` — phase(7)·doc
+>   (`MASTER Part 10-8-3`)는 일치하나 `resolutionCondition`이 방향 상충
+>   (코드 "전수 열거 분포의 분산 관측 후" ↔ 표 "채팅 사후확률 갱신의 관측
+>   분산 확보 후 — 사전 분산만으로는 부족"). 코드가 에러 메시지로 소비 중이라
+>   사람 판단 필요 → 이번 작업에서 손대지 않음.
+> - `dnaScore.chatDelta`는 `UNRESOLVED`로 소비하지 않는다(`computeTotalScore`가
+>   `chatDelta`를 인자로 받음). `grep "UNRESOLVED("` 호출 **2건 유지**
+>   (정의 1 + `temperature.ts:234`).
+> - `__tests__/engine/unresolved.test.ts`의 census 테스트가 키 집합을 3개로
+>   하드코딩(`toEqual([...3])`)해 레지스트리 확장을 막고 있었다. 개발 총괄이
+>   "Part 16-2 목록과 1:1 대응" 불변식을 3→4행 스펙 변화에 맞춰 동기화하는
+>   것으로 승인 → census 배열을 4개로 갱신(값 우회가 아닌 불변식 동기화).
+>   신규 키 throw 기대 테스트 1건 추가. 에러 타입 2종 구분·`@ts-expect-error`
+>   유지. `npx tsc --noEmit -p .` 0에러, `npx jest` 324→**325** 전부 통과.
+>
+> **(2026-09-03 후속 — resolutionCondition 3건도 표에 맞춰 갱신, 프롬프트
+> 엔지니어 추가 판정)** 원래 프롬프트가 "내용 불일치" 기준을 phase·doc으로만
+> 좁게 써서 누락됐던 부분. `resolutionCondition`도 레지스트리 항목이고 Part
+> 16-2 표가 원본이다. 특히 `leagueStats.shrinkage`는 문구가 낡은 정도가 아니라
+> **내용이 틀렸다**(전수 열거는 사전 분산만 주고 해소엔 관측 분산 필요 —
+> 정정이 문서에만 반영돼 있어 코드 문구대로면 이 계수가 이미 열린 것으로 읽힘).
+> 세 건 전/후:
+> - `temperature.activityScore`: "…실사용 데이터 필요" → "…실사용 데이터"
+> - `leagueStats.shrinkage`: "베이지안 수축 강도. 전수 열거 분포의 분산 관측 후"
+>   → "베이지안 수축 강도. 채팅 사후확률 갱신의 관측 분산 확보 후(사전
+>   분산만으로는 부족 — 10-8-3 참조)"
+> - `faceMatch.threshold`: "얼굴 매칭 임계값. 실기기 캘리브레이션 필요" →
+>   "얼굴 매칭 임계값. 판정 정책은 확정, 값만 실기기 캘리브레이션"
+> 표 "해소 조건" 셀을 그대로 옮기되 마크다운 강조·백틱만 제거. `resolutionCondition`을
+> assert하는 테스트가 없어 `npx jest` **325 그대로**, `tsc` 0에러, `grep "UNRESOLVED("`
+> 2건 불변. `UNRESOLVED` 함수·에러 타입·다른 엔진 파일 무변경.
 
 ## 스키마 불일치 발견 (기록만, 직접 수정하지 않음 — db-architect 영역)
 

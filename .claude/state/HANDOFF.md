@@ -6,6 +6,78 @@
 > (예외: 아래 "DEF 애착 항 갱신" 작업 프롬프트는 선행 작업의 진단
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.)
 
+## `UNRESOLVED` 레지스트리 Part 16-2 동기화 — 완료 (2026-09-03, engine-dev)
+
+Phase 7 선행(`.claude/state/prompts/phase-7/10-engine-dev-unresolved-registry-sync (3).md`).
+MASTER Part 16-2 "`UNRESOLVED` 레지스트리 (코드와 1:1 대응)" 표(4행)와
+`src/engine/constants/unresolved.ts`의 `UNRESOLVED_REGISTRY`(3항목)가 어긋나
+있어 표 전체를 전수 대조하고 맞췄다.
+
+### 전수 대조 결과 (세 분류 + 내용 불일치)
+
+| 분류 | 항목 |
+|---|---|
+| **양쪽 존재, key·phase·doc 동일 → 미수정** | `temperature.activityScore` (7 / MASTER Part 10-7-3), `faceMatch.threshold` (6 / MASTER Part 9-4). 두 항목 모두 `resolutionCondition` 문구가 표와 코드가 경미하게 다르나(표 "실사용 데이터" ↔ 코드 "실사용 데이터 필요" 등) phase·doc 일치 → 손대지 않음 |
+| **표에만 있음 → 추가** | `dnaScore.chatDelta` |
+| **코드에만 있음 → 보고만** | 없음 (코드 3키 모두 표에 존재) |
+| **내용 불일치 → 보고만, 미수정** | `leagueStats.shrinkage` — phase(7)·doc(`MASTER Part 10-8-3`)는 일치하나 `resolutionCondition`이 방향 상충. 코드: "베이지안 수축 강도. 전수 열거 분포의 분산 관측 후" ↔ 표: "베이지안 수축 강도. **채팅 사후확률 갱신의 관측 분산 확보 후**(사전 분산만으로는 부족 — 10-8-3 참조)". 표는 "사전(전수 열거) 분산만으로는 부족"이라 명시하는데 코드 문구는 전수 열거 분산 관측을 조건으로 적음. 코드가 이 문자열을 에러 메시지로 이미 소비 중 → 사람 판단 필요, **이번 작업에서 손대지 않음** |
+
+### 추가한 키 (표에서 그대로 옮김)
+
+- `dnaScore.chatDelta` — `phase: 7`, `doc: 'MASTER Part 17-2'`,
+  `resolutionCondition: '채팅 질 → 점수 변환. 범위 [−10, +25]는 확정, 산출식이 실사용 데이터 대기'`
+  (표의 해소 조건 셀에서 마크다운 강조 표기만 제거, 문구는 그대로. 기존 항목 형식 준수)
+- `dnaScore.ts`는 이 키를 `UNRESOLVED`로 소비하지 않는다(`computeTotalScore(baseScore, chatDelta)`가
+  `chatDelta`를 인자로 받음). 레지스트리 등재 = 데이터 등록이며 소비부는 만들지 않았다 —
+  `grep "UNRESOLVED("` 호출 **2건 유지**(정의 1 + `temperature.ts:234` 1).
+
+### 표와 코드가 어긋난 구조 (재발 방지 참고)
+
+- **문서(Part 16-2)에 `UNRESOLVED` 키가 추가돼도 코드 레지스트리 반영이 자동으로
+  따라오지 않는다.** `dnaScore.chatDelta`가 표에는 있었으나 레지스트리엔 없었다.
+- `__tests__/engine/unresolved.test.ts`의 census 테스트가 키 집합을 정확히 3개로
+  하드코딩(`toEqual([...3])`)하고 있어, 레지스트리 확장 자체를 막고 있었다. 개발 총괄이
+  "Part 16-2 목록과 1:1 대응" 불변식을 스펙 변화(3→4행)에 맞춰 동기화하는 것으로
+  승인 → census `toEqual` 배열을 4개로 갱신(값 우회가 아닌 불변식 동기화).
+
+### resolutionCondition 3건도 표에 맞춰 갱신 — 프롬프트 엔지니어 추가 판정 (2026-09-03)
+
+원래 프롬프트가 "내용 불일치" 기준을 phase·doc으로만 좁게 써서 누락됐던 부분.
+`resolutionCondition`도 레지스트리 항목이며 MASTER Part 16-2 표가 원본이다.
+특히 `leagueStats.shrinkage`는 문구가 낡았을 뿐 아니라 **내용이 틀렸다** —
+전수 열거로 확보되는 것은 사전 분산뿐이고 해소에는 관측 분산이 필요하다는
+정정이 문서에만 반영돼 있어, 코드 문구를 그대로 두면 이 계수가 이미 열린
+것으로 읽혔다. 표 "해소 조건" 셀 문구를 그대로 옮기되 마크다운 강조(`**`)·
+백틱만 제거(`dnaScore.chatDelta` 추가 때와 동일 방식).
+
+| 키 | 변경 전 | 변경 후 (Part 16-2 표) |
+|---|---|---|
+| `temperature.activityScore` | 하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터 필요 | 하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터 |
+| `leagueStats.shrinkage` | 베이지안 수축 강도. 전수 열거 분포의 분산 관측 후 | 베이지안 수축 강도. 채팅 사후확률 갱신의 관측 분산 확보 후(사전 분산만으로는 부족 — 10-8-3 참조) |
+| `faceMatch.threshold` | 얼굴 매칭 임계값. 실기기 캘리브레이션 필요 | 얼굴 매칭 임계값. 판정 정책은 확정, 값만 실기기 캘리브레이션 |
+
+`resolutionCondition`은 어느 테스트도 assert하지 않는다(테스트는 phase·doc·
+메시지 일부만 확인) → 깨진 것 없음. `UNRESOLVED` 함수·에러 타입·호출 2건 불변.
+
+### 변경 파일
+
+- `src/engine/constants/unresolved.ts` — `UNRESOLVED_REGISTRY`에 `dnaScore.chatDelta`
+  추가 + 기존 3키의 `resolutionCondition`을 Part 16-2 표 문구로 갱신(위 표).
+  JSDoc "3개 항목" → "4개 항목", "세 키" → "일부 키" 정정.
+  `UNRESOLVED` 함수·시그니처·반환 타입·에러 클래스 2종 **무변경**.
+- `__tests__/engine/unresolved.test.ts` — `dnaScore.chatDelta` throw 기대 테스트
+  신규 1건 추가(기존 등록 키 테스트와 동일 형식). census `toEqual` 3→4,
+  결정론 순회 배열 3→4, describe 제목 "3종"→"4종"/"세 키"→"네 키" 정정.
+  에러 타입 2종 구분 테스트·`@ts-expect-error` 검증 **유지**. (census assertion
+  3→4 갱신은 이 한 지점에 한정된 허용 — 다른 테스트 assertion 수정 금지 원칙 유지.)
+
+### 검증
+
+- `npx tsc --noEmit -p .` — 0 에러 (`@ts-expect-error` 미사용 경고 없음 = 타입 거부 여전히 작동)
+- `npx jest` — 25 스위트 / **325 통과** (기존 324 + 신규 1), 감소 없음. resolutionCondition
+  갱신 후에도 325 그대로 (해당 문자열을 assert하는 테스트 없음)
+- `grep -rn "UNRESOLVED(" src/engine/ --include=*.ts | grep -vE '^[^:]*:[0-9]+:[[:space:]]*\*'` — **2건**
+
 ## DEF 애착 항 갱신(회피축 제거) + 규준집단 `synthetic-v3` — 완료 (2026-09-03, engine-dev)
 
 Phase 7 선행 #7(`.claude/state/prompts/phase-7/08-engine-dev-def-neutral-avoidance.md`).
