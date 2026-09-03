@@ -915,3 +915,83 @@ Phase 5 완료(채팅 실시간 + 스토리) + rule-auditor 감사 통과. Phase
 - Phase 6은 네이티브 모듈(얼굴 인식·카카오맵)이 핵심이라 서브에이전트
   위임 금지, 메인 세션이 직접 진행(ROADMAP.md 원문).
 
+## v2 기준선 — 애착축 진단 (norm-synthetic-v2, engine leagueStats 2.0.0)
+
+> 이 수치는 **v2 엔진 기준**(`norm-synthetic-v2`, `leagueStats 2.0.0`)이며,
+> 이후 공식이 바뀌면 진단 스크립트 재실행으로 **재생성되지 않는다**.
+> 회피축·불안축 조치의 전후 비교 기준선이므로 삭제하지 않는다.
+
+> 출처: `.claude/state/HANDOFF.md` "애착축 진단 집계 — 완료 (2026-09-03, engine-dev)"
+> 섹션의 복사본. HANDOFF.md 원본은 그대로 둔다. Phase 7 선행 #6
+> (`.claude/state/prompts/phase-7/06-engine-dev-attachment-diagnostic.md`).
+> `synthetic-v2` 전수 열거 3,888개 대상, 합성값 = 6각 스탯 산술평균
+> = `computeOvrRawScore`.
+
+### 진단 스크립트 실행 명령
+
+- 경로: `scripts/norm/attachment-diagnostic.ts` (파일 I/O 없음, stdout JSON 출력)
+- 실행 (Windows / PowerShell, `scripts/generate-norm.ts`와 동일한 1회용 컴파일 방식 — ts-node/tsx 없음):
+
+  ```
+  npx tsc scripts/norm/attachment-diagnostic.ts --ignoreConfig --ignoreDeprecations "6.0" `
+    --outDir .norm-build --module commonjs --moduleResolution node `
+    --target es2022 --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+  node .norm-build/scripts/norm/attachment-diagnostic.js
+  Remove-Item -Recurse -Force .norm-build
+  ```
+
+### 재사용한 함수 (재구현 없음 — 전부 import만)
+
+| 함수 / 상수 | 시그니처 또는 형태 | 경로 |
+|---|---|---|
+| `inferLoveType` | `(input: LoveTypeInput) => LoveTypeInferenceResult` | `src/engine/loveTypeInference.ts` |
+| `computeSixStats` | `(input: SixStatsInput) => SixStats` | `src/engine/leagueStats.ts` |
+| `computeOvrRawScore` | `(stats: SixStats) => number` (6각 산술평균 = 합성값) | `src/engine/leagueStats.ts` |
+| `roundTo` | `(value: number, decimals: number) => number` (유일 반올림 지점) | `src/engine/numeric.ts` |
+| `Q3_ANXIETY_AXIS` / `Q5_AVOIDANCE_AXIS` | `Record<QuizChoice, 'low'\|'mid'\|'high'>` (축 수준 룩업) | `src/constants/attachment.ts` |
+| `ATTACHMENT_LABEL_KO` | `Record<AttachmentType, string>` (제품 언어 표기) | `src/constants/attachment.ts` |
+| `MBTI_TYPES` | `readonly MbtiType[]` (열거 순서 고정) | `src/constants/quizTypes.ts` |
+| `RAW_SCORE_DECIMALS`(10) / `SUMMARY_DECIMALS`(6) | 반올림 자리수 | `scripts/norm/distribution.ts` |
+
+### 집계 ① 회피축 3수준별 합성값 분포 (진단 본체)
+
+| 회피 수준 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|
+| low  | 49.435185 | 2.591468 | 43.0000000000 | 56.3333333333 | 1296 |
+| mid  | 48.212963 | 2.590674 | 41.8333333333 | 55.1666666667 | 1296 |
+| high | 46.675926 | 2.594047 | 40.1666666667 | 53.6666666667 | 1296 |
+
+### 집계 ② 불안축 3수준별 합성값 분포 (대조군)
+
+| 불안 수준 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|
+| low  | 47.546296 | 2.796909 | 40.1666666667 | 55.3333333333 | 1296 |
+| mid  | 48.157407 | 2.795070 | 40.8333333333 | 56.0000000000 | 1296 |
+| high | 48.620370 | 2.786406 | 41.3333333333 | 56.3333333333 | 1296 |
+
+### 집계 ③ 애착 4유형별 합성값 분포
+
+| 유형 | 표기 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|---|
+| secure   | 안정형 | 48.569444 | 2.647318 | 41.8333333333 | 56.0000000000 | 1728 |
+| anxious  | 불안형 | 49.333333 | 2.618341 | 42.8333333333 | 56.3333333333 | 864 |
+| avoidant | 회피형 | 46.416667 | 2.574207 | 40.1666666667 | 53.1666666667 | 864 |
+| fearful  | 혼란형 | 47.194444 | 2.555556 | 41.3333333333 | 53.6666666667 | 432 |
+
+### 집계 ④ 회피 × 불안 교차표 (3 × 3 = 9칸, 평균과 n)
+
+| 회피 \ 불안 | low | mid | high |
+|---|---|---|---|
+| **low**  | 48.861111 (n=432) | 49.527778 (n=432) | 49.916667 (n=432) |
+| **mid**  | 47.694444 (n=432) | 48.194444 (n=432) | 48.750000 (n=432) |
+| **high** | 46.083333 (n=432) | 46.750000 (n=432) | 47.194444 (n=432) |
+
+### 각 집계의 n 균등 여부
+
+- 회피축 3수준: **1296 / 1296 / 1296 — 균등**
+- 불안축 3수준: **1296 / 1296 / 1296 — 균등**
+- 교차표 9칸: **전부 432 — 균등**
+- 애착 4유형: 1728 / 864 / 864 / 432 — 균등 아님(구조상 당연 — 절단점이
+  `high` 하나뿐이라 secure가 4/9, fearful이 1/9)
+- 합계: ①②③④ 전부 **3,888**
+
