@@ -1,5 +1,6 @@
 /**
- * 응답 공간 전수 열거 — 규준집단 합성 데이터 `synthetic-v1` 생성 로직.
+ * 응답 공간 전수 열거 — 규준집단 합성 데이터(`NORM_VERSION`, 현재
+ * `synthetic-v2`) 생성 로직.
  *
  * 근거: docs/ONDOLOG_MASTER.md Part 10-8-1 / 10-8-2 / 10-8-3.
  *
@@ -54,8 +55,15 @@ import {
   toSortedRawScores,
 } from './distribution'
 
-/** 규준 버전 문자열 (Part 10-8-3, 절대 규칙 4 — ASCII, 날짜 없음). */
-export const NORM_VERSION = 'synthetic-v1'
+/**
+ * 규준 버전 문자열 (Part 10-8-3, 절대 규칙 4 — ASCII, 날짜 없음).
+ *
+ * v1 → v2 (2026-09-02): `leagueStats`의 EMP 공식 갱신(순응형 보너스
+ * 신설, Part 17-3)으로 채점 로직이 바뀌었으므로 규준집단을 재열거했다.
+ * `norm-synthetic-v1.json`은 과거 발행물 재현을 위해 그대로 남아있고
+ * 이 상수만 v2를 가리키도록 올린다 — 기존 파일은 수정하지 않는다.
+ */
+export const NORM_VERSION = 'synthetic-v2'
 
 /** Q1~Q5가 취하는 값. 열거 순서를 고정한다. */
 const CHOICES: readonly QuizChoice[] = ['A', 'B', 'C'] as const

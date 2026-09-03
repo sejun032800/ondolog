@@ -1,5 +1,6 @@
 /**
- * 규준집단 데이터 파일 생성기 — `src/engine/data/norm-synthetic-v1.json`을 쓴다.
+ * 규준집단 데이터 파일 생성기 — `src/engine/data/norm-{NORM_VERSION}.json`을
+ * 쓴다(현재 `NORM_VERSION`은 `scripts/norm/enumerate.ts`에서 `synthetic-v2`).
  *
  * 근거: docs/ONDOLOG_MASTER.md Part 10-8-1 / 10-8-3.
  *
@@ -20,7 +21,9 @@
  *   rm -rf .norm-build
  *
  * `.norm-build/`는 임시 산출물이다(커밋 금지). 커밋되는 것은
- * `src/engine/data/norm-synthetic-v1.json` 하나뿐이다.
+ * `src/engine/data/norm-{NORM_VERSION}.json` 하나뿐이다. 과거 버전
+ * (예: `norm-synthetic-v1.json`)은 이 스크립트가 다시 쓰지 않고
+ * 과거 발행물 재현용으로 그대로 남는다(Part 10-8-3).
  *
  * 결정론 보장은 `__tests__/engine/normDrift.test.ts`가 매 CI 실행마다
  * 열거를 재호출해 커밋된 파일과 대조하는 것으로 성립한다 — 이 스크립트를

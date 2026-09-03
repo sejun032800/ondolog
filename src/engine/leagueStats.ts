@@ -30,8 +30,17 @@
 import { roundAndClamp, roundTo, clamp } from './numeric'
 import type { QuizChoice } from '../constants/quizTypes'
 
-/** stat_snapshots.engine_version (text not null, SCHEMA.md §8-2)과 대응. */
-export const LEAGUE_STATS_ENGINE_VERSION = '1.0.0'
+/**
+ * stat_snapshots.engine_version (text not null, SCHEMA.md §8-2)과 대응.
+ *
+ * 1.0.0 → 2.0.0 (2026-09-02, Part 17-3 갱신): EMP 공식에 애니어그램
+ * 순응형(1·2·6) 보너스(0.25)를 신설하고, 기존 세 항(우호성 A·애착
+ * 안정성·스턴버그 친밀)의 가중치를 0.4/0.3/0.3 → 0.35/0.2/0.2로
+ * 낮췄다. 동일 입력이라도 이전 버전과 다른 EMP 수치를 내는 **호환
+ * 불가 변경**이므로 메이저 버전을 올린다(부가 함수 추가였던 1.0.0→
+ * 1.1.0 사례의 minor 패턴과 다름).
+ */
+export const LEAGUE_STATS_ENGINE_VERSION = '2.0.0'
 
 export interface LeagueStatsBig5Input {
   bigE: number
@@ -89,9 +98,10 @@ export function computeAttachmentStability(
 }
 
 /**
- * 6각 스탯 산출 (Part 17-3 표 그대로). 6개 항목 전부 가중치 합이
- * 1.0이 되도록 문서에 명시돼 있다(PUS 0.4+0.3+0.3, EMP 0.4+0.3+0.3,
- * ATT 0.4+0.35+0.25, DEF 0.4+0.3+0.3, TAC 0.35+0.3+0.35, REA 0.5+0.3+0.2).
+ * 6각 스탯 산출 (Part 17-3 표 그대로, EMP는 2026-09-02 갱신 반영).
+ * 6개 항목 전부 가중치 합이 1.0이 되도록 문서에 명시돼 있다
+ * (PUS 0.4+0.3+0.3, EMP 0.35+0.2+0.2+0.25, ATT 0.4+0.35+0.25,
+ * DEF 0.4+0.3+0.3, TAC 0.35+0.3+0.35, REA 0.5+0.3+0.2).
  *
  * TAC의 세 번째 항 "스턴버그 열정/헌신 비율(0.35)"은 문서에 정확한
  * 변환식이 없다. 나머지 5개 스탯이 전부 "0~100 스케일 항목의 가중평균"
@@ -106,6 +116,7 @@ export function computeSixStats(input: SixStatsInput): SixStats {
   const { big5, sternberg, q1, q2, attachAnxiety, attachAvoidance } = input
 
   const assertiveBonus = groupBonus(q1 === 'A') // 주장형(3·7·8) → PUS
+  const compliantBonus = groupBonus(q1 === 'B') // 순응형(1·2·6) → EMP (2026-09-02 신설)
   const withdrawnBonus = groupBonus(q1 === 'C') // 후퇴형(4·5·9) → TAC
   const competencyBonus = groupBonus(q2 === 'A') // 역량형(1·3·5) → REA
   const positiveBonus = groupBonus(q2 === 'B') // 긍정형(2·7·9) → DEF
@@ -125,7 +136,10 @@ export function computeSixStats(input: SixStatsInput): SixStats {
 
   const pus = big5.bigE * 0.4 + assertiveBonus * 0.3 + sternberg.passion * 0.3
   const emp =
-    big5.bigA * 0.4 + attachmentStability * 0.3 + sternberg.intimacy * 0.3
+    big5.bigA * 0.35 +
+    attachmentStability * 0.2 +
+    sternberg.intimacy * 0.2 +
+    compliantBonus * 0.25
   const att = big5.bigN * 0.4 + attachAnxiety * 0.35 + reactiveBonus * 0.25
   const def =
     (100 - big5.bigN) * 0.4 + positiveBonus * 0.3 + attachmentStability * 0.3

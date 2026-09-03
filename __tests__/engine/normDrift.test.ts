@@ -7,7 +7,7 @@ import type { NormData } from '../../src/engine/normPercentile'
 
 /**
  * 드리프트 감지 — 현재 엔진 함수로 전수 열거를 **다시 돌려**
- * 커밋된 `norm-synthetic-v1.json`과 대조한다.
+ * 커밋된 `norm-synthetic-v2.json`과 대조한다.
  *
  * 근거: docs/ONDOLOG_MASTER.md Part 10-8-3, 위임 프롬프트
  * "드리프트 감지 테스트 (필수)".
@@ -20,6 +20,12 @@ import type { NormData } from '../../src/engine/normPercentile'
  * 엔진 버전 상수를 올려라"는 신호다.
  *
  * 3,888개는 순수 룩업·산술이라 테스트에서 즉시 계산된다. 캐싱·샘플링하지 않는다.
+ *
+ * v1 → v2 (2026-09-02): `leagueStats`의 EMP 공식 갱신(Part 17-3, 순응형
+ * 보너스 신설)으로 채점이 바뀌어 `norm-synthetic-v1.json`을 대조하던
+ * 이 테스트가 예정대로 깨졌다 — 대조 대상을 v2로 갱신한다. v1은
+ * 과거 발행물 재현용 데이터로 그대로 남아있고, 현재 코드로 v1이
+ * 재현되지 않는 것이 정상이므로 v1을 대조하는 테스트는 남기지 않는다.
  */
 
 const NORM_FILE = path.join(
@@ -43,8 +49,8 @@ describe('규준집단 드리프트 감지 — 열거 재실행 vs 커밋된 파
     expect(a).toBe(b)
   })
 
-  it('커밋된 파일: version이 synthetic-v1이다', () => {
-    expect(committed.version).toBe('synthetic-v1')
+  it('커밋된 파일: version이 synthetic-v2이다', () => {
+    expect(committed.version).toBe('synthetic-v2')
   })
 
   it('커밋된 파일: engineVersions가 맵이고 열거가 import한 두 엔진 모듈을 담는다', () => {
