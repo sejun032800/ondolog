@@ -874,6 +874,8 @@ comment on table public.dna_scores is
   '절대평가. 규준집단 백분위를 사용하지 않는다 — 다른 커플과 비교하는 순간 관계가 경쟁이 되기 때문.';
 comment on column public.dna_scores.chat_factors is
   '양이 아닌 질 중심. 단순 메시지 수는 가중치를 낮게 두어 도배로 점수를 올리지 못하게 한다.';
+comment on column public.dna_scores.breakdown is
+  '축별 기여 + 계수 버전. coeffVersion 키에 base_score/chat_delta 계수 세트의 버전을 함께 기록한다(engine_version은 코드 버전 — 엔진이 그대로인 채 계수만 바뀌는 상황이 예정돼 있어 독립). 계수는 app_config에서 읽고 호출부가 주입한다. 월간 발행물이므로 버전 기록 없는 산출은 허용하지 않는다. 산출 규격은 MASTER Part 17-2.';
 ```
 
 ---
