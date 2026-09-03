@@ -4,6 +4,122 @@
 > 이 파일이 유일한 인수인계 수단이다.
 > **완료된 항목은 즉시 삭제할 것** — 누적되면 컨텍스트가 오염된다.
 
+## 애착축 진단 집계 — 완료 (2026-09-03, engine-dev)
+
+Phase 7 선행 #6(`.claude/state/prompts/phase-7/06-engine-dev-attachment-diagnostic.md`).
+`synthetic-v2` 전수 열거 3,888개를 대상으로 회피축·불안축 수준별 및
+애착 4유형별 **합성값**(6각 스탯 산술평균 = `computeOvrRawScore`) 분포를
+관측했다. **규준집단 파일·엔진 코드·6각 스탯 공식은 건드리지 않았다** —
+`git status`에 `scripts/norm/attachment-diagnostic.ts` 신규 1건뿐,
+`src/engine/` 및 `src/engine/data/` 변경 0.
+
+### 진단 스크립트 — 재실행 가능 (회피축 조치 후 전후 비교에 다시 쓴다)
+
+- 경로: `scripts/norm/attachment-diagnostic.ts` (파일 I/O 없음, stdout JSON 출력)
+- 실행 (Windows / PowerShell, `scripts/generate-norm.ts`와 동일한 1회용 컴파일 방식 — ts-node/tsx 없음):
+
+  ```
+  npx tsc scripts/norm/attachment-diagnostic.ts --ignoreConfig --ignoreDeprecations "6.0" `
+    --outDir .norm-build --module commonjs --moduleResolution node `
+    --target es2022 --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+  node .norm-build/scripts/norm/attachment-diagnostic.js
+  Remove-Item -Recurse -Force .norm-build
+  ```
+
+- 결정론 확인: 3회 실행 바이트 동일(SHA-256 일치).
+- **일회성 조사가 아니다.** 회피축 공식 조정 등 조치 후 같은 스크립트로
+  전후 수치를 대조해야 진단이 확정된다.
+
+### 재사용한 함수 (재구현 없음 — 전부 import만)
+
+| 함수 / 상수 | 시그니처 또는 형태 | 경로 |
+|---|---|---|
+| `inferLoveType` | `(input: LoveTypeInput) => LoveTypeInferenceResult` | `src/engine/loveTypeInference.ts` |
+| `computeSixStats` | `(input: SixStatsInput) => SixStats` | `src/engine/leagueStats.ts` |
+| `computeOvrRawScore` | `(stats: SixStats) => number` (6각 산술평균 = 합성값) | `src/engine/leagueStats.ts` |
+| `roundTo` | `(value: number, decimals: number) => number` (유일 반올림 지점) | `src/engine/numeric.ts` |
+| `Q3_ANXIETY_AXIS` / `Q5_AVOIDANCE_AXIS` | `Record<QuizChoice, 'low'\|'mid'\|'high'>` (축 수준 룩업) | `src/constants/attachment.ts` |
+| `ATTACHMENT_LABEL_KO` | `Record<AttachmentType, string>` (제품 언어 표기) | `src/constants/attachment.ts` |
+| `MBTI_TYPES` | `readonly MbtiType[]` (열거 순서 고정) | `src/constants/quizTypes.ts` |
+| `RAW_SCORE_DECIMALS`(10) / `SUMMARY_DECIMALS`(6) | 반올림 자리수 | `scripts/norm/distribution.ts` |
+
+열거 루프 구조(MBTI_TYPES → Q1..Q5 각 A,B,C)와 합성값 산출 경로
+(`inferLoveType` → `computeSixStats` → `computeOvrRawScore`)는
+`scripts/norm/enumerate.ts`의 `enumerateProfiles()`와 완전히 동일하다.
+축 수준·애착 4유형도 기존 룩업/함수 출력을 읽기만 했다(재판정 없음).
+교차검증: 회피축 3수준 평균의 균등가중 평균 =
+(49.435185+48.212963+46.675926)/3 = **48.108025**, 커밋된
+`norm-synthetic-v2.json`의 `composite.mean`과 정확히 일치.
+
+### 문서 대조 — 축 판정 기준
+
+위임 프롬프트의 축 판정 기준을 MASTER Part 10-2-3과 대조: **일치**.
+`anxiety = Q3==='C'?high:(Q3==='B'?mid:low)`,
+`avoidance = Q5` 동형, 4유형 = (안정: 둘 다 not-high / 불안: 불안만 high /
+회피: 회피만 high / 혼란: 둘 다 high). 어긋남 없음. 축 수치 수준은
+Part 17-3 "애착 축 수치화" {A:20, B:50, C:85} — `ATTACHMENT_AXIS_SCORE`가
+그대로 구현. 어긋남 없음.
+
+### 집계 ① 회피축 3수준별 합성값 분포 (진단 본체)
+
+| 회피 수준 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|
+| low  | 49.435185 | 2.591468 | 43.0000000000 | 56.3333333333 | 1296 |
+| mid  | 48.212963 | 2.590674 | 41.8333333333 | 55.1666666667 | 1296 |
+| high | 46.675926 | 2.594047 | 40.1666666667 | 53.6666666667 | 1296 |
+
+### 집계 ② 불안축 3수준별 합성값 분포 (대조군)
+
+| 불안 수준 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|
+| low  | 47.546296 | 2.796909 | 40.1666666667 | 55.3333333333 | 1296 |
+| mid  | 48.157407 | 2.795070 | 40.8333333333 | 56.0000000000 | 1296 |
+| high | 48.620370 | 2.786406 | 41.3333333333 | 56.3333333333 | 1296 |
+
+### 집계 ③ 애착 4유형별 합성값 분포
+
+| 유형 | 표기 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|---|
+| secure   | 안정형 | 48.569444 | 2.647318 | 41.8333333333 | 56.0000000000 | 1728 |
+| anxious  | 불안형 | 49.333333 | 2.618341 | 42.8333333333 | 56.3333333333 | 864 |
+| avoidant | 회피형 | 46.416667 | 2.574207 | 40.1666666667 | 53.1666666667 | 864 |
+| fearful  | 혼란형 | 47.194444 | 2.555556 | 41.3333333333 | 53.6666666667 | 432 |
+
+### 집계 ④ 회피 × 불안 교차표 (3 × 3 = 9칸, 평균과 n)
+
+| 회피 \ 불안 | low | mid | high |
+|---|---|---|---|
+| **low**  | 48.861111 (n=432) | 49.527778 (n=432) | 49.916667 (n=432) |
+| **mid**  | 47.694444 (n=432) | 48.194444 (n=432) | 48.750000 (n=432) |
+| **high** | 46.083333 (n=432) | 46.750000 (n=432) | 47.194444 (n=432) |
+
+### 각 집계의 n 균등 여부
+
+- 회피축 3수준: **1296 / 1296 / 1296 — 균등**
+- 불안축 3수준: **1296 / 1296 / 1296 — 균등**
+- 교차표 9칸: **전부 432 — 균등**
+- 애착 4유형: 1728 / 864 / 864 / 432 — 균등 아님(구조상 당연 — 절단점이
+  `high` 하나뿐이라 secure가 4/9, fearful이 1/9. 프롬프트는 이 집계의
+  균등을 요구하지 않음)
+- 합계: ①②③④ 전부 **3,888** (allEqual3888 = true)
+
+Q5(회피축)·Q3(불안축)이 다른 문항·MBTI와 독립이라는 전제가 전수 열거에서
+확인됐다 — 축 수준별 n이 완전히 동일하므로 수준별로 다른 항의 분포가
+치우쳐 있지 않다.
+
+### 판단 안 함
+
+프롬프트 지시대로 수치만 보고한다. 회피축 효과의 크기·조치 필요 여부·
+공식 조정은 마스터 PM 결정 사항이라 다루지 않았다.
+
+### 검증 상태
+
+- `npx jest` : 25 suites / **318 tests** 전부 pass (회귀 0, 테스트 추가/수정 없음)
+- `npx tsc --noEmit -p .` : **0 에러**
+- 3회 재실행 바이트 동일 (SHA-256 일치)
+- `git status --short` : `scripts/norm/attachment-diagnostic.ts` 신규 1건뿐,
+  `src/engine/` · `src/engine/data/` 변경 없음
+
 ## EMP 공식 갱신 + 규준집단 재열거 (`synthetic-v2`) — 완료 (2026-09-02, engine-dev)
 
 Phase 7 선행 #4(`.claude/state/prompts/phase-7/05-engine-dev-emp-requeue.md`).
