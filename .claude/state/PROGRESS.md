@@ -131,8 +131,22 @@ Phase 6 — 피드 + 얼굴 인식 (착수, UI 단계(동의 흐름 + 대표사�
    `src/engine/` 하위에서 DB·네트워크·환경변수에 접근하지 않는다.
    계수 버전은 `daily_temperature.factors`에 함께 기록(스키마 변경 없음).
    앱 클라이언트에서 계산 함수를 호출하지 않는 기존 계약은 그대로 유효.
-   ⚠️ 규격은 확정됐으나 **함수는 아직 미구현**이다(현재 파일에는 36.5
-   고정값과 클램프만 있다).
+   **(2026-09-03 구현 완료, `engine-dev`)** `src/engine/temperature.ts`에
+   ① 기저 온도(`computeBaselineTemperature` — 순수 함수, throw 없음,
+   `src/constants/compatibility.ts`의 기존 `COMPATIBILITY` 룩업 재사용,
+   비대칭 시 높은 쪽 채택은 `resolveTypeAffinity`) ② 활동 변동분 식
+   (`computeActivityDeltaFromScores`는 UNRESOLVED 없이 완전 테스트,
+   `computeActivityDelta`/`computeDailyActivityScore`는 원시 활동 입력을
+   받아 `UNRESOLVED('temperature.activityScore')`를 소비) ③ 결합
+   (`computeDailyTemperature` — 실활동 데이터가 있는 현실적 호출은
+   `UnresolvedConstantError`로 실패, 이것이 규격이 의도한 정상 상태)를
+   구현. 계수는 전부 인자로만 받는다(`BaselineTemperatureCoefficients`/
+   `ActivityDeltaCoefficients`/`DailyTemperatureCoefficients`) —
+   `src/engine/` 안에 하드코딩 없음. 신규 테스트
+   `__tests__/engine/temperatureBaseline.test.ts`(29개, 결정론 100회
+   반복 포함) + 기존 289개 전부 통과(총 318개), `npx tsc --noEmit -p .`
+   0에러. `TEMPERATURE_ENGINE_VERSION` 1.0.0 → 1.1.0. 상세는
+   HANDOFF.md 참조.
 2. **DNA base_score 궁합 공식** (`src/engine/dnaScore.ts`) — Part 17-2는
    "빅5·애니어그램·스턴버그·애착 조합"이라고만 하고 가중치가 없음.
    애니어그램 9×9 best/worst 궁합 매트릭스도 Part 16-1 미확정.
@@ -179,7 +193,7 @@ Phase 6 — 피드 + 얼굴 인식 (착수, UI 단계(동의 흐름 + 대표사�
 |---|---|---|
 | DNA base_score 궁합 공식 | 마스터 PM 확정 대기 | 10-6 범주 → 점수 변환 규칙 |
 | `UNRESOLVED('leagueStats.shrinkage')` | 관측 대기 | 전수 열거 분포의 분산 |
-| `UNRESOLVED('temperature.activityScore')` | 관측 대기 | 하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터 |
+| `UNRESOLVED('temperature.activityScore')` | 관측 대기 (2026-09-03: 소비 지점 신설 — `computeDailyActivityScore`/`computeActivityDelta`/`computeDailyTemperature`) | 하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터 |
 | `UNRESOLVED('faceMatch.threshold')` | 실기기 대기 | 판정 정책은 확정(MASTER 9-4). **값만** 캘리브레이션 |
 
 > **미해결 상수 규격 (`UNRESOLVED`) — 2026-09-02 도입.**
@@ -860,7 +874,10 @@ Phase 6 — 생체정보 동의 흐름 + 대표사진 등록 UI + 매칭 순수 
    완료됐고 문서가 그 이유를 기록해 뒀다(MASTER 9-4).
    착수 시 임계값(시간 간격·거리)은 실사진 없이 정하면 근거가 없으므로
    `UNRESOLVED`로 두어야 한다 → **1번이 선행.**
-4. **연애 온도 함수 구현** — 규격은 10-7로 확정. 계수는 인자로만 받는다.
+4. ~~**연애 온도 함수 구현**~~ → **완료 (2026-09-03, engine-dev)**.
+   위 "자리표시자 상태" 절 1번 참조. 남은 것은 `temperature.activityScore`
+   해소(실사용 데이터 필요)와 호출부(일 배치 Edge Function) 구현 —
+   둘 다 이 작업 범위 밖.
 
 ### 기존 항목 (계속 유효)
 

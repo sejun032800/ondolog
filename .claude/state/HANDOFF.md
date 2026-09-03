@@ -4,6 +4,155 @@
 > 이 파일이 유일한 인수인계 수단이다.
 > **완료된 항목은 즉시 삭제할 것** — 누적되면 컨텍스트가 오염된다.
 
+## 연애 온도 — 기저·활동 변동분·결합 (Part 10-7) — 완료 (2026-09-03, engine-dev)
+
+Phase 7 선행 #3(`.claude/state/prompts/phase-7/03-engine-dev-temperature.md`).
+`src/engine/temperature.ts`(기존 파일, 새로 쓰지 않고 이어서 구현)에
+Part 10-7 "연애 온도 계산 규격 (확정)"의 세 부분을 추가했다.
+
+### 변경 전 상태 (Phase 2 자리표시자)
+
+- **완전 구현돼 있던 것**: `resolveDisconnectedTemperature()`(미연결
+  36.5 고정), `clampTemperature()`(0~100, 소수 1자리 반올림+클램프),
+  상수 4개(`DISCONNECTED_TEMPERATURE`/`TEMPERATURE_MIN`/`TEMPERATURE_MAX`/
+  `TEMPERATURE_DECIMALS`).
+- **자리표시자였던 것(=존재하지 않았던 것)**: 기저 온도, 활동 변동분,
+  결합 공식 전부. 구 docblock이 "핵심 결합 공식이 문서 어디에도 없다"고
+  명시하고 있었다(Part 10-7 신설 전 상태). `TEMPERATURE_ENGINE_VERSION`은
+  `"1.0.0"`이었고 이 범위(미연결값·클램프)만 반영한 버전이었다.
+
+### 이번에 추가한 것 — Part 10-7 세 부분
+
+| 부분 | 함수 | 상태 |
+|---|---|---|
+| ① 기저 온도 | `computeBaselineTemperature(coreA, coreB, coefficients)` | 완전 구현, 순수 함수, **throw 없음**. 프로파일 미비 시 `undefined` 반환(에러 아님) |
+| ① 보조 | `resolveTypeAffinity(coreA, coreB)` / `TypeAffinityCategory` | 완전 구현. 비대칭(잘맞음) 시 높은 쪽 채택 |
+| ② 활동 변동분 식 | `computeActivityDeltaFromScores(dailyScores, coefficients)` | 완전 구현 + 완전 테스트 (UNRESOLVED 없음 — 이미 숫자인 점수를 가정) |
+| ② 원시 입력 진입점 | `computeActivityDelta(dailyActivities, coefficients)` / `computeDailyActivityScore(raw)` | 식은 구현, "하루치 활동 점수" 정의는 `UNRESOLVED('temperature.activityScore')` 소비. 실활동(`DailyActivityRaw`)이 하나라도 있으면 throw. `null`(데이터 없음)만 있으면 0 반환, throw 없음 |
+| ③ 결합 | `computeDailyTemperature(coreA, coreB, dailyActivities, coefficients)` | 구현됨. 실활동 데이터가 있는 현실적 호출은 `UnresolvedConstantError`로 실패 — **의도된 정상 상태** |
+
+### 재사용한 궁합 판정 로직 (재작성 없음)
+
+| 항목 | 경로 | 시그니처/형태 |
+|---|---|---|
+| `COMPATIBILITY` | `src/constants/compatibility.ts` | `Readonly<Record<EnneagramCore, { best: readonly {core,reason}[]; contrast: readonly {core,reason,tip}[] }>>` — Part 10-6-5 매트릭스, 기존 파일 그대로 import만 함 |
+| `EnneagramCore` | `src/constants/enneagram.ts` | `1\|2\|...\|9` 타입만 import (값 룩업인 `HORNEVIAN_HARMONIC_TABLE`은 건드리지 않음) |
+
+`resolveTypeAffinity`는 이 `COMPATIBILITY`를 양방향(coreA→coreB 관점,
+coreB→coreA 관점)으로 조회해 `best`/`contrast`/`neutral` 중 하나를 정하고,
+어긋나면(비대칭 잘맞음) 높은 쪽을 채택한다(Part 10-7-2 "양방향 판정이
+어긋나면 높은 쪽을 커플 기저로 삼는다"). 매트릭스 값 자체는 한 글자도
+다시 옮겨 적지 않았다.
+
+### 최종 온도 함수가 throw하는 이유 / 해소 시 무엇을 바꿔야 하는가
+
+`computeDailyTemperature`는 내부에서 `computeActivityDelta`를 호출하고,
+그 함수는 `null`이 아닌 각 날짜에 `computeDailyActivityScore(raw)`를
+호출한다. 이 함수 본문이 `UNRESOLVED({ key: 'temperature.activityScore' })`
+하나뿐이라 즉시 `UnresolvedConstantError`를 던진다 — "채팅·피드 건수를
+몇 점으로 환산하는가"가 실사용 데이터 없이 정할 수 없는 값이기 때문이다
+(Part 10-7-3, Part 16-2). 활동 데이터가 전혀 없는 날(`null`)만 있는
+극단 케이스(신규 연결 직후)는 throw하지 않고 기저 온도를 그대로 반환한다
+— 이는 "없는 날은 0으로 계산" 규칙이 자명하게 적용되는 경우라 점수
+환산식이 필요 없기 때문이다.
+
+**해소되면** (`temperature.activityScore` 캘리브레이션 완료 시)
+`computeDailyActivityScore` 함수 **본문만** 실제 환산식으로 교체한다.
+`computeActivityDelta`/`computeActivityDeltaFromScores`/
+`computeDailyTemperature`는 이미 최종 식대로 구현돼 있으므로 손댈 필요가
+없다 — 이 분리가 이번 설계의 핵심이다(집계 식과 "점수를 어떻게
+만드는가"를 처음부터 별도 함수로 나눠, 해소 시 변경 범위를 함수 하나로
+좁혔다).
+
+### `TEMPERATURE_ENGINE_VERSION`: `1.0.0` → `1.1.0`
+
+daily_temperature 테이블에는 `engine_version` 컬럼이 없어 DB에 직접
+쓰이진 않지만(파일 docblock이 이미 명시), 감사 추적용 모듈 버전이라
+Part 10-7의 세 부분(①②③)이 새로 추가된 만큼 마이너 버전을 올렸다.
+
+### 계수는 전부 인자 — 하드코딩 없음
+
+`BaselineTemperatureCoefficients`(`contrast`/`neutral`/`best`,
+문서 기본값 36.5/39/42), `ActivityDeltaCoefficients`(`windowDays`/
+`widthCap`/`min`, 문서 기본값 14/55/0), `DailyTemperatureCoefficients`
+(위 둘을 묶음) 전부 인자로만 받는다. `src/engine/temperature.ts` 안에
+이 수치들을 상수로 박아두지 않았다 — 유일한 예외는 기저 하한
+`DISCONNECTED_TEMPERATURE`(36.5)인데, 이는 "계수"가 아니라 Part 9-2에서
+이미 확정된 별개의 구조적 상수(미연결 기본 체온)를 재사용한 것이고
+Part 10-7-2가 명시적으로 이 값을 하한으로 지정했다. `daily_temperature.factors`
+기록 코드는 작성하지 않았다(호출부 책임, Part 10-7-5).
+
+### 판단이 필요했던 지점 (질문 목록)
+
+- **활동 변동분의 "없는 날"(null) 처리 경계.** Part 10-7-3은 "창이 차기
+  전에도 분모는 14, 없는 날은 0으로 계산"이라고만 한다. 나는 이를
+  "커플이 아직 존재하지 않았던 날짜(데이터 자체가 없음)"로 해석해
+  `null`로 표현하고 0으로 계산했으며, "커플은 존재했지만 그날 채팅/피드가
+  0건"인 경우는 `DailyActivityRaw{chatMessageCount:0, feedPostCount:0}`로
+  표현해 여전히 `computeDailyActivityScore`(UNRESOLVED)를 거치도록
+  했다 — 0건이 0점으로 환산된다는 것도 아직 확정된 공식이 없으므로
+  지어내지 않기 위함이다. 이 경계 해석이 맞는지 재확인 필요.
+- ②의 식(`computeActivityDeltaFromScores`)과 "점수를 어떻게 만드는가"
+  (`computeDailyActivityScore`)를 별도 함수로 분리한 것은 위임 프롬프트에
+  명시된 요구는 아니고, "식은 구현·테스트되지만 점수 정의는 미확정"을
+  더 명확히 분리해 표현하려는 내 설계 판단이다. 문제가 있다면 지적 바람.
+
+### "없는 날"(null) 처리 경계 — 코디네이터 판정 (2026-09-03)
+
+위 첫 번째 판단 지점에 대한 답: **에이전트의 구현(건수 층위 해석)이 옳다.**
+단 근거를 다시 잡는다 — 문제는 "0건을 0점으로 볼 것인가"가 아니라 Part
+10-7-3의 "없는 날은 0으로 계산한다"가 **건수 층위**(없는 날의 채팅·피드
+건수를 0으로 둔다 → 그 0건도 점수로 환산해야 하므로 `UNRESOLVED` 경유,
+throw)인지 **점수 층위**(없는 날의 활동 점수 자체를 0으로 둔다 → 환산을
+건너뛰므로 throw 없음)인지의 문제다. 지금 구현은 건수 층위로 읽었고,
+그게 더 보수적이라 맞다.
+
+**오늘은 관측 차이가 없다** — `computeDailyTemperature`는 실활동이
+하나라도 있으면 어차피 throw하므로 이 경계의 두 해석이 지금 당장
+갈리는 지점이 없다. 차이는 `temperature.activityScore`가 **확정된 뒤**
+드러난다.
+
+**처방 — `temperature.activityScore` 정의를 작성/확정할 때 반드시
+"채팅 0건·피드 0건인 날"을 명시적으로 다룰 것.** 다루지 않으면 이
+질문이 그때 다시 올라온다. 그리고 확정 시점에 현재
+`__tests__/engine/temperatureBaseline.test.ts`의
+`{ chatMessageCount: 5, feedPostCount: 0 }` → `UnresolvedConstantError`를
+기대하는 테스트가 깨질 것이다 — **그건 버그가 아니라 정상 신호다**
+(`__tests__/engine/normDrift.test.ts`의 드리프트 감지 테스트와 같은
+성격: "값이 채워졌으니 이 경로가 더 이상 throw하지 않는다"는 것을
+테스트가 스스로 알려주는 것). 그 시점에 이 테스트를 고치는 것은 "기존
+테스트 수정 금지" 규칙의 예외다 — `activityScore` 자체를 해소하는
+작업의 일부이지, 미확정 상태를 우회하려는 수정이 아니기 때문이다.
+
+### 궁합 매트릭스 재현성 — 마스터 PM 확인 필요 (2026-09-03, 코디네이터 에스컬레이션)
+
+`COMPATIBILITY`(`src/constants/compatibility.ts`)를 엔진이 직접 정적
+import한다 — 이번 위임 프롬프트가 명시적으로 허용한 형태이고 위반은
+아니다. 다만 규준 데이터(`normPercentile.ts`)에서 인자 주입으로 막았던
+문제(Part 10-8-3)가 여기 절반만 막혀 있다: 기저값 세 개(36.5/39/42)는
+`coefficients` 인자로 주입되지만, **어느 유형쌍이 어느 값을 받는지
+정하는 매트릭스 자체는 코드에 정적으로 고정**돼 있다. 매트릭스가
+바뀌면(콘텐츠팀 교정 등) 과거에 발행된 매거진의 온도를 재현할 수
+없고, `daily_temperature.factors`에 계수 버전을 기록해도 매트릭스
+버전은 남지 않는다. **PM 판단 대기** — 이번 작업(#3)을 되돌릴 사안은
+아니다(문서가 요구하지 않았고 매트릭스가 규준집단처럼 자주 바뀌는
+것도 아니다). 필요하면 Part 10-6-5 또는 10-7-5에 매트릭스 버전 필드를
+추가하는 별도 작업으로 처리.
+
+### 파일
+
+- 변경: `src/engine/temperature.ts` (기존 파일 이어서 구현, 기존 export
+  4개는 시그니처·동작 그대로 유지)
+- 신규: `__tests__/engine/temperatureBaseline.test.ts` (기존
+  `__tests__/engine/temperature.test.ts`는 **수정하지 않음** — 그 파일의
+  기존 4개 테스트 그대로 통과)
+
+`npx jest`: 기존 289개 + 신규 29개 = **318개 전부 통과**.
+`npx tsc --noEmit -p .`: **0에러**. `grep -rn "UNRESOLVED" src/engine/`는
+`unresolved.ts`(선언, 불변) 외에 `temperature.ts` 3곳에서 신규 소비
+(`computeDailyActivityScore` 정의 1곳 + 그 문서화 참조들은 카운트 아님,
+실제 호출 지점은 `computeDailyActivityScore` 함수 본문 1곳).
+
 ## 규준집단 전수 열거 (`synthetic-v1`) — 완료 (2026-09-02, engine-dev)
 
 Phase 7 선행 #2. 응답 공간 3,888개(Q1~Q5 3지선다 3⁵=243 × MBTI 16)를
