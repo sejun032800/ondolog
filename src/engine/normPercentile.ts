@@ -76,6 +76,32 @@ export interface NormEnneagramCoreSummary {
   readonly count: number
 }
 
+/** 애착축 한 수준(low/mid/high)의 합성값 요약 — 코어 9종 요약과 같은 형식. */
+export interface NormAttachmentAxisLevelSummary {
+  readonly level: 'low' | 'mid' | 'high'
+  readonly mean: number
+  readonly stdDev: number
+  readonly min: number
+  readonly max: number
+  /** 표본 수 (이 축 수준에 배정된 프로파일 개수). */
+  readonly count: number
+}
+
+/**
+ * 애착 두 축(회피·불안)의 3수준별 합성값 요약.
+ *
+ * **`synthetic-v3`부터 포함된다** (Part 17-3 DEF 애착 항이 회피축을
+ * 빼도록 갱신되면서, 규준 파일이 축별 분포를 스스로 문서화하도록 한 것).
+ * v1·v2 파일에는 이 필드가 없으므로 옵셔널이다 — 과거 발행물 재현 시
+ * 그 버전 파일을 그대로 주입해야 하기 때문에 필수로 두지 않는다.
+ */
+export interface NormAttachmentAxisSummary {
+  /** 회피축(Q5) 3수준: low → mid → high 순. */
+  readonly avoidance: readonly NormAttachmentAxisLevelSummary[]
+  /** 불안축(Q3) 3수준: low → mid → high 순. */
+  readonly anxiety: readonly NormAttachmentAxisLevelSummary[]
+}
+
 /**
  * 규준집단 데이터 파일(`norm-{version}.json`)의 스키마.
  * 생성기(scripts/norm)와 이 조회 함수가 공유하는 유일한 형 정의다.
@@ -98,6 +124,11 @@ export interface NormData {
   readonly stats: Readonly<Record<SixStatKey, NormDistribution>>
   /** ③ 에니어그램 코어 9종별 합성값 요약. */
   readonly enneagramCoreSummary: readonly NormEnneagramCoreSummary[]
+  /**
+   * ④ 애착 두 축(회피·불안) 3수준별 합성값 요약. **`synthetic-v3`부터 포함.**
+   * v1·v2에는 없다(옵셔널). 에니어그램 코어 9종 요약과 같은 위치·형식.
+   */
+  readonly attachmentAxisSummary?: NormAttachmentAxisSummary
 }
 
 /**

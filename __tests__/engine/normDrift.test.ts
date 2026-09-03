@@ -7,7 +7,7 @@ import type { NormData } from '../../src/engine/normPercentile'
 
 /**
  * 드리프트 감지 — 현재 엔진 함수로 전수 열거를 **다시 돌려**
- * 커밋된 `norm-synthetic-v2.json`과 대조한다.
+ * 커밋된 `norm-synthetic-v3.json`과 대조한다.
  *
  * 근거: docs/ONDOLOG_MASTER.md Part 10-8-3, 위임 프롬프트
  * "드리프트 감지 테스트 (필수)".
@@ -23,9 +23,15 @@ import type { NormData } from '../../src/engine/normPercentile'
  *
  * v1 → v2 (2026-09-02): `leagueStats`의 EMP 공식 갱신(Part 17-3, 순응형
  * 보너스 신설)으로 채점이 바뀌어 `norm-synthetic-v1.json`을 대조하던
- * 이 테스트가 예정대로 깨졌다 — 대조 대상을 v2로 갱신한다. v1은
- * 과거 발행물 재현용 데이터로 그대로 남아있고, 현재 코드로 v1이
- * 재현되지 않는 것이 정상이므로 v1을 대조하는 테스트는 남기지 않는다.
+ * 이 테스트가 예정대로 깨졌다 — 대조 대상을 v2로 갱신했다.
+ *
+ * v2 → v3 (2026-09-03): `leagueStats`의 DEF 애착 항이 회피축을 빼도록
+ * 갱신됐다(`computeDefAnxietyStability`, 75 − 불안축/2, Part 17-3).
+ * 채점이 바뀌어 v2를 대조하던 이 테스트가 예정대로 깨졌다 — 대조 대상을
+ * v3로 갱신하고, v3부터 규준 파일에 들어가는 **애착축 요약 섹션**의
+ * 존재도 함께 점검한다. v1·v2는 과거 발행물 재현용으로 그대로 남아있고,
+ * 현재 코드로 재현되지 않는 것이 정상이므로 옛 버전을 대조하는 테스트는
+ * 남기지 않는다.
  */
 
 const NORM_FILE = path.join(
@@ -49,8 +55,8 @@ describe('규준집단 드리프트 감지 — 열거 재실행 vs 커밋된 파
     expect(a).toBe(b)
   })
 
-  it('커밋된 파일: version이 synthetic-v2이다', () => {
-    expect(committed.version).toBe('synthetic-v2')
+  it('커밋된 파일: version이 synthetic-v3이다', () => {
+    expect(committed.version).toBe('synthetic-v3')
   })
 
   it('커밋된 파일: engineVersions가 맵이고 열거가 import한 두 엔진 모듈을 담는다', () => {
@@ -79,6 +85,23 @@ describe('규준집단 드리프트 감지 — 열거 재실행 vs 커밋된 파
     expect(cores).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9])
     const total = committed.enneagramCoreSummary.reduce((s, c) => s + c.count, 0)
     expect(total).toBe(3888)
+  })
+
+  it('커밋된 파일: 애착축 요약 섹션(v3부터)이 회피·불안 각 3수준, 표본 합 3,888', () => {
+    const axis = committed.attachmentAxisSummary
+    expect(axis).toBeDefined()
+    for (const which of ['avoidance', 'anxiety'] as const) {
+      const levels = axis![which]
+      expect(levels.map((l) => l.level)).toEqual(['low', 'mid', 'high'])
+      const total = levels.reduce((s, l) => s + l.count, 0)
+      expect(total).toBe(3888)
+      for (const l of levels) {
+        expect(l.count).toBe(1296)
+        expect(Number.isFinite(l.mean)).toBe(true)
+        expect(Number.isFinite(l.stdDev)).toBe(true)
+        expect(l.max).toBeGreaterThanOrEqual(l.min)
+      }
+    }
   })
 
   it('커밋된 파일: 각 분포의 sorted 배열이 실제로 오름차순이다', () => {

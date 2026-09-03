@@ -3,6 +3,241 @@
 > 서브에이전트는 컨텍스트가 격리되어 서로 대화할 수 없다.
 > 이 파일이 유일한 인수인계 수단이다.
 > **완료된 항목은 즉시 삭제할 것** — 누적되면 컨텍스트가 오염된다.
+> (예외: 아래 "DEF 애착 항 갱신" 작업 프롬프트는 선행 작업의 진단
+> 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.)
+
+## DEF 애착 항 갱신(회피축 제거) + 규준집단 `synthetic-v3` — 완료 (2026-09-03, engine-dev)
+
+Phase 7 선행 #7(`.claude/state/prompts/phase-7/08-engine-dev-def-neutral-avoidance.md`).
+MASTER Part 17-3이 재갱신돼 DEF 애착 항이 **`75 − 불안축/2`**(폐기된
+`100 − 불안축`이 불안축을 −1.0으로 증폭시킨 부작용을 정정)가 됐다.
+회피축만 DEF에서 빠지고 불안축 계수는 −0.5로 보존된다. 규준집단을
+재열거해 `norm-synthetic-v3.json`을 추가했다. **직전(폐기된) 시도의
+코드는 저장소에 없었고 처음부터 새로 구현했다.**
+
+### DEF 공식 — 변경 전/후 (`src/engine/leagueStats.ts`, `computeSixStats`)
+
+| | DEF 세 번째 항 | 항 내부 불안 계수 | 항 내부 회피 계수 | DEF 순계수(불안/회피) |
+|---|---|---|---|---|
+| **변경 전** (v2.0.0) | `computeAttachmentStability(anx, avoid) * 0.3` = `(100 − (anx+avoid)/2) * 0.3` | −0.5 | −0.5 | −0.15 / −0.15 |
+| **변경 후** (v3.0.0, Part 17-3 그대로) | `computeDefAnxietyStability(anx) * 0.3` = `(75 − anx/2) * 0.3` | **−0.5 (유지)** | **0 (제거)** | **−0.15 / 0** |
+
+첫 항(정서안정성 `(100−N)·0.4`)과 둘째 항(긍정형 보너스 `·0.3`)은 손대지 않았다.
+가중치(0.4/0.3/0.3)도 그대로. 문서 값을 조정·반올림하지 않았다.
+
+### 애착 항의 불안축 계수가 유지됨을 보인 근거 (세 가지)
+
+1. **해석적**: `∂/∂anx (75 − anx/2) = −0.5`, `∂/∂anx (100 − (anx+avoid)/2) = −0.5` → 동일.
+   `100 − 불안축`이었다면 −1.0이 됐을 지점(폐기된 조치의 오류)을 `75 − 불안축/2`가 피한다.
+2. **항 평균**: anx,avoid ∈ {20,50,85} 균등에서 변경 전 항 평균 `100 − (51.667+51.667)/2 = 48.333`,
+   변경 후 `75 − 51.667/2 = 49.167`. Part 17-3 예측(`48.33 → 49.17`)과 정확히 일치 — 항 값 범위 보존.
+3. **합성값 실측(규준 재열거 + 진단 스크립트)**: 불안축 3수준 합성값 **총차(high−low)가
+   v2 `1.074074` → v3 `1.074074`로 완전히 동일**. (Part 17-3이 "핵심 판정 기준"으로 지목한 수치.)
+   합성값 순계수도 ATT +0.35 / EMP −0.10 / DEF −0.15 = **+0.10 유지**(회피는 −0.25 → −0.10).
+
+### EMP 무변경 — 확인 방법과 결과
+
+- `computeAttachmentStability` **본문 무수정**(`return 100 - (attachAnxiety + attachAvoidance) / 2`
+  그대로). docblock에 "EMP 전용" 주석만 추가. `computeSixStats`의 `emp` 산출 줄
+  (`bigA*0.35 + attachmentStability*0.2 + intimacy*0.2 + compliantBonus*0.25`)도 무수정.
+- **실측**: `norm-synthetic-v3.json`의 `stats.emp` (그리고 pus·att·tac·rea) `mean`/`stdDev`가
+  `norm-synthetic-v2.json`과 **바이트 동일**(EMP 48.925926 / 15.211089 등). 바뀐 것은 DEF와
+  composite뿐. 에니어그램 코어 9종은 전부 균일하게 +0.074074만 이동(코어는 (Q1,Q2)만으로
+  정해져 Q3/Q5와 독립 → DEF 변경이 코어별로 갈리지 않음), **코어 간 폭 1.75463 그대로**.
+- `__tests__/engine/leagueStats.test.ts`의 `computeAttachmentStability` 단위 테스트
+  (`(20,20)→80` 등) 무수정·통과.
+
+### DEF 전용 함수 — 이름·시그니처·분리 방식
+
+- **`export function computeDefAnxietyStability(attachAnxiety: number): number`** — `return 75 - attachAnxiety / 2`
+- `src/engine/leagueStats.ts`에 공용 `computeAttachmentStability` **바로 아래** 별도 함수로 추가.
+- **회피축 인자를 아예 받지 않는다**(arity 1). 공용 헬퍼(arity 2)와 시그니처를 다르게 둬
+  회피축이 DEF에 다시 섞여 들어오는 것을 컴파일 단계에서 구조적으로 차단.
+- `computeSixStats` 안에서 `attachmentStability`(EMP용)와 `defAnxietyStability`(DEF용) 두
+  지역 변수를 각각 만들어, `emp`는 전자를 `def`는 후자를 소비하도록 분리.
+- 단위 테스트 신규 5개(`computeDefAnxietyStability` describe): 공식(손계산 65/50/32.5),
+  `100 − (anx+50)/2` 동치, 기울기 −0.5, arity 1, 결정론 100회.
+
+### `LEAGUE_STATS_ENGINE_VERSION`: `2.0.0` → `3.0.0`
+
+동일 입력에 대해 이전 버전과 다른 DEF 수치를 내는 **호환 불가 변경**이므로 메이저.
+(EMP 변경이 1.0.0→2.0.0이었던 것과 같은 근거. 부가 함수 추가였던
+`TEMPERATURE_ENGINE_VERSION` 1.0.0→1.1.0의 minor 패턴과 다름.)
+`norm-synthetic-v3.json`의 `engineVersions.leagueStats`가 이 값을 자동으로 담는다
+(`enumerateNormData()`가 상수를 읽어 넣음 — 문자열 직접 타이핑 없음).
+
+### 깨진 기존 테스트 — DEF/드리프트로 한정, 각각 열거
+
+| 파일 | 테스트/지점 | 기존 | 신규 | 근거 |
+|---|---|---|---|---|
+| `__tests__/engine/normDrift.test.ts` | `커밋된 파일: version이 synthetic-v2이다` → assertion `expect(committed.version).toBe('synthetic-v2')` | `'synthetic-v2'` | `'synthetic-v3'` | 규준 버전 문자열 규격(Part 10-8-3 `{출처}-v{정수}`, "새 버전 파일 추가")에서 도출 — 코드 출력 복사 아님 |
+| `__tests__/engine/normDrift.test.ts` | `열거를 다시 돌린 직렬화 결과가 커밋된 파일과 바이트 단위로 동일하다` | v2 파일과 바이트 일치 | v3 파일과 바이트 일치(대조 대상 파일 경로는 `NORM_VERSION` import로 자동 추종, 열거 재호출 방식 유지) | 채점이 바뀌면 반드시 깨지도록 설계된 드리프트 감지 테스트 — 설계대로 |
+| `__tests__/engine/normDrift.test.ts` | docblock의 v2 언급 | — | v2→v3 경위 문단 추가 | 주석 정확성(비-assertion) |
+
+- **DEF 절대값을 검증하던 단위 테스트는 애초에 없었다** — `leagueStats.test.ts`는
+  `computeSixStats`를 범위(0~100)·상대비교(PUS)·결정론(100회)만 확인하고 DEF 수치를
+  assert하지 않아, 공식이 바뀌어도 그대로 통과했다.
+- **EMP 테스트·그 외 테스트는 깨지지 않았다.** `npx jest` 25 suites / **324 tests** 전부 통과
+  (기존 318 + 신규 6: normDrift 애착축 요약 점검 1 + `computeDefAnxietyStability` 5). 회귀 0.
+- 신규로 **추가**한 것: normDrift에 애착축 요약 섹션 구조 점검 1개(v3부터 존재, 회피·불안 각
+  3수준·표본 합 3888), leagueStats에 `computeDefAnxietyStability` 5개. 기존 테스트 본문 수정은
+  위 표의 normDrift 3지점뿐.
+
+### 규준집단 `synthetic-v3` — 재열거
+
+- 출력: `src/engine/data/norm-synthetic-v3.json`, `version` = `synthetic-v3`,
+  `engineVersions` = `{loveTypeInference: "1.0.0", leagueStats: "3.0.0"}`, `sampleSize` 3888.
+- **파일 크기: 354,838 bytes.** (v2 352,914 / v1 352,336 — 증가분은 신규 `attachmentAxisSummary` 섹션.)
+- **배열 7개 각각 정확히 3,888**: `composite.sorted` + `stats.{pus,emp,att,def,tac,rea}.sorted`.
+- **재실행 시 바이트 동일** 확인(SHA-256 `47e620dc…`, 2회 재생성 일치).
+- **`v1`·`v2` 무수정**: `git status`에 `norm-synthetic-v1.json`/`v2.json` `M` 없음, v3만 신규(`??`).
+- **열거 로직·채점 재구현 없음**: `scripts/norm/enumerate.ts`는 `NORM_VERSION` 문자열
+  `'synthetic-v2'`→`'synthetic-v3'`, 축 수준 필드(`Q3_ANXIETY_AXIS`/`Q5_AVOIDANCE_AXIS` 룩업
+  그대로)와 `summarizeAttachmentAxes()` 추가뿐. `computeSixStats`가 갱신돼 같은 코드가 다른
+  결과를 낸 것.
+- **드리프트 테스트**: v3 대조로 갱신, `serializeNormData(enumerateNormData())` vs 커밋 파일
+  **바이트 비교 형태 유지**(파일끼리 비교·샘플링으로 바꾸지 않음).
+
+### v3 애착축 요약 섹션 (규준 파일에 신규 포함 — 코어 9종 요약과 같은 위치·형식)
+
+`norm-synthetic-v3.json` → `attachmentAxisSummary: { avoidance: [low,mid,high], anxiety: [low,mid,high] }`,
+각 원소 `{ level, mean, stdDev, min, max, count }`. 값은 아래 "점검 ①②"와 동일(교차검증됨 —
+독립 진단 스크립트와 바이트 일치).
+
+### v2 → v3 분포 비교 (관측 보고, 판단 없음)
+
+**회피축 3수준 합성값 평균** (v2 → v3):
+
+| 회피 수준 | v2 | v3 | 이동 |
+|---|---|---|---|
+| low  | 49.435185 | 48.712963 | −0.722222 |
+| mid  | 48.212963 | 48.212963 | ±0 |
+| high | 46.675926 | 47.620370 | +0.944444 |
+| **총차(high−low)** | **−2.759259** | **−1.092593** | 회피축 감점 폭 축소 (계수 −0.25 → −0.10) |
+
+단계별 차이 v3: mid−low −0.500000, high−mid −0.592593. Part 17-3 예측(총차 −1.08 안팎,
+단계 −0.50/−0.58)과 부합.
+
+**불안축 3수준 합성값 평균** (v2 → v3):
+
+| 불안 수준 | v2 | v3 | 이동 |
+|---|---|---|---|
+| low  | 47.546296 | 47.657407 | +0.111111 |
+| mid  | 48.157407 | 48.157407 | ±0 |
+| high | 48.620370 | 48.731481 | +0.111111 |
+| **총차(high−low)** | **1.074074** | **1.074074** | **완전 동일 — 불안축 보존 확인(핵심 판정 기준)** |
+
+**에니어그램 코어 9종 평균** (v2 → v3): 9종 전부 균일하게 **+0.074074** 이동.
+코어 간 평균 폭 v2 1.75463 → v3 **1.75463 (불변)**. 오름차순 순위도 불변
+(3<1<8<6<5<4<7<2<9). DEF 변경이 코어(=(Q1,Q2))와 독립임을 확인.
+
+**6종 스탯 mean/stdDev** (v2 → v3): PUS·EMP·ATT·TAC·REA 바이트 동일.
+DEF `44.222222 / 19.423799` → `44.666667 / 18.979521` (평균 +0.44, sd 감소 — 항 산포가
+회피축이 빠져 줄어듦, Part 17-3 예측 "sd < 19.4" 부합). ATT sd 21.489015가 분산 1위 유지.
+합성값 `48.108025 / 2.827228` → `48.182099 / 2.629861`.
+
+### 점검 ①~⑤ (진단 스크립트 무수정 재실행 + v3 파일 판독, 판단 없음 — 수치만)
+
+**진단 스크립트 무수정** 확인: `git status`에 `scripts/norm/attachment-diagnostic.ts` 변경 없음.
+`v2` 때와 동일한 스크립트·동일한 1회용 컴파일 방식. 3회 재실행 바이트 동일.
+
+**① 회피축 3수준별 합성값 분포** (min/max는 소수 10자리 반올림, mean/sd는 6자리, 모표준편차)
+
+| 회피 수준 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|
+| low  | 48.712963 | 2.590674 | 42.3333333333 | 55.6666666667 | 1296 |
+| mid  | 48.212963 | 2.590674 | 41.8333333333 | 55.1666666667 | 1296 |
+| high | 47.620370 | 2.593651 | 41.1666666667 | 54.6666666667 | 1296 |
+
+단계별 차이: mid−low **−0.500000**, high−mid **−0.592593**. 총차(high−low) **−1.092593**.
+
+**② 불안축 3수준별 합성값 분포**
+
+| 불안 수준 | 평균 | 표준편차 | 최소 | 최대 | n |
+|---|---|---|---|---|---|
+| low  | 47.657407 | 2.594642 | 41.1666666667 | 54.6666666667 | 1296 |
+| mid  | 48.157407 | 2.594642 | 41.6666666667 | 55.1666666667 | 1296 |
+| high | 48.731481 | 2.589681 | 42.3333333333 | 55.6666666667 | 1296 |
+
+단계별 차이: mid−low **+0.500000**, high−mid **+0.574074**. 총차(high−low) **+1.074074**
+(v2와 동일).
+
+**③ 회피 × 불안 교차표 (3×3, 평균 / n)**
+
+| 회피 \ 불안 | low | mid | high |
+|---|---|---|---|
+| **low**  | 48.194444 (n=432) | 48.694444 (n=432) | 49.250000 (n=432) |
+| **mid**  | 47.694444 (n=432) | 48.194444 (n=432) | 48.750000 (n=432) |
+| **high** | 47.083333 (n=432) | 47.583333 (n=432) | 48.194444 (n=432) |
+
+(참고: 진단 스크립트가 함께 낸 애착 4유형별 합성값 — secure 48.194444 / anxious 49.000000 /
+avoidant 47.333333 / fearful 48.194444, n 1728/864/864/432.)
+
+**④ 에니어그램 코어 9종별 합성값 분포** (v3, 각 n=432)
+
+| 코어 | 평균 | 표준편차 | 최소 | 최대 |
+|---|---|---|---|---|
+| 1 | 47.597222 | 2.558535 | 41.3333333333 | 54.0000000000 |
+| 2 | 48.888889 | 2.575556 | 42.6666666667 | 55.3333333333 |
+| 3 | 47.513889 | 2.555669 | 41.1666666667 | 54.0000000000 |
+| 4 | 48.143519 | 2.544507 | 41.8333333333 | 54.5000000000 |
+| 5 | 47.976852 | 2.544507 | 41.6666666667 | 54.3333333333 |
+| 6 | 47.763889 | 2.558535 | 41.5000000000 | 54.1666666667 |
+| 7 | 48.805556 | 2.572708 | 42.5000000000 | 55.3333333333 |
+| 8 | 47.680556 | 2.555669 | 41.3333333333 | 54.1666666667 |
+| 9 | 49.268519 | 2.561621 | 43.0000000000 | 55.6666666667 |
+
+코어 간 평균 폭 **1.754630** (최저 3: 47.513889 ~ 최고 9: 49.268519).
+오름차순 순위: **3 < 1 < 8 < 6 < 5 < 4 < 7 < 2 < 9**.
+
+**⑤ 스탯 6종 및 합성값 mean / stdDev** (v3, 3,888 전수, 모표준편차)
+
+| 항목 | 평균 | 표준편차 |
+|---|---|---|
+| PUS | 49.750000 | 17.020209 |
+| EMP | 48.925926 | 15.211089 |
+| ATT | 47.000000 | 21.489015 |
+| DEF | 44.666667 | 18.979521 |
+| TAC | 45.416667 | 16.359460 |
+| REA | 53.333333 | 13.707257 |
+| 합성값 | 48.182099 | 2.629861 |
+
+PUS·EMP·ATT·TAC·REA는 v2와 바이트 동일. DEF·합성값만 변동.
+
+> **판단하지 않음.** 위 수치의 해석·추가 조정 필요 여부는 마스터 PM 결정이다.
+> 17-3 값이 확정 사항이며 수치를 목표에 맞춘 가중치 조정은 하지 않았다.
+
+### `v1`·`v2`를 보존하는 이유 — 삭제 금지
+
+**과거 발행물 재현.** `stat_snapshots.inputs.normVersion`에 규준 버전이 기록되므로,
+`synthetic-v1`/`v2`로 산출된 발행물은 그 버전 파일이 있어야 재현된다(Part 10-8-3
+"이전 버전으로 산출된 발행물은 그 버전으로 재현 가능해야 한다"). `norm-{version}.json`은
+인자로 주입되는 동결 산출물이라 엔진 코드가 특정 버전을 정적 import하지도 않는다.
+
+### 파일 (git status)
+
+| 상태 | 경로 | 내용 |
+|---|---|---|
+| M | `src/engine/leagueStats.ts` | `computeDefAnxietyStability` 신설, `computeSixStats`의 `def` 항 교체, `LEAGUE_STATS_ENGINE_VERSION` 3.0.0, docblock |
+| M | `src/engine/normPercentile.ts` | `NormAttachmentAxisLevelSummary`/`NormAttachmentAxisSummary` 타입 + `NormData.attachmentAxisSummary?` 옵셔널 필드(v1·v2 재현 호환) |
+| M | `scripts/norm/enumerate.ts` | `NORM_VERSION` v3, 축 수준 필드 + `summarizeAttachmentAxes()` |
+| M | `__tests__/engine/normDrift.test.ts` | v2→v3 대조, 애착축 요약 점검 1개 추가 |
+| M | `__tests__/engine/leagueStats.test.ts` | `computeDefAnxietyStability` describe 5개 추가(기존 테스트 무수정) |
+| ?? | `src/engine/data/norm-synthetic-v3.json` | 재열거 규준 (354,838 bytes) |
+
+미변경: `src/engine/data/norm-synthetic-v1.json`·`v2.json`, `scripts/norm/attachment-diagnostic.ts`,
+`scripts/norm/distribution.ts`·`serialize.ts`, `scripts/generate-norm.ts`,
+`src/engine/temperature.ts`, `src/engine/constants/unresolved.ts`, 모든 설정 파일.
+
+### 검증 상태
+
+- `npx jest` : 25 suites / **324 tests** 전부 pass (기존 318 + 신규 6, 회귀 0)
+- `npx tsc --noEmit -p .` : **0 에러**
+- `norm-synthetic-v3.json` 2회 재생성 SHA-256 동일 (바이트 결정론)
+- 진단 스크립트 3회 재실행 바이트 동일
+- `grep -rn "UNRESOLVED(" src/engine/ --include=*.ts | grep -vE "^[^:]*:[0-9]+:[[:space:]]*\*"` → **2건**
+  (`unresolved.ts:135` 정의 + `temperature.ts:234` 소비), 이번 작업으로 늘지도 줄지도 않음.
+  UNRESOLVED 키 등록·해소 없음. `leagueStats.shrinkage`는 그대로 미소비(원점수 기준 열거).
 
 ## 애착축 진단 집계 — 완료 (2026-09-03, engine-dev)
 

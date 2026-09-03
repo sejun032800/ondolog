@@ -1,6 +1,6 @@
 /**
  * 응답 공간 전수 열거 — 규준집단 합성 데이터(`NORM_VERSION`, 현재
- * `synthetic-v2`) 생성 로직.
+ * `synthetic-v3`) 생성 로직.
  *
  * 근거: docs/ONDOLOG_MASTER.md Part 10-8-1 / 10-8-2 / 10-8-3.
  *
@@ -43,7 +43,14 @@ import {
 import { roundTo } from '../../src/engine/numeric'
 import { MBTI_TYPES, type QuizChoice } from '../../src/constants/quizTypes'
 import {
+  Q3_ANXIETY_AXIS,
+  Q5_AVOIDANCE_AXIS,
+  type AxisLevel,
+} from '../../src/constants/attachment'
+import {
   SIX_STAT_KEYS,
+  type NormAttachmentAxisLevelSummary,
+  type NormAttachmentAxisSummary,
   type NormData,
   type NormEnneagramCoreSummary,
   type SixStatKey,
@@ -62,8 +69,15 @@ import {
  * 신설, Part 17-3)으로 채점 로직이 바뀌었으므로 규준집단을 재열거했다.
  * `norm-synthetic-v1.json`은 과거 발행물 재현을 위해 그대로 남아있고
  * 이 상수만 v2를 가리키도록 올린다 — 기존 파일은 수정하지 않는다.
+ *
+ * v2 → v3 (2026-09-03): `leagueStats`의 DEF 애착 항이 회피축을 빼도록
+ * 갱신됐다(`computeAttachmentStability` → `computeDefAnxietyStability`,
+ * 75 − 불안축/2, Part 17-3). 채점이 바뀌었으므로 재열거한다. v3부터
+ * 규준 파일에 **애착축 요약 섹션**(회피·불안 3수준별)을 포함한다.
+ * `norm-synthetic-v1.json`·`norm-synthetic-v2.json`은 과거 발행물
+ * 재현용으로 그대로 남는다 — 수정하지 않는다.
  */
-export const NORM_VERSION = 'synthetic-v2'
+export const NORM_VERSION = 'synthetic-v3'
 
 /** Q1~Q5가 취하는 값. 열거 순서를 고정한다. */
 const CHOICES: readonly QuizChoice[] = ['A', 'B', 'C'] as const
@@ -71,10 +85,17 @@ const CHOICES: readonly QuizChoice[] = ['A', 'B', 'C'] as const
 /** 한 프로파일의 열거 결과 (내부용). */
 interface EnumeratedProfile {
   readonly enneagramCore: number
+  /** 불안축 수준 (Q3 → `Q3_ANXIETY_AXIS` 룩업 그대로 — 재판정 없음). */
+  readonly anxietyLevel: AxisLevel
+  /** 회피축 수준 (Q5 → `Q5_AVOIDANCE_AXIS` 룩업 그대로 — 재판정 없음). */
+  readonly avoidanceLevel: AxisLevel
   readonly stats: Readonly<Record<SixStatKey, number>>
   /** 6각 스탯의 산술평균 = 합성값(OVR 원점수). leagueStats.computeOvrRawScore 그대로. */
   readonly composite: number
 }
+
+/** 애착축 요약이 순회하는 수준 순서 — low → mid → high 고정. */
+const AXIS_LEVELS: readonly AxisLevel[] = ['low', 'mid', 'high'] as const
 
 /**
  * 3,888개 프로파일을 고정된 순서로 열거한다.
@@ -106,6 +127,9 @@ export function enumerateProfiles(): EnumeratedProfile[] {
 
               profiles.push({
                 enneagramCore: inference.enneagramCore,
+                // 축 수준: 기존 룩업 상수 그대로 (attachment-diagnostic.ts와 동일).
+                anxietyLevel: Q3_ANXIETY_AXIS[q3],
+                avoidanceLevel: Q5_AVOIDANCE_AXIS[q5],
                 stats: {
                   pus: stats.pus,
                   emp: stats.emp,
@@ -165,6 +189,71 @@ function summarizeEnneagramCores(
 }
 
 /**
+ * 한 축 수준 집단의 합성값 요약 — `summarizeEnneagramCores`와 **바이트 동일**한
+ * 절차(RAW_SCORE_DECIMALS 반올림·오름차순 정렬 → 정확 평균/모표준편차 →
+ * mean·stdDev만 SUMMARY_DECIMALS 최종 반올림, min/max는 반올림된 정렬 배열의
+ * 양끝). 코어 요약 함수를 건드리지 않으려고 절차를 그대로 복제했다.
+ */
+function summarizeAxisLevel(
+  level: AxisLevel,
+  composites: readonly number[],
+): NormAttachmentAxisLevelSummary {
+  const values = composites
+    .map((v) => roundTo(v, RAW_SCORE_DECIMALS))
+    .slice()
+    .sort((a, b) => a - b)
+
+  const n = values.length
+  let sum = 0
+  for (const v of values) sum += v
+  const meanExact = n === 0 ? 0 : sum / n
+
+  let sqDevSum = 0
+  for (const v of values) {
+    const d = v - meanExact
+    sqDevSum += d * d
+  }
+  const stdDevExact = n === 0 ? 0 : Math.sqrt(sqDevSum / n)
+
+  return {
+    level,
+    mean: roundTo(meanExact, SUMMARY_DECIMALS),
+    stdDev: roundTo(stdDevExact, SUMMARY_DECIMALS),
+    min: n === 0 ? 0 : values[0],
+    max: n === 0 ? 0 : values[n - 1],
+    count: n,
+  }
+}
+
+/**
+ * 애착 두 축(회피·불안)의 3수준별 합성값 요약 (v3부터, Part 17-3 DEF
+ * 애착 항 갱신). 축 수준은 `enumerateProfiles()`가 기존 룩업
+ * (`Q3_ANXIETY_AXIS`/`Q5_AVOIDANCE_AXIS`)으로 이미 채워둔 값을 읽기만 한다.
+ */
+function summarizeAttachmentAxes(
+  profiles: readonly EnumeratedProfile[],
+): NormAttachmentAxisSummary {
+  return {
+    avoidance: AXIS_LEVELS.map((level) =>
+      summarizeAxisLevel(
+        level,
+        profiles
+          .filter((p) => p.avoidanceLevel === level)
+          .map((p) => p.composite),
+      ),
+    ),
+    anxiety: AXIS_LEVELS.map((level) =>
+      summarizeAxisLevel(
+        level,
+        profiles
+          .filter((p) => p.anxietyLevel === level)
+          .map((p) => p.composite),
+      ),
+    ),
+  }
+}
+
+/**
  * 전수 열거로 규준집단 데이터를 조립한다. 파일 I/O 없음 — 순수 함수.
  * 반복 호출 시 동일한 객체(deep-equal + 직렬화 바이트 동일)를 반환한다.
  */
@@ -193,6 +282,9 @@ export function enumerateNormData(): NormData {
   // ③ 에니어그램 코어 9종별 합성값 요약.
   const enneagramCoreSummary = summarizeEnneagramCores(profiles)
 
+  // ④ 애착축(회피·불안) 3수준별 합성값 요약 (v3부터, Part 17-3).
+  const attachmentAxisSummary = summarizeAttachmentAxes(profiles)
+
   return {
     version: NORM_VERSION,
     // 값은 기존 상수를 그대로 읽어서 넣는다 — 문자열을 직접 타이핑하지 않는다.
@@ -211,5 +303,6 @@ export function enumerateNormData(): NormData {
       rea: stats.rea,
     },
     enneagramCoreSummary,
+    attachmentAxisSummary,
   }
 }

@@ -1,6 +1,7 @@
 import {
   OVR_CALIBRATION_TABLE,
   computeAttachmentStability,
+  computeDefAnxietyStability,
   computeOvrRawScore,
   computeSixStats,
   mapPercentileToOvr,
@@ -17,11 +18,44 @@ const fixedInput: SixStatsInput = {
   attachAvoidance: 20,
 }
 
-describe('computeAttachmentStability', () => {
+describe('computeAttachmentStability (EMP 전용 — 불변)', () => {
   it('100 − (불안+회피)/2 (Part 17-3)', () => {
     expect(computeAttachmentStability(20, 20)).toBe(80)
     expect(computeAttachmentStability(85, 85)).toBe(15)
     expect(computeAttachmentStability(50, 50)).toBe(50)
+  })
+})
+
+describe('computeDefAnxietyStability (DEF 전용 — 2026-09-03 신설)', () => {
+  it('75 − 불안축/2 (Part 17-3 "애착 불안 안정성")', () => {
+    // 손계산: 75 − 20/2 = 65 / 75 − 50/2 = 50 / 75 − 85/2 = 32.5
+    expect(computeDefAnxietyStability(20)).toBe(65)
+    expect(computeDefAnxietyStability(50)).toBe(50)
+    expect(computeDefAnxietyStability(85)).toBe(32.5)
+  })
+
+  it('100 − (불안축 + 50)/2 와 동치다 (회피축 자리에 중립값 50)', () => {
+    for (const anx of [0, 20, 33, 50, 85, 100]) {
+      expect(computeDefAnxietyStability(anx)).toBe(100 - (anx + 50) / 2)
+    }
+  })
+
+  it('불안축 계수가 −0.5로 유지된다 (2점 기울기)', () => {
+    const slope =
+      (computeDefAnxietyStability(85) - computeDefAnxietyStability(20)) /
+      (85 - 20)
+    expect(slope).toBe(-0.5)
+  })
+
+  it('회피축 인자를 받지 않는다 (arity 1)', () => {
+    expect(computeDefAnxietyStability).toHaveLength(1)
+  })
+
+  it('동일 입력 100회 반복 실행 → 100회 모두 동일 결과', () => {
+    const results = Array.from({ length: 100 }, () =>
+      computeDefAnxietyStability(85),
+    )
+    expect(new Set(results).size).toBe(1)
   })
 })
 

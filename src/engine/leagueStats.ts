@@ -39,8 +39,17 @@ import type { QuizChoice } from '../constants/quizTypes'
  * 낮췄다. 동일 입력이라도 이전 버전과 다른 EMP 수치를 내는 **호환
  * 불가 변경**이므로 메이저 버전을 올린다(부가 함수 추가였던 1.0.0→
  * 1.1.0 사례의 minor 패턴과 다름).
+ *
+ * 2.0.0 → 3.0.0 (2026-09-03, Part 17-3 재갱신): DEF의 애착 항을
+ * 공용 `computeAttachmentStability`(불안+회피 평균)에서 DEF 전용
+ * `computeDefAnxietyStability`(= 75 − 불안축/2)로 바꿨다. 회피축이
+ * DEF에 관여하던 −0.15 순계수가 0이 되고, 불안축 순계수는 −0.15로
+ * 그대로 유지된다(항 내부 불안 계수 −0.5 보존 — `100 − 불안축`이
+ * 아니라 `75 − 불안축/2`). EMP 공식과 그 산출은 불변. 동일 입력이라도
+ * 이전 버전과 다른 DEF 수치를 내는 **호환 불가 변경**이므로 메이저를
+ * 올린다(EMP 변경이 2.0.0이었던 것과 같은 근거).
  */
-export const LEAGUE_STATS_ENGINE_VERSION = '2.0.0'
+export const LEAGUE_STATS_ENGINE_VERSION = '3.0.0'
 
 export interface LeagueStatsBig5Input {
   bigE: number
@@ -89,7 +98,11 @@ function groupBonus(belongs: boolean): number {
   return belongs ? 100 : 0
 }
 
-/** 애착 안정성 = 100 − (불안축 + 회피축) / 2 (Part 17-3 "애착 축 수치화"). */
+/**
+ * 애착 안정성 = 100 − (불안축 + 회피축) / 2 (Part 17-3 "애착 축 수치화").
+ * **EMP 전용.** DEF는 아래 `computeDefAnxietyStability`를 쓴다 — 이 함수
+ * 본문을 고치면 EMP가 함께 바뀌므로 절대 손대지 않는다.
+ */
 export function computeAttachmentStability(
   attachAnxiety: number,
   attachAvoidance: number,
@@ -98,10 +111,29 @@ export function computeAttachmentStability(
 }
 
 /**
- * 6각 스탯 산출 (Part 17-3 표 그대로, EMP는 2026-09-02 갱신 반영).
+ * DEF(멘탈 회복력) 전용 애착 불안 안정성 = 75 − 불안축/2
+ * (Part 17-3 "애착 축 수치화", 2026-09-03 재갱신).
+ *
+ * `100 − (불안축 + 50)/2`의 동치형이다 — 공용 `computeAttachmentStability`의
+ * 회피축 자리에 **중립값 50**을 대입한 것. 회피가 DEF에 영향을 주지 않는다는
+ * 것을 "회피를 항상 중립으로 본다"로 표현하므로 임의의 상수 보정이 아니다.
+ * 불안축 계수는 항 내부에서 −0.5로 그대로 유지된다(`100 − 불안축`이었다면
+ * −1.0이 되어 불안 가중이 두 배가 됐을 것이다 — 폐기된 최초 조치의 오류).
+ *
+ * ⚠️ **회피축 인자를 받지 않는다.** 공용 헬퍼와 시그니처를 다르게 두어
+ * 회피축이 DEF 계산에 다시 섞여 들어오는 것을 구조적으로 차단한다.
+ */
+export function computeDefAnxietyStability(attachAnxiety: number): number {
+  return 75 - attachAnxiety / 2
+}
+
+/**
+ * 6각 스탯 산출 (Part 17-3 표 그대로, EMP는 2026-09-02 · DEF 애착 항은
+ * 2026-09-03 갱신 반영).
  * 6개 항목 전부 가중치 합이 1.0이 되도록 문서에 명시돼 있다
  * (PUS 0.4+0.3+0.3, EMP 0.35+0.2+0.2+0.25, ATT 0.4+0.35+0.25,
  * DEF 0.4+0.3+0.3, TAC 0.35+0.3+0.35, REA 0.5+0.3+0.2).
+ * DEF의 세 번째 항은 회피축을 뺀 `computeDefAnxietyStability`(75−불안축/2)다.
  *
  * TAC의 세 번째 항 "스턴버그 열정/헌신 비율(0.35)"은 문서에 정확한
  * 변환식이 없다. 나머지 5개 스탯이 전부 "0~100 스케일 항목의 가중평균"
@@ -122,10 +154,13 @@ export function computeSixStats(input: SixStatsInput): SixStats {
   const positiveBonus = groupBonus(q2 === 'B') // 긍정형(2·7·9) → DEF
   const reactiveBonus = groupBonus(q2 === 'C') // 반응형(4·6·8) → ATT
 
+  // EMP 전용 — 불안축·회피축 평균. DEF는 아래 회피축을 뺀 전용 항을 쓴다.
   const attachmentStability = computeAttachmentStability(
     attachAnxiety,
     attachAvoidance,
   )
+  // DEF 전용 — 75 − 불안축/2 (회피축 자리에 중립값 50 대입, Part 17-3).
+  const defAnxietyStability = computeDefAnxietyStability(attachAnxiety)
 
   // 해석: 열정이 열정+헌신 중 차지하는 비중(0~100). 위 문서 참고.
   const passionCommitmentSum = sternberg.passion + sternberg.commitment
@@ -142,7 +177,7 @@ export function computeSixStats(input: SixStatsInput): SixStats {
     compliantBonus * 0.25
   const att = big5.bigN * 0.4 + attachAnxiety * 0.35 + reactiveBonus * 0.25
   const def =
-    (100 - big5.bigN) * 0.4 + positiveBonus * 0.3 + attachmentStability * 0.3
+    (100 - big5.bigN) * 0.4 + positiveBonus * 0.3 + defAnxietyStability * 0.3
   const tac = big5.bigO * 0.35 + withdrawnBonus * 0.3 + passionShare * 0.35
   const rea = big5.bigC * 0.5 + sternberg.commitment * 0.3 + competencyBonus * 0.2
 
