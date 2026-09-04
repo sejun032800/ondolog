@@ -1,6 +1,10 @@
 # 진행 상황
 
-최종 갱신: 2026-09-04 (DEF 애착 항 잔차 진단 — 두 항의 전수 평균 vs 규준집단
+최종 갱신: 2026-09-04 (`v2` 규준집단 DEF 데이터 검증 — 요약 필드만 틀렸나 원자료가
+틀렸나. 조회 전용 스크립트 `scripts/norm/v2-def-storage-diagnostic.ts` 추가,
+`src/` 무변경. 이 파일 하단 "`v2` 규준집단 DEF 데이터 검증" 절 참조)
+
+이전 갱신: 2026-09-04 (DEF 애착 항 잔차 진단 — 두 항의 전수 평균 vs 규준집단
 파일 DEF 평균 재추출. 조회 전용 스크립트
 `scripts/norm/def-term-residual-diagnostic.ts` 추가, `src/` 무변경. 이 파일
 하단 "DEF 애착 항 잔차 진단" 절 참조)
@@ -1345,4 +1349,112 @@ DEF 애착 항이 v2 `computeAttachmentStability(A,V)=100−(A+V)/2` → v3
 (어긋남이 항에 있는지 저장된 수치에 있는지, 어느 파일이 틀렸는지, 어디를
 고쳐야 하는지)는 마스터 PM 판단 사항이라 다루지 않았다. 어긋남이 보여도
 코드·문서·규준집단 파일을 고치지 않았다 — 그 확인이 산출물이다.
+
+## `v2` 규준집단 DEF 데이터 검증 (요약 필드 vs 원자료) — 완료 (2026-09-04, engine-dev)
+
+Phase 7 선행 #13(`.claude/state/prompts/phase-7/13-engine-dev-v2-def-verify.md`).
+직전 #12에서 `norm-synthetic-v2.json`의 DEF 평균이 역산값과 `0.194444` 어긋남이
+확인됐다. 이 진단은 그 어긋남이 **파일의 `stats.def.mean` 요약 필드**에 있는지,
+**`stats.def.sorted` 원자료**에 있는지를 가른다. 조회 전용 — 수치만 산출하고
+원인·정오·`v2` 재산출 필요 여부는 판단하지 않는다.
+
+### 이 작업이 만들지 않은 것 / 바꾸지 않은 것
+
+- `src/` 아래 어떤 파일도 생성·수정 안 함 (엔진·규준집단 파일 전부)
+- `src/engine/data/norm-synthetic-v1/v2/v3.json` 무변경 — `stats.def.sorted`·
+  `stats.def.mean`을 읽기 전용으로 옮기기만 함 (재계산·반올림 없음)
+- 기존 진단 스크립트 3개(`attachment-diagnostic.ts` ·
+  `avoidance-residual-diagnostic.ts` · `def-term-residual-diagnostic.ts`) 무변경
+- DEF 식·애착 항 식 재작성 없음 — `computeSixStats`를 import해 호출
+- 회피축 보정량(4.5 / 0 / −5.25) 하드코딩 없음 — `V_i`에서
+  `0.3 × (25 − V_i/2)`로 계산
+- 기존 테스트 assertion·기댓값 수정 없음 (신규 테스트 추가도 안 함)
+
+### 진단 스크립트 — 재실행 가능
+
+- 경로: `scripts/norm/v2-def-storage-diagnostic.ts` (규준 JSON 읽기 전용 I/O, stdout JSON)
+- 실행 (Windows / PowerShell — 1회용 컴파일, ts-node/tsx 없음):
+
+  ```
+  npx tsc scripts/norm/v2-def-storage-diagnostic.ts --ignoreConfig --ignoreDeprecations 6.0 `
+    --outDir .norm-build --module commonjs --moduleResolution node --target es2022 `
+    --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+  node .norm-build/scripts/norm/v2-def-storage-diagnostic.js
+  Remove-Item -Recurse -Force .norm-build
+  ```
+
+  (설치된 tsc가 6.0.3이라 `--ignoreConfig`(TS5112)·`--ignoreDeprecations 6.0`(TS5107)이
+  필요하다. `def-term-residual-diagnostic.ts`와 동일 플래그.)
+
+### 재사용한 함수 (재구현 없음 — import만)
+
+| 함수 | 시그니처 | 경로 | 용도 |
+|---|---|---|---|
+| `computeSixStats` | `(input: SixStatsInput) => SixStats`, `.def` 사용 | `src/engine/leagueStats.ts` | `v3DEF_i` (현재=v3 코드의 DEF) |
+| `inferLoveType` | `(input: LoveTypeInput) => LoveTypeInferenceResult` | `src/engine/loveTypeInference.ts` | `V_i = .attachAvoidance`, `.big5`/`.sternberg`/`.attachAnxiety` 공급 |
+| `roundTo` | `(value: number, decimals: number) => number` | `src/engine/numeric.ts` | 역산값을 `v2` `stats.def.sorted`와 동일 절차(10자리 반올림 후 오름차순)로 정렬 |
+
+열거 루프(MBTI_TYPES → Q1..Q5, 각 A,B,C)는 `enumerate.ts::enumerateProfiles()`와
+동일. 표본 수 · 배열 길이 전부 **3,888** 확인.
+
+### 역산에서 `V_i`를 어떻게 얻었는가
+
+프로파일마다 `inferLoveType({ mbti, q1, q2, q3, q4, q5 }).attachAvoidance`를
+직접 호출해 얻었다. 회피축이 {20, 50, 85} 세 값뿐이라는 사실로 보정량을
+미리 적지 않고, `v2DefReconstructed = v3Def + 0.3 * (25 - avoidance / 2)`를
+코드에서 계산했다. 실측 결과 `V_i` 3종(각 1,296) → 보정량 3종
+(−5.25 / 0 / +4.5, 각 1,296)으로 나뉘었고 이는 산출에 하드코딩되지 않았다.
+
+### ① `v2` 파일 내부 정합성 (`stats.def.sorted` 직접 평균 vs `stats.def.mean`)
+
+- 배열 길이 = **3888** (`arrayLengthIs3888: true`)
+- `computedMean` = mean(`v2.stats.def.sorted`) = 171936 / 3888
+  = **44.22222222222222** (JS double)
+  - `toFixed(15)` = `44.222222222222221`
+  - `toPrecision(18)` = `44.2222222222222214`
+- `storedMean` = `v2.stats.def.mean` = **44.222222** (파일 그대로)
+  - `toFixed(15)` = `44.222222000000002`
+  - `toPrecision(18)` = `44.2222220000000021`
+- **`computedMean − storedMean`** = **2.2222221929268926e-7**
+  - `toFixed(15)` = `0.000000222222219`
+  - `toPrecision(18)` = `2.22222219292689260e-7`
+  (저장 `mean` 필드는 6자리 반올림값 `44.222222`이고, 배열 평균은 `398/9`.
+  차 ≈ `2.22e-7`은 6자리 반올림 자리다.)
+
+### ② `v2` 시절 DEF 프로파일별 역산 (`v2DEF_i = v3DEF_i + 0.3 × (25 − V_i/2)`)
+
+- 표본 수 = **3888** (`sampleSizeIs3888: true`), 역산 정렬 배열 길이 = **3888**
+- 역산 정렬 배열 first5 = `[13.75, 13.75, 13.75, 13.75, 13.75]`, last5 = `[84.5, ×5]`
+- 입력 분포:
+  - `v3Def` 고유값 6종: 19(864) / 35(864) / 49(432) / 50(864) / 65(432) / 80(432)
+  - `V_i`(attachAvoidance): 20(1296) / 50(1296) / 85(1296)
+  - 보정량 `0.3×(25−V_i/2)`: −5.25(1296) / 0(1296) / 4.5(1296)
+
+### ③ 비교 결과 (역산 정렬 배열 vs `v2` `stats.def.sorted`, 원소별 — 불린 아님)
+
+| 항목 | 값 | 소수 표기 |
+|---|---|---|
+| `maxAbsDiff` (원소별 절대차 최댓값) | **0.75** | `toFixed(15)` = `0.750000000000000` / `toPrecision(18)` = `0.750000000000000000` |
+| `mismatchCount` (\|차\| > 1e-9 원소 수) | **2592** / 3888 | — |
+| `meanDiff` (복원값 − 저장값의 평균) | **0.19444444444444445** | `toFixed(15)` = `0.194444444444444` / `toPrecision(18)` = `0.194444444444444448` |
+| `reconstructedMean` (복원값 3,888개 평균) | **44.416666666666664** (172692 / 3888) | `toFixed(15)` = `44.416666666666664` / `toPrecision(18)` = `44.4166666666666643` |
+
+- 원소별 차(복원 − 저장)의 고유값·빈도 (5종):
+  −0.5(432) / −0.25(432) / 0(1296) / 0.5(864) / 0.75(864)
+  → `meanDiff`가 단일 값이 아니라 5종으로 흩어져 있다. (일정한 이동 / 원소별
+  다른 오류의 구분은 마스터 PM 판단 — 여기서는 분포만 제시.)
+
+### 검증 상태
+
+- `npx tsc --noEmit -p .` : **0 에러**
+- `npx jest` : **26 suites / 348 tests 전부 pass** (테스트 추가·수정 없음, 회귀 0)
+- `git status --short` : `scripts/norm/v2-def-storage-diagnostic.ts` 신규 +
+  상태 파일(PROGRESS.md / HANDOFF.md)뿐. `src/` · 기존 진단 스크립트 3개 무변경
+
+### 판단 안 함
+
+프롬프트 지시대로 수치만 보고한다. `stats.def.mean` 요약 필드가 틀렸는지
+`stats.def.sorted` 원자료가 틀렸는지, `v2`를 재산출해야 하는지는 마스터 PM
+판단 사항이라 다루지 않았다. 어긋남이 보여도 코드·문서·규준집단 파일을
+고치지 않았다 — 그 확인이 산출물이다.
 
