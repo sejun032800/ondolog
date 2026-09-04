@@ -60,7 +60,7 @@ git status --porcelain
 ### 2-2. MASTER가 최신본인가
 
 ```powershell
-Select-String -Path docs/ONDOLOG_MASTER.md -Pattern 'DOC_REVISION: 2026-09-02-r10'
+Select-String -Path docs/ONDOLOG_MASTER.md -Pattern 'DOC_REVISION: 2026-09-02-r11'
 ```
 
 **출력이 없으면 위임하지 마세요.** 문서를 편집하지 말고, 최신본 교체가
@@ -284,8 +284,8 @@ grep -rn "Math.random\|Date.now()\|new Date()" src/engine/
 
 ```
 ## 사전 점검
-- 작업 트리: {clean / 변경 N건}
-- DOC_REVISION r10: {O/X}
+- 작업 트리: {clean / 변경 N건}     
+- DOC_REVISION r11: {O/X}
 - 참조 절: 17-2 {O/X} / 10-6-5 {O/X} / 10-7-2 {O/X} / 16-2 {O/X}
 - 궁합 판정 로직 현재 위치: {경로 · 심볼 · export 여부}
 - dnaScore.chatDelta 등재: {O/X}
