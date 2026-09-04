@@ -1,6 +1,11 @@
 # 진행 상황
 
-최종 갱신: 2026-09-04 (회피축 잔차 진단 — `attachAvoidance` 원점수 실제 분포
+최종 갱신: 2026-09-04 (DEF 애착 항 잔차 진단 — 두 항의 전수 평균 vs 규준집단
+파일 DEF 평균 재추출. 조회 전용 스크립트
+`scripts/norm/def-term-residual-diagnostic.ts` 추가, `src/` 무변경. 이 파일
+하단 "DEF 애착 항 잔차 진단" 절 참조)
+
+이전 갱신: 2026-09-04 (회피축 잔차 진단 — `attachAvoidance` 원점수 실제 분포
 집계. 조회 전용 스크립트 `scripts/norm/avoidance-residual-diagnostic.ts` 추가,
 `src/engine/` 무변경. 이 파일 하단 "회피축 잔차 진단" 절 참조)
 
@@ -1244,4 +1249,100 @@ Q5=C (q5Level=high): { 85: 1296 }
 유무·잔차 원인·축 수치화 정의 정정 필요 여부)는 마스터 PM 판단 사항이라
 다루지 않았다. 문서(Part 17-3)와 코드가 어긋나 보여도 코드를 고치지 않았다 —
 그 확인 자체가 이 진단의 산출물이다.
+
+## DEF 애착 항 잔차 진단 (두 항 전수 평균 vs 파일 DEF 평균) — 완료 (2026-09-04, engine-dev)
+
+Phase 7 선행 #12(`.claude/state/prompts/phase-7/12-engine-dev-def-term-residual.md`).
+DEF 애착 항이 v2 `computeAttachmentStability(A,V)=100−(A+V)/2` → v3
+`computeDefAnxietyStability(A)=75−A/2`로 바뀌었다. DEF 나머지 항은 두 판에서
+동일하므로 DEF 평균 변화는 (이 항의 평균 차 × 0.3)이어야 한다. 규준집단
+파일이 그와 어긋나는지 가른다. **어긋남이 항에 있는지 저장된 수치에 있는지를
+가르는 진단** — 원인·정오는 판단하지 않는다.
+
+### 이 작업이 만들지 않은 것 / 바꾸지 않은 것
+
+- `src/` 아래 어떤 파일도 생성·수정 안 함 (공식·규준집단 파일 전부)
+- `src/engine/data/norm-synthetic-v1/v2/v3.json` 무변경 — 저장된 값을 읽기 전용으로 옮기기만 함
+- 기존 진단 스크립트 `attachment-diagnostic.ts` · `avoidance-residual-diagnostic.ts` 무변경
+- 항 함수 식 재작성 없음 — `leagueStats.ts`에서 import해 호출
+- 축 값은 `inferLoveType`에서 획득 (재구현 없음)
+- 기존 테스트 assertion·기댓값 수정 없음 (신규 테스트 추가도 안 함)
+- Q5별 코어 분포·DEF 항별 분해는 뽑지 않음 (차분에서 소거되는 양)
+
+### 진단 스크립트 — 재실행 가능
+
+- 경로: `scripts/norm/def-term-residual-diagnostic.ts` (규준 JSON 읽기 전용 I/O, stdout JSON)
+- 실행 (Windows / PowerShell — 1회용 컴파일, ts-node/tsx 없음):
+
+  ```
+  npx tsc scripts/norm/def-term-residual-diagnostic.ts --ignoreConfig --ignoreDeprecations 6.0 `
+    --outDir .norm-build --module commonjs --moduleResolution node --target es2022 `
+    --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+  node .norm-build/scripts/norm/def-term-residual-diagnostic.js
+  Remove-Item -Recurse -Force .norm-build
+  ```
+
+  (설치된 tsc가 6.x라 `--ignoreConfig`(TS5112)·`--ignoreDeprecations 6.0`(TS5107)이
+  필요하다. 기존 두 진단 스크립트 docblock의 명령도 같은 이유로 이 플래그가
+  필요하다 — 그 파일들은 이번에 건드리지 않았다.)
+
+### 재사용한 함수 (재구현 없음 — import만)
+
+| 함수 | 시그니처 | 경로 |
+|---|---|---|
+| `computeAttachmentStability` (v2 항) | `(attachAnxiety: number, attachAvoidance: number) => number` | `src/engine/leagueStats.ts` |
+| `computeDefAnxietyStability` (v3 항) | `(attachAnxiety: number) => number` | `src/engine/leagueStats.ts` |
+| `computeSixStats` (현재 DEF) | `(input: SixStatsInput) => SixStats`, `.def` 사용 | `src/engine/leagueStats.ts` |
+| `inferLoveType` (축 값) | `(input: LoveTypeInput) => LoveTypeInferenceResult`, `.attachAnxiety`/`.attachAvoidance` | `src/engine/loveTypeInference.ts` |
+
+열거 루프(MBTI_TYPES → Q1..Q5, 각 A,B,C)는 `enumerate.ts::enumerateProfiles()`와
+동일. 표본 수 3,888 확인.
+
+### ① 두 항의 전수 평균 (3,888개 산술평균)
+
+- `termV2mean` = 187920 / 3888 = **48.333333333333336** (JS double)
+  - `toFixed(15)` = `48.333333333333336` / `toPrecision(18)` = `48.3333333333333357`
+- `termV3mean` = 191160 / 3888 = **49.166666666666664**
+  - `toFixed(15)` = `49.166666666666664` / `toPrecision(18)` = `49.1666666666666643`
+- **`termDiff = termV3mean − termV2mean`** (v3 항 − v2 항, 부호·순서 고정)
+  = **0.8333333333333286**
+  - `toFixed(15)` = `0.833333333333329` / `toPrecision(18)` = `0.833333333333328596`
+
+### ② 규준집단 파일의 DEF 평균 재추출 (`stats.def.mean` 그대로, 재계산·반올림 없음)
+
+| 파일 | version | engineVersions (loveTypeInference / leagueStats) | `stats.def.mean` | `stats.def.stdDev` |
+|---|---|---|---|---|
+| `norm-synthetic-v1.json` | synthetic-v1 | 1.0.0 / 1.0.0 | **44.222222** | 19.423799 |
+| `norm-synthetic-v2.json` | synthetic-v2 | 1.0.0 / 2.0.0 | **44.222222** | 19.423799 |
+| `norm-synthetic-v3.json` | synthetic-v3 | 1.0.0 / 3.0.0 | **44.666667** | 18.979521 |
+
+- **v1 DEF 평균 == v2 DEF 평균 : 참** (둘 다 `44.222222`, `stdDev`도 동일)
+
+### ③ 현재 코드로 계산한 DEF 평균 (현재 `computeSixStats(...).def`, 3,888 전수)
+
+- 173664 / 3888 = **44.666666666666664** (JS double)
+  - `toFixed(15)` = `44.666666666666664` / `toPrecision(18)` = `44.6666666666666643`
+
+### ④ 대조 넷
+
+| 항목 | 값 | `toFixed(15)` |
+|---|---|---|
+| (a) ②v3 − ②v2  (파일 기준 DEF 평균 변화) | `0.44444499999999465` | `0.444444999999995` |
+| (b) 0.3 × termDiff  (항 변화가 예측하는 DEF 평균 변화) | `0.24999999999999856` | `0.249999999999999` |
+| (c) ③ − ②v3  (현재 코드 ↔ v3 파일 일치 여부) | `-3.3333333249174757e-7` | `-0.000000333333332` |
+| (d) (③ − 0.3 × termDiff) − ②v2  (현재 코드에서 v2 시절 DEF 평균 역산 − v2 파일값) | `0.19444466666666216` | `0.194444666666662` |
+
+### 검증 상태
+
+- `npx tsc --noEmit -p .` : **0 에러**
+- `npx jest` : **26 suites / 348 tests 전부 pass** (테스트 추가·수정 없음, 회귀 0)
+- `git status --short` : `scripts/norm/def-term-residual-diagnostic.ts` 신규 +
+  상태 파일(PROGRESS.md / HANDOFF.md)뿐. `src/` · 기존 진단 스크립트 2개 무변경
+
+### 판단 안 함
+
+프롬프트 지시대로 수치만 보고한다. (a)와 (b), (c), (d)가 무엇을 의미하는지
+(어긋남이 항에 있는지 저장된 수치에 있는지, 어느 파일이 틀렸는지, 어디를
+고쳐야 하는지)는 마스터 PM 판단 사항이라 다루지 않았다. 어긋남이 보여도
+코드·문서·규준집단 파일을 고치지 않았다 — 그 확인이 산출물이다.
 

@@ -6,6 +6,76 @@
 > (예외: 아래 "DEF 애착 항 갱신" 작업 프롬프트는 선행 작업의 진단
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.)
 
+## DEF 애착 항 잔차 진단 — 두 항 전수 평균 vs 파일 DEF 평균 재추출 — 완료 (2026-09-04, engine-dev)
+
+Phase 7 선행 #12(`.claude/state/prompts/phase-7/12-engine-dev-def-term-residual.md`).
+DEF 애착 항 v2 `computeAttachmentStability(A,V)=100−(A+V)/2` → v3
+`computeDefAnxietyStability(A)=75−A/2`. DEF 나머지 항은 두 판 동일 →
+DEF 평균 변화는 (이 항 평균 차 × 0.3)이어야 한다. **어긋남이 항에 있는지
+저장된 수치에 있는지를 가르는 진단.** 수치만 산출, 원인·정오 판단 안 함.
+
+### 진단 스크립트 — 재실행 가능
+
+- 경로: `scripts/norm/def-term-residual-diagnostic.ts` (규준 JSON 읽기 전용, stdout JSON)
+- 실행 (Windows / PowerShell — 1회용 컴파일):
+
+  ```
+  npx tsc scripts/norm/def-term-residual-diagnostic.ts --ignoreConfig --ignoreDeprecations 6.0 `
+    --outDir .norm-build --module commonjs --moduleResolution node --target es2022 `
+    --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+  node .norm-build/scripts/norm/def-term-residual-diagnostic.js
+  Remove-Item -Recurse -Force .norm-build
+  ```
+
+  tsc 6.x라 `--ignoreConfig`(TS5112)·`--ignoreDeprecations 6.0`(TS5107) 필요.
+
+### 재사용한 함수 (재구현 없음 — import만)
+
+| 함수 | 시그니처 | 경로 |
+|---|---|---|
+| `computeAttachmentStability` (v2 항) | `(attachAnxiety: number, attachAvoidance: number) => number` | `src/engine/leagueStats.ts` |
+| `computeDefAnxietyStability` (v3 항) | `(attachAnxiety: number) => number` | `src/engine/leagueStats.ts` |
+| `computeSixStats` (현재 DEF) | `(input: SixStatsInput) => SixStats`, `.def` | `src/engine/leagueStats.ts` |
+| `inferLoveType` (축 값) | `(input: LoveTypeInput) => LoveTypeInferenceResult`, `.attachAnxiety`/`.attachAvoidance` | `src/engine/loveTypeInference.ts` |
+
+### ① 두 항의 전수 평균 (3,888)
+
+- `termV2mean` = 187920 / 3888 = **48.333333333333336** (`toFixed(15)` `48.333333333333336`, `toPrecision(18)` `48.3333333333333357`)
+- `termV3mean` = 191160 / 3888 = **49.166666666666664** (`toFixed(15)` `49.166666666666664`, `toPrecision(18)` `49.1666666666666643`)
+- **`termDiff = termV3mean − termV2mean` (v3 항 − v2 항)** = **0.8333333333333286**
+  (`toFixed(15)` `0.833333333333329`, `toPrecision(18)` `0.833333333333328596`)
+
+### ② 규준집단 파일 DEF 평균 (`stats.def.mean` 그대로)
+
+| 파일 | engineVersions (love / league) | `stats.def.mean` | `stats.def.stdDev` |
+|---|---|---|---|
+| v1 | 1.0.0 / 1.0.0 | **44.222222** | 19.423799 |
+| v2 | 1.0.0 / 2.0.0 | **44.222222** | 19.423799 |
+| v3 | 1.0.0 / 3.0.0 | **44.666667** | 18.979521 |
+
+- **v1 DEF 평균 == v2 DEF 평균 : 참** (둘 다 `44.222222`)
+
+### ③ 현재 코드 DEF 평균 (`computeSixStats(...).def`, 3,888)
+
+- 173664 / 3888 = **44.666666666666664** (`toFixed(15)` `44.666666666666664`)
+
+### ④ 대조 넷
+
+| 항목 | 값 |
+|---|---|
+| (a) ②v3 − ②v2 | `0.44444499999999465` |
+| (b) 0.3 × termDiff | `0.24999999999999856` |
+| (c) ③ − ②v3 | `-3.3333333249174757e-7` |
+| (d) (③ − 0.3 × termDiff) − ②v2 | `0.19444466666666216` |
+
+### 바꾸지 않은 것
+
+`src/` 무변경, 규준집단 JSON 3개 무변경, 기존 진단 스크립트 2개
+(`attachment-diagnostic.ts`·`avoidance-residual-diagnostic.ts`) 무변경,
+기존 테스트 무변경(348 pass), `tsc --noEmit -p .` 0 에러. 항 식 재작성 없음.
+Q5별 코어 분포·DEF 항별 분해는 뽑지 않음. 어긋남이 보여도 코드·문서·파일
+고치지 않음 — 확인이 산출물.
+
 ## 회피축 잔차 진단 — `attachAvoidance` 원점수 실제 분포 집계 — 완료 (2026-09-04, engine-dev)
 
 Phase 7 선행 #11(`.claude/state/prompts/phase-7/11-engine-dev-avoidance-residual.md`).
