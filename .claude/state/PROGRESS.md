@@ -1,6 +1,10 @@
 # 진행 상황
 
-최종 갱신: 2026-09-02 (EMP 공식 갱신 — 애니어그램 순응형 보너스 신설(Part 17-3) +
+최종 갱신: 2026-09-04 (회피축 잔차 진단 — `attachAvoidance` 원점수 실제 분포
+집계. 조회 전용 스크립트 `scripts/norm/avoidance-residual-diagnostic.ts` 추가,
+`src/engine/` 무변경. 이 파일 하단 "회피축 잔차 진단" 절 참조)
+
+이전 갱신: 2026-09-02 (EMP 공식 갱신 — 애니어그램 순응형 보너스 신설(Part 17-3) +
 규준집단 재열거 `synthetic-v2` 완료. `synthetic-v1`은 과거 발행물 재현용으로 보존)
 
 ## 현재 Phase
@@ -1161,4 +1165,83 @@ PUS·EMP·ATT·TAC·REA는 v2와 바이트 동일. DEF `44.222222 / 19.423799` �
 
 > **판단하지 않음.** 위 수치의 해석·추가 조정은 마스터 PM 결정. 17-3 값이 확정이며
 > 수치를 목표에 맞춘 가중치 조정은 하지 않았다.
+
+## 회피축 잔차 진단 (`attachAvoidance` 원점수 분포) — 완료 (2026-09-04, engine-dev)
+
+Phase 7 선행 #11(`.claude/state/prompts/phase-7/11-engine-dev-avoidance-residual.md`).
+MASTER Part 17-3 "애착 축 수치화"의 미해결 회피축 잔차(DEF 평균 상승분
+실측 `+0.444445` vs 예측 `+0.25`, 역산 `E[회피축] = 52.962966`, 유효 폭
+`66.22`)를 확정하기 위해, `attachAvoidance` **원점수**의 실제 분포를
+전수 열거 3,888개로 집계했다. **`src/engine/` 무변경, 규준집단 파일 무변경,
+기존 진단 스크립트(`attachment-diagnostic.ts`) 무변경.** `git status`에
+`scripts/norm/avoidance-residual-diagnostic.ts` 신규 1건 + 상태 파일뿐.
+
+### 진단 스크립트 — 재실행 가능 (축 수치화 정의 정정 시 전후 비교에 다시 쓴다)
+
+- 경로: `scripts/norm/avoidance-residual-diagnostic.ts` (파일 I/O 없음, stdout JSON)
+- 실행 (Windows / PowerShell, `attachment-diagnostic.ts`와 동일한 1회용 컴파일 방식):
+
+  ```
+  npx tsc scripts/norm/avoidance-residual-diagnostic.ts --ignoreConfig --ignoreDeprecations "6.0" `
+    --outDir .norm-build --module commonjs --moduleResolution node10 `
+    --target es2022 --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+  node .norm-build/scripts/norm/avoidance-residual-diagnostic.js
+  Remove-Item -Recurse -Force .norm-build
+  ```
+
+  (설치된 tsc가 6.x라 `--ignoreConfig`·`--ignoreDeprecations "6.0"`·`node10`이
+  필요하다. 커밋된 `attachment-diagnostic.ts` docblock의 명령도 같은 이유로
+  이 두 플래그가 필요하다 — 그 파일은 이번에 건드리지 않았다.)
+
+### 재사용한 함수 (재구현 없음 — import만)
+
+| 함수 / 상수 | 시그니처 또는 형태 | 경로 |
+|---|---|---|
+| `inferLoveType` | `(input: LoveTypeInput) => LoveTypeInferenceResult`, 결과 필드 `attachAvoidance: number` | `src/engine/loveTypeInference.ts` |
+| `MBTI_TYPES` | `readonly MbtiType[]` (16개, 열거 최외곽 루프) | `src/constants/quizTypes.ts` |
+| `Q5_AVOIDANCE_AXIS` | `Record<QuizChoice, 'low'\|'mid'\|'high'>` (Q5 그룹 라벨용, 채점 미사용) | `src/constants/attachment.ts` |
+
+열거 루프(MBTI_TYPES → Q1 → Q2 → Q3 → Q4 → Q5, 각 A,B,C)는
+`scripts/norm/enumerate.ts::enumerateProfiles()` / `attachment-diagnostic.ts::
+enumerateDiagnosticProfiles()`와 완전히 동일. `enumerateProfiles()`를 직접
+호출하지 못한 이유: 반환 타입 `EnumeratedProfile`에 `attachAvoidance` 필드가
+없음 → 커밋된 참조 `attachment-diagnostic.ts`가 같은 상황을 처리하는 방식
+(같은 순서·같은 함수 호출로 루프를 다시 돌리되 필요한 필드만 추가)을 따름.
+이 스크립트는 어떤 반올림도 추가하지 않음(loveTypeInference 내부 `clampInt`는
+기존 채점 함수의 일부).
+
+### 집계 ① `attachAvoidance` 전체 평균 (3,888개 산술평균)
+
+- 정확 합계 `exactSum` = **200880**, 표본 수 = **3888**
+- 평균 = **200880 / 3888 = 51.666666666666664** (JS double)
+  - `toFixed(12)` = `51.666666666667`
+  - `toPrecision(18)` = `51.6666666666666643`
+- 문서 공칭값 `(20+50+85)/3` = `51.666666666666664` — **동일**
+
+### 집계 ② Q5 응답별 `attachAvoidance` 값 빈도표 (값 오름차순, 반올림 없음)
+
+```
+Q5=A (q5Level=low) : { 20: 1296 }
+Q5=B (q5Level=mid) : { 50: 1296 }
+Q5=C (q5Level=high): { 85: 1296 }
+```
+
+- 각 수준 빈도 합: **1296 / 1296 / 1296** (`perLevelCountsAll1296` = true)
+- 전체 합: **3888** (`totalCountIs3888` = true)
+- 서로 다른 값 개수: **A=1, B=1, C=1** (세 수준 모두 단일 값)
+
+### 검증 상태
+
+- `npx tsc --noEmit -p .` : **0 에러**
+- `npx jest --ci` : **26 suites / 348 tests 전부 pass** (테스트 추가/수정 없음, 회귀 0)
+- `git status --short` : `scripts/norm/avoidance-residual-diagnostic.ts` 신규 +
+  상태 파일(PROGRESS.md / HANDOFF.md)뿐. `src/engine/` · `src/engine/data/` ·
+  `scripts/norm/attachment-diagnostic.ts` 변경 없음
+
+### 판단 안 함
+
+프롬프트 지시대로 수치만 보고한다. 위 빈도표가 무엇을 의미하는지(보정
+유무·잔차 원인·축 수치화 정의 정정 필요 여부)는 마스터 PM 판단 사항이라
+다루지 않았다. 문서(Part 17-3)와 코드가 어긋나 보여도 코드를 고치지 않았다 —
+그 확인 자체가 이 진단의 산출물이다.
 

@@ -6,6 +6,106 @@
 > (예외: 아래 "DEF 애착 항 갱신" 작업 프롬프트는 선행 작업의 진단
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.)
 
+## 회피축 잔차 진단 — `attachAvoidance` 원점수 실제 분포 집계 — 완료 (2026-09-04, engine-dev)
+
+Phase 7 선행 #11(`.claude/state/prompts/phase-7/11-engine-dev-avoidance-residual.md`).
+MASTER Part 17-3 "애착 축 수치화"에 기록된 **미해결 회피축 잔차**(DEF 평균
+상승분 실측 `+0.444445` vs 예측 `+0.25` / 역산 `E[회피축] = 52.962966`,
+공칭 `51.666667`보다 `+1.30` / 유효 폭 `66.22`, 공칭 `65`보다 `+1.22`)의
+여부·형태를 확정하기 위해, `attachAvoidance` **원점수**의 실제 분포를
+전수 열거 3,888개로 집계하는 **조회 전용 스크립트**를 추가했다.
+
+### 이 작업이 만들지 않은 것 / 바꾸지 않은 것
+
+- `src/engine/` 아래 어떤 파일도 생성·수정 안 함 (공식·축 정의·규준집단 파일 전부)
+- `src/engine/data/norm-synthetic-v1/v2/v3.json` 무변경
+- 기존 진단 스크립트 `scripts/norm/attachment-diagnostic.ts` 무변경 (전후 비교 성립 유지)
+- 축 판정·채점 재구현 없음 — `inferLoveType` 그대로 호출
+- 기존 테스트 assertion·기댓값 수정 없음 (신규 테스트도 추가 안 함)
+- **문서와 코드가 어긋나 보여도 코드를 고치지 않음** — 그 확인이 산출물
+
+### 진단 스크립트 — 재실행 가능 (축 수치화 정의 정정 시 전후 비교용)
+
+- 경로: `scripts/norm/avoidance-residual-diagnostic.ts` (파일 I/O 없음, stdout JSON)
+- 실행 (Windows / PowerShell — 1회용 컴파일, ts-node/tsx 없음):
+
+  ```
+  npx tsc scripts/norm/avoidance-residual-diagnostic.ts --ignoreConfig --ignoreDeprecations "6.0" `
+    --outDir .norm-build --module commonjs --moduleResolution node10 `
+    --target es2022 --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+  node .norm-build/scripts/norm/avoidance-residual-diagnostic.js
+  Remove-Item -Recurse -Force .norm-build
+  ```
+
+  설치된 tsc가 6.x라 `--ignoreConfig`(TS5112) · `--ignoreDeprecations "6.0"`
+  (TS5107, `moduleResolution=node10` deprecation) · `node10` 명시가 필요하다.
+  커밋된 `attachment-diagnostic.ts` docblock의 명령도 같은 두 플래그가
+  이제 필요하다(그 파일은 이번에 손대지 않음 — docblock도 그대로).
+- `.norm-build/`는 임시 산출물(커밋 금지).
+
+### 재사용한 함수 (전부 import만 — 재구현 없음)
+
+| 함수 / 상수 | 시그니처 또는 형태 | 경로 |
+|---|---|---|
+| `inferLoveType` | `(input: LoveTypeInput) => LoveTypeInferenceResult`, 결과 필드 `attachAvoidance: number` (진단 대상 원점수) | `src/engine/loveTypeInference.ts` |
+| `MBTI_TYPES` | `readonly MbtiType[]` (16개, 열거 최외곽 루프 도메인) | `src/constants/quizTypes.ts` |
+| `QuizChoice` (타입) | `'A' \| 'B' \| 'C'` | `src/constants/quizTypes.ts` |
+| `Q5_AVOIDANCE_AXIS` | `Record<QuizChoice, 'low'\|'mid'\|'high'>` (Q5 그룹에 라벨만 부착, 채점 미사용) | `src/constants/attachment.ts` |
+
+열거 루프(MBTI_TYPES → Q1 → Q2 → Q3 → Q4 → Q5, 각 A,B,C)는
+`scripts/norm/enumerate.ts::enumerateProfiles()` 및 커밋된 참조
+`attachment-diagnostic.ts::enumerateDiagnosticProfiles()`와 완전히 동일.
+`enumerateProfiles()`를 직접 호출하지 못한 이유: 반환 타입 `EnumeratedProfile`이
+`attachAvoidance`를 노출하지 않음 → `attachment-diagnostic.ts`가 이 상황을
+처리하는 방식(같은 순서·같은 함수 호출로 루프를 다시 돌리되 필요한 필드만
+추가)을 그대로 따름. 이 스크립트는 어떤 반올림도 추가하지 않음
+(`loveTypeInference` 내부의 `clampInt`는 기존 채점 함수의 일부).
+
+### 집계 ① `attachAvoidance` 전체 평균 (3,888개 산술평균)
+
+| 항목 | 값 |
+|---|---|
+| 정확 합계 `exactSum` | **200880** |
+| 표본 수 | **3888** |
+| 평균 (JS double) | **51.666666666666664** |
+| `toFixed(12)` | `51.666666666667` |
+| `toPrecision(18)` | `51.6666666666666643` |
+| 문서 공칭값 `(20+50+85)/3` | `51.666666666666664` — **동일** |
+
+### 집계 ② Q5 응답별 `attachAvoidance` 값 빈도표 (값 오름차순, 반올림 없음)
+
+```
+Q5=A (q5Level = low) : { 20: 1296 }
+Q5=B (q5Level = mid) : { 50: 1296 }
+Q5=C (q5Level = high): { 85: 1296 }
+```
+
+| 검사 | 결과 |
+|---|---|
+| 수준별 빈도 합 (A / B / C) | 1296 / 1296 / 1296 (`perLevelCountsAll1296` = true) |
+| 전체 합 | 3888 (`totalCountIs3888` = true) |
+| 서로 다른 값 개수 (A / B / C) | 1 / 1 / 1 |
+| 각 수준 min = max | A: 20 / B: 50 / C: 85 |
+
+### 판단 안 함
+
+프롬프트 지시대로 **수치만** 보고한다. 위 빈도표가 무엇을 뜻하는지(보정
+유무, 잔차 원인의 위치, Part 17-3 축 수치화 정의 정정 필요 여부)는 마스터
+PM 판단 사항이며 이 작업에서 다루지 않았다.
+
+### 검증 상태
+
+- `npx tsc --noEmit -p .` : **0 에러**
+- `npx jest --ci` : **26 suites / 348 tests 전부 pass** (테스트 추가·수정 없음, 회귀 0)
+- `git status --short` : `scripts/norm/avoidance-residual-diagnostic.ts` 신규(`??`) +
+  `.claude/state/PROGRESS.md` · `.claude/state/HANDOFF.md`(`M`)뿐.
+  `src/engine/**` · `src/engine/data/**` · `scripts/norm/attachment-diagnostic.ts` ·
+  `scripts/norm/enumerate.ts` · 모든 설정 파일 변경 없음
+- **이 스크립트는 회피축 축 수치화 정의가 정정되면 같은 명령으로 재실행해
+  전후를 대조하는 데 다시 쓴다.**
+
+---
+
 ## 연애 DNA 일치율 — 기저 점수·채팅 변동분·결합 (Part 17-2) — 완료 (2026-09-04, engine-dev)
 
 Phase 7 선행 #8(`.claude/state/prompts/phase-7/09-engine-dev-dna-base-score.md`).
