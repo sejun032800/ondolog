@@ -156,6 +156,24 @@ Phase 6 — 피드 + 얼굴 인식 (착수, UI 단계(동의 흐름 + 대표사�
    (잘 맞는 유형 3개 / 온도차 유형 2개 / 나머지는 목록에 없음 = 중립)
    이라 점수가 아니다. 따라서 없는 것은 공식 전체가 아니라
    **범주 → 점수 변환 규칙** 하나다. 마스터 PM 확정 대기.
+   **(2026-09-04 기저 점수 구현 완료, `engine-dev`)** Part 17-2 "base_score
+   산출 규격"이 확정(`61 / 65 / 69`, 비대칭 시 높은 쪽)돼 `src/engine/dnaScore.ts`에
+   ① 기저 점수(`computeDnaBaseScore` — 순수 함수, throw 없음) ② 채팅
+   변동분(`computeChatDelta` — 범위 `[−10,+25]`만 확정, 산출식은
+   `UNRESOLVED('dnaScore.chatDelta')` 소비) ③ 결합(`computeDnaTotalScore` —
+   ②를 거치므로 호출 시 `UnresolvedConstantError`, 규격이 의도한 정상 상태)를
+   추가. 궁합 판정(`resolveTypeAffinity` / `TypeAffinityCategory`)은
+   `temperature.ts`에서 신설 공용 모듈 `src/engine/typeAffinity.ts`로 **순수
+   이동**(로직 무변경) — `dnaScore.ts`는 `temperature.ts`를 import하지 않는다.
+   `TEMPERATURE_ENGINE_VERSION`은 오르지 않았고(온도 산출 무변경), 온도
+   테스트는 무수정 통과. 기저 세 값·클램프 경계는 전부 인자로만 받는다
+   (`DnaBaseScoreCoefficients` / `DnaScoreClampBounds`). `DNA_SCORE_ENGINE_VERSION`
+   1.0.0 → 1.1.0(부가 함수 추가, 하위 호환). 기존 `clampDnaScore` /
+   `computeTotalScore`는 무변경 유지. 신규 테스트
+   `__tests__/engine/dnaBaseScore.test.ts`(18개, 결정론 100회 반복 + 양 기반
+   식별자 정적 검사 포함), 전체 348개 통과, `npx tsc --noEmit -p .` 0에러.
+   `chat_delta`는 **질 지표이며 양(발화 건수) 기반 구현이 금지**된다. 상세는
+   HANDOFF.md 참조.
 3. **OVR 포지션 가중치** (`src/engine/leagueStats.ts` `computeOvrRawScore`)
    — Part 17-3 처리 순서 ②(피파 포지션별 가중 로직)의 가중치 표가 없음.
    연애 포지션 네이밍 자체가 Part 16-1 미확정. 현재는 6개 스탯 단순 평균.
@@ -196,7 +214,7 @@ Phase 6 — 피드 + 얼굴 인식 (착수, UI 단계(동의 흐름 + 대표사�
 | `UNRESOLVED('leagueStats.shrinkage')` | 관측 대기 | 전수 열거 분포의 분산 |
 | `UNRESOLVED('temperature.activityScore')` | 관측 대기 (2026-09-03: 소비 지점 신설 — `computeDailyActivityScore`/`computeActivityDelta`/`computeDailyTemperature`) | 하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터 |
 | `UNRESOLVED('faceMatch.threshold')` | 실기기 대기 | 판정 정책은 확정(MASTER 9-4). **값만** 캘리브레이션 |
-| `UNRESOLVED('dnaScore.chatDelta')` | 관측 대기 (2026-09-03 레지스트리 등재, 소비부 없음) | 채팅 질 → 점수 변환. 범위 [−10, +25]는 확정, 산출식이 실사용 데이터 대기 (MASTER Part 17-2) |
+| `UNRESOLVED('dnaScore.chatDelta')` | 관측 대기 (2026-09-04: 소비 지점 신설 — `computeChatDelta` / `computeDnaTotalScore`. **양(발화 건수) 기반 구현 금지 — 질 지표**) | 채팅 질 → 점수 변환. 범위 [−10, +25]는 확정, 산출식이 실사용 데이터 대기 (MASTER Part 17-2) |
 
 > **미해결 상수 규격 (`UNRESOLVED`) — 2026-09-02 도입.**
 > 미확정 계수는 값이 아니라 `src/engine/constants/unresolved.ts`의

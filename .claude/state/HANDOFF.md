@@ -6,6 +6,152 @@
 > (예외: 아래 "DEF 애착 항 갱신" 작업 프롬프트는 선행 작업의 진단
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.)
 
+## 연애 DNA 일치율 — 기저 점수·채팅 변동분·결합 (Part 17-2) — 완료 (2026-09-04, engine-dev)
+
+Phase 7 선행 #8(`.claude/state/prompts/phase-7/09-engine-dev-dna-base-score.md`).
+`src/engine/dnaScore.ts`(기존 파일, 새로 쓰지 않고 이어서 구현)에 Part 17-2
+"base_score 산출 규격 (확정, 2026-09-02)"의 세 부분을 추가하고, 궁합 판정
+로직을 온도와 공유하는 공용 모듈로 분리했다.
+
+### `dnaScore.ts` 변경 전 상태 (무엇이 자리표시자였는지)
+
+- **완전 구현돼 있던 것**: `clampDnaScore(rawScore)`(50~100·소수 2자리
+  반올림+클램프), `computeTotalScore(baseScore, chatDelta)`(이미 계산된 두
+  값을 받아 `clampDnaScore(base+delta)` — 구조적 결합 유틸), 상수
+  `DNA_SCORE_MIN=50` / `DNA_SCORE_MAX=100` / `DNA_SCORE_DECIMALS=2`,
+  `DNA_SCORE_ENGINE_VERSION='1.0.0'`.
+- **자리표시자였던 것(= 존재하지 않았던 것)**: `base_score` 산출(궁합 판정
+  → 세 값 선택), `chat_delta` 함수, `typeAffinity` 사용, `UNRESOLVED` 소비 —
+  전부 없었다. 파일 docblock이 "base_score 산출 공식이 문서에 없다 / 궁합
+  매트릭스 미확정 / 이 파일에 구현하지 않는다"고 명시하고 있었다. **Part
+  17-2가 2026-09-02 확정(`61/65/69`, 비대칭 시 높은 쪽)되면서 그 경고는
+  더 이상 유효하지 않아** docblock을 갱신했다.
+- 기존 두 함수(`clampDnaScore` / `computeTotalScore`)는 **시그니처·동작
+  무변경**으로 살렸다 — `__tests__/engine/dnaScore.test.ts`가 인자 없이
+  호출하므로 그대로 둔다. 이 둘의 클램프 경계(`DNA_SCORE_MIN/MAX`)는 SCHEMA
+  `numeric(5,2)` CHECK 제약과 1:1인 구조적 안전장치로 유지(온도 모듈이
+  `TEMPERATURE_MIN/MAX`를 상수로 두는 것과 동일).
+
+### 이번에 추가한 것 — Part 17-2 세 부분
+
+| 부분 | 함수 | 상태 |
+|---|---|---|
+| ① 기저 점수 | `computeDnaBaseScore(coreA, coreB, coefficients)` | **완전 구현**, 순수 함수, throw 없음. `resolveTypeAffinity`로 범주(세 범주 / 목록에 없으면 중립 / 양방향 어긋나면 높은 쪽)를 정해 세 계수 중 하나 선택. 반올림은 반환 직전 1회. |
+| ② 채팅 변동분 | `computeChatDelta(chatQuality)` / `ChatQualitySignals` | 범위 `[−10,+25]`만 확정. `UNRESOLVED('dnaScore.chatDelta')` **소비** — 호출 즉시 `UnresolvedConstantError`. `ChatQualitySignals`는 형태 미확정 불투명 타입(`Readonly<Record<string, unknown>>`), **건수 필드 없음**. |
+| ③ 결합 | `computeDnaTotalScore(coreA, coreB, chatQuality, coefficients)` | 구현됨. ②를 거치므로 **호출 시 `UnresolvedConstantError`로 실패** — 규격이 의도한 정상 상태. `roundAndClamp`로 반환 직전 1회 반올림·클램프. |
+
+계수 인터페이스: `DnaBaseScoreCoefficients`(`contrast`/`neutral`/`best`),
+`DnaScoreClampBounds`(`min`/`max`), `DnaTotalScoreCoefficients`(둘을 묶음).
+**기저 세 값도 클램프 경계도 `src/engine/` 안에 하드코딩하지 않는다** —
+전부 인자. `61/65/69`·`50/100`은 신규 테스트가 Part 17-2에서 옮겨 주입한다
+(`temperatureBaseline.test.ts`가 `36.5/39/42`를 주입하는 것과 동일 패턴).
+
+### 궁합 판정 공용 모듈 — 경로와 옮긴 심볼
+
+**신규 파일 `src/engine/typeAffinity.ts`.** `temperature.ts`에 있던 아래를
+**순수 이동**(로직·이름·시그니처·동작 한 줄도 안 바꿈):
+
+| 심볼 | 종류 | 이동 전 위치 |
+|---|---|---|
+| `TypeAffinityCategory` | export 타입 (`'best'\|'neutral'\|'contrast'`) | `temperature.ts` |
+| `TYPE_AFFINITY_RANK` | module-private 상수 | `temperature.ts` |
+| `resolveTypeAffinityFromPerspective` | module-private 함수 | `temperature.ts` |
+| `resolveTypeAffinity` | export 함수 | `temperature.ts` |
+
+`temperature.ts`는 `./typeAffinity`에서 `resolveTypeAffinity`·
+`TypeAffinityCategory`를 **재-export**해 공개 API를 이동 전과 동일하게
+유지한다 → `temperatureBaseline.test.ts`의 import(`from
+'../../src/engine/temperature'`) 무수정. `dnaScore.ts`는 `./typeAffinity`에서
+직접 import하며 **`temperature.ts`를 import하지 않는다**(DNA가 온도 모듈
+버전에 묶이지 않도록 — 두 지표는 재료가 양 vs 질로 달라 버전도 분리).
+`typeAffinity.ts`는 `src/constants/compatibility.ts`의 `COMPATIBILITY`
+룩업을 그대로 조회한다(매트릭스 재작성 없음).
+
+### 온도 산출 무변경 — 확인 방법과 결과
+
+1. **`TEMPERATURE_ENGINE_VERSION` 그대로 `'1.1.0'`** (grep 확인). 공식이
+   안 바뀌었으므로 올리지 않았다.
+2. **기존 온도 테스트 2종 무수정 통과**: `temperature.test.ts`,
+   `temperatureBaseline.test.ts`(`resolveTypeAffinity` 5케이스 + 결정론
+   100회 포함) — `git status`에 해당 test 파일 `M` 없음, `npx jest`에서
+   두 스위트 PASS.
+3. **로직 이동이 순수함**: `resolveTypeAffinity` 본문·`TYPE_AFFINITY_RANK`
+   값·`resolveTypeAffinityFromPerspective` 분기 전부 바이트 그대로 옮겼다.
+   `computeBaselineTemperature`는 여전히 같은 `resolveTypeAffinity`를 호출
+   (import 출처만 `./typeAffinity`로 바뀜).
+4. `npx tsc --noEmit -p .` **0 에러**.
+
+### 최종 함수가 throw하는 이유 / 해소 시 무엇을 바꿔야 하는가
+
+`computeDnaTotalScore`는 내부에서 `computeChatDelta(chatQuality)`를 호출하고,
+그 함수 본문이 `UNRESOLVED({ key: 'dnaScore.chatDelta' })` 하나뿐이라 즉시
+`UnresolvedConstantError`를 던진다 — "채팅의 **질**(다정한 발화 비율, 왕복의
+자연스러움, 티키타카 성공률)을 몇 점으로 바꾸는가"가 실사용 채팅 데이터
+없이는 정할 수 없는 값이기 때문(Part 17-2, Part 16-2). 범위 `[−10,+25]`는
+확정이지만 산출식이 미확정이다.
+
+**해소되면**(`dnaScore.chatDelta` 캘리브레이션 완료 시) `computeChatDelta`
+**본문만** 실제 환산식으로 교체하고, 그 시점에 `ChatQualitySignals`의 실제
+형태도 함께 확정한다. `computeDnaTotalScore`(결합 산술·클램프)는 이미 최종
+식대로 구현돼 있어 **손댈 필요가 없다** — 이 분리가 설계의 핵심이다.
+`computeDnaBaseScore`와 `computeTotalScore`는 throw하지 않으므로 "기저만"
+또는 "이미 계산된 두 값의 결합만" 필요하면 그쪽을 쓴다.
+
+### `chat_delta`는 질 지표이며 양 기반 구현이 금지된다
+
+`chat_delta`는 채팅의 **질**을 재는 값이다. 발화 건수·메시지 수 같은
+**양**이 아니다(Part 17-2 "양이 아니라 질에 가중치", Part 10-7-6 혼동 금지).
+연애 온도의 `activityDelta`가 양을 재는 쪽이고, 두 지표를 가르는 것이 이
+차이다 — `chat_delta`가 발화량에 반응하면 연애 DNA와 연애 온도는 같은
+지표가 된다. 이번 작업은 산출식 방향을 정하는 코드를 넣지 않았다:
+
+- `ChatQualitySignals`는 `Readonly<Record<string, unknown>>` — 건수 필드
+  없음. 온도의 `DailyActivityRaw`(`chatMessageCount`/`feedPostCount`)와
+  대비되는 지점.
+- `computeChatDelta`는 인자를 소비만 하고(`void chatQuality`) 즉시
+  `UNRESOLVED`.
+- `dnaBaseScore.test.ts`에 **정적 검사** 추가: 주석 제거한 실행 코드에
+  `messageCount` / `msgCount` / `chatCount` / `utteranceCount` /
+  `messageVolume` / `\bcount\b` 가 없음을 회귀 가드로 검증.
+
+### `DNA_SCORE_ENGINE_VERSION`: `1.0.0` → `1.1.0` (변경함, 근거)
+
+부가 함수 추가(①②③)이고 기존 `clampDnaScore` / `computeTotalScore`의
+동작·시그니처는 불변인 **하위 호환 변경**이라 마이너를 올렸다.
+`TEMPERATURE_ENGINE_VERSION` 1.0.0 → 1.1.0(Part 10-7 세 부분 추가) 선례와
+동일 패턴. `dna_scores.engine_version` 컬럼(text)에 대응.
+
+### `UNRESOLVED` 소비 — 2건 → 3건 (정상)
+
+`grep -rn "UNRESOLVED(" src/engine/ --include=*.ts | grep -vE "^[^:]*:[0-9]+:[[:space:]]*\*"`
+→ **3건**: `unresolved.ts:142`(정의) + `temperature.ts:198`(`temperature.activityScore`
+소비) + `dnaScore.ts:205`(`dnaScore.chatDelta` 소비, 이번 신설).
+`unresolved.ts`는 **무변경**(선언·키 등록·해소 없음). `git status`에 `M` 없음.
+
+### 변경 파일 (git status)
+
+| 상태 | 경로 | 내용 |
+|---|---|---|
+| M | `src/engine/dnaScore.ts` | docblock 갱신, `computeDnaBaseScore`/`computeChatDelta`/`computeDnaTotalScore` + 계수 인터페이스 3종 + `ChatQualitySignals` 신설, `DNA_SCORE_ENGINE_VERSION` 1.1.0. 기존 `clampDnaScore`/`computeTotalScore`/상수 무변경 |
+| M | `src/engine/temperature.ts` | `resolveTypeAffinity` 계열을 `./typeAffinity`로 이동, 재-export 2줄 추가, import 출처 변경, docblock 문구 정정. **로직·`TEMPERATURE_ENGINE_VERSION` 무변경** |
+| ?? | `src/engine/typeAffinity.ts` | 궁합 판정 공용 모듈(온도·DNA 공유). 이동한 4심볼 |
+| ?? | `__tests__/engine/dnaBaseScore.test.ts` | 신규 18개(①8 + ②3 + ③5 + 정적검사 2). 결정론 100회 반복 3곳, throw 기대, 양 기반 식별자 정적 검사 |
+
+미변경: `src/engine/constants/unresolved.ts`, `src/engine/leagueStats.ts`,
+`src/engine/loveTypeInference.ts`, `src/engine/data/norm-*.json`,
+`__tests__/engine/dnaScore.test.ts`(및 그 외 기존 테스트), 모든 설정 파일.
+
+### 검증 상태
+
+- `npx jest --ci` : **26 suites / 348 tests 전부 pass**(기존 25 suites /
+  330 tests + 신규 1 suite / 18 tests, 회귀 0)
+- `npx tsc --noEmit -p .` : **0 에러**
+- `TEMPERATURE_ENGINE_VERSION` 실측 `'1.1.0'`(불변)
+- `UNRESOLVED(` 소비 grep : **3건**(정의 1 + 온도 1 + DNA 1)
+- `grep "temperature" src/engine/dnaScore.ts` : 주석 1건뿐, **import 없음**
+
+---
+
 ## `UNRESOLVED` 레지스트리 Part 16-2 동기화 — 완료 (2026-09-03, engine-dev)
 
 Phase 7 선행(`.claude/state/prompts/phase-7/10-engine-dev-unresolved-registry-sync (3).md`).
