@@ -1458,3 +1458,102 @@ Phase 7 선행 #13(`.claude/state/prompts/phase-7/13-engine-dev-v2-def-verify.md
 판단 사항이라 다루지 않았다. 어긋남이 보여도 코드·문서·규준집단 파일을
 고치지 않았다 — 그 확인이 산출물이다.
 
+## DEF 반올림 효과 검증 — 완료 (2026-09-09, engine-dev)
+
+Phase 7 위임(`.claude/state/prompts/phase-7/14-engine-dev-def-rounding.md`).
+DEF v2·v3 공식을 재구성해 반올림 전/후 평균을 각각 내고, 규준집단 파일의
+`stats.def.sorted`와 대조했다. 조회 전용 —
+`scripts/norm/def-rounding-effect-diagnostic.ts` 신규 1개만 추가, `src/`·
+기존 진단 스크립트 4개·규준집단 파일(v1/v2/v3) 전부 무변경.
+
+### 반올림 지점 (코드에서 확인, 추측 없음)
+
+- **stage1** — `src/engine/leagueStats.ts` `computeSixStats()` 내부
+  `def: roundAndClamp(def, 0, 0, 100)` → **decimals=0(정수)**, clamp[0,100].
+  DEF가 함수를 벗어나기 전 적용되는 유일한 반올림.
+- **stage2** — `scripts/norm/distribution.ts` `toSortedRawScores(values,
+  RAW_SCORE_DECIMALS)`(`RAW_SCORE_DECIMALS=10`, 재정의 없이 import).
+  stage1에서 이미 정수가 된 값에는 수치상 무영향이지만 배열에 들어가기까지
+  실제로 거치는 반올림 호출이라 함께 적용.
+- 파일 형태 확인: `v2`/`v3` `stats.def.sorted` 원소가 전부 정수 —
+  stage1 decimals=0과 일치. **어긋남 없음.**
+
+### 재사용 함수
+
+`inferLoveType`(N/A/V/big5/sternberg), `computeAttachmentStability`(termV2),
+`computeDefAnxietyStability`(termV3), `computeSixStats`(검산 대상 `.def`) —
+전부 `src/engine/{loveTypeInference,leagueStats}.ts`에서 import. `roundTo`
+/`roundAndClamp`는 `src/engine/numeric.ts`. `positiveBonus` 판정
+(`q2 === 'B'` → 100/DEF)은 `leagueStats.ts`의 `groupBonus(q2==='B')`가
+export되지 않아 동일 조건을 스크립트에 복제 — 명시 보고.
+
+### 검산 — `defV3raw` 반올림 vs 현재 `computeSixStats(...).def`
+
+`mismatchCount = 0`(3,888건 전부), `maxAbsDiff = 0.000000000000000`.
+재구성식이 `computeSixStats` 내부 계산과 반올림 전까지 정확히 일치 — 재구성
+정당성 확인됨.
+
+### ① 반올림 없는 평균 (표본 3,888)
+
+| | 값 |
+|---|---|
+| `E[defV2raw]` | `44.099999999999604`(toFixed15) |
+| `E[defV3raw]` | `44.349999999999575`(toFixed15) |
+| 차 | `0.249999999999972`(toFixed15) = `0.250000000000`(toFixed12) |
+
+### ② 반올림 후 평균 (stage1→stage2 적용)
+
+| | 값 |
+|---|---|
+| `E[round(defV2raw)]` | `44.222222222222221`(toFixed15) |
+| `E[round(defV3raw)]` | `44.666666666666664`(toFixed15) |
+| 차 | `0.444444444444443`(toFixed15) = `0.444444444444`(toFixed12) |
+| (반올림후 차) − (반올림전 차) | `0.194444444444`(toFixed12) |
+
+**±0.194444**는 이전 진단(`def-term-residual-diagnostic.ts`)이 "미해결
+잔차"로 남겼던 값과 자릿수까지 일치한다. 수치만 보고 — 해석·판단은
+마스터 PM.
+
+### ③ 반올림 후 `v2`의 고유값·빈도 (합계 3888 확인)
+
+18종: 13(288)/19(288)/23(288)/30(288)/35(288)/40(288)/43(144)/44(288)/
+49(144)/50(288)/53(144)/54(288)/60(144)/65(144)/70(144)/74(144)/80(144)/84(144)
+
+### ④ 반올림 후 `v3`의 고유값·빈도 (합계 3888 확인)
+
+6종: 19(864)/35(864)/49(432)/50(864)/65(432)/80(432)
+
+### ⑤ 파일과의 대조 (파일 값 그대로 읽음, 재계산 없음)
+
+- `norm-synthetic-v2.json` `stats.def.sorted` vs ③: **값 집합 일치, 빈도
+  전부 일치**(18종 전부 `diff: 0`). `storedMean = 44.222222`.
+- `norm-synthetic-v3.json` `stats.def.sorted` vs ④: **값 집합 일치, 빈도
+  전부 일치**(6종 전부 `diff: 0`). `storedMean = 44.666667`.
+
+### 실행 방법
+
+```
+npx tsc scripts/norm/def-rounding-effect-diagnostic.ts --ignoreConfig `
+  --ignoreDeprecations 6.0 --outDir .norm-build `
+  --module commonjs --moduleResolution node --target es2022 `
+  --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+node .norm-build/scripts/norm/def-rounding-effect-diagnostic.js
+Remove-Item -Recurse -Force .norm-build
+```
+
+재실행 시 바이트 단위로 동일한 stdout(직접 확인 — 2회 실행 diff 없음).
+
+### 검증 상태
+
+- `npx tsc --noEmit -p .` : **0 에러**
+- `npx jest` : **26 suites / 348 tests 전부 pass** (테스트 추가·수정 없음, 회귀 0)
+- `git status --short` : `scripts/norm/def-rounding-effect-diagnostic.ts` 신규
+  1개 + 상태 파일뿐. `src/` · 기존 진단 스크립트 4개 · 규준집단 파일(v1/v2/v3)
+  전부 무변경. `.norm-build/`는 임시 산출물이라 삭제함(커밋 안 함).
+
+### 판단 안 함
+
+프롬프트 지시대로 수치만 보고한다. 반올림이 관측된 차이의 원인인지, `v2`
+파일을 어떻게 처리해야 하는지는 마스터 PM 판단 사항이라 다루지 않았다.
+코드·문서·규준집단 파일을 고치지 않았다.
+

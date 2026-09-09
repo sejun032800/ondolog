@@ -7,6 +7,98 @@
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.
 > 프롬프트 #13도 상태 파일 기록 삭제·이동·재편을 금지해 유지한다.)
 
+package.json은 react-native 0.86.3, lock과 실제 설치는 0.86.2. 11ce24b 이전부터 커밋된 상태. 별건.
+
+## DEF 반올림 효과 검증 — v2·v3 반올림 전/후 평균 대조 — 완료 (2026-09-09, engine-dev)
+
+Phase 7 위임(`.claude/state/prompts/phase-7/14-engine-dev-def-rounding.md`).
+"규준집단 파일의 DEF 평균 차가 애착 항 평균 차 × 가중치와 어긋난다"는
+관측(직전 #12/#13)에 대해, **저장 시 반올림(비선형)이 그 어긋남을
+설명하는지**를 검증했다. 조회 전용 — 수치만 산출, 원인·정오 판단 안 함.
+`src/` 무변경, 규준집단 파일(v1/v2/v3) 무변경, 기존 진단 스크립트 4개 무변경.
+
+### 진단 스크립트 — 재실행 가능
+
+- 경로: `scripts/norm/def-rounding-effect-diagnostic.ts` (규준 JSON 읽기 전용, stdout JSON)
+- 실행 (Windows / PowerShell — 1회용 컴파일):
+
+  ```
+  npx tsc scripts/norm/def-rounding-effect-diagnostic.ts --ignoreConfig --ignoreDeprecations 6.0 `
+    --outDir .norm-build --module commonjs --moduleResolution node --target es2022 `
+    --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+  node .norm-build/scripts/norm/def-rounding-effect-diagnostic.js
+  Remove-Item -Recurse -Force .norm-build
+  ```
+
+  2회 실행 결과 `diff` 없음(바이트 동일) — 결정론 확인.
+
+### 반올림 지점 (코드에서 확인 — 추측 없음)
+
+- **stage1**(핵심): `src/engine/leagueStats.ts` `computeSixStats()` 내부
+  `def: roundAndClamp(def, 0, 0, 100)` → decimals=0(정수), clamp[0,100].
+  DEF가 함수를 벗어나기 전 적용되는 유일한 반올림.
+- **stage2**(무영향이지만 실제 경로): `scripts/norm/distribution.ts`
+  `toSortedRawScores(values, RAW_SCORE_DECIMALS=10)` — stage1이 이미
+  정수라 수치를 바꾸지 않지만 배열 조립 시 실제로 거치는 호출.
+- 파일 `stats.def.sorted` 원소가 전부 정수로 직접 확인됨 — stage1과 형태
+  일치, 어긋남 없음.
+
+### 재사용 함수 (재구현 없음 — import만)
+
+| 함수 | 경로 | 용도 |
+|---|---|---|
+| `inferLoveType` | `src/engine/loveTypeInference.ts` | `N=.big5.bigN`, `A=.attachAnxiety`, `V=.attachAvoidance`, `.big5`/`.sternberg` |
+| `computeAttachmentStability` | `src/engine/leagueStats.ts` | `termV2` |
+| `computeDefAnxietyStability` | `src/engine/leagueStats.ts` | `termV3` |
+| `computeSixStats` | `src/engine/leagueStats.ts` | 검산 대상 `.def` |
+| `roundAndClamp`/`roundTo` | `src/engine/numeric.ts` | 저장과 동일한 반올림 재현 |
+
+`positiveBonus`(`q2==='B'`→100/DEF) 판정 함수(`groupBonus`)는 export되지
+않아 동일 조건을 스크립트에 복제 — 명시 보고. 열거 순서는 `enumerate.ts`와
+동일(MBTI_TYPES → Q1..Q5, 각 A,B,C), 표본 3,888 확인.
+
+### 검산 — `defV3raw` 반올림 vs 현재 `computeSixStats(...).def`
+
+`mismatchCount = 0`/3888, `maxAbsDiff = 0`. **완전 일치** — 재구성식이
+`computeSixStats` 내부 계산과 반올림 전까지 정확히 같다.
+
+### ①②: 반올림 전/후 평균과 차
+
+| | 반올림 전 | 반올림 후 |
+|---|---|---|
+| `E[defV2]` | `44.099999999999604` | `44.222222222222221` |
+| `E[defV3]` | `44.349999999999575` | `44.666666666666664` |
+| 차(v3−v2) | `0.249999999999972` (`0.250000000000` @12자리) | `0.444444444444443` (`0.444444444444` @12자리) |
+
+**(반올림후 차) − (반올림전 차) = `0.194444444444`** — 이전 진단
+(`def-term-residual-diagnostic.ts`)이 "미해결 잔차"로 남긴 값과 자릿수까지
+일치. 반올림이 비선형이라 원소별 반올림 후 평균 차가 반올림 전 평균 차와
+달라진다는 것이 수치로 확인됨. (해석·조치는 마스터 PM 판단.)
+
+### ③④: 반올림 후 고유값·빈도 (각 합계 3888 확인)
+
+- `v2` 18종: 13(288)/19(288)/23(288)/30(288)/35(288)/40(288)/43(144)/44(288)/
+  49(144)/50(288)/53(144)/54(288)/60(144)/65(144)/70(144)/74(144)/80(144)/84(144)
+- `v3` 6종: 19(864)/35(864)/49(432)/50(864)/65(432)/80(432)
+
+### ⑤: 파일과의 대조 (파일 값 그대로 읽음 — 재계산 없음)
+
+- `norm-synthetic-v2.json` `stats.def.sorted` ↔ ③: **값 집합·빈도 전부
+  일치**(18종 전부 `diff:0`). `storedMean=44.222222`.
+- `norm-synthetic-v3.json` `stats.def.sorted` ↔ ④: **값 집합·빈도 전부
+  일치**(6종 전부 `diff:0`). `storedMean=44.666667`.
+
+### 바꾸지 않은 것 / 검증
+
+- `src/` 무변경, 규준집단 파일(v1/v2/v3) 무변경, 기존 진단 스크립트 4개
+  (`attachment-diagnostic.ts` · `avoidance-residual-diagnostic.ts` ·
+  `def-term-residual-diagnostic.ts` · `v2-def-storage-diagnostic.ts`) 무변경,
+  기존 테스트 무변경(348 pass), DEF·항 식 재작성 없음
+- `npx tsc --noEmit -p .` **0 에러**, `npx jest` **26 suites / 348 tests pass**
+- `git status --short`: `scripts/norm/def-rounding-effect-diagnostic.ts` 신규
+  1개 + 상태 파일뿐. `.norm-build/`는 임시 산출물이라 삭제(커밋 안 함)
+- 어긋남이 보여도 코드·문서·규준집단 파일 고치지 않음 — 확인이 산출물
+
 ## `v2` 규준집단 DEF 데이터 검증 — 요약 필드 vs 원자료 — 완료 (2026-09-04, engine-dev)
 
 Phase 7 선행 #13(`.claude/state/prompts/phase-7/13-engine-dev-v2-def-verify.md`).
