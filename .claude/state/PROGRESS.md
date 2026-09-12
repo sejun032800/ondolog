@@ -1,6 +1,13 @@
 # 진행 상황
 
-최종 갱신: 2026-09-04 (`v2` 규준집단 DEF 데이터 검증 — 요약 필드만 틀렸나 원자료가
+최종 갱신: 2026-09-12 (정적 검증 규칙 이관 — 손으로 깎던 `grep` 검증 중
+결정론 금지 식별자·엔진 외부 상태 접근 금지 두 규칙을 `src/engine/` 재귀
+수집으로 기존 정적 스위트(`__tests__/engine/determinismStaticRules.test.ts`)에
+편입 + `UNRESOLVED` 정의·소비 지점 집계 스크립트 `scripts/norm/unresolvedInventory.ts`
+신설. `src/` 무변경, 신규 테스트 파일 없음. 상세는 HANDOFF.md
+"정적 검증 규칙 이관" 절 참조)
+
+이전 갱신: 2026-09-04 (`v2` 규준집단 DEF 데이터 검증 — 요약 필드만 틀렸나 원자료가
 틀렸나. 조회 전용 스크립트 `scripts/norm/v2-def-storage-diagnostic.ts` 추가,
 `src/` 무변경. 이 파일 하단 "`v2` 규준집단 DEF 데이터 검증" 절 참조)
 

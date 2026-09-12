@@ -7,6 +7,168 @@
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.
 > 프롬프트 #13도 상태 파일 기록 삭제·이동·재편을 금지해 유지한다.)
 
+## 정적 검증 규칙 이관 — 완료 (2026-09-12, engine-dev)
+
+위임(`.claude/state/prompts/phase-7/17-engine-dev-static-rules.md`). 손으로
+깎아온 `grep` 검증(오탐 5회 이력 — 주석·docblock을 실행 코드로 오인) 중 셋을
+기존 정적 테스트 스위트에 규칙으로 얹거나 집계 스크립트로 옮겼다.
+
+### 1부 — 조사 결과 (구현 전)
+
+1. **`__tests__/engine/` 하위 정적 검사 스위트는 정확히 2개**:
+   - `determinismStaticRules.test.ts` — `src/engine/` 루트(비재귀)에서
+     `Math.random`/`Date.now()`/`new Date()`/`process.env` 4패턴 부재 검사
+   - `importBoundary.test.ts` — `loveTypeInference.ts`가 `enneagramPrevalence`를
+     import하지 않는지 + 엔진 전체 스윕
+   - (그 외 `dnaBaseScore.test.ts`/`dnaScore.test.ts`는 소스 문자열 검사를
+     포함하지만 개별 파일 1개만 대상으로 하는 단발 검사이지 디렉터리
+     스윕형 "정적 스위트"는 아니라서 이관 대상에서 제외 — 그대로 둠)
+2. **파일 수집 방식**: 둘 다 `fs.readdirSync(engineDir)`(옵션 없음, 즉
+   비재귀) + `.filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts'))`.
+   `src/engine/constants/unresolved.ts`(하위 디렉터리)는 **현재 두 스위트
+   어디의 검사 대상도 아니었다** — 위임 프롬프트가 예측한 구멍이 실재.
+3. **주석 제거 유틸**: 이미 있음, 그러나 **파일마다 복제**돼 있었다.
+   `determinismStaticRules.test.ts`·`importBoundary.test.ts`·
+   `dnaBaseScore.test.ts`·`dnaScore.test.ts` 4개 파일 각자
+   `stripComments(source) { return source.replace(/\/\*[\s\S]*?\*\//g,
+   '').replace(/\/\/.*$/gm, '') }`를 독립적으로 정의. 지시대로 **통합하지
+   않고**, 규칙을 얹는 파일(`determinismStaticRules.test.ts`)에 이미 있는
+   그 지역 함수를 그대로 재사용했다.
+4. **선례(`dnaBaseScore.test.ts`)의 주석 처리**: 위와 동일한 `stripComments`
+   함수를 파일 로컬로 정의해 raw source에 적용한 뒤 문자열 검사
+   (`not.toMatch(/messageCount/i)` 등) — 블록 주석은 통째로 제거, 줄 주석은
+   해당 줄만 제거. 줄번호 보존은 하지 않음(그 테스트는 줄번호를 보고하지
+   않으므로 불필요).
+5. **규준집단 파일 import 금지 관련**: `normPercentile.ts` docblock이
+   "이 모듈은 norm-synthetic-v1.json도 정적 import하지 않는다"고 설명하지만,
+   **이를 실제로 검증하는 테스트는 어디에도 없었다**(전수 검색 확인). 이번
+   작업 범위(Rule B의 `supabase`/`fetch`/`process.env` 3가지)에는 애초에
+   포함되지 않는 별개 규칙이라 추가하지 않았다 — 위임 프롬프트의 "있으면
+   중복 추가하지 않는다" 조건은 "없음"으로 확인만 하고 종료.
+
+### 2부 — 규칙 A·B 추가 (기존 스위트에, 새 파일 없이)
+
+**파일**: `__tests__/engine/determinismStaticRules.test.ts` (기존 파일 수정,
+기존 describe 블록·재귀 없는 4패턴 검사는 **바이트 그대로 유지** — 손대지
+않음). 파일 끝에 재귀 수집 헬퍼 1개 + describe 블록 2개를 추가했다.
+
+- `collectEngineFilesRecursive(dir)` — `fs.readdirSync(dir, {withFileTypes:
+  true})`로 재귀 순회, `.ts`(`.test.ts` 제외)만 수집. **기존 비재귀 수집
+  함수는 그대로 두고 병행** — 기존 규칙의 수집 범위는 넓히지 않았다.
+- **규칙 A** — `describe('src/engine/ 정적 검사 — 규칙 A: 결정론 금지
+  식별자 (재귀 수집)', ...)`: `Math.random`/`Date.now()`/`new Date()` 3패턴,
+  재귀 수집 파일 전부 × 3패턴 = 개별 `it()`, 최소 1개 파일 스캔 확인 +
+  자체 검증(오염 문자열이 실제로 패턴에 걸리는지) 1개.
+- **규칙 B** — `describe('src/engine/ 정적 검사 — 규칙 B: 외부 상태 접근
+  금지 (재귀 수집)', ...)`: `supabase` client import(2가지 정규식:
+  `from '...supabase...'` / `require('...supabase...')`) · `fetch(` 호출 ·
+  `process.env` 3(4패턴)종, 동일하게 재귀 수집 파일 전부 × 4패턴 + 최소
+  스캔 확인 + 자체 검증.
+- 두 블록 모두 파일 상단에 이미 정의된 `stripComments`를 그대로 호출해
+  주석 제거 후 검사(신규 함수 정의 없음).
+
+### 재귀 수집으로 새로 검사 대상이 된 파일
+
+**`src/engine/constants/unresolved.ts`** 1개뿐(다른 하위 디렉터리
+`src/engine/corners/`는 `.gitkeep`만 있어 `.ts` 없음, `src/engine/data/`는
+`.json`이라 애초 대상 아님). **규칙 A·B 둘 다 통과** — 파일 안의
+`Math.random`/`Date.now()`/`new Date()`/`process.env` 언급은 전부 docblock
+설명 문구(예: "Math.random / Date.now() / new Date() / process.env를 쓰지
+않는다")이고 주석 제거 후에는 남지 않는다. `supabase`/`fetch(`는 이 파일에
+등장하지 않는다.
+
+### 위반 발견 여부
+
+**없음.** 재귀 수집 적용 후 기존 8개 + 신규 1개(`unresolved.ts`) = 9개
+파일 전부 규칙 A·B를 통과했다(사전에 node 스크립트로 시뮬레이션해 확인 후
+실제 jest 실행으로 재확인). `src/`는 수정하지 않았다 — 고칠 위반이 없었다.
+
+### 3부 — `UNRESOLVED` 집계 스크립트
+
+**경로**: `scripts/norm/unresolvedInventory.ts` (신규, 기존 진단 스크립트
+5개 — `attachment-diagnostic.ts`·`avoidance-residual-diagnostic.ts`·
+`def-rounding-effect-diagnostic.ts`·`def-term-residual-diagnostic.ts`·
+`v2-def-storage-diagnostic.ts` — 는 손대지 않음). 테스트가 아니다 —
+`__tests__/`가 아니라 `scripts/`에 둔다.
+
+- `src/engine/` 하위를 재귀 순회(정의 지점이 하위 디렉터리인
+  `constants/unresolved.ts`에 있어 재귀 필수), `.ts`(`.test.ts` 제외)만 수집
+- 블록 주석은 **개행만 남기고** 제거(줄번호 보존), 줄 주석은 해당 줄만
+  제거 — 보고하는 줄번호가 원본 파일과 정확히 대응
+- 정의 지점: `UNRESOLVED_REGISTRY` 리터럴 안 `'key': {` 패턴 줄을
+  `unresolved.ts`에서만 탐지(파일명으로 특정)
+- 소비 지점: 재귀 수집 전 파일에서 `UNRESOLVED({ key: '...' })` 호출 패턴만
+  탐지(docblock의 `UNRESOLVED('key')` 예시 인용문은 패턴이 달라 애초
+  안 걸리고, 주석 제거로 이중 방지)
+- 파일 I/O 없음, stdout만
+
+**실행 명령** (Windows/PowerShell, 저장소 루트에서):
+```
+npx tsc scripts/norm/unresolvedInventory.ts --ignoreConfig --ignoreDeprecations "6.0" \
+  --outDir .norm-build --rootDir . --module commonjs --moduleResolution node \
+  --target es2022 --esModuleInterop --skipLibCheck --resolveJsonModule --types node
+node .norm-build/scripts/norm/unresolvedInventory.js
+rm -rf .norm-build
+```
+(`--rootDir .`가 필요한 이유: 이 스크립트는 로컬 모듈을 import하지 않아
+tsc가 공통 루트를 추론할 다른 입력 파일이 없다 — 명시하지 않으면 출력이
+`scripts/norm/` 없이 `.norm-build/` 바로 밑에 평탄화된다. 경로 계산은
+`__dirname`이 아니라 `process.cwd()` 기준 —
+`scripts/generate-norm.ts`와 동일한 이유, 컴파일된 파일 위치가 소스
+위치와 중첩 구조가 다를 수 있어서다.)
+
+**실행 결과** (2026-09-12, 실제 실행):
+```
+=== UNRESOLVED 집계 (src/engine/ 재귀 순회, 주석 제거 후) ===
+
+정의 지점 (4개)
+  src/engine/constants/unresolved.ts:53  key="temperature.activityScore"
+  src/engine/constants/unresolved.ts:59  key="leagueStats.shrinkage"
+  src/engine/constants/unresolved.ts:65  key="faceMatch.threshold"
+  src/engine/constants/unresolved.ts:71  key="dnaScore.chatDelta"
+
+소비 지점 (2개)
+  src/engine/dnaScore.ts:205  key="dnaScore.chatDelta"
+  src/engine/temperature.ts:198  key="temperature.activityScore"
+
+합계        : 정의 4 + 소비 2 = 6
+```
+`leagueStats.shrinkage`·`faceMatch.threshold`는 등록만 됐을 뿐 아직 어느
+엔진 함수도 소비하지 않는다(2026-09-04 HANDOFF 기록과 일치 —
+`faceMatch.ts` 2단계 미착수).
+
+**지시서의 `grep` 명령을 이 스크립트로 교체할 수 있다** — 기존
+`grep -rn "UNRESOLVED(" src/engine/` 계열 수기 검증 대신 이 스크립트
+실행으로 정의/소비 지점과 줄번호를 재현 가능하게 얻는다.
+
+### 검증 상태
+
+- `npx jest --ci` : **26 suites / 415 tests 전부 pass**(기존 348 + 신규
+  67 — 규칙 A 9파일×3패턴+2 = 29, 규칙 B 9파일×4패턴+2 = 38, 회귀 0)
+- `npx tsc --noEmit -p .` : **0 에러**
+- `src/` 무변경 확인(`git status --short`에 `src/` 아래 항목 없음)
+- 새 테스트 파일 생성 없음(기존 `determinismStaticRules.test.ts` 수정만)
+- 기존 진단 스크립트 5개 무변경, 기존 테스트 assertion 무수정
+- 레지스트리 ↔ Part 16-2 대조 테스트 추가 안 함(`rule-auditor` 영역,
+  범위 밖)
+- 축 수치·항 식 등 일회성 진단 검증 상시화 안 함
+
+### 변경 파일 (git status)
+
+| 상태 | 경로 |
+|---|---|
+| M | `__tests__/engine/determinismStaticRules.test.ts` (규칙 A·B 블록 추가) |
+| ?? | `scripts/norm/unresolvedInventory.ts` (신규 집계 스크립트) |
+
+---
+
+## node_modules 백업 (2026-09-12, main session)
+
+node_modules 백업: ..\ondolog-node_modules-20260910.zip (219548890 bytes, 2026-09-10)
+현재 node_modules는 lock으로 재현 불가 — npm install --legacy-peer-deps로
+설치 후 lock만 되돌려진 상태. npm ci는 lock 내부 불일치로 거부됨.
+이 백업은 폰 복귀 후 lock 재생성 시 폐기한다. 해결이 아니라 다리다.
+
 ## package.json ↔ package-lock.json 정합 — 목표 달성 불가로 중단 (2026-09-12, main session)
 
 Phase 7 위임(`.claude/state/prompts/phase-7/15-main-session-package-align.md`).
