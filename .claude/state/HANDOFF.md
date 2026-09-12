@@ -7,7 +7,90 @@
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.
 > 프롬프트 #13도 상태 파일 기록 삭제·이동·재편을 금지해 유지한다.)
 
-package.json은 react-native 0.86.3, lock과 실제 설치는 0.86.2. 11ce24b 이전부터 커밋된 상태. 별건.
+## package.json ↔ package-lock.json 정합 — 목표 달성 불가로 중단 (2026-09-12, main session)
+
+Phase 7 위임(`.claude/state/prompts/phase-7/15-main-session-package-align.md`).
+**중단 — 목표 자체가 달성 불가능함을 확인.** `package.json`은
+`git checkout -- package.json`으로 되돌렸다(`git status --porcelain` 클린
+확인 완료). `CLAUDE.md`는 손대지 않았다. 커밋 없음.
+
+1. **`package-lock.json`이 내부적으로 낡았다.** `expo@57.0.17`이 요구하는
+   전이 의존 7건의 버전 요구가 lock에 고정된 버전보다 높다. `npm ci`는
+   어떤 플래그로도 통과하지 않는다(`--legacy-peer-deps`는 peer 충돌만
+   무시할 뿐, 이건 peer 충돌이 아니라 lock 자체 무결성 오류라 무시
+   대상이 아니다):
+   `expo-updates-interface`(57.0.1→57.0.2 요구), `expo-json-utils`
+   (57.0.1→57.0.2), `@expo/metro-runtime`(57.0.14→57.0.15), `@expo/ui`
+   (57.0.12→57.0.18), `expo-glass-effect`(57.0.1→57.0.3), `expo-symbols`
+   (57.0.2→57.0.3), `@expo-google-fonts/material-symbols`
+   (0.4.44→0.4.47).
+
+   별도로, **`package.json` 대 lock 루트 선언 자체의 불일치도 5건** 확인됨
+   (`node -e`로 `package.json` vs `package-lock.json`
+   `packages[""].dependencies`를 직접 비교, 2026-09-12 확인):
+
+   | 필드 | package.json | lock 루트 선언 |
+   |---|---|---|
+   | react-native | 0.86.3 | 0.86.2 |
+   | expo-router | ~57.0.17 | ~57.0.15 |
+   | expo-dev-client | ~57.0.16 | ~57.0.14 |
+   | expo-linking | ~57.0.8 | ~57.0.7 |
+   | expo-auth-session | ~57.0.10 | ~57.0.9 |
+
+   이 5건은 이번 세션 산출물이 아니다 — `git diff c4e0231 11ce24b --
+   package.json`으로 확인한 결과 **commit `11ce24b`("0831 시작 커밋",
+   2026-08-31)에서 `package.json`의 이 5개 필드만 올라가고
+   `package-lock.json`의 루트 선언은 그대로 남았다.** 그 뒤 `0904`·`0906`·
+   `0909`×2·`0912` 커밋 전부 `package.json`/`package-lock.json`을
+   건드리지 않아 그대로 이어졌다. `npm ci`를 한 번도 정상 실행하지 않아
+   지금까지 발견되지 않았던 것으로 보인다.
+
+2. **`CLAUDE.md` 45행은 여전히 잘못된 명령이다.** `npm install
+   --legacy-peer-deps`는 lock을 덮어쓴다(절대 규칙 8 위반 소지). 대체안으로
+   시도한 `npm ci`는 위 1번 때문에 작동하지 않는다. 45행은 손대지 않았다 —
+   현재 맞는 명령이 없다.
+
+3. **현재 동작 중인 `node_modules`를 만든 절차 — PSReadLine 히스토리로
+   재구성(추측 아님, 하지만 불완전)**. 이번 세션(main session, 2026-09-12)
+   대화 이전에 있었던 별도 라운드의 명령이라 이 세션은 직접 실행을
+   지켜보지 못했다. 출처: `%APPDATA%\Microsoft\Windows\PowerShell\
+   PSReadLine\ConsoleHost_history.txt`(줄 396~452 부근). **이 파일은
+   타임스탬프를 남기지 않아 정확한 실행 시각은 전부 불명 — 순서(줄 번호
+   순)만 확인 가능.**
+
+   - `npm install --legacy-peer-deps` 실행 (416번째 줄 부근) —
+     **이 시점에 `package-lock.json`이 다시 쓰였다.** `node_modules`도
+     이때 갱신됨(→ 지금 설치돼 있는 `node_modules`의 실제 출처).
+   - `Test-Path package-lock.json` / `Select-String package.json` /
+     `git log --oneline -3 -- package.json package-lock.json` 등 확인성
+     명령 다수.
+   - **`git checkout -- package-lock.json`** — **이 시점에 방금 다시
+     써진 lock을 커밋 상태로 되돌림.** `node_modules`는 그대로 두었다 —
+     즉 이 순간부터 `node_modules`는 디스크상 lock이 선언하는 트리와
+     달라졌다(lock으로 재현 불가능한 상태가 됨).
+   - `npx jest --ci --watchAll=false` 실행 → 통과(348/26 기준선이 이
+     시점 산출물로 추정 — 이 세션이 직접 목격하지 않아 "추정").
+   - `Test-Path node_modules/@react-native/jest-preset` 확인.
+   - `npx tsc --noEmit -p .` 실행 → 통과 추정(출력 미보존).
+   - `package.json` vs lock 루트 선언 비교 PowerShell 스크립트(foreach
+     dependencies/devDependencies) 실행 → 위 5건 발견한 것으로 추정.
+     **이 스크립트의 실제 출력은 어디에도 저장되지 않아 그 결과 자체는
+     불명** — 이번 세션이 2026-09-12에 동일 비교를 `node -e`로 독립
+     재실행해 같은 5건을 확인했다(위 표).
+   - `npm ci` 재실행 → 실패한 것으로 추정(오늘 이 세션이 동일 실패를
+     재현함).
+
+   **결론: 지금 `node_modules`는 그 `npm install --legacy-peer-deps`
+   1회 실행의 산출물이고, 그 뒤 되돌려진 lock으로는 `npm ci`로 재현할
+   방법이 없다. `node_modules`가 지금 지워지면(디스크 정리, 재클론 등)
+   복구 경로가 없다.** 이 세션은 `npm ci`를 2회 실행했으나 둘 다
+   의존성 해석 단계에서 실패해 `node_modules`를 건드리지 않았다(설치
+   전 단계 실패 확인 — `npx jest`/`npx tsc`가 여전히 348/26·0에러로
+   통과하는 것으로 재확인, 2026-09-12).
+
+4. **해소 시점**: 폰 복귀 후 재빌드 때 `expo install --fix` + lock
+   재생성 + EAS 빌드 + 실기기 검증을 한 벌로 다룬다(재빌드 대기 5종
+   미검증 상태로는 네이티브 스택을 건드릴 수 없음).
 
 ## DEF 반올림 효과 검증 — v2·v3 반올림 전/후 평균 대조 — 완료 (2026-09-09, engine-dev)
 
