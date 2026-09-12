@@ -52,17 +52,6 @@ import { UNRESOLVED } from './constants/unresolved'
 import { clamp, roundAndClamp, roundTo } from './numeric'
 
 /**
- * 하위 호환 재-export. `resolveTypeAffinity`와 `TypeAffinityCategory`는
- * 연애 DNA(Part 17-2)와의 공유를 위해 `./typeAffinity`로 **순수 이동**했다
- * (로직·이름·시그니처·동작 무변경). 기존 import 경로
- * (`from '../../src/engine/temperature'`)를 유지하려고 그대로 다시 내보낸다.
- * 이동은 온도 산출 결과를 바꾸지 않으므로 `TEMPERATURE_ENGINE_VERSION`은
- * 오르지 않는다.
- */
-export { resolveTypeAffinity }
-export type { TypeAffinityCategory }
-
-/**
  * 이 유틸 묶음의 버전. daily_temperature 테이블 자체에는 대응 컬럼이 없다(위 설명 참고).
  *
  * 1.1.0: Part 10-7 확정에 따라 기저 온도(①)·활동 변동분 식(②)·결합(③)을
@@ -102,8 +91,7 @@ export function clampTemperature(rawScore: number): number {
  * ① 기저 온도 (Part 10-7-2) — 완전 구현, 순수 함수, throw 없음.
  *
  * 유형 궁합 판정(`resolveTypeAffinity` / `TypeAffinityCategory`)은
- * `./typeAffinity` 공용 모듈에 있다(연애 DNA Part 17-2와 공유). 위에서
- * 그대로 재-export하므로 이 모듈의 공개 API는 이동 전과 동일하다.
+ * `./typeAffinity` 공용 모듈에 있다(연애 DNA Part 17-2와 공유).
  * ──────────────────────────────────────────────────────────────────── */
 
 /**

@@ -38,8 +38,6 @@ export interface UnresolvedConstantMeta {
   readonly phase: number
   /** 근거 문서 절 번호 (`docs/ONDOLOG_MASTER.md` 기준). */
   readonly doc: string
-  /** 해소 조건 — 무엇이 갖춰져야 값을 정할 수 있는지. */
-  readonly resolutionCondition: string
 }
 
 /**
@@ -53,26 +51,18 @@ export const UNRESOLVED_REGISTRY = {
   'temperature.activityScore': {
     phase: 7,
     doc: 'MASTER Part 10-7-3',
-    resolutionCondition:
-      '하루치 활동 점수 정의(채팅·피드 건수 → 점수). 실사용 데이터',
   },
   'leagueStats.shrinkage': {
     phase: 7,
     doc: 'MASTER Part 10-8-3',
-    resolutionCondition:
-      '베이지안 수축 강도. 채팅 사후확률 갱신의 관측 분산 확보 후(사전 분산만으로는 부족 — 10-8-3 참조)',
   },
   'faceMatch.threshold': {
     phase: 6,
     doc: 'MASTER Part 9-4',
-    resolutionCondition:
-      '얼굴 매칭 임계값. 판정 정책은 확정, 값만 실기기 캘리브레이션',
   },
   'dnaScore.chatDelta': {
     phase: 7,
     doc: 'MASTER Part 17-2',
-    resolutionCondition:
-      '채팅 질 → 점수 변환. 범위 [−10, +25]는 확정, 산출식이 실사용 데이터 대기',
   },
 } as const satisfies Record<string, UnresolvedConstantMeta>
 
@@ -95,7 +85,7 @@ export class UnresolvedConstantError extends Error {
   constructor(key: UnresolvedKey, meta: UnresolvedConstantMeta) {
     super(
       `UNRESOLVED constant "${key}" — Phase ${meta.phase}에서 소비 예정, ` +
-        `근거 문서 ${meta.doc}. 해소 조건: ${meta.resolutionCondition}. ` +
+        `근거 문서 ${meta.doc}. ` +
         '이 값을 지어내지 말고, 해소 전까지 호출부에서 이 계수를 실사용하지 말 것.',
     )
     this.name = 'UnresolvedConstantError'

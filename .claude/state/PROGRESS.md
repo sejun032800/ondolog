@@ -1564,3 +1564,89 @@ Remove-Item -Recurse -Force .norm-build
 파일을 어떻게 처리해야 하는지는 마스터 PM 판단 사항이라 다루지 않았다.
 코드·문서·규준집단 파일을 고치지 않았다.
 
+## 레지스트리 정리(resolutionCondition 제거) + temperature.ts 재-export 제거 (2026-09-12, engine-dev)
+
+`.claude/state/prompts/phase-7/18-engine-dev-registry-cleanup.md` 수행.
+두 가지 정리, 착수 전 조사를 직접 재확인 후 진행했다.
+
+### 착수 전 조사 결과 (직접 재확인)
+
+- `resolutionCondition` 소비처: `src/engine/constants/unresolved.ts` 내부뿐
+  (타입 선언 42행, 네 키의 값 56/62/68/74행, 에러 메시지 조립 98행).
+  `src/`·`__tests__/`·`scripts/` 전체 재귀 grep(`resolutionCondition`)으로
+  직접 재확인 — 코드상 외부 소비 없음(프롬프트 문서의 상태 기록 인용 제외).
+  프롬프트 주장과 정확히 일치.
+- 재-export 소비처: `temperature.ts`에서 `resolveTypeAffinity`·
+  `TypeAffinityCategory`를 가져가는 곳은 `__tests__/engine/temperatureBaseline.test.ts`
+  (수정 전 28행 import 블록) 하나뿐임을 grep으로 직접 재확인.
+  `src/engine/dnaScore.ts`는 이미 `./typeAffinity`에서 직접 import.
+  `src/store/coupleStore.ts:30`은 `DISCONNECTED_TEMPERATURE`만 import —
+  궁합 심볼과 무관함을 확인. 프롬프트 주장과 정확히 일치.
+
+### 1부 — `resolutionCondition` 제거
+
+`UnresolvedConstantMeta` 인터페이스에서 `resolutionCondition` 필드(및 그
+TSDoc 줄) 제거, 등록된 4개 키의 값에서 각각 제거, `UnresolvedConstantError`
+생성자의 에러 메시지에서 그 문장만 제거. `UNRESOLVED` 함수 시그니처·본문,
+`UnresolvedConstantError`/`UnknownUnresolvedKeyError` 두 에러 클래스,
+키 유니온 파생 구조, 등록된 키 4개는 무변경.
+
+에러 메시지 변경 전/후 (`UnresolvedConstantError` 생성자):
+
+- 전:
+  ``UNRESOLVED constant "${key}" — Phase ${meta.phase}에서 소비 예정, ` +
+  `근거 문서 ${meta.doc}. 해소 조건: ${meta.resolutionCondition}. ` +
+  '이 값을 지어내지 말고, 해소 전까지 호출부에서 이 계수를 실사용하지 말 것.'``
+- 후:
+  ``UNRESOLVED constant "${key}" — Phase ${meta.phase}에서 소비 예정, ` +
+  `근거 문서 ${meta.doc}. ` +
+  '이 값을 지어내지 말고, 해소 전까지 호출부에서 이 계수를 실사용하지 말 것.'``
+
+`doc`은 그대로 남으므로 정보 손실 없음(r11 규정대로 해소 조건은 `doc`이
+가리키는 절에서 읽는다).
+
+**`__tests__/engine/unresolved.test.ts`는 무수정으로 전부 통과했다** —
+`phase`·`doc`만 assert하고 `해소 조건` 문장은 검사하지 않던 기존 assertion이
+메시지에서 그 문장이 빠진 뒤에도 그대로 통과. 같은 파일의 메시지 결정론
+테스트(동일 키 100회 반복 → 메시지 동일)도 무수정으로 통과. 이것이 "해소
+조건을 지워도 정보 손실이 없다"는 r11 판단의 실증이다(프롬프트 1부 증거).
+
+### 2부 — 재-export 제거
+
+`src/engine/temperature.ts`에서 `resolveTypeAffinity`·`TypeAffinityCategory`
+재-export 두 줄(`export { resolveTypeAffinity }` / `export type
+{ TypeAffinityCategory }`)과 그 재-export를 설명하던 TSDoc 블록 2곳(도입부
+블록 전체, ① 절 안내 문장 중 재-export를 언급한 한 문장)을 제거했다 —
+재-export 자체를 설명하던 문장이라 남기면 존재하지 않는 export를 가리키는
+허위 문서가 되므로 함께 제거. `DISCONNECTED_TEMPERATURE` 등 다른 심볼
+import·계산 로직·`TEMPERATURE_ENGINE_VERSION`(1.1.0 그대로)·
+`computeAttachmentStability` 본문은 무변경. `src/store/coupleStore.ts`는
+전혀 수정하지 않음(git status로 확인 — 무변경).
+
+`__tests__/engine/temperatureBaseline.test.ts`의 import 변경 전/후:
+
+- 전: 단일 import 블록으로 `DISCONNECTED_TEMPERATURE` 등과 함께
+  `resolveTypeAffinity`까지 `'../../src/engine/temperature'`에서 가져옴.
+- 후: `resolveTypeAffinity`만 별도 줄로 분리해
+  `'../../src/engine/typeAffinity'`에서 import. 나머지 심볼은 기존대로
+  `'../../src/engine/temperature'`에서 그대로 import. **assertion·기댓값은
+  한 글자도 수정하지 않음.**
+
+`temperatureBaseline.test.ts`는 경로만 바뀐 채 전부 통과했다. **순수 이동의
+증거가 재-export("기존 경로로 그대로 가져가도 통과")에서 "경로만
+`./typeAffinity`로 바꾸고 assertion은 그대로인 채 전부 통과"로
+갈아끼워졌다** — 이것이 이번 작업의 새 증거다.
+
+### 검증
+
+- `npx tsc --noEmit -p .` — **0 에러**.
+- `npx jest` — **26 suites / 415 tests 전부 통과**(감소 없음, `unresolved.test.ts`·
+  `temperatureBaseline.test.ts` 포함).
+- `determinismStaticRules.test.ts`(34번에서 추가된 정적 규칙 A·B) 계속 통과.
+- `scripts/norm/unresolvedInventory.ts` 실행 결과: **정의 4 / 소비 2**(합계 6)로
+  유지 — `resolutionCondition` 제거·재-export 제거 모두 이 집계에 영향 없음.
+- `git status --short` — 수정 3파일뿐: `src/engine/constants/unresolved.ts`,
+  `src/engine/temperature.ts`, `__tests__/engine/temperatureBaseline.test.ts`.
+  `src/engine/typeAffinity.ts`·`src/store/coupleStore.ts`·
+  `__tests__/engine/unresolved.test.ts`는 무변경. 커밋·푸시하지 않음.
+

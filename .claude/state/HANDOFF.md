@@ -1870,3 +1870,58 @@ Part 10-6-4는 온도차 9쌍이 `1-8-7-3-2-5-9-4-6-1` 순환 고리를 이룬�
 - love_type_labels 36종 네이밍·카피 확보(`src/constants/loveTypeLabels.ts`).
   `description_ko`만 Part 16 열린 과제로 미확정(null) — 화면 7은 null이면
   해당 섹션을 조건부로 숨기는 방식으로 대응 완료.
+
+## 레지스트리 정리(resolutionCondition 제거) + temperature.ts 재-export 제거 (2026-09-12, engine-dev)
+
+`.claude/state/prompts/phase-7/18-engine-dev-registry-cleanup.md` 수행 완료.
+착수 전 조사(문서 주장)를 그대로 신뢰하지 않고 직접 grep으로 재확인 후
+진행했다.
+
+**착수 전 조사 결과(직접 재확인)**
+- `resolutionCondition`: `src/`·`__tests__/`·`scripts/` 전체 재귀 grep 결과
+  `src/engine/constants/unresolved.ts` 내부(42/56/62/68/74/98행)뿐. 외부
+  소비 없음 — 문서 주장과 일치.
+- 재-export 소비처: `temperature.ts`의 `resolveTypeAffinity`/
+  `TypeAffinityCategory`를 가져가는 곳은 `__tests__/engine/temperatureBaseline.test.ts`
+  하나뿐. `src/engine/dnaScore.ts`는 이미 `./typeAffinity` 직접 import.
+  `src/store/coupleStore.ts:30`은 `DISCONNECTED_TEMPERATURE`만 import해
+  무관 — 문서 주장과 일치.
+
+**1부 — `resolutionCondition` 제거.** `UnresolvedConstantMeta` 인터페이스
+필드, 등록 4키 값, 에러 메시지 속 해당 문장만 제거. `UNRESOLVED` 함수
+시그니처·본문, 에러 클래스 2종, 키 유니온 파생 구조, 등록 키 4개는 무변경.
+
+에러 메시지 전/후(`UnresolvedConstantError` 생성자, `src/engine/constants/unresolved.ts`):
+- 전: `` `UNRESOLVED constant "${key}" — Phase ${meta.phase}에서 소비 예정, ` + `근거 문서 ${meta.doc}. 해소 조건: ${meta.resolutionCondition}. ` + '이 값을 지어내지 말고, 해소 전까지 호출부에서 이 계수를 실사용하지 말 것.' ``
+- 후: `` `UNRESOLVED constant "${key}" — Phase ${meta.phase}에서 소비 예정, ` + `근거 문서 ${meta.doc}. ` + '이 값을 지어내지 말고, 해소 전까지 호출부에서 이 계수를 실사용하지 말 것.' ``
+
+`__tests__/engine/unresolved.test.ts`는 **무수정으로 전부 통과** —
+`phase`·`doc`만 assert하던 기존 assertion이 문장 제거 후에도 그대로
+통과했고, 같은 파일의 메시지 결정론 테스트(동일 키 100회 → 메시지 동일)도
+무수정으로 통과. 이것이 "해소 조건 제거가 정보 손실이 아니다"(r11)의
+실증이다.
+
+**2부 — 재-export 제거.** `src/engine/temperature.ts`에서 `resolveTypeAffinity`·
+`TypeAffinityCategory` 재-export 두 줄과, 그 재-export를 설명하던 TSDoc
+문장(존재하지 않게 될 재-export를 가리키므로 함께 제거하지 않으면 허위
+문서가 됨)만 제거. 다른 심볼 import·계산 로직·`TEMPERATURE_ENGINE_VERSION`
+(1.1.0 유지)·`computeAttachmentStability` 본문·`src/store/coupleStore.ts`·
+`src/engine/typeAffinity.ts`는 전부 무변경(git status 및 diff로 확인).
+
+`temperatureBaseline.test.ts` import 전/후, assertion 무변경 확인:
+- 전: `resolveTypeAffinity`가 다른 심볼들과 한 import 블록으로
+  `'../../src/engine/temperature'`에서 옴.
+- 후: `resolveTypeAffinity`만 별도 줄로 `'../../src/engine/typeAffinity'`에서
+  import. 나머지는 기존 그대로 `temperature.ts`에서 import.
+  assertion·기댓값 문자열은 한 글자도 건드리지 않았고 전부 통과했다.
+
+**순수 이동의 증거가 갈아끼워졌다**: 지금까지는 "재-export 덕에 기존 경로로
+가져가도 통과"가 증거였는데, 그 재-export를 제거한 지금은 "import 경로만
+`./typeAffinity`로 바꾸고 assertion은 그대로인 채 전부 통과"가 새 증거다.
+
+**검증**: `npx tsc --noEmit -p .` 0에러 / `npx jest` 26 suites·**415 tests
+전부 통과**(감소 없음) / `determinismStaticRules.test.ts`(34번 정적 규칙
+A·B) 통과 유지 / `scripts/norm/unresolvedInventory.ts` 실행 결과 **정의 4 /
+소비 2**(합계 6) 그대로 / `git status --short` 수정 파일 3개뿐
+(`src/engine/constants/unresolved.ts`, `src/engine/temperature.ts`,
+`__tests__/engine/temperatureBaseline.test.ts`) / 커밋·푸시 없음.

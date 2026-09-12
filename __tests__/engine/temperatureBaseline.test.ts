@@ -25,8 +25,8 @@ import {
   computeBaselineTemperature,
   computeDailyActivityScore,
   computeDailyTemperature,
-  resolveTypeAffinity,
 } from '../../src/engine/temperature'
+import { resolveTypeAffinity } from '../../src/engine/typeAffinity'
 
 const ALL_CORES: EnneagramCore[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
