@@ -85,7 +85,7 @@ engine-dev 에이전트로 아래 작업을 진행해주세요.
 
 ```
 LLM 호출 허용   : supabase/functions/_shared/llmClient.ts
-app_config 조회 : supabase/functions/_shared/configLookup.ts
+app_config 조회 : supabase/functions/_shared/coeffLookup.ts
 브랜드 정의     : src/engine/corners/brandedTypes.ts
 ```
 
@@ -145,7 +145,7 @@ app_config 조회 : supabase/functions/_shared/configLookup.ts
 경우에만 반환한다**(Part 17-0-4). 하나라도 실패하면 반환하지 않고
 실패 사유를 낸다.
 
-**`CoeffBundle`은 `configLookup.ts`가 조회한 값으로만 조립된다.**
+**`CoeffBundle`은 `coeffLookup.ts`가 조회한 값으로만 조립된다.**
 리터럴 객체로 만들 수 없어야 한다.
 
 정의 모듈 안의 캐스트는 규칙 E의 예외이며, **캐스트가 일어나는 자리는
@@ -155,7 +155,7 @@ app_config 조회 : supabase/functions/_shared/configLookup.ts
 
 ## 4부 — 두 허용 모듈
 
-### `configLookup.ts`
+### `coeffLookup.ts`
 
 - `app_config`에서 계수를 조회한다
 - **`CoeffBundle`을 반환한다** — `version`이 붙어 분리 불가능하다
@@ -268,7 +268,7 @@ Part 17-0-5-A의 표를 그대로 구현한다.
 - 브랜드 생성 함수가 `brandedTypes.ts` 안에 있고, **캐스트가 그 모듈
   한 곳에만** 있다
 - 저장 함수가 `ValidatedContent<T>`만 받는다
-- `CoeffBundle`이 `configLookup.ts`를 거치지 않고 만들어질 수 없다
+- `CoeffBundle`이 `coeffLookup.ts`를 거치지 않고 만들어질 수 없다
 - 실패 사유 **4값이 그대로** 구현됐다 (이름 변경·병합 없음)
 - 재시도 정책이 17-0-5-A와 일치한다
 - **호출 예산이 `llmClient`에 있고**, 파이프라인이 상한을 넘겨 요청해도

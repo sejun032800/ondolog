@@ -76,11 +76,23 @@ Select-String -Path docs/ONDOLOG_MASTER.md -Pattern 'DOC_REVISION: 2026-09-10-r2
 ### 2-3. `#12` 계약 세 경로가 기록돼 있는가
 
 ```powershell
-Select-String -Path .claude/state/HANDOFF.md -Pattern 'llmClient|configLookup|brandedTypes' -Context 1,2
+Select-String -Path .claude/state/HANDOFF.md -Pattern 'llmClient|coeffLookup|brandedTypes' -Context 1,2
 ```
 
 **세 경로가 전부 나와야 합니다.** 위임 프롬프트가 이 경로를 박아
 쓰므로, 기록과 다르면 프롬프트를 고쳐야 합니다.
+
+**`HANDOFF.md`보다 코드가 원본입니다.** 정적 규칙이 실제로 판정에 쓰는
+값을 함께 확인하십시오.
+
+```powershell
+Select-String -Path __tests__/engine/cornerPipelineStaticRules.test.ts -Pattern 'MODULE' -Context 0,2
+```
+
+- [ ] 위임 프롬프트의 경로가 **이 상수들과 정확히 일치하는가**
+
+**어긋나면 위임하지 마세요.** 에이전트가 만든 모듈이 지정 모듈로
+인정되지 않아 규칙에 걸립니다.
 
 **출력 전문을 보고에 기록하세요.**
 
@@ -205,7 +217,7 @@ git diff __tests__/engine/cornerPipelineStaticRules.test.ts
 ### 4-4. 경로가 계약과 일치하는가
 
 ```powershell
-Test-Path supabase/functions/_shared/llmClient.ts, supabase/functions/_shared/configLookup.ts
+Test-Path supabase/functions/_shared/llmClient.ts, supabase/functions/_shared/coeffLookup.ts
 Get-ChildItem supabase/functions -Recurse -File | Select-Object FullName
 ```
 
@@ -232,7 +244,7 @@ Get-ChildItem src, supabase -Recurse -File -Include *.ts | Select-String -Patter
 - [ ] 저장 함수의 인자 타입이 **`ValidatedContent<T>`**인가
 - [ ] `ValidatedContent`가 **Zod 파싱과 `FORBIDDEN_KEYS` 둘 다 통과한
       경우에만** 반환되는가
-- [ ] `CoeffBundle`이 `configLookup.ts`를 거치지 않고 만들어질 수 없는가
+- [ ] `CoeffBundle`이 `coeffLookup.ts`를 거치지 않고 만들어질 수 없는가
 
 ### 4-7. 실패 사유 4값
 
@@ -304,6 +316,7 @@ git status --porcelain -uall
 - 작업 트리: {clean / 변경 N건}
 - DOC_REVISION r20: {O/X}
 - #12 계약 세 경로 (HANDOFF): {출력 전문}
+- 정적 규칙의 MODULE 상수: {출력 전문} — 프롬프트와 일치 {O/X}
 - FORBIDDEN_KEYS 문서 위치: {경로 / 없음}
 - tsconfig include/exclude: {출력}
 - corners 컬럼 구성: {출력}
@@ -323,7 +336,7 @@ git status --porcelain -uall
 
 ## 경로 계약
 - llmClient.ts 실제 경로: {경로} — 계약 일치 {O/X}
-- configLookup.ts 실제 경로: {경로} — 계약 일치 {O/X}
+- coeffLookup.ts 실제 경로: {경로} — 계약 일치 {O/X}
 - 계약 밖 LLM 호출·app_config 접근: {없음 / 있음}
 
 ## 브랜드
