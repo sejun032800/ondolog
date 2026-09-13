@@ -7,6 +7,106 @@
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.
 > 프롬프트 #13도 상태 파일 기록 삭제·이동·재편을 금지해 유지한다.)
 
+## 코너 파이프라인 검증망 선설치 — 완료 (2026-09-13, engine-dev)
+
+위임: `.claude/state/prompts/phase-7/19-engine-dev-guardrails.md`. 근거:
+`docs/ONDOLOG_MASTER.md` Part 17-0-1·17-0-2·17-0-3·17-0-3-A. **이 작업은
+파이프라인·LLM 호출·계수 조회 모듈을 만들지 않는다** — 문서 안에서
+`#13`으로 지칭하는 다음 위임의 일이다. 이번은 브랜드 타입 둘 + 정적
+규칙 C·D·E만 설치했다. 상세 조사 결과·판단 근거는
+`.claude/state/PROGRESS.md`의 같은 제목 절 참조(이 파일은 다음 서브
+에이전트가 곧바로 참조할 계약 사항만 요약한다).
+
+### 브랜드 타입 모듈 — `#13`이 가장 먼저 확인해야 할 계약
+
+**경로**: `src/engine/corners/brandedTypes.ts` (신규 생성됨, `src/engine/`
+아래, `supabase/functions/` 아래 아님 — 엔진→Deno 참조로 의존 방향이
+뒤집히는 것을 피하려는 의도적 선택, Part 17-0-3-A).
+
+```ts
+export type ValidatedContent<T> = T & { readonly __validated: unique symbol }
+export type CoeffBundle = {
+  /* 계수 — 구체 필드는 #13이 코너별 요구사항에 맞춰 정한다 */
+  readonly version: string
+} & { readonly __fromConfig: unique symbol }
+```
+
+- **브랜드 심볼(export 대상 없음)**: 인라인 `unique symbol` 프로퍼티
+  방식이라 별도로 export할 심볼 상수 자체가 없다. `ValidatedContent`/
+  `CoeffBundle` **타입 자체**는 export돼 있다(호출부 시그니처용).
+- **생성 함수는 이 파일 안에 없다.** `#13`이 다음 두 함수를 **이 모듈
+  안에 정확히** 추가해야 한다(export 금지·규칙 E 때문에 다른 곳에
+  만들 수 없음):
+  1. `ValidatedContent<T>`를 반환하는 파싱·검증 함수 — Zod 파싱(Part
+     17-0-4 순서 1) + `FORBIDDEN_KEYS` 검사(순서 2) 모두 통과 후에만
+     이 모듈 안에서 `as ValidatedContent<T>` 캐스트.
+  2. `CoeffBundle`을 반환하는 조회 함수 — 아래 "규칙 D 허용 모듈"이
+     읽어온 원시 계수를 받아 이 모듈 안에서 `as CoeffBundle` 캐스트,
+     `version` 부착.
+- 두 함수 모두 **이 파일 밖에서 캐스트하면 정적 규칙 E
+  (`__tests__/engine/cornerPipelineStaticRules.test.ts`)에 걸린다.**
+
+### 규칙 C·D가 확정한 모듈 경로 — `#13`은 정확히 이 경로에 파일을 만들어야 한다
+
+| 규칙 | 허용 모듈 경로 (아직 없음 — `#13`이 생성) | 판정 패턴(정규식, 이 스위트가 검사) |
+|---|---|---|
+| **C** — LLM 호출 | `supabase/functions/_shared/llmClient.ts` | `fetch(` / `from '@anthropic-ai/sdk'` / `from 'openai'` / `new Anthropic(` / `new OpenAI(` |
+| **D** — `app_config` 조회 | `supabase/functions/_shared/coeffLookup.ts` | `.from('app_config')` |
+
+**경로가 어긋나면 `#13`이 새로 만든 파일이 규칙 C·D에 걸린다.** `_shared/`는
+Supabase Edge Function 여러 배포 단위가 공통 코드를 상대 경로로 가져다
+쓰는 관례적 디렉터리로 이번 작업이 판단해 확정한 것(문서에 리터럴
+경로가 없어 구현 판단 — Part 17-0-3 "구현 판단이지만 정한 경로를
+보고에 명시할 것"에 따름).
+
+**규칙의 명시적 한계(지어내지 않기 위해 좁힌 부분, `#13`이 알아야 함)**:
+규칙 C는 위 5개 패턴 밖의 LLM 호출 방식(알려지지 않은 SDK 등)을 놓칠
+수 있다. 규칙 D는 `.from('app_config')` 밖의 접근 방식(원시 SQL 등)을
+놓칠 수 있다. `#13`이 이 패턴과 다른 방식을 쓰면 정적 규칙이 통과해도
+실제로는 위치 제약을 어겼을 수 있다 — 그 경우는 사람이 별도로 검토해야
+한다.
+
+### 새 스위트
+
+`__tests__/engine/cornerPipelineStaticRules.test.ts` (신규, 기존 두 정적
+스위트 `determinismStaticRules.test.ts`·`importBoundary.test.ts`는
+무수정). 규칙 함수명: `ruleC_llmCallBoundaryViolations`·
+`ruleD_appConfigLookupBoundaryViolations`·`ruleE_brandCastViolations`
+(전부 `(relFilePath: string, rawSource: string) => string[]` 형태의 순수
+함수). 합성 입력 테스트 구성: 규칙마다 위반/정상/주석전용 3종 + 규칙
+C·D는 "지정 모듈 자신은 안 걸림" 1종, 규칙 E는 정의 모듈 예외 관련
+3종(정의 모듈 안 `ValidatedContent` 캐스트 무사·정의 모듈 안
+`CoeffBundle` 캐스트 무사·같은 캐스트라도 다른 경로면 걸림) 추가.
+전부 테스트 파일 안의 문자열 상수(실제 파일 미생성).
+
+### `#13` 완료 시 반드시 재확인할 것
+
+`#13`이 파이프라인을 다 만든 뒤 **이 새 스위트
+(`cornerPipelineStaticRules.test.ts`)가 여전히 통과하는지 다시 실행해
+확인해야 한다.** 특히: (1) 브랜드 생성 함수가 `brandedTypes.ts` 안에만
+있는지(규칙 E), (2) LLM 호출이 `llmClient.ts` 안에만 있는지(규칙 C),
+(3) `app_config` 조회가 `coeffLookup.ts` 안에만 있는지(규칙 D), (4) Edge
+Function 코드가 `tsc` 타입 체크 대상에 포함돼 브랜드 타입 층이 실제로
+작동하는지(Part 17-0-3-A 경고, `#13` 사전 점검 항목).
+
+### 발견 사실 (수정하지 않음, 보고만)
+
+`src/services/referencePhotoApi.ts:63`에 이미 실제 `fetch(input.localUri)`
+호출이 있다(얼굴 인식 참조 사진 로컬 URI 읽기 — LLM과 무관). 규칙 C의
+`fetch(` 패턴은 위치만 보고 목적을 판별하지 않으므로, 이후 누군가
+`src/services/` 전체에 규칙 C "위반 0건" 단언을 추가하면 **이 파일이
+먼저 걸린다.** 이번 스위트는 그런 전역 단언을 넣지 않아 지금은 통과.
+규칙을 좁히거나 이 파일을 예외 처리하는 판단은 이번 작업 범위 밖이라
+하지 않았다.
+
+### 검증
+
+`npx jest` 27 suites / **449 tests 전부 통과**(기존 415 + 신규 34).
+`npx tsc --noEmit -p .` **0 에러**. `scripts/norm/unresolvedInventory.ts`
+**정의 4 / 소비 2** 그대로(무변경 확인). `git status --porcelain` 신규
+파일 2개만(`src/engine/corners/brandedTypes.ts`,
+`__tests__/engine/cornerPipelineStaticRules.test.ts`). 커밋·푸시 없음.
+
 ## 정적 검증 규칙 이관 — 완료 (2026-09-12, engine-dev)
 
 위임(`.claude/state/prompts/phase-7/17-engine-dev-static-rules.md`). 손으로

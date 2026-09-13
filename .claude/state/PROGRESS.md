@@ -1650,3 +1650,155 @@ import·계산 로직·`TEMPERATURE_ENGINE_VERSION`(1.1.0 그대로)·
   `src/engine/typeAffinity.ts`·`src/store/coupleStore.ts`·
   `__tests__/engine/unresolved.test.ts`는 무변경. 커밋·푸시하지 않음.
 
+## 코너 파이프라인 검증망 선설치 — 브랜드 타입 + 정적 규칙 C·D·E (2026-09-13, engine-dev)
+
+위임: `.claude/state/prompts/phase-7/19-engine-dev-guardrails.md`. 근거:
+`docs/ONDOLOG_MASTER.md` Part 17-0-1·17-0-2·17-0-3·17-0-3-A. **파이프라인·
+LLM 호출·계수 조회 모듈은 만들지 않음** — 그건 다음 위임(문서 안에서
+`#13`으로 지칭)의 일이고, 이번은 타입 정의 + 검증 규칙만.
+
+### 1부 — 조사 결과 (구현 전)
+
+1. **기존 정적 스위트 파일 수집 방식**: `determinismStaticRules.test.ts`는
+   비재귀(`fs.readdirSync(engineDir)`, 옵션 없음) 4패턴 검사 블록 하나와,
+   같은 파일 안에 재귀 수집 헬퍼 `collectEngineFilesRecursive`(하위
+   디렉터리 포함, `.ts`만·`.test.ts` 제외)를 쓰는 규칙 A·B 블록 둘이
+   같이 있다(2026-09-12 작업에서 같은 파일에 추가된 것). `importBoundary.test.ts`는
+   비재귀 `fs.readdirSync`로 `src/engine/` 전체를 스윕한다. 어느 스위트도
+   `src/engine/` 밖(`supabase/functions/`·`src/services/`)을 수집하지 않는다.
+2. **주석 제거 유틸**: `stripComments(source) { return
+   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '') }` 형태가
+   `determinismStaticRules.test.ts`·`importBoundary.test.ts`·
+   `dnaBaseScore.test.ts`·`dnaScore.test.ts` 4개 파일에 **각자 로컬로
+   복제**돼 있다(2026-09-12 조사 결과 그대로, 변동 없음).
+3. **세 디렉터리 실존 여부**: `supabase/functions/`는 존재하고 `.gitkeep`
+   1개뿐(`.ts` 없음). `src/services/`는 존재하고 실제 `.ts` 6개(`chatApi`·
+   `coupleApi`·`personalityApi`·`referencePhotoApi`·`socialAuth`·`supabase`) +
+   `llm/`·`map/` 하위 디렉터리(둘 다 `.gitkeep`만). `src/engine/corners/`는
+   존재하고 이번 작업 전엔 `.gitkeep`만이었다(이번 작업이 `brandedTypes.ts`
+   1개를 추가).
+4. **규칙 로직 분리 여부**: 기존 두 스위트 모두 규칙 판정을 **테스트 본문에
+   인라인**으로 둔다(`expect(source).not.toMatch(pattern)`을 `it()` 블록
+   안에서 직접 호출) — 파일경로·소스문자열을 받아 위반 목록을 반환하는
+   재사용 가능한 순수 함수로 분리돼 있지 않다.
+
+**복제된 유틸(`stripComments`)은 통합하지 않았다** — 이번에 만든 새 스위트도
+독립적으로 로컬 정의한다(지시대로).
+
+### 2부 — 브랜드 타입
+
+**신규 파일**: `src/engine/corners/brandedTypes.ts`.
+
+```ts
+export type ValidatedContent<T> = T & { readonly __validated: unique symbol }
+export type CoeffBundle = {
+  /* 계수 — 구체 필드는 #13이 코너별 요구사항에 맞춰 정한다 */
+  readonly version: string
+} & { readonly __fromConfig: unique symbol }
+```
+
+마스터 Part 17-0-2 원문 그대로. `unique symbol`을 별도 명명된 상수 없이
+프로퍼티 타입으로 인라인 선언하는 방식이라 **애초에 내보낼 심볼 상수
+자체가 없다**(export 금지 요건을 자연스럽게 만족). 두 타입 자체
+(`ValidatedContent`/`CoeffBundle`)는 호출부가 시그니처에 써야 하므로
+export한다. **생성 함수·캐스트는 이 파일에 없음** — docblock에 `#13`이
+이 모듈 **안에** 추가할 두 함수(파싱·검증 함수 / app_config 조회 함수)의
+자리만 설명 문구로 표시했다(코드 없음). `Object.keys()` 런타임 검사로
+"이 모듈에 타입 외의 런타임 값이 없다"를 테스트로 고정했다(아래 4부).
+
+**타입 자체가 생성 불가능함을 별도로 수동 검증**(스크래치 파일,
+저장소에 남기지 않음): `check.ts`에서 `const bad: CoeffBundle = {version:
+'1.0.0'}`는 `@ts-expect-error`로만 통과하고(직접 대입 불가), `raw as
+ValidatedContent<T>` 캐스트만 유일한 생성 경로임을 `npx tsc --noEmit
+--ignoreConfig --strict`로 확인했다.
+
+### 3부 — 정적 규칙 C·D·E (새 스위트)
+
+**신규 파일**: `__tests__/engine/cornerPipelineStaticRules.test.ts`.
+기존 두 스위트는 전혀 수정하지 않았다(git diff 없음).
+
+- **수집**: `supabase/functions/`·`src/services/`·`src/engine/corners/`
+  세 루트를 각각 재귀 수집(`collectFilesRecursive` — 이 파일 로컬,
+  `fs.existsSync` 확인 후 없으면 `[]` 반환, 있으면 `.ts`만·`.test.ts` 제외
+  재귀). 세 디렉터리 중 하나가 없거나 비어 있어도(현재
+  `supabase/functions/`가 그 상태) 깨지지 않음을 별도 테스트로 확인.
+- **규칙 로직**: `ruleC_llmCallBoundaryViolations`·
+  `ruleD_appConfigLookupBoundaryViolations`·`ruleE_brandCastViolations`
+  세 순수 함수(시그니처: `(relFilePath: string, rawSource: string) =>
+  string[]`), 전부 `stripComments` 적용 후 정규식 검사. 디렉터리 순회
+  (`scanRepository`)는 이 함수들을 호출하는 얇은 층.
+
+**확정한 모듈 경로 둘** (`#13`이 이 경로에 실제 모듈을 만들어야 함 —
+어긋나면 `#13`이 규칙에 걸림):
+
+| 규칙 | 허용 모듈 경로 | 판정 패턴 |
+|---|---|---|
+| **C** (LLM 호출) | `supabase/functions/_shared/llmClient.ts` | `fetch(` · `from '@anthropic-ai/sdk'` · `from 'openai'` · `new Anthropic(` · `new OpenAI(` |
+| **D** (app_config 조회) | `supabase/functions/_shared/coeffLookup.ts` | `.from('app_config')` |
+
+`_shared/`는 Supabase Edge Function 여러 배포 단위가 공통 코드를 상대
+경로로 가져다 쓰는 관례적 디렉터리로 판단해 선택(구현 판단, 문서에
+경로 리터럴이 없어 이번 작업이 확정). **명시적 한계 — 지어내지 않기
+위해 범위를 좁힌 것**: 규칙 C는 위 패턴 밖의 LLM 호출 방식을, 규칙
+D는 `.from('app_config')` 밖의 접근 방식(원시 SQL 등)을 놓칠 수 있다.
+`#13`이 이 패턴과 다른 방식을 쓰면 규칙이 못 잡을 수 있음 — 이번 작업
+범위에서 확장하지 않고 기록만 남긴다.
+
+- **규칙 E**: 브랜드 정의 모듈(`src/engine/corners/brandedTypes.ts`)을
+  경로 상수(`BRAND_DEFINITION_MODULE`)로 참조해, 이 경로만 예외로 두고
+  `as ValidatedContent`·`as CoeffBundle` 캐스트를 검사.
+
+### 4부 — 규칙 작동 증명 (합성 입력, 실제 파일 미생성)
+
+세 규칙 각각 **위반 / 정상 / 주석전용** 3종 + 규칙 E는 **정의 모듈
+예외** 관련 3건(정의 모듈 안 `ValidatedContent` 캐스트 무사, 정의 모듈
+안 `CoeffBundle` 캐스트 무사, 같은 캐스트라도 다른 경로면 걸림) 추가.
+규칙 C·D도 "지정 모듈 자신은 호출이 있어도 안 걸린다"(위치 제약 확인)
+1건씩 추가. 합성 소스는 전부 테스트 파일 안의 문자열 상수 — **실제
+파일로 만들지 않음**(수집 대상이 되는 것을 피하기 위해).
+
+추가로 **실제 저장소 상태 확인** 5개 테스트: `supabase/functions/`
+현재 `.ts` 0개 확인, 세 디렉터리 전체 스캔이 예외 없이 동작, 그리고
+`src/engine/corners/brandedTypes.ts`(실제 파일)가 규칙 C·D·E 어느 것도
+위반하지 않음(현재는 캐스트 자체가 없어 규칙 E도 자명하게 통과).
+
+### 검증
+
+- `npx jest --ci --watchAll=false`: **27 suites / 449 tests 전부 통과**
+  (기존 415 + 신규 34, 회귀 없음).
+- `npx tsc --noEmit -p .`: **0 에러**.
+- `scripts/norm/unresolvedInventory.ts`: **정의 4 / 소비 2**(합계 6) 그대로
+  유지 — 이번 작업은 `src/engine/constants/unresolved.ts`나 그 소비 지점을
+  건드리지 않음.
+- `git status --porcelain`: 신규 파일 2개뿐 —
+  `src/engine/corners/brandedTypes.ts`, `__tests__/engine/cornerPipelineStaticRules.test.ts`.
+  기존 스위트·`src/engine/` 기존 파일·상태 파일 외 다른 파일 무변경.
+  커밋·푸시 없음.
+
+### 발견 사실 — 보고만, 수정하지 않음
+
+`src/services/referencePhotoApi.ts:63`에 실제 `fetch(input.localUri)` 호출이
+이미 있다(얼굴 인식 참조 사진을 로컬 URI에서 읽어오는 용도, LLM과 무관).
+규칙 C의 판정 패턴(`fetch(`)은 위치만 보고 목적을 판별하지 않으므로,
+**이 파일도 향후 `src/services/` 전체에 규칙 C를 "위반 0건 기대"로
+돌리면 걸린다.** 이번 스위트는 그런 전역 "0건이어야 한다" 단언을 넣지
+않아 현재 통과하지만, `#13`이나 이후 작업이 규칙 C를 `src/services/`
+전체에 대해 엄격하게 적용하려 하면 이 파일이 먼저 걸린다는 점을 미리
+기록해 둔다. 규칙을 좁히거나(예: LLM 전용 식별자만 판정) 이 파일을
+예외 처리하는 판단은 이번 작업 범위 밖이라 하지 않았다.
+
+### `#13` 착수 시 확인 필요 사실 (기록)
+
+- 위 표의 모듈 경로 둘(`supabase/functions/_shared/llmClient.ts`,
+  `supabase/functions/_shared/coeffLookup.ts`)에 정확히 그 이름으로
+  파일을 만들어야 규칙 C·D를 통과한다.
+- `ValidatedContent`/`CoeffBundle` 생성 함수는
+  `src/engine/corners/brandedTypes.ts` **안에만** 추가해야 한다(다른
+  곳에 만들면 export 금지·규칙 E에 막힘).
+- Edge Function 코드가 `tsc` 컴파일(타입 체크) 대상에 포함돼야 브랜드
+  타입 층이 그 코드에 실제로 작동한다(Part 17-0-3-A 경고 — `#13` 사전
+  점검 항목).
+- **`#13` 완료 시점에 규칙 C·D·E(이 새 스위트)가 여전히 통과하는지
+  다시 확인해야 한다** — 코드가 생긴 뒤 규칙이 우회되지 않았는지는
+  그때 가서만 실제로 검증된다.
+
