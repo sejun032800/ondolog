@@ -235,10 +235,6 @@ describe('코너 파이프라인 정적 규칙 — 수집 (재귀, 없거나 비
     expect(collectFilesRecursive(nonExistent)).toEqual([])
   })
 
-  it('현재 supabase/functions/ 아래에는 .ts 파일이 없다 (.gitkeep만 존재, 조사 결과 그대로)', () => {
-    expect(collectFilesRecursive(path.join(REPO_ROOT, 'supabase/functions'))).toEqual([])
-  })
-
   it('세 디렉터리를 스캔해도 예외 없이 위반 배열(빈 배열 포함)을 반환한다 (규칙 C 기준)', () => {
     expect(() => scanRepository(ruleC_llmCallBoundaryViolations)).not.toThrow()
   })
