@@ -7,6 +7,104 @@
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.
 > 프롬프트 #13도 상태 파일 기록 삭제·이동·재편을 금지해 유지한다.)
 
+## `#13` 코너 파이프라인 골격 — 착수 조건 ① 실패로 중단 (2026-09-17)
+
+위임: `.claude/state/prompts/phase-7/20-engine-dev-pipeline-r2.md`(r2).
+**2~5부(브랜드 생성 함수·`llmClient.ts`·`coeffLookup.ts`·파이프라인 골격)
+착수하지 않았다.** 문서 자신의 규정 — "①이 실패하면 구현하지 말고
+멈추고 보고할 것" — 을 따른 결과다. 코드 변경 없음(실증에 쓴 임시
+파일은 전부 삭제, `git status --porcelain`으로 확인).
+
+### 착수 조건 ① — 실패 (핵심 발견)
+
+`tsconfig.json`을 읽는 것으로 끝내지 말라는 문서 지시대로,
+`supabase/functions/`에 실제 최소 파일을 순차로 만들어
+`npx tsc --noEmit -p .`를 6차례 실증했다(전부 확인 후 삭제):
+
+| # | 시도 | 결과 |
+|---|---|---|
+| 1 | URL import(`https://deno.land/...`) + `@ts-expect-error` 은폐 | 0에러(은폐가 "미사용 지시어" 에러 없이 소비됨 → 원래 에러가 있었다는 방증) |
+| 2 | 같은 URL import, 은폐 없이 | **TS2307** `Cannot find module 'https://...'` |
+| 3 | Deno 전역(`declare const Deno`)만, import 없음 | 0에러 |
+| 4 | `npm:@supabase/supabase-js@2` 스펙파이어 | **TS2307** `Cannot find module 'npm:...'` |
+| 5 | 전역 `fetch` + `Deno.serve` + `Deno.env`만, import 전무 | 0에러 |
+| 6 | 로컬 상대경로 `.ts` 확장자 명시 import(`'./_shared/helper.ts'`) | **TS5097** `allowImportingTsExtensions`가 없으면 `.ts` 확장자 import 불가 |
+| 7 | 같은 로컬 import, 확장자 생략(`'./_shared/helper'`) | 0에러 |
+
+**결론.** tsconfig(`extends: expo/tsconfig.base`, `moduleResolution: bundler`,
+`allowImportingTsExtensions` 없음)는 **import가 전혀 없는 단일 Deno
+파일**만 통과시킨다. 이 작업이 만들어야 할 구조 — `_shared/llmClient.ts` +
+`_shared/coeffLookup.ts` + 이 둘을 가져다 쓰는 파이프라인 골격, 3개
+별도 파일 — 은 파일 간 import가 필연적이다. 그런데:
+
+- **Deno 런타임은 상대경로 import에 확장자를 요구한다**(`./coeffLookup.ts`
+  형태 — Deno의 표준 동작, 확장자 생략은 런타임에서 모듈을 찾지 못한다).
+- **이 tsconfig는 그 형태(`.ts` 확장자 명시)를 TS5097로 거부한다** —
+  `allowImportingTsExtensions`를 켜야 통과하는데, 그건 `tsconfig.json`
+  수정이라 **절대 규칙 8**에 걸려 이 작업 범위 밖이다.
+- 확장자를 빼면(`./coeffLookup`) tsc는 통과하지만 **실제 Deno에서
+  그 코드가 동작하지 않는다** — "tsc 통과"와 "Deno에서 실행 가능"이
+  이 tsconfig 아래에서는 서로 배타적이다.
+
+문서 r21 문구("URL import·Deno 전역이 그대로 에러가 될 수 있고")가
+지목한 것보다 한 겹 더 깊은 문제다 — URL import·`npm:` 문제는 llmClient/
+coeffLookup을 각각 SDK 없이 전역 `fetch`로 구현하면 우회 가능하지만
+(실제로 이 방식이 규칙 C·D와도 더 잘 맞는다), **로컬 파일 간 import**는
+이 파이프라인의 3-파일 구조 자체에 내재해 있어 그런 우회가 없다.
+
+### 착수 조건 ② — 확인, 불일치 없음
+
+`docs/ONDOLOG_SCHEMA.md` 9-2 `corners` 테이블과 MASTER Part 17-0-5-B를
+대조. 전부 일치: `content jsonb`, `status corner_status`(enum
+`pending/generating/ready/published/skipped/failed` — 17-0-5-B의
+`skipped`/`failed` 매핑과 정합), `skip_reason text`, `generation_attempts
+smallint`, `last_error text`, `engine_version text`. `coeffVersion`은
+별도 컬럼이 아니라 `content` jsonb 안에 두는 설계(`dna_scores.breakdown.
+coeffVersion`과 같은 형태)라 컬럼 부재가 불일치가 아니다. **마이그레이션
+불필요 — 문서 판단과 일치.**
+
+### 부수 발견 — `FORBIDDEN_KEYS` 실제 값 부재 (①에서 중단돼 실전 도달 안 함)
+
+`docs/ONDOLOG_CORNER_CONTENT.md` 0-4:
+
+```
+const FORBIDDEN_KEYS = [ ... ];
+```
+
+실제 키 목록이 없고 자리표시자만 있다(`docs/progress-snapshot-0831.md`
+122행도 "코드 쪽 FORBIDDEN_KEYS 배열 자체가 아직 없음(Phase 7 산출물)"로
+동일하게 기록). 이 작업의 프롬프트는 "FORBIDDEN_KEYS의 실제 목록을
+지어내지 말 것. 문서에서 찾아 쓰고, 찾지 못하면 멈추고 보고한다"고
+명시한다 — ①이 통과했다면 5부(파이프라인 골격의 FORBIDDEN_KEYS 검사
+단계) 작성 중 이 사실과 맞닥뜨려 별도로 멈추고 보고했을 지점이다.
+①에서 이미 중단됐으므로 실제로 이 문제에 부딪히지는 않았지만, **다음
+시도가 ①을 먼저 해소하고 나면 이 문제가 바로 다음 벽으로 나타난다** —
+미리 기록해 둔다.
+
+### 다음 시도 착수 전 필요한 결정 (사람 판단)
+
+① 자체는 이 작업 범위에서 해소할 수단이 없다(tsconfig 수정 = 절대
+규칙 8). 아래 중 하나를 사람이 결정해야 다음 시도가 가능하다.
+
+1. **`tsconfig.json`에 `allowImportingTsExtensions: true` 추가를 명시적으로
+   지시**한다 — 로컬 import에 `.ts` 확장자를 쓰는 Deno 정상 형태가
+   그대로 통과한다. 다만 이 옵션이 앱 코드(React Native 쪽) 전체에
+   적용되므로 부작용 여부 확인 필요.
+2. **`supabase/functions/`를 별도 `tsconfig.json`(Deno용, root와 무관)으로
+   분리**하고 root의 정적 규칙 C·D·E 스위트는 계속 소스 문자열 검사로
+   유지한다(이미 그렇게 설계돼 있다 — `cornerPipelineStaticRules.test.ts`는
+   import가 아니라 `fs.readFileSync` 문자열 검사라 tsc 범위와 무관하게
+   동작한다). `#12`가 만든 "브랜드 타입은 컴파일 시점에 막는다" 전략은
+   그 별도 tsconfig가 있어야 Edge Function 코드에 실제로 작동한다 —
+   이 옵션이 r21이 원래 의도한 "해소"에 가장 가깝다.
+3. **로컬 import에 확장자를 생략**하고 Deno 배포 시점에 별도 빌드/변환
+   단계(esbuild 등)로 확장자를 채워 넣는다 — 새 툴체인 추가라 범위가
+   커진다.
+
+2번이 tsconfig.json "수정"이 아니라 "신설"이라 절대 규칙 8과 충돌이
+가장 적어 보이지만, 이 판단 자체가 이번 작업 범위 밖이라 결정하지
+않았다.
+
 ## 코너 파이프라인 검증망 선설치 — 완료 (2026-09-13, engine-dev)
 
 위임: `.claude/state/prompts/phase-7/19-engine-dev-guardrails.md`. 근거:

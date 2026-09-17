@@ -1,6 +1,33 @@
 # 진행 상황
 
-최종 갱신: 2026-09-12 (정적 검증 규칙 이관 — 손으로 깎던 `grep` 검증 중
+최종 갱신: 2026-09-17 (`#13` 코너 파이프라인 골격 — **착수 조건 ① 실패로
+구현 중단, 보고만**. `.claude/state/prompts/phase-7/20-engine-dev-pipeline-r2.md`
+수행 시도. `supabase/functions/`에 최소 파일 6종을 순차로 만들어
+`npx tsc --noEmit -p .`를 실증한 결과, Deno 런타임에 필요한 형태의
+모듈 간 import(URL 스펙파이어 · `npm:` 스펙파이어 · 상대경로 `.ts` 확장자
+명시)가 전부 TS2307/TS5097로 실패하고, tsc를 통과시키려면 확장자를 뺀
+상대경로(Node 스타일)를 써야 하는데 그건 실제 Deno 런타임에서 모듈을
+찾지 못해 동작하지 않는다 — 두 요구가 서로 배타적이다. import가 전혀
+없는 단일 파일(Deno 전역 + 전역 fetch만 사용)은 0에러로 통과하지만,
+이번 작업이 요구하는 구조(`_shared/llmClient.ts` + `_shared/coeffLookup.ts`
++ 이 둘을 가져다 쓰는 파이프라인 골격, 셋 다 별도 파일)는 필연적으로
+모듈 간 import를 필요로 해 이 제약에 걸린다. 문서 규정("통과하지 않으면
+파이프라인을 만들지 말고 멈추고 보고할 것", tsconfig.json 수정은 절대
+규칙 8이라 별도 지시 필요)에 따라 2~5부(브랜드 생성 함수·`llmClient.ts`·
+`coeffLookup.ts`·파이프라인 골격) 착수하지 않음. 실증에 쓴 임시 파일은
+전부 삭제 확인(`git status --porcelain supabase/` 무출력, `tsc` 0에러
+원복 확인). 착수 조건 ②(`corners` 필드 매핑)는 `docs/ONDOLOG_SCHEMA.md`
+9-2와 MASTER Part 17-0-5-B 대조 결과 완전 일치(`content`/`status`
+enum 6값/`skip_reason`/`generation_attempts`/`last_error`/`engine_version`
+전부 존재, `coeffVersion`은 `content` jsonb 안에 두는 설계라 별도 컬럼
+불필요) — 이쪽은 문제 없음. 별도로, `docs/ONDOLOG_CORNER_CONTENT.md`
+0-4의 `FORBIDDEN_KEYS`가 `const FORBIDDEN_KEYS = [ ... ]`로 실제 값 없이
+자리표시자 상태임을 확인(코드 쪽 배열 자체가 아직 없다는 것은
+`docs/progress-snapshot-0831.md`도 동일하게 기록) — 이번 작업이 착수했다면
+"목록을 지어내지 말고 멈추고 보고" 대상이었을 것이나, ①에서 이미 중단돼
+실제로 맞닥뜨리지는 않음. 사람 판단 필요 — 상세는 HANDOFF.md 참조)
+
+이전 갱신: 2026-09-12 (정적 검증 규칙 이관 — 손으로 깎던 `grep` 검증 중
 결정론 금지 식별자·엔진 외부 상태 접근 금지 두 규칙을 `src/engine/` 재귀
 수집으로 기존 정적 스위트(`__tests__/engine/determinismStaticRules.test.ts`)에
 편입 + `UNRESOLVED` 정의·소비 지점 집계 스크립트 `scripts/norm/unresolvedInventory.ts`
