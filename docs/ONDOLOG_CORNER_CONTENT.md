@@ -58,7 +58,7 @@ Part 3-7의 "AI는 판정하지 않는다" 원칙을 스키마 수준에서 강�
 > AI가 감정을 짚어주거나 긍정적인 목소리를 내는 것은 허용된다 (Part 3-7).
 > 금지하는 것은 점수·등급·판결을 구조화된 필드로 저장하는 행위다.
 
-const FORBIDDEN_KEYS = [ ... ];
+Select-String -Path docs/ONDOLOG_CORNER_CONTENT.md -Pattern 'FORBIDDEN_KEYS' -Context 3,8
 
 ---
 
