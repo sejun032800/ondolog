@@ -7,6 +7,310 @@
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.
 > 프롬프트 #13도 상태 파일 기록 삭제·이동·재편을 금지해 유지한다.)
 
+## `#13` 코너 파이프라인 골격 — 완료 (2026-09-18, engine-dev)
+
+위임: `.claude/state/prompts/phase-7/20-engine-dev-pipeline-r3.md`(r3).
+바로 아래 "착수 조건 ① 실패로 중단(2026-09-17)" 절은 **r2**를 수행한
+기록이다 — r3가 삭제·이동을 금지해 그대로 남겨 둔다. r3는 착수 조건
+①의 정의 자체를 바꿨다(Edge Function tsc 범위는 "이미 해소 완료로
+내림" — 그 절의 실측은 여전히 유효한 역사적 기록이지만, **지금 착수
+조건 ①은 그것이 아니다**). 아래가 이번(r3) 수행 결과다.
+
+### 착수 조건 둘 — 결과
+
+**① 참조 문서 값의 실재 확인 — 통과.** 이 프롬프트가 "문서에서 찾으라"고
+한 값들을 하나씩 확인했다.
+
+| 값 | 위치 | 실재 여부 |
+|---|---|---|
+| `FORBIDDEN_KEYS` 7갈래 전체 목록 | MASTER Part 17-0-4 (r22 확정) | **실재.** 표로 명시돼 있고 `CORNER_CONTENT.md` 0-4는 "원본은 Part 17-0-4"라고만 적어 포인터로만 남음(중복 없음, 과거 자리표시자 상태에서 해소됨) |
+| 실패 사유 4값 + 의미 + 판정 시점 | Part 17-0-5 | **실재** |
+| 재시도 정책(사유별) + 총 상한 3회 | Part 17-0-5-A | **실재** |
+| 저장 매핑(`corners` 컬럼 ↔ 4값) | Part 17-0-5-B | **실재**, `db-architect` 선행 작업 없음이 명시됨 |
+| 재시도 책임 분리(`llmClient`/파이프라인) | Part 17-0-5-C | **실재** |
+| `#12` 확정 경로 3개(`llmClient.ts`/`coeffLookup.ts`/`brandedTypes.ts`) | 프롬프트 자체 표 + `cornerPipelineStaticRules.test.ts`의 `MODULE` 상수 | **일치 확인** — 두 원본(프롬프트 표, 정적 규칙 상수)이 정확히 같은 세 경로를 가리킴 |
+| Edge Function tsc 게이트 "이미 해소" 주장 | `supabase/functions/tsconfig.json`·`ambient.d.ts`·루트 `tsconfig.json`의 `exclude`·`__tests__/build/edgeFunctionsTypecheck.test.ts` | **실재 확인** — 네 파일 전부 이미 커밋돼 있고 게이트 2가 실제로 0에러로 통과. 최소 확인 파일을 새로 만들지 않았다(지시대로) |
+
+플레이스홀더로 남아있던 것은 없었다 — 전부 구현 가능한 실값이었다.
+
+**② 필드 매핑(Part 17-0-5-B ↔ `ONDOLOG_SCHEMA.md` 9-2) — 일치, 불일치
+없음.** `content jsonb`·`status corner_status`(enum
+`pending/generating/ready/published/skipped/failed`)·`skip_reason text`·
+`generation_attempts smallint`·`last_error text`·`engine_version text`
+전부 존재. `coeffVersion`은 별도 컬럼이 아니라 `content` jsonb 키로
+설계돼 있어(`dna_scores.breakdown.coeffVersion`과 같은 관례) 컬럼
+부재가 불일치가 아니다. 마이그레이션 불필요 — 문서 판단과 일치.
+
+둘 다 통과해 2~5부를 진행했다.
+
+### 만든 모듈 — 경로와 공개 시그니처
+
+**`supabase/functions/_shared/llmClient.ts`** (신규, `#12` 계약 경로와
+정확히 일치)
+```ts
+export const CORNER_LLM_CALL_BUDGET = 3   // 코너 1건당 총 호출(HTTP 시도) 상한
+export interface LlmCallSuccess { readonly ok: true; readonly text: string }
+export interface LlmCallFailure { readonly ok: false; readonly reason: 'generation_failed'; readonly detail: string }
+export type LlmCallResult = LlmCallSuccess | LlmCallFailure
+export interface LlmClient { call(prompt: string): Promise<LlmCallResult> }
+export interface LlmClientConfig {
+  apiKey: string; model: string; maxTokens?: number
+  fetchImpl?: typeof fetch; sleepImpl?: (ms: number) => Promise<void>
+}
+export function createLlmClient(config: LlmClientConfig): LlmClient
+```
+엔드포인트 상수(`api.anthropic.com`, Part 6-7 확정 프로바이더 기준)는
+이 파일에만 있다. `apiKey`/`model`은 호출부가 주입(하드코딩 금지,
+CLAUDE.md "config화 필수" + 절대 규칙 7 — env는 Edge Function
+entrypoint가 읽어 넘긴다). **예산은 `createLlmClient()`가 반환하는
+인스턴스의 클로저 안에 있다** — 인자로 흘러가지 않는다. 코너 1건마다
+`createLlmClient()`를 한 번만 호출해 그 인스턴스를 재사용해야 한다
+(재호출마다 새로 만들면 예산이 리셋되는 오용 가능성이 있음 — 이 모듈
+자체는 그 오용을 막을 수 없어 계약으로만 문서화). 전송 오류는
+`call()` 내부에서 예산이 남아있는 한 지수 백오프 후 재시도하고,
+소진되면 `generation_failed`를 반환한다. **SDK 미사용**(fetch 직접
+호출) — 규칙 C의 두 판정 기준(SDK import·엔드포인트 호스트) 중 SDK
+쪽이 애초에 적용될 표면이 없다.
+
+**`supabase/functions/_shared/coeffLookup.ts`** (신규, `#12` 계약 경로와
+일치)
+```ts
+export interface AppConfigQueryClient {
+  from(table: 'app_config'): { select(columns: string): { eq(column: 'key', value: string): {
+    maybeSingle(): Promise<{ data: { key: string; value: unknown } | null; error: { message: string } | null }>
+  } } }
+}
+export async function lookupCoeffBundle(client: AppConfigQueryClient, configKey: string): Promise<CoeffBundle>
+```
+`@supabase/supabase-js` 타입을 직접 import하지 않고 필요한 메서드
+체인만 담은 최소 구조 타입을 자체 정의(구조적 타이핑으로 실제
+`SupabaseClient`도 그대로 통과) — Deno/Node 양쪽에서 동일하게 동작.
+**구현 판단(문서에 명시 안 됨, 그대로 보고)**: `app_config` 스키마는
+`key`/`value(jsonb)`뿐이고 버전 컬럼이 없다. `value` jsonb 자체가
+`{ version, ...계수 }` 형태를 갖는다고 보고 그 값을 그대로
+`buildCoeffBundle`에 넘긴다 — `corners.content.coeffVersion`과 같은
+"버전을 값 옆에 함께 기록" 관례를 `app_config.value` 안쪽에도 적용한
+것. MVP 3종(17-1·17-4·17-5)은 계수를 쓰지 않아 이 관례가 실전 검증된
+적은 없다 — 17-2/17-3 또는 `#14`가 실제 계수를 붙일 때 이 가정을
+재확인해야 한다. **계수 조회 실패(행 없음·오류·`version` 없는 값)는
+Part 17-0-5 4값 중 어디에도 없어 4값으로 욱여넣지 않고 그대로
+던진다** — 문서에 없는 사유를 지어내지 않기 위한 명시적 선택(코드
+docblock에도 같은 설명).
+
+**`src/engine/corners/brandedTypes.ts`** (기존 파일, `#12`가 만든
+타입 둘에 생성 함수 둘 추가 — 이 파일만 수정 허용 대상)
+```ts
+export type CornerValidationFailureReason = 'schema_invalid' | 'forbidden_content'
+export type CornerValidationResult<T> =
+  | { readonly ok: true; readonly content: ValidatedContent<T> }
+  | { readonly ok: false; readonly reason: CornerValidationFailureReason; readonly detail: string }
+export function validateCornerContent<T>(raw: unknown, schema: ZodType<T>): CornerValidationResult<T>
+export function buildCoeffBundle(raw: Record<string, unknown>): CoeffBundle
+```
+캐스트(`as ValidatedContent<T>`/`as CoeffBundle`)는 이 두 함수 안,
+**이 모듈 한 곳에만** 있다(정적 규칙 E 실사 테스트로 확인).
+`validateCornerContent`는 Zod 파싱 → `FORBIDDEN_KEYS` 검사 순서를
+Part 17-0-4 그대로 지킨다. `FORBIDDEN_KEYS` 검사는 주입받지 않고
+`./forbiddenKeys`를 직접 쓴다(전 코너 공통이라 코너별로 다를 이유가
+없음). `buildCoeffBundle`은 `app_config`를 직접 읽지 않고, 이미 조회된
+값을 받아 `version` 필드 존재만 최소 검증 후 캐스트한다.
+
+**`src/engine/corners/forbiddenKeys.ts`** (신규)
+```ts
+export const FORBIDDEN_KEYS: readonly string[]           // Part 17-0-4 7갈래 전체, 평탄화
+export function findForbiddenKeys(value: unknown): string[]   // 재귀(객체+배열), 대소문자·스네이크/캐멀 무시 비교
+```
+목록의 산문 원본은 MASTER Part 17-0-4 한 곳이고, 이 파일이 그 유일한
+코드 상수다(중복 없음).
+
+**`src/engine/corners/pipelineContracts.ts`** (신규)
+```ts
+export type SkipReason = 'insufficient_input' | 'generation_failed' | 'schema_invalid' | 'forbidden_content'
+export type CornerPersistStatus = 'skipped' | 'failed'
+export function statusForSkipReason(reason: SkipReason): CornerPersistStatus
+export const SKIP_REASON_RETRY_POLICY: Record<SkipReason, { pipelineRetriesOnFailure: boolean; maxPipelineRetries: number }>
+```
+`brandedTypes.ts`(정적 규칙 E 대상)와 분리한 이유: `SkipReason`은
+캐스트로 만드는 브랜드 값이 아니라 그냥 리터럴 유니온이라 그 모듈에
+넣을 이유가 없음. 두 런타임이 공유하도록 `src/engine/corners/`에 둠
+(`brandedTypes.ts`와 같은 배치 원칙).
+
+**`supabase/functions/_shared/cornerPipeline.ts`** (신규 — 파이프라인
+골격 본체, `#12` 계약 표에는 없던 네 번째 파일. **구현 판단, 명시**:
+`#12` 계약이 명시한 세 경로는 "LLM 호출 허용·계수 조회 허용·브랜드
+정의" 세 개뿐이고 "파이프라인 오케스트레이터를 어디 둘지"는 정하지
+않았다. 이 오케스트레이터는 `fetch`도 `app_config` 접근도 캐스트도
+직접 하지 않고 세 지정 모듈의 함수만 호출하므로 정적 규칙 C·D·E
+어디에도 걸리지 않는다 — 실사 테스트로 확인. `supabase/functions/`
+아래 둔 이유는 실행 주체가 Edge Function이라서(Part 17-0-0).)
+```ts
+export interface CornerPipelineParams<TInput, TPayload> {
+  readonly input: TInput
+  readonly preconditionCheck: (input: TInput) => boolean       // #14가 채운다
+  readonly buildPrompt: (input: TInput) => string               // #14가 채운다
+  readonly schema: ZodType<TPayload>                             // #14가 채운다
+  readonly llmClient: LlmClient                                  // 호출부가 createLlmClient()로 만들어 넘김(코너 1건당 1개)
+  readonly lookupCoeffBundle?: () => Promise<CoeffBundle>        // 계수 쓰는 코너만 넘김(MVP 3종은 생략)
+}
+export type CornerPipelineResult<TPayload> =
+  | { outcome: 'success'; content: ValidatedContent<TPayload>; coeffBundle: CoeffBundle | undefined; llmCallAttempts: number }
+  | { outcome: 'failure'; reason: SkipReason; detail: string; llmCallAttempts: number }
+export async function runCornerPipeline<TInput, TPayload>(params: CornerPipelineParams<TInput, TPayload>): Promise<CornerPipelineResult<TPayload>>
+```
+순서(①선행검사→②계수조회(선택)→③LLM→④Zod→⑤FORBIDDEN_KEYS→⑥반환)를
+그대로 구현. `schema_invalid`만 파이프라인이 최대 1회 재호출을
+결정(JSON.parse 실패도 같은 취급). `forbidden_content`·
+`generation_failed`는 재호출하지 않는다(`generation_failed`는
+`llmClient`가 이미 예산 안에서 재시도를 마친 뒤의 결과라 파이프라인이
+또 부르지 않음 — 층이 안 섞임).
+
+**`supabase/functions/_shared/saveCornerResult.ts`** (신규 — 저장 함수,
+역시 `#12` 계약 표에 없던 파일. 같은 이유로 위치는 구현 판단)
+```ts
+export interface CornersTableClient {
+  from(table: 'corners'): { update(patch: Record<string, unknown>): { eq(column: 'id', value: string): Promise<{ error: { message: string } | null }> } }
+}
+export async function saveCornerSuccess<T extends object>(client: CornersTableClient, input: {
+  cornerId: string; engineVersion: string; content: ValidatedContent<T>; coeffBundle: CoeffBundle | undefined; generationAttempts: number
+}): Promise<void>
+export async function saveCornerFailure(client: CornersTableClient, input: {
+  cornerId: string; engineVersion: string; reason: SkipReason; detail: string; generationAttempts: number
+}): Promise<void>
+```
+`saveCornerSuccess`는 `ValidatedContent<T>`만 받는다(타입 층, 평범한
+객체는 컴파일 안 됨 — `@ts-expect-error` 테스트로 확인). `status='ready'`
+까지만 쓰고 `published` 전이는 안 한다(발행 판정은 Phase 8, Part
+17-0-6). `coeffBundle`이 있으면 `content.coeffVersion`에 `version`을
+함께 기록, 없으면(MVP 3종) 기록하지 않는다. `saveCornerFailure`는
+`reason: SkipReason`만 받고(4값 밖 문자열은 컴파일 안 됨), `status`는
+`statusForSkipReason`으로 매핑 — 토글 숨김 여부와 무관하게 항상
+저장한다(Part 3-7-B).
+
+### `#14`가 주입해야 할 셋 — 인터페이스 요약
+
+`runCornerPipeline`의 `params`로 넘길 것:
+1. `preconditionCheck: (input: TInput) => boolean` — 코너별 최소 재료
+   조건. `false`면 LLM 호출 전에 `insufficient_input`으로 끝난다.
+2. `buildPrompt: (input: TInput) => string` — 코너별 프롬프트 문안.
+3. `schema: ZodType<TPayload>` — 코너별 Zod 스키마
+   (`ONDOLOG_CORNER_CONTENT.md`가 정의하는 코너별 구조). LLM 출력을
+   `JSON.parse`한 값이 이 스키마로 파싱된다.
+
+그 외에 `#14`가 결정할 것: `TInput`(코너별 입력 타입, 이 골격은 모름),
+코너별 `CornerEnvelope`/payload 타입(`ONDOLOG_CORNER_CONTENT.md` 0-3·
+9 — 이번 작업은 `envelope.ts`를 만들지 않았다, 코너별 스키마 영역),
+계수를 쓰는 코너(17-2/17-3, 지금은 발행 대상 밖)라면
+`lookupCoeffBundle: () => lookupCoeffBundle(supabaseClient, configKey)`
+클로저.
+
+### 재시도·상한이 강제되는 위치
+
+- **호출 예산(3회, 코너 1건당)**: `llmClient.ts`의 `createLlmClient()`가
+  반환하는 클로저 안. 파이프라인이 몇 번을 불러도 예산 소진 후에는
+  네트워크 요청 없이 즉시 `generation_failed`. 테스트:
+  `__tests__/functions/llmClient.test.ts` "llmClient — 호출 예산 상한"
+  describe 블록 — 파이프라인이 예산 넘겨 다시 호출해도 `fetch` 추가
+  호출이 없음을 직접 확인.
+- **`schema_invalid` 1회 재시도**: `cornerPipeline.ts`의
+  `runCornerPipeline` 루프 안(`schemaRetryUsed` 플래그).
+- **`forbidden_content`/`insufficient_input` 무재시도**: 같은 루프에서
+  즉시 반환(재시도 분기 자체가 없음).
+- **`generation_failed` 재시도**: 파이프라인은 관여하지 않는다 —
+  `llmClient.call()` 한 번 호출이 실패하면 그대로 전파(이미
+  `llmClient` 내부에서 예산 안 지수 백오프를 다 쓴 뒤의 결과이므로).
+
+### 규칙 C 교정 내용과 오탐 없음 실증
+
+판정 기준을 "LLM SDK import" + "LLM 엔드포인트 호스트 문자열"
+(`api.anthropic.com`/`api.openai.com`) 둘로 좁혔다(r19). **`fetch(` 전반
+패턴을 제거했다** — 이전 판정은 `\bfetch\s*\(/`을 포함해
+`src/services/referencePhotoApi.ts`의 정당한 `fetch(input.localUri)`가
+언제든 오탐될 수 있는 상태였다(이전 세션 HANDOFF도 이를 "발견 사실,
+수정하지 않음"으로 남겨둠 — 이번에 실제로 고쳤다).
+
+**부수 발견 — `stripComments` 버그(이 테스트 파일의 로컬 복제본에
+한정해 수정)**. 기존 줄 주석 제거 정규식 `/\/\/.*$/gm`이 URL 리터럴
+안의 `://`를 줄 주석 시작으로 오인해 `'https://api.anthropic.com/...'`
+같은 문자열에서 `//` 뒤 전체(즉 호스트 문자열 자체)를 지워버렸다 —
+합성 입력 테스트로 실제로 재현됨(엔드포인트 호스트 검사가 상시
+무력화되는 상태였다). `//` 바로 앞이 `:`이면 줄 주석으로 보지 않도록
+부정 후방탐색을 추가해 고쳤다(`(?<!:)\/\/.*$`). **다른 3개 파일의
+복제본은 손대지 않았다** — "복제된 유틸을 공용 모듈로 추출·통합하지
+않는다"는 기존 지시를 지킨 것이고, 이 버그가 다른 3개 파일의 검사
+대상(결정론 금지 식별자 등)에는 영향이 없어 그쪽에서 고칠 필요도
+없었다.
+
+**오탐 없음 실증** (완료 기준 항목별):
+- `src/services/referencePhotoApi.ts` 실제 파일 규칙 C 위반 0건
+  (`cornerPipelineStaticRules.test.ts` "실증: ... referencePhotoApi.ts
+  ...").
+- `llmClient.ts` 자기 자신 위반 0건(같은 파일, "실증: llmClient.ts
+  자신이...").
+- `supabase/functions/`·`src/services/`·`src/engine/corners/` 전체를
+  세 규칙(C·D·E)로 스캔해도 위반 0건("#13이 만든 실제 파일 전체" 절,
+  신규 추가).
+
+### 타입 검사·Deno 임포트 관련 — 새로 발견한 경계(중요, 다음 작업 참고)
+
+`supabase/functions/_shared/*.ts`가 `src/engine/corners/*.ts`를 Deno
+표준대로 **`.ts` 확장자 명시 상대경로**로 import하는 것은 전용
+tsconfig(`allowImportingTsExtensions: true`) 덕분에 그 자체로는
+문제없다(두 게이트 다 0에러로 확인). **그런데 루트 tsconfig의
+`exclude: ["supabase/functions"]`는 "루트 파일이 그 디렉터리를 참조하지
+않는다"는 전제 위에서만 안전하다** — 이번 작업이 Jest 테스트
+(`__tests__/functions/*.test.ts`, 루트 tsc 범위 안)에서 그 파일들을
+정적 `import`로 가져오자, 루트 tsc가 전이적으로 그 파일들을 파싱해
+내부의 `.ts` 확장자 import에 `TS5097`을 냈다(`exclude`는 "이 디렉터리를
+루트로 삼지 말라"는 뜻이지 "이 디렉터리로 들어가는 참조를 끊어라"는
+뜻이 아니라서 — 발견 당시 실측).
+
+**해결(구현 판단, `tsconfig.json` 무수정)**: `coeffLookup.ts`/
+`cornerPipeline.ts`/`saveCornerResult.ts`를 테스트하는 세 파일
+(`__tests__/functions/{coeffLookup,cornerPipeline,saveCornerResult}.test.ts`)
+에서만, 그 세 모듈을 정적 `import` 대신 **경로를 변수에 담은
+`require(경로변수)`**로 가져온다(리터럴 문자열이 아니므로 tsc가 정적
+해석을 하지 않아 대상 파일을 전이적으로 파싱하지 않음). 필요한 타입은
+각 테스트 파일 안에서 구조적으로 다시 선언한다(원본을 import하지
+않음 — `ValidatedContent`/`CoeffBundle`/`SkipReason`처럼 **안전하게
+import 가능한 것**(`src/engine/corners/` 안, 교차 디렉터리 참조 없음)은
+그대로 정적 import해 브랜드 강제력을 유지했다). `llmClient.ts`는
+자기 완결(교차 디렉터리 import 없음)이라 정적 import 그대로 안전함.
+
+이 경계는 **다음에 `supabase/functions/_shared/`에 파일을 추가하고
+그걸 Jest로 단위 테스트하려는 사람이 반드시 다시 만난다** — 정적
+`import`를 쓰면 루트 게이트가 깨진다. `require(경로변수)` 우회를
+그대로 쓰거나, 더 근본적인 해법(예: 전용 Jest 프로젝트 분리, 또는
+`tsconfig.json`에 project references 도입 — 둘 다 이번 작업 범위 밖의
+구조 변경)을 사람이 판단해야 한다.
+
+### 검증
+
+- `npx jest --ci --watchAll=false`: **35 suites / 543 tests 전부
+  통과**(기존 449 + 신규 94: 정적 규칙 스위트 보강 25개 + 신규 7개
+  스위트 69개). 기존 테스트 assertion은 예외적으로 **딱 하나만 의도적
+  수정**했다 — `cornerPipelineStaticRules.test.ts`의 "런타임 export가
+  없다 — #13 이전 상태" 테스트. 이 테스트는 `#12`가 스스로 "#13이 오면
+  이 값이 바뀌는 게 맞다"고 docblock에 예고해 둔 캐노피 테스트였고(원문
+  인용: "이 값이 바뀌면(...) #13이 아직 오기 전에 런타임 값이 생겼다는
+  뜻이다"), 3부(브랜드 생성 함수 추가)가 이 프롬프트의 명시적 요구라
+  이 변경은 불가피했다 — 그 밖의 assertion은 전부 무수정.
+- `npx tsc --noEmit -p .` **0 에러**, `npx tsc --noEmit -p
+  supabase/functions/tsconfig.json` **0 에러**.
+- `scripts/norm/unresolvedInventory.ts` **정의 4 / 소비 2** 그대로
+  (줄 번호만 달라짐 — 내가 건드리지 않은 `unresolved.ts`/`temperature.ts`
+  자체가 이전 세션 사이 이동한 것으로 보임, 개수는 불변).
+- `git status --porcelain`: 수정 2개(`__tests__/engine/
+  cornerPipelineStaticRules.test.ts`, `src/engine/corners/
+  brandedTypes.ts`) + 신규 5개(`__tests__/engine/corners/`,
+  `__tests__/functions/`, `src/engine/corners/forbiddenKeys.ts`,
+  `src/engine/corners/pipelineContracts.ts`,
+  `supabase/functions/_shared/`). `tsconfig.json`(루트·전용)·
+  `ambient.d.ts`·`package.json`·`app.json`·`eas.json` 전부 무변경.
+  커밋·푸시 없음.
+- 코너별 프롬프트·Zod 스키마·선행 검사 조건 **없음**(`#14`로 남김).
+  `ONDOLOG_CORNER_CONTENT.md`가 언급하는 `src/types/corners/envelope.ts`
+  (`CornerEnvelope`)도 만들지 않았다 — 코너별 payload 영역이라 `#14` 몫.
+
 ## `#13` 코너 파이프라인 골격 — 착수 조건 ① 실패로 중단 (2026-09-17)
 
 위임: `.claude/state/prompts/phase-7/20-engine-dev-pipeline-r2.md`(r2).

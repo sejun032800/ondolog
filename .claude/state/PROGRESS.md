@@ -1,6 +1,33 @@
 # 진행 상황
 
-최종 갱신: 2026-09-17 (`#13` 코너 파이프라인 골격 — **착수 조건 ① 실패로
+최종 갱신: 2026-09-18 (`#13` 코너 파이프라인 골격 — **완료**.
+`.claude/state/prompts/phase-7/20-engine-dev-pipeline-r3.md` 수행.
+r3가 착수 조건 ①을 "Edge Function tsc 범위"(이미 해소 완료로 확인됨,
+전용 tsconfig·루트 exclude·ambient.d.ts·게이트 2 전부 커밋돼 있음)에서
+"참조 문서 값의 실재 확인"으로 바꿨다 — `FORBIDDEN_KEYS`가 이제
+MASTER Part 17-0-4에 r22로 확정돼 있고(자리표시자 아님, `CORNER_CONTENT.md`
+0-4는 그 절을 가리키는 포인터로만 남음), 실패 사유 4값·재시도 정책도
+문서에 실재해 **①통과**. 착수 조건 ②(`corners` 필드 매핑)도 재확인 결과
+불일치 없음(`content`/`status`/`skip_reason`/`generation_attempts`/
+`last_error`/`engine_version` 전부 일치, `coeffVersion`은 `content` jsonb
+안). 2~5부 전부 구현: `supabase/functions/_shared/llmClient.ts`(호출
+예산 3회 + 전송 재시도 지수 백오프, 엔드포인트 상수는 이 모듈에만),
+`coeffLookup.ts`(`app_config` 조회 유일 경로), `src/engine/corners/
+brandedTypes.ts`에 `validateCornerContent`/`buildCoeffBundle` 생성 함수
+추가(캐스트는 이 모듈에만), `src/engine/corners/forbiddenKeys.ts`(목록 +
+재귀 검사 함수, 신규), `src/engine/corners/pipelineContracts.ts`
+(`SkipReason` 4값 유니온 + 상태 매핑 + 재시도 정책, 신규),
+`supabase/functions/_shared/cornerPipeline.ts`(파이프라인 골격, 코너별
+3요소 주입받음)·`saveCornerResult.ts`(저장 함수, `ValidatedContent<T>`만
+받음). 규칙 C 판정 기준을 r19대로 교정(SDK import + 엔드포인트 호스트
+문자열로 좁힘, `fetch` 전반 판정 제거) — 그 과정에서 기존
+`stripComments`(테스트 파일 로컬 유틸)의 버그(URL의 `://`를 줄 주석으로
+오인해 지워버림 → 호스트 문자열 검사를 무력화) 발견·수정(이 파일
+로컬 복제본만, 다른 3개 복제본은 무수정). 기존 449 테스트 전부 유지
+통과 + 신규 94개(543/35). 두 tsc 게이트 0에러. `UNRESOLVED` 집계
+정의4/소비2 그대로. 상세는 HANDOFF.md 참조)
+
+이전 갱신: 2026-09-17 (`#13` 코너 파이프라인 골격 — **착수 조건 ① 실패로
 구현 중단, 보고만**. `.claude/state/prompts/phase-7/20-engine-dev-pipeline-r2.md`
 수행 시도. `supabase/functions/`에 최소 파일 6종을 순차로 만들어
 `npx tsc --noEmit -p .`를 실증한 결과, Deno 런타임에 필요한 형태의

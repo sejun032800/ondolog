@@ -65,8 +65,23 @@ const APP_CONFIG_LOOKUP_MODULE = 'supabase/functions/_shared/coeffLookup.ts'
 // 공용 유틸 (이 파일 로컬 — 기존 스위트의 복제본과 통합하지 않는다)
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * 이 복제본은 기존 3개 파일의 `stripComments`와 **줄 주석 처리 하나가
+ * 다르다** — 발견된 버그를 고쳤다(다른 파일은 손대지 않는다, 위 안내
+ * 그대로 "통합하지 않는다"만 지킨다 — 이건 통합이 아니라 이 파일
+ * 로컬 복제본의 수정이다).
+ *
+ * 기존 정규식 `/\/\/.*$/gm`은 `//`로 시작하는 줄 전체를 지운다. 그런데
+ * `'https://api.anthropic.com/...'` 같은 URL 리터럴 안의 `://`도
+ * `//`를 포함해 **URL의 나머지 전체가 주석으로 오인돼 지워진다** —
+ * 규칙 C의 두 번째 검사("LLM 엔드포인트 호스트 문자열")가 바로 그
+ * 지워진 부분(`api.anthropic.com`)을 찾아야 하므로 이 버그를 그대로
+ * 두면 검사가 상시로 무력화된다(합성 입력 테스트에서 실제로 재현됨).
+ * `//` 바로 앞이 `:`이면(=URL 스킴 구분자) 줄 주석으로 보지 않도록
+ * 부정 후방탐색(negative lookbehind)으로 좁혔다.
+ */
 function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<!:)\/\/.*$/gm, '')
 }
 
 /**
@@ -102,23 +117,42 @@ function toRepoRelativePosix(repoRoot: string, absFilePath: string): string {
 // 규칙 로직 — 순수 함수: (파일경로, 소스문자열) => 위반목록
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * 규칙 C 판정 기준 (r19 교정, `#13`이 실제로 적용). 둘로 좁힌다 —
+ * `fetch` 전반은 잡지 않는다(`fetch`는 앱의 정상 동작이고
+ * `src/services/referencePhotoApi.ts`가 참조 사진 업로드에 이미 쓰고
+ * 있다. 전반을 잡으면 정당한 네트워크 계층이 매번 걸려 오탐이
+ * 반복된다). 대신:
+ *
+ *   1. LLM SDK 모듈 import — `@anthropic-ai/sdk`·`openai` import,
+ *      `new Anthropic(`·`new OpenAI(` 생성자.
+ *   2. LLM 엔드포인트 호스트 문자열 — `llmClient.ts`가 실제로 쓰는
+ *      호스트(`api.anthropic.com`). SDK 없이 `fetch`로 직접 호출하는
+ *      우회를 막는다. 방어적으로 `api.openai.com`도 함께 판정한다
+ *      (SDK 패턴이 이미 OpenAI도 다루고 있어 대칭을 맞춘 것 — 이
+ *      프로젝트의 확정 프로바이더는 Anthropic이다, Part 6-7).
+ */
 const LLM_CALL_PATTERNS: readonly RegExp[] = [
-  /\bfetch\s*\(/,
   /from\s+['"]@anthropic-ai\/sdk['"]/,
   /from\s+['"]openai['"]/,
   /new\s+Anthropic\s*\(/,
   /new\s+OpenAI\s*\(/,
+  /api\.anthropic\.com/,
+  /api\.openai\.com/,
 ]
 
 /**
- * 규칙 C — LLM 호출 경계. `LLM_CALL_MODULE` 밖에서 fetch/LLM SDK 호출
- * 패턴이 나타나면 위반이다. 지정 모듈 자신은 예외(그 안에서의 호출이
- * 정상 동작이다 — "금지가 아니라 위치 제약").
+ * 규칙 C — LLM 호출 경계. `LLM_CALL_MODULE` 밖에서 LLM SDK import 또는
+ * LLM 엔드포인트 호스트 문자열이 나타나면 위반이다. 지정 모듈 자신은
+ * 예외(그 안에서의 호출이 정상 동작이다 — "금지가 아니라 위치 제약").
  *
  * 문서에 없는 값을 지어내지 않기 위한 명시적 한계: 이 함수가 잡는
- * "LLM 호출"은 `fetch(` 호출과 위 SDK import/생성자 패턴뿐이다.
- * `#13`이 다른 방식(예: 알려지지 않은 SDK)으로 LLM을 호출하면 이
- * 규칙이 놓칠 수 있다 — 그 경우는 이 작업 범위 밖이라 확장하지 않는다.
+ * "LLM 호출"은 위 SDK import/생성자 패턴과 두 호스트 문자열뿐이다.
+ * `#13`이 다른 방식(예: 알려지지 않은 SDK, 다른 프로바이더 호스트)으로
+ * LLM을 호출하면 이 규칙이 놓칠 수 있다 — 그 경우는 이 작업 범위 밖이라
+ * 확장하지 않는다. **`fetch(` 자체는 더 이상 판정 기준이 아니다** —
+ * 엔진의 네트워크 금지는 규칙 B가 담당하고, 규칙 C는 "LLM 호출 경로가
+ * 하나뿐인가"만 본다.
  */
 function ruleC_llmCallBoundaryViolations(relFilePath: string, rawSource: string): string[] {
   if (relFilePath === LLM_CALL_MODULE) return []
@@ -291,6 +325,49 @@ describe('규칙 C — LLM 호출 경계 (합성 입력)', () => {
     `
     expect(ruleC_llmCallBoundaryViolations(LLM_CALL_MODULE, designatedModuleSource)).toEqual([])
   })
+
+  // ── r3 2부 보강: 규칙 C 판정 기준 교정(fetch 전반 → SDK import·엔드포인트 호스트)에 대한 합성 입력 ──
+
+  it('위반(신규): SDK import가 지정 모듈 밖에 있음 → 걸린다 (fetch 없이 import만)', () => {
+    const violating = `
+      import Anthropic from '@anthropic-ai/sdk'
+      export const client = new Anthropic({ apiKey: 'x' })
+    `
+    const violations = ruleC_llmCallBoundaryViolations(nonDesignatedPath, violating)
+    expect(violations.length).toBeGreaterThan(0)
+  })
+
+  it('위반(신규): LLM 엔드포인트 호스트 문자열이 지정 모듈 밖에 있음 → 걸린다 (SDK 없이 fetch 우회)', () => {
+    const violating = `
+      export async function shortcut(prompt: string) {
+        return fetch('https://api.anthropic.com/v1/messages', { method: 'POST', body: prompt })
+      }
+    `
+    const violations = ruleC_llmCallBoundaryViolations(nonDesignatedPath, violating)
+    expect(violations.length).toBeGreaterThan(0)
+  })
+
+  it('정상(신규): fetch만 있고 LLM과 무관한 소스 → 안 걸린다 (r19 교정의 핵심 — fetch 전반을 잡지 않는다)', () => {
+    const unrelatedFetch = `
+      export async function uploadReferencePhoto(localUri: string) {
+        const response = await fetch(localUri)
+        return response.blob()
+      }
+    `
+    expect(ruleC_llmCallBoundaryViolations(nonDesignatedPath, unrelatedFetch)).toEqual([])
+  })
+
+  it('실증: src/services/referencePhotoApi.ts 실제 파일이 규칙 C에 걸리지 않는다 (정당한 fetch 오탐 없음)', () => {
+    const absPath = path.join(REPO_ROOT, 'src/services/referencePhotoApi.ts')
+    const source = fs.readFileSync(absPath, 'utf8')
+    expect(ruleC_llmCallBoundaryViolations('src/services/referencePhotoApi.ts', source)).toEqual([])
+  })
+
+  it('실증: llmClient.ts 자신이 규칙 C에 걸리지 않는다 (지정 모듈 자기 자신 예외의 실파일 버전)', () => {
+    const absPath = path.join(REPO_ROOT, LLM_CALL_MODULE)
+    const source = fs.readFileSync(absPath, 'utf8')
+    expect(ruleC_llmCallBoundaryViolations(LLM_CALL_MODULE, source)).toEqual([])
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -429,18 +506,65 @@ describe('src/engine/corners/brandedTypes.ts — 실제 파일이 규칙 C·D·E
     expect(ruleD_appConfigLookupBoundaryViolations(BRAND_DEFINITION_MODULE, source)).toEqual([])
   })
 
-  it('규칙 E 위반 없음 (아직 캐스트 자체가 없음 — #13 이전 상태)', () => {
+  it('규칙 E 위반 없음 (캐스트가 정의 모듈 안에 있어 예외 대상 — #13 이후 상태)', () => {
+    // #13부터 이 파일은 `validateCornerContent`·`buildCoeffBundle` 안에
+    // 캐스트를 정확히 두 곳 포함한다. 규칙 E는 "정의 모듈 안의 캐스트"를
+    // 예외로 두므로(r18) 캐스트가 실재해도 위반 목록은 여전히 빈
+    // 배열이어야 한다 — 이 테스트는 그 예외가 실파일에도 그대로
+    // 적용되는지 확인한다(합성 입력 테스트만으로는 실파일의 실제 캐스트
+    // 형태가 패턴과 맞는지 보장되지 않는다).
     expect(ruleE_brandCastViolations(BRAND_DEFINITION_MODULE, source)).toEqual([])
   })
 
-  it('런타임 export가 없다 — 타입만 정의, 생성 함수는 #13 이전까지 없어야 한다', () => {
-    // 이 파일은 `export type`만 포함한다. Babel의 CommonJS interop이
-    // 실행 시점에 값이 하나도 없는 모듈에 빈 `default` 객체를 자동으로
-    // 합성해 붙인다(타입은 컴파일 시 완전히 지워지므로 이 synthetic
-    // default 외에는 아무 런타임 값도 없다) — 그래서 `['default']` +
-    // 빈 객체를 기대치로 둔다. 이 값이 바뀌면(새 키 추가·default가
-    // 비어있지 않음) `#13`이 아직 오기 전에 런타임 값이 생겼다는 뜻이다.
-    expect(Object.keys(BrandedTypes)).toEqual(['default'])
-    expect((BrandedTypes as { default: unknown }).default).toEqual({})
+  it('런타임 export는 생성 함수 둘뿐이다 (#13이 추가한 것과 정확히 일치)', () => {
+    // #12 시점에는 `export type`만 있어 런타임 값이 하나도 없었고,
+    // Babel CJS interop이 그런 모듈에 빈 `default` 객체를 자동으로
+    // 합성해 붙였다(이 테스트의 이전 버전이 그 상태를 `['default']`로
+    // 단언했었다). #13이 `validateCornerContent`·`buildCoeffBundle` 두
+    // 함수를 **이 모듈 안에서만**(export 금지·규칙 E) 실제로
+    // export하면서, 모듈에 실제 런타임 값이 생겨 그 synthetic default
+    // 합성이 더 이상 일어나지 않는다(Babel은 실제 export가 하나라도
+    // 있으면 default를 합성하지 않는다) — 그래서 `default`가 이제는
+    // 목록에서 사라지는 것이 맞는 상태다. 그 밖의 키가 나타나면 생성
+    // 함수가 다른 곳에도 있거나 의도치 않은 값이 export됐다는 뜻이다.
+    expect(new Set(Object.keys(BrandedTypes))).toEqual(
+      new Set(['validateCornerContent', 'buildCoeffBundle']),
+    )
+    expect(typeof BrandedTypes.validateCornerContent).toBe('function')
+    expect(typeof BrandedTypes.buildCoeffBundle).toBe('function')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// 6. `#13`이 만든 실제 파일 전부를 세 규칙으로 실사 — 완료 기준
+//    "규칙 C·D·E가 #13 완료 후에도 전부 통과한다"의 직접 증거.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('#13이 만든 실제 파일 전체 — 세 규칙(C·D·E) 실사, 위반 0건', () => {
+  it('세 디렉터리 전체를 규칙 C·D·E로 스캔하면 위반이 하나도 없다', () => {
+    expect(scanRepository(ruleC_llmCallBoundaryViolations)).toEqual([])
+    expect(scanRepository(ruleD_appConfigLookupBoundaryViolations)).toEqual([])
+    expect(scanRepository(ruleE_brandCastViolations)).toEqual([])
+  })
+
+  it('coeffLookup.ts는 app_config 접근이 있어도(지정 모듈 자신) 규칙 D에 안 걸린다', () => {
+    const absPath = path.join(REPO_ROOT, APP_CONFIG_LOOKUP_MODULE)
+    const source = fs.readFileSync(absPath, 'utf8')
+    expect(ruleD_appConfigLookupBoundaryViolations(APP_CONFIG_LOOKUP_MODULE, source)).toEqual([])
+    // 실제로 app_config에 접근하고 있다는 것도 함께 확인 — "지정 모듈 자신은
+    // 예외"라는 exemption이 아무 의미 없는 빈 파일을 봐준 게 아님을 보장.
+    expect(source).toMatch(/\.from\(\s*['"]app_config['"]\s*\)/)
+  })
+
+  it('cornerPipeline.ts·saveCornerResult.ts는 app_config·LLM 호출·브랜드 캐스트 중 어느 것도 직접 하지 않는다(전부 지정 모듈에 위임)', () => {
+    for (const rel of [
+      'supabase/functions/_shared/cornerPipeline.ts',
+      'supabase/functions/_shared/saveCornerResult.ts',
+    ]) {
+      const source = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8')
+      expect(ruleC_llmCallBoundaryViolations(rel, source)).toEqual([])
+      expect(ruleD_appConfigLookupBoundaryViolations(rel, source)).toEqual([])
+      expect(ruleE_brandCastViolations(rel, source)).toEqual([])
+    }
   })
 })
