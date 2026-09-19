@@ -58,8 +58,8 @@ Get-ChildItem .claude/state/prompts/phase-7 -File | Select-Object Name
 git status --porcelain -uall
 ```
 
-**`#13`의 미커밋 변경이 보여야 정상입니다.** 이번 작업은 그 위에서
-이뤄집니다.
+**`#13` 산출물이 커밋됐든 워킹트리에 있든 무방합니다.** 확인할 것은
+산출물의 존재이지 커밋 여부가 아닙니다.
 
 - [ ] `supabase/functions/_shared/` 아래 파이프라인 파일들이 있는가
 - [ ] `src/engine/corners/brandedTypes.ts`에 생성자가 있는가
