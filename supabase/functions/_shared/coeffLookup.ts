@@ -34,9 +34,24 @@
  * (`#14`, 또는 17-2/17-3가 열릴 때) 다르면 그때 바로잡는다 — 지금은
  * MVP 3종(17-1·17-4·17-5)이 계수를 쓰지 않아 실전 검증이 안 된 채로
  * 골격만 놓는다.
+ *
+ * ── r25: `buildCoeffBundle`의 생성자가 이 파일에 있다 ───────────────────
+ * `#13`에서 `buildCoeffBundle`이 `brandedTypes.ts`의 공개 export였다.
+ * 이 파일(`lookupCoeffBundle`)을 거치지 않고도 `buildCoeffBundle({
+ * version: 'x', ... })`을 리터럴로 직접 불러 유효한 `CoeffBundle`을 만들
+ * 수 있었다 — 정적 규칙 D는 `.from('app_config')` 호출 위치만 제약할 뿐,
+ * `buildCoeffBundle` 자체의 호출 위치는 보지 않기 때문이다. 마스터 문서
+ * 17-0-2 r25는 "생성자가 사는 곳"을 `CoeffBundle`에 대해 이 파일로
+ * 지정한다 — `app_config`를 실제로 읽는 그 모듈이기 때문이다. 그래서
+ * `buildCoeffBundle`을 `brandedTypes.ts`에서 이 파일로 옮겼다.
+ * `brandedTypes.ts`는 이제 타입 선언만 갖는다. 이 파일 안의
+ * `as CoeffBundle` 캐스트는 정확히 한 곳(`buildCoeffBundle` 안)이며,
+ * 정적 규칙 E의 예외 목록(`cornerPipelineStaticRules.test.ts`의
+ * `APPROVED_BRAND_CONSTRUCTOR_MODULES`)에 이 파일 경로가 들어 있어야
+ * 통과한다.
  */
 
-import { buildCoeffBundle, type CoeffBundle } from '../../../src/engine/corners/brandedTypes.ts'
+import type { CoeffBundle } from '../../../src/engine/corners/brandedTypes.ts'
 
 /**
  * `app_config` 조회에 필요한 최소 메서드만 담은 구조 타입. 실제
@@ -57,6 +72,33 @@ export interface AppConfigQueryClient {
       }
     }
   }
+}
+
+/**
+ * 이미 조회된 원시 계수 값(바로 아래 `lookupCoeffBundle`이 `app_config`에서
+ * 읽어온 값)을 받아 `CoeffBundle`로 조립한다. r25로 `brandedTypes.ts`에서
+ * 이 파일로 옮겼다 — `app_config`를 실제로 읽는 모듈이 이 파일이기
+ * 때문이다(마스터 문서 17-0-2 r25 표, 정적 규칙 D 지정 모듈과 동일).
+ *
+ * 이 함수 자신은 `app_config`를 직접 읽지 않는다 — 읽는 것은 바로 아래
+ * `lookupCoeffBundle`의 책임이다. 이 함수는 그 결과를 받아 `version`
+ * 필드가 실제로 있는지 최소한으로 검증한 뒤 캐스트만 한다(그래서
+ * "조립 함수"이지 "조회 함수"가 아니다).
+ *
+ * `version`이 없거나 문자열이 아니면 캐스트하지 않고 던진다 — 버전 없는
+ * `CoeffBundle`은 애초에 존재해선 안 되는 값이라, 여기서 막지 않으면
+ * 타입이 보장하는 것("`coeffVersion` 없는 산출 저장 불가", 17-0-2)이
+ * 거짓이 된다.
+ *
+ * 이 파일 안에서 정확히 한 번(바로 아래) `as CoeffBundle` 캐스트한다 —
+ * 정적 규칙 E는 이 캐스트를 이 파일 경로에 한해 예외로 둔다(승인 모듈
+ * 목록, 위 docblock 참조).
+ */
+export function buildCoeffBundle(raw: Record<string, unknown>): CoeffBundle {
+  if (typeof raw.version !== 'string' || raw.version.length === 0) {
+    throw new Error('buildCoeffBundle: version 필드가 없거나 문자열이 아닙니다')
+  }
+  return raw as CoeffBundle
 }
 
 /**

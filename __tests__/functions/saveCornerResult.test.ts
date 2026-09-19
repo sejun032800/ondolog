@@ -1,21 +1,60 @@
 import { z } from 'zod'
-import { validateCornerContent, buildCoeffBundle, type ValidatedContent, type CoeffBundle } from '../../src/engine/corners/brandedTypes'
+import type { ValidatedContent, CoeffBundle } from '../../src/engine/corners/brandedTypes'
 import type { SkipReason } from '../../src/engine/corners/pipelineContracts'
 
 /**
  * `saveCornerResult.ts` — 저장 함수는 `ValidatedContent<T>`만 받는다
  * (Part 17-0-2), 실패 사유도 저장한다(Part 3-7-B, 17-0-5-B).
- * 위임: .claude/state/prompts/phase-7/20-engine-dev-pipeline-r3.md 5부.
+ * 위임: .claude/state/prompts/phase-7/20-engine-dev-pipeline-r3.md 5부
+ * + .claude/state/prompts/phase-7/21-engine-dev-brand-constructors.md
+ * (r25 — 아래 참조).
  *
  * ── 왜 `saveCornerSuccess`/`saveCornerFailure`만 `require(경로변수)`인가 ─
  * `src/engine/corners/brandedTypes.ts`·`pipelineContracts.ts`는 루트
  * `tsconfig.json` 범위 안에서 안전하게 정적 import된다(다른 디렉터리를
- * 참조하지 않는다). 반면 `saveCornerResult.ts`는 그 둘을 **`.ts` 확장자를
- * 명시해** 상대경로로 import한다(Deno 표준). 정적으로 가져오면 루트
- * tsc가 전이적으로 그 파일을 파싱해 `TS5097`을 낸다 — `coeffLookup.test.ts`
- * 와 같은 이유(그 파일 docblock 참조). `ValidatedContent`/`CoeffBundle`은
- * 안전한 쪽에서 그대로 가져와 타입 강제(브랜드)를 그대로 유지한다.
+ * 참조하지 않는다 — r25로 brandedTypes.ts는 아예 아무것도 import하지
+ * 않는 순수 타입 모듈이 됐다). 반면 `saveCornerResult.ts`는 그 둘을
+ * **`.ts` 확장자를 명시해** 상대경로로 import한다(Deno 표준). 정적으로
+ * 가져오면 루트 tsc가 전이적으로 그 파일을 파싱해 `TS5097`을 낸다 —
+ * `coeffLookup.test.ts`와 같은 이유(그 파일 docblock 참조).
+ * `ValidatedContent`/`CoeffBundle`은 안전한 쪽에서 타입만 가져와 타입
+ * 강제(브랜드)를 그대로 유지한다.
+ *
+ * ── r25: 이 파일의 테스트 픽스처를 만드는 방법이 바뀌었다 ────────────────
+ * 이 테스트는 `saveCornerSuccess`/`saveCornerFailure`에 넘길
+ * `ValidatedContent<T>`·`CoeffBundle` 값이 필요하다(저장 함수 자신은
+ * 이 값을 만들지 않고 소비만 한다). r25 이전에는 `brandedTypes.ts`가
+ * 두 생성자를 공개 export해서 안전하게 정적 import할 수 있었다. r25로
+ * 생성자가 `cornerPipeline.ts`(`validateCornerContent`)·
+ * `coeffLookup.ts`(`buildCoeffBundle`)로 옮겨가면서, 그 두 파일도
+ * `.ts` 확장자 import를 갖게 됐다(`brandedTypes.ts`를 그렇게 가져온다).
+ * 그래서 이 픽스처들도 `coeffLookup.test.ts`/`cornerPipeline.test.ts`와
+ * 같은 이유로 `require(경로변수)`를 쓴다.
  */
+
+// 픽스처 값이 실제로 `ValidatedContent<T>`/`CoeffBundle`(브랜드 타입,
+// 위에서 `import type`)을 갖도록 선언한다 — 그래야 아래에서
+// `saveCornerSuccess({ content: validated.content, coeffBundle, ... })`가
+// 그 함수의 실제 시그니처(`ValidatedContent<T>`/`CoeffBundle` 요구)와
+// 컴파일 시점에 맞는다. 런타임 함수 자체는 `cornerPipeline.ts`/
+// `coeffLookup.ts`가 정확히 한 번 캐스트해 만든 진짜 브랜드 값을
+// 돌려준다 — 이 타입 선언은 그 사실을 이 파일 안에서 다시 진술할
+// 뿐이다(구조적으로 재선언하지 않고 실제 브랜드 타입을 그대로 쓴다).
+type FixtureValidateResult<T> =
+  | { readonly ok: true; readonly content: ValidatedContent<T> }
+  | { readonly ok: false; readonly reason: 'schema_invalid' | 'forbidden_content'; readonly detail: string }
+
+const cornerPipelineModulePath = '../../supabase/functions/_shared/cornerPipeline'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { validateCornerContent } = require(cornerPipelineModulePath) as {
+  validateCornerContent: <T>(raw: unknown, schema: z.ZodType<T>) => FixtureValidateResult<T>
+}
+
+const coeffLookupModulePath = '../../supabase/functions/_shared/coeffLookup'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { buildCoeffBundle } = require(coeffLookupModulePath) as {
+  buildCoeffBundle: (raw: Record<string, unknown>) => CoeffBundle
+}
 
 interface CornersTableClientShape {
   from(table: 'corners'): {

@@ -12,13 +12,25 @@ import type { LlmClient, LlmCallResult } from '../../supabase/functions/_shared/
  * ── 왜 `runCornerPipeline`만 `require(경로변수)`로 가져오는가 ───────────
  * `llmClient.ts`는 다른 디렉터리를 import하지 않아(자기 완결) 정적
  * `import type`이 안전하다. 반면 `cornerPipeline.ts`는
- * `src/engine/corners/brandedTypes.ts`·`pipelineContracts.ts`를 `.ts`
- * 확장자로 import한다(Deno 표준, `supabase/functions/tsconfig.json`
- * 전용 설정에서만 허용). 정적으로 가져오면 루트 tsc가 그 파일을
- * 전이적으로 파싱해 `TS5097`을 낸다(`coeffLookup.test.ts`와 같은 이유,
- * 그 파일 docblock 참조). 그래서 `runCornerPipeline`만 경로를 변수에
- * 담아 `require()`하고, 필요한 타입은 이 파일 안에서 구조적으로
- * 다시 선언한다.
+ * `src/engine/corners/brandedTypes.ts`·`pipelineContracts.ts`·
+ * `forbiddenKeys.ts`를 `.ts` 확장자로 import한다(Deno 표준,
+ * `supabase/functions/tsconfig.json` 전용 설정에서만 허용). 정적으로
+ * 가져오면 루트 tsc가 그 파일을 전이적으로 파싱해 `TS5097`을 낸다
+ * (`coeffLookup.test.ts`와 같은 이유, 그 파일 docblock 참조). 그래서
+ * `runCornerPipeline`·`validateCornerContent` 둘 다 경로를 변수에 담아
+ * `require()`하고, 필요한 타입은 이 파일 안에서 구조적으로 다시
+ * 선언한다.
+ *
+ * ── `validateCornerContent`를 여기서도 테스트하는 이유 (r25) ────────────
+ * `.claude/state/prompts/phase-7/21-engine-dev-brand-constructors.md`
+ * (브랜드 생성자 이전)에서 `validateCornerContent`가
+ * `src/engine/corners/brandedTypes.ts`에서 이 파일(`cornerPipeline.ts`)
+ * 로 옮겨왔다 — Zod 파싱 + `FORBIDDEN_KEYS` 검사를 실제로 거치는
+ * 자리이기 때문이다(마스터 문서 17-0-2 r25). 아래
+ * `validateCornerContent — 순서: Zod 파싱 → FORBIDDEN_KEYS` 블록은
+ * 이전에 `__tests__/engine/corners/brandedTypesGenerators.test.ts`에
+ * 있던 것과 **assertion이 완전히 동일하다** — 옮긴 것은 import 경로와
+ * 파일 위치뿐이다(그 파일은 이번 이전으로 삭제됐다, HANDOFF.md 참조).
  */
 
 interface FakeCoeffBundle {
@@ -45,9 +57,18 @@ type RunCornerPipelineFn = <TInput, TPayload>(
   params: CornerPipelineParamsShape<TInput, TPayload>,
 ) => Promise<CornerPipelineResultShape<TPayload>>
 
+type ValidateCornerContentResultShape<T> =
+  | { readonly ok: true; readonly content: T }
+  | { readonly ok: false; readonly reason: 'schema_invalid' | 'forbidden_content'; readonly detail: string }
+
+type ValidateCornerContentFn = <T>(raw: unknown, schema: ZodType<T>) => ValidateCornerContentResultShape<T>
+
 const cornerPipelineModulePath = '../../supabase/functions/_shared/cornerPipeline'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { runCornerPipeline } = require(cornerPipelineModulePath) as { runCornerPipeline: RunCornerPipelineFn }
+const { runCornerPipeline, validateCornerContent } = require(cornerPipelineModulePath) as {
+  runCornerPipeline: RunCornerPipelineFn
+  validateCornerContent: ValidateCornerContentFn
+}
 
 const PayloadSchema = z.object({ title: z.string() })
 
@@ -250,6 +271,75 @@ describe('결정론 — 동일 입력(고정된 가짜) 100회 반복 → 100회
         coeffBundle: undefined,
         llmCallAttempts: 1,
       })
+    }
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// validateCornerContent — r25로 brandedTypes.ts에서 이 파일로 이전.
+// 아래 블록은 __tests__/engine/corners/brandedTypesGenerators.test.ts에
+// 있던 것과 assertion이 완전히 동일하다(옮긴 것은 import 경로뿐. 그
+// 파일은 이번 이전으로 삭제됨 — HANDOFF.md 참조).
+// ─────────────────────────────────────────────────────────────────────────
+
+const SamplePayloadSchema = z.object({
+  title: z.string(),
+  note: z.string().optional(),
+})
+
+describe('validateCornerContent — 순서: Zod 파싱 → FORBIDDEN_KEYS (Part 17-0-4)', () => {
+  it('둘 다 통과하면 ValidatedContent를 반환한다', () => {
+    const result = validateCornerContent({ title: '한강 데이트', note: '자전거' }, SamplePayloadSchema)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.content).toEqual({ title: '한강 데이트', note: '자전거' })
+    }
+  })
+
+  it('Zod 파싱 실패 → schema_invalid (FORBIDDEN_KEYS 검사는 실행되지 않는다)', () => {
+    const result = validateCornerContent({ title: 42 }, SamplePayloadSchema)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toBe('schema_invalid')
+      expect(typeof result.detail).toBe('string')
+    }
+  })
+
+  it('스키마는 통과하지만 FORBIDDEN_KEYS 위반 → forbidden_content', () => {
+    const SchemaWithScore = z.object({ title: z.string(), score: z.number() })
+    const result = validateCornerContent({ title: 'x', score: 100 }, SchemaWithScore)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toBe('forbidden_content')
+      expect(result.detail).toContain('score')
+    }
+  })
+
+  it('스키마 통과 후 중첩 필드에 금지 키가 있어도 forbidden_content로 잡힌다', () => {
+    const NestedSchema = z.object({
+      title: z.string(),
+      payload: z.object({ verdict: z.string() }),
+    })
+    const result = validateCornerContent({ title: 'x', payload: { verdict: 'good' } }, NestedSchema)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('forbidden_content')
+  })
+
+  it('raw가 완전히 다른 타입(배열)이어도 schema_invalid로 처리된다(throw하지 않는다)', () => {
+    const result = validateCornerContent([1, 2, 3], SamplePayloadSchema)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('schema_invalid')
+  })
+})
+
+describe('결정론 — 동일 입력 100회 반복 → 100회 동일 결과 (validateCornerContent)', () => {
+  it('validateCornerContent는 같은 입력에 항상 같은 결과를 낸다', () => {
+    const input = { title: 'x', score: 1 }
+    const SchemaWithScore = z.object({ title: z.string(), score: z.number() })
+    const results = Array.from({ length: 100 }, () => validateCornerContent(input, SchemaWithScore))
+    for (const r of results) {
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.reason).toBe('forbidden_content')
     }
   })
 })

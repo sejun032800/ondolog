@@ -5,7 +5,224 @@
 > **완료된 항목은 즉시 삭제할 것** — 누적되면 컨텍스트가 오염된다.
 > (예외: 아래 "DEF 애착 항 갱신" 작업 프롬프트는 선행 작업의 진단
 > 수치를 보존하라고 명시해, 이번 세션은 완료 항목을 삭제하지 않았다.
-> 프롬프트 #13도 상태 파일 기록 삭제·이동·재편을 금지해 유지한다.)
+> 프롬프트 #13도 상태 파일 기록 삭제·이동·재편을 금지해 유지한다.
+> `#13-r4`(브랜드 생성자 이전)도 같은 이유로 `#13` 절을 그대로 두고
+> 위에 새 절만 추가한다.)
+
+## `#13-r4` 브랜드 생성자 이전 — 완료 (2026-09-19, engine-dev)
+
+위임: `.claude/state/prompts/phase-7/21-engine-dev-brand-constructors.md`.
+근거: `docs/ONDOLOG_MASTER.md` Part 17-0-2 r25(생성자 배치 전면 교체),
+Part 17-0-3 규칙 E.
+
+### 착수 전 확인 4가지 (위임 프롬프트가 요구한 답)
+
+1. **다시 만들지 않은 것.** `#13` 산출물 — 파이프라인 골격의 순서(①~⑥),
+   `llmClient.ts`(호출 예산·전송 재시도), `coeffLookup.ts`의 `app_config`
+   조회 로직(`lookupCoeffBundle`), 정적 규칙 C·D의 판정 함수(`ruleC_llmCallBoundaryViolations`·
+   `ruleD_appConfigLookupBoundaryViolations`)와 그 상수(`LLM_CALL_MODULE`·
+   `APP_CONFIG_LOOKUP_MODULE`)는 전혀 재구현하지 않았다. 바뀐 것은
+   `validateCornerContent`/`buildCoeffBundle` 두 함수의 **정의 위치**뿐이다.
+2. **`brandedTypes.ts`에 남은 것/나간 것.** 남은 것: `ValidatedContent<T>`,
+   `CoeffBundle` 두 타입 선언(및 그 docblock)뿐. 나간 것: `validateCornerContent`
+   함수, `buildCoeffBundle` 함수, 그 둘의 결과 타입
+   `CornerValidationFailureReason`·`CornerValidationResult<T>`, 그리고
+   그 함수들이 쓰던 `import type { ZodType } from 'zod'`·
+   `import { findForbiddenKeys } from './forbiddenKeys'` — 파일에 이제
+   런타임 import가 하나도 없다(순수 타입 모듈).
+3. **규칙 E 예외의 변화.** 단일 모듈 상수 `BRAND_DEFINITION_MODULE =
+   'src/engine/corners/brandedTypes.ts'`를 배열 상수
+   `APPROVED_BRAND_CONSTRUCTOR_MODULES`로 교체했고, `brandedTypes.ts`는
+   그 배열에서 빠졌다(아래 "규칙 E 예외 목록" 절에 실제 값 전문).
+4. **우회 차단의 증명 방법.** (a) `cornerPipelineStaticRules.test.ts`의
+   합성 입력 테스트로 "승인 모듈 경로의 캐스트는 규칙 E 통과, 그 밖
+   (`brandedTypes.ts` 포함)의 캐스트는 위반 목록에 잡힘"을 실행해 확인.
+   (b) 같은 파일에 새 describe 블록을 추가해 `@ts-expect-error`로
+   "리터럴 객체를 `ValidatedContent<T>`/`CoeffBundle` 타입에 직접 대입"을
+   시도 — `npx tsc --noEmit -p .`가 이 파일을 검사할 때 그 다음 줄이
+   실제로 타입 에러를 내지 않으면 "사용되지 않은 `@ts-expect-error`
+   지시어"로 tsc 자신이 실패하는 내장 동작을 이용했다(존재 확인이
+   아니라 컴파일 실패 여부로 작동을 확인).
+
+### 1부 — 착수 전 조사: 생성자 현재 위치 (구현 전 상태)
+
+`src/engine/corners/brandedTypes.ts`(`#13` 시점)에서 브랜드 값을 만드는
+함수는 정확히 둘이었다.
+
+| 함수 | 시그니처 | export 여부 | 호출부 | 인자가 출처를 강제하는가 |
+|---|---|---|---|---|
+| `validateCornerContent` | `<T>(raw: unknown, schema: ZodType<T>) => CornerValidationResult<T>` | **공개 export** | `supabase/functions/_shared/cornerPipeline.ts`(`runCornerPipeline` ④+⑤ 단계), `__tests__/engine/corners/brandedTypesGenerators.test.ts`(직접 단위 테스트), `__tests__/functions/saveCornerResult.test.ts`(픽스처 생성용 직접 호출) | **아니다.** `raw: unknown` — 아무 값이나 받는다. Zod 파싱과 `FORBIDDEN_KEYS` 검사를 통과하기만 하면 되므로, 호출부가 `cornerPipeline.ts`를 거치지 않고 이 함수를 직접 불러 원하는 리터럴을 검증 통과시킬 수 있었다(스키마를 헐겁게 만들면 사실상 임의 객체가 통과) |
+| `buildCoeffBundle` | `(raw: Record<string, unknown>) => CoeffBundle` | **공개 export** | `supabase/functions/_shared/coeffLookup.ts`(`lookupCoeffBundle` 내부), `__tests__/engine/corners/brandedTypesGenerators.test.ts`(직접 단위 테스트), `__tests__/functions/saveCornerResult.test.ts`(픽스처 생성용 직접 호출) | **아니다.** `raw: Record<string, unknown>` — `version` 필드가 있는 문자열이기만 하면 나머지는 완전히 임의. `coeffLookup.ts`를 거치지 않고 `buildCoeffBundle({ version: 'x', anyCoeff: 999 })`를 직접 불러도 유효한 `CoeffBundle`이 만들어졌다 — 이것이 위임 프롬프트가 지적한 정확한 구멍 |
+
+**`ValidatedContent`도 같은 점검 결과, 같은 구멍이 있었다.** `#13`
+완료 보고와 정적 규칙 테스트가 `CoeffBundle` 쪽만 명시적으로
+지적했던 것은 **테스트가 그쪽만 우연히 건드렸기 때문**이지
+`ValidatedContent`가 더 안전해서가 아니었다 — `validateCornerContent`도
+정확히 같은 형태(공개 export, `cornerPipeline.ts`를 거치지 않고 직접
+호출 가능)로 뚫려 있었다. 이번 작업으로 둘 다 동일하게 막았다.
+
+### 2부 — 옮긴 곳 (실제 파일 경로 + 실제 export 시그니처)
+
+| 브랜드 | 이전 위치 | 새 위치 | 새 export 시그니처 |
+|---|---|---|---|
+| `ValidatedContent<T>`의 생성자 | `src/engine/corners/brandedTypes.ts` (공개 export) | `supabase/functions/_shared/cornerPipeline.ts` | `export function validateCornerContent<T>(raw: unknown, schema: ZodType<T>): CornerValidationResult<T>` (본문 무변경 — Zod 파싱 → `FORBIDDEN_KEYS` 검사 → `as ValidatedContent<T>` 캐스트 그대로) |
+| `CornerValidationFailureReason`/`CornerValidationResult<T>` (브랜드 타입은 아니지만 `validateCornerContent`의 결과 타입) | `src/engine/corners/brandedTypes.ts` | `supabase/functions/_shared/cornerPipeline.ts` | `export type CornerValidationFailureReason = 'schema_invalid' \| 'forbidden_content'`, `export type CornerValidationResult<T> = { ok:true; content: ValidatedContent<T> } \| { ok:false; reason: CornerValidationFailureReason; detail: string }` — `pipelineContracts.ts`가 `SkipReason`을 `brandedTypes.ts`에 두지 않은 것과 같은 논리(브랜드 타입이 아니라 결과를 기술하는 평범한 판별 유니온)로, 생성자와 함께 이동. 이 두 타입을 이름으로 import하는 다른 파일이 없음을 확인했다(1부 조사) |
+| `CoeffBundle`의 생성자 | `src/engine/corners/brandedTypes.ts` (공개 export) | `supabase/functions/_shared/coeffLookup.ts` | `export function buildCoeffBundle(raw: Record<string, unknown>): CoeffBundle` (본문 무변경 — `version` 검증 → `as CoeffBundle` 캐스트 그대로) |
+
+`cornerPipeline.ts`는 `findForbiddenKeys`를 이제 직접 import한다
+(`import { findForbiddenKeys } from '../../../src/engine/corners/forbiddenKeys.ts'`)
+— 예전에는 `brandedTypes.ts` 안의 `validateCornerContent`가 그것을
+import했지만, 함수가 옮겨오면서 import도 함께 옮겨왔다.
+
+`brandedTypes.ts`는 이제 다음 두 export만 갖는다(둘 다 `export type`,
+런타임 값 없음):
+```ts
+export type ValidatedContent<T> = T & { readonly __validated: unique symbol }
+export type CoeffBundle = {
+  readonly version: string
+} & { readonly __fromConfig: unique symbol }
+```
+이 파일은 이제 어떤 것도 import하지 않는다(이전에는 `zod`의 `ZodType`
+타입과 `./forbiddenKeys`의 `findForbiddenKeys`를 import했다).
+
+`saveCornerResult.ts`는 **변경 없음** — 예상대로 `ValidatedContent`/
+`CoeffBundle`을 타입으로만(`import type`) 소비하고 생성자를 쓰지
+않아 이번 이전의 영향을 받지 않는다(1부 조사에서 직접 확인).
+
+### `ValidatedContent` 점검 결과 (완료 기준 항목)
+
+1부에 기록한 대로 **같은 구멍이 실재했다** — `validateCornerContent`가
+`brandedTypes.ts`의 공개 export였고, `cornerPipeline.ts`를 거치지 않고
+`raw: unknown`에 임의 값을 넣어 직접 호출할 수 있었다. `CoeffBundle`과
+정확히 같은 형태로 이전·차단했다(위 2부 표).
+
+### 규칙 E 예외 목록 — 변경 전/후 (실제 값 전문)
+
+**변경 전** (`__tests__/engine/cornerPipelineStaticRules.test.ts`):
+```ts
+const BRAND_DEFINITION_MODULE = 'src/engine/corners/brandedTypes.ts'
+// ruleE_brandCastViolations 안: if (relFilePath === BRAND_DEFINITION_MODULE) return []
+```
+
+**변경 후**:
+```ts
+const APPROVED_BRAND_CONSTRUCTOR_MODULES: readonly string[] = [
+  'supabase/functions/_shared/cornerPipeline.ts',
+  'supabase/functions/_shared/coeffLookup.ts',
+]
+// ruleE_brandCastViolations 안: if (APPROVED_BRAND_CONSTRUCTOR_MODULES.includes(relFilePath)) return []
+```
+
+`src/engine/corners/brandedTypes.ts`는 목록에서 빠졌다 — 새 테스트
+("r25: brandedTypes.ts는 이제 승인된 생성 모듈 목록에 없다")가 이를
+직접 단언한다. 같은 파일의 규칙 E 자기 검사 테스트도 "예외라서
+통과"가 아니라 "캐스트가 실제로 0건이라 통과"로 근거를 바꿨다
+(`stripComments`로 주석을 제거한 뒤 `as ValidatedContent`/`as CoeffBundle`
+패턴이 없음을 별도로 단언).
+
+### 3부 — 우회 차단 증명 (테스트 목록)
+
+`cornerPipelineStaticRules.test.ts`에 추가/변경한 것:
+- 규칙 E 합성 입력: 승인 모듈 경로(`cornerPipeline.ts`/`coeffLookup.ts`)
+  안의 캐스트는 위반 없음, `brandedTypes.ts`를 포함한 그 밖 경로의
+  캐스트는 위반 발생(신규 테스트 "r25: brandedTypes.ts는 이제 승인
+  목록 밖이다 — 그 경로의 캐스트도 걸린다").
+- 실사 확인: `cornerPipeline.ts`가 실제로 `as ValidatedContent` 패턴을
+  담고 있으면서도(exemption이 빈 파일을 봐준 게 아님을 증명) 규칙 E에
+  안 걸림. `coeffLookup.ts`도 `as CoeffBundle`에 대해 동일하게 확인.
+- 신규 describe 블록 "우회 차단 증명 — 브랜드 값은 리터럴 객체로 만들
+  수 없다 (타입 층, `@ts-expect-error`)": `ValidatedContent<T>`/
+  `CoeffBundle`에 리터럴 객체를 직접 대입하는 코드 각 1줄에
+  `@ts-expect-error`를 붙였다 — tsc가 그 줄에서 실제 에러를 내지
+  않으면 "미사용 지시어"로 게이트 자체가 깨지므로, 이 테스트가
+  잡히지 않고 통과한다는 것 자체가 우회가 막혔다는 작동 증거다.
+
+### 깨진 기존 테스트와 사유
+
+**`__tests__/engine/corners/brandedTypesGenerators.test.ts` — 파일
+삭제.** 이 파일은 `brandedTypes`에서 `validateCornerContent`·
+`buildCoeffBundle`을 정적 import해 직접 단위 테스트했다. 생성자가
+이동하면서 그 import 자체가 성립하지 않게 됐다(brandedTypes.ts에
+더 이상 그 이름의 export가 없음) — 이것이 위임 프롬프트가 예고한
+"정당하게 깨지는 테스트"다. **assertion 내용은 전혀 바꾸지 않고**
+두 새 위치로 그대로 옮겼다:
+- `validateCornerContent` 관련 5개 테스트 + 결정론 1개 →
+  `__tests__/functions/cornerPipeline.test.ts` (require(경로변수)로
+  `validateCornerContent`를 가져옴, 기존 `runCornerPipeline` require
+  패턴과 동일한 이유 — `cornerPipeline.ts`가 `.ts` 확장자로
+  `brandedTypes.ts`를 import해 루트 tsc가 정적 import 시 TS5097을
+  내기 때문).
+- `buildCoeffBundle` 관련 4개 테스트 + 결정론 1개 →
+  `__tests__/functions/coeffLookup.test.ts` (같은 이유로 require, 기존
+  `lookupCoeffBundle` require 패턴과 동일).
+
+**`__tests__/functions/saveCornerResult.test.ts` — assertion 무변경,
+import 방식만 변경.** 이 파일은 `saveCornerSuccess`/`saveCornerFailure`
+테스트에 넘길 `ValidatedContent<T>`/`CoeffBundle` 픽스처를 만들기 위해
+`validateCornerContent`/`buildCoeffBundle`을 정적 import하고 있었다.
+생성자가 `cornerPipeline.ts`/`coeffLookup.ts`로 옮겨가면서(둘 다 `.ts`
+확장자로 `brandedTypes.ts`를 import) 정적 import가 TS5097을 낸다 —
+`coeffLookup.test.ts`가 이미 쓰던 `require(경로변수)` 패턴으로
+전환했다. **assertion은 단 하나도 바꾸지 않았다** — 함수를 얻는
+방법만 바뀌었다.
+
+**`cornerPipelineStaticRules.test.ts`의 5번 describe 블록("브랜드
+정의 모듈 안 캐스트 예외" 전제) — 전제가 바뀌어 갱신.** "런타임
+export는 생성 함수 둘뿐이다"라는 단언(`Object.keys(BrandedTypes)`가
+`['validateCornerContent', 'buildCoeffBundle']`이길 기대)은
+`brandedTypes.ts`가 이제 그 두 함수를 export하지 않으므로 그대로
+두면 실패한다. **값만 바꿔치기하지 않고** 그 블록의 존재 이유를
+다시 설계했다: "규칙 E 위반 없음" 테스트는 이제 "예외 대상이라서"가
+아니라 "캐스트가 실제로 0건이라서"를 증명하도록(주석 제거 후 두
+패턴이 없음을 직접 정규식으로 확인) 바꿨고, "런타임 export가 없다"
+테스트는 두 함수 이름이 `Object.keys`에 없음을 확인하도록 바꿨다.
+같은 블록의 6번째 describe("cornerPipeline.ts·saveCornerResult.ts는
+브랜드 캐스트를 직접 하지 않는다")도 갈랐다 — `saveCornerResult.ts`는
+여전히 참(캐스트 없음)이지만, `cornerPipeline.ts`는 이제 **승인 모듈
+자신**이라 "안 한다"가 아니라 "이제 정당하게 한다 + 그래서 규칙 E가
+예외로 봐준다"로 명제가 바뀌어 별도 테스트 3개로 분리했다(app_config·
+LLM 호출 없음 확인 / 캐스트가 실제로 있음에도 규칙 E 통과 확인 /
+coeffLookup.ts도 동일 패턴으로 확인).
+
+이 넷 외에 기존 543개 중 다른 어떤 assertion도 바꾸지 않았다 — 전부
+그대로 통과.
+
+### `cornerPipeline.ts` 경로 — `#14`가 참조할 계약
+
+**경로 변경 없음.** `supabase/functions/_shared/cornerPipeline.ts`가
+여전히 파이프라인 골격(`CornerPipelineParams`/`runCornerPipeline`)의
+위치다. **import 형태가 바뀌었다** — `#14`가 이 파일에서
+`validateCornerContent`를 직접 가져다 쓸 일이 있다면(현재
+`runCornerPipeline` 내부에서만 쓰고 있어 `#14`가 코너별 스키마를
+`CornerPipelineParams.schema`로 주입하는 기존 계약만 따르면 이 함수를
+직접 참조할 필요는 없을 것으로 보임), 이제 이 함수는
+`brandedTypes.ts`가 아니라 **이 파일 자신**에서 export된다:
+```ts
+export function validateCornerContent<T>(raw: unknown, schema: ZodType<T>): CornerValidationResult<T>
+```
+`CornerPipelineParams`/`CornerPipelineResult`/`runCornerPipeline`의
+시그니처 자체는 완전히 무변경이다.
+
+### 검증 결과
+
+- `npx tsc --noEmit -p .` → **0 에러**
+- `npx tsc --noEmit -p supabase/functions/tsconfig.json` → **0 에러**
+- `npx jest --ci --watchAll=false` → **34 suites / 550 tests, 전부 통과**
+  (기준선 543/35에서: 파일 삭제로 스위트 -1, 그 파일의 테스트 11개는
+  다른 두 파일로 그대로 이전 + 이번 작업이 규칙 E/우회 증명용으로
+  신규 7개 추가 = 543 - 11 + 11 + 7 = 550)
+- `scripts/norm/unresolvedInventory.ts` → **정의 4 / 소비 2**, 그대로
+  (`temperature.activityScore`/`leagueStats.shrinkage`/`faceMatch.threshold`/
+  `dnaScore.chatDelta` 정의, `dnaScore.chatDelta`/`temperature.activityScore`
+  소비 — 이번 작업과 무관한 영역이라 손대지 않았고 회귀 없음 확인)
+
+### 상태 파일 갱신
+
+`PROGRESS.md` 맨 위에 새 "최종 갱신" 절 추가, 기존 절은 "이전 갱신"으로
+아래로 밀려 그대로 보존(삭제 없음). 이 `HANDOFF.md`도 기존 `#13` 절
+위에 이 절만 새로 추가.
+
+---
 
 ## `#13` 코너 파이프라인 골격 — 완료 (2026-09-18, engine-dev)
 

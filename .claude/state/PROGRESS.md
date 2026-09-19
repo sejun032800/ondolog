@@ -1,6 +1,45 @@
 # 진행 상황
 
-최종 갱신: 2026-09-18 (`#13` 코너 파이프라인 골격 — **완료**.
+최종 갱신: 2026-09-19 (`#13-r4` 브랜드 생성자 이전 — **완료**.
+`.claude/state/prompts/phase-7/21-engine-dev-brand-constructors.md` 수행,
+근거 `docs/ONDOLOG_MASTER.md` Part 17-0-2 r25. `#13`에서
+`validateCornerContent`/`buildCoeffBundle`이 `src/engine/corners/
+brandedTypes.ts`의 **공개 export**였던 구멍(정의 모듈을 거치지 않고
+리터럴 인자로 직접 호출해 유효한 브랜드 값을 만들 수 있었음)을
+생성자 위치 이전으로 막았다. `validateCornerContent`(+ 그 결과 타입
+`CornerValidationFailureReason`/`CornerValidationResult<T>`)를
+`supabase/functions/_shared/cornerPipeline.ts`로, `buildCoeffBundle`을
+`supabase/functions/_shared/coeffLookup.ts`로 이전 — `brandedTypes.ts`는
+이제 `ValidatedContent<T>`/`CoeffBundle` 타입 선언만 갖는다(런타임
+export 0개, 캐스트 0개). `ValidatedContent`도 `CoeffBundle`과 동일한
+구멍이 있었음을 확인(1부 조사, `#13`이 `CoeffBundle`만 지적된 것은
+테스트가 그쪽만 건드렸기 때문). 정적 규칙 E의 예외를 단일 상수
+(`BRAND_DEFINITION_MODULE`)에서 배열 상수(`APPROVED_BRAND_CONSTRUCTOR_MODULES
+= ['supabase/functions/_shared/cornerPipeline.ts',
+'supabase/functions/_shared/coeffLookup.ts']`)로 교체하고
+`brandedTypes.ts`를 목록에서 뺐다. 우회 차단을 두 층에서 새로 증명:
+(1) 합성 입력 테스트로 승인 모듈 경로는 규칙 E 통과·그 밖(brandedTypes.ts
+포함)은 차단됨을 확인, (2) `@ts-expect-error` 타입 테스트로 리터럴
+객체를 `ValidatedContent<T>`/`CoeffBundle`에 대입할 수 없음을 확인(둘 다
+`cornerPipelineStaticRules.test.ts` 신규 추가). `__tests__/engine/corners/
+brandedTypesGenerators.test.ts`는 생성자가 이동하며 전제가 사라져
+삭제 — 그 안의 assertion 11개는 로직 변경 없이 각각 새 위치를 테스트하는
+`__tests__/functions/cornerPipeline.test.ts`(validateCornerContent 5개 +
+결정론 1개)·`coeffLookup.test.ts`(buildCoeffBundle 4개 + 결정론 1개)로
+이전. `__tests__/functions/saveCornerResult.test.ts`는 테스트 픽스처를
+만드는 두 생성자를 더 이상 정적 import할 수 없어(이동한 두 모듈이
+`.ts` 확장자로 `brandedTypes.ts`를 가져와 루트 tsc가 전이적으로
+파싱하면 TS5097) `require(경로변수)` 우회로 전환(기존 `coeffLookup.test.ts`
+패턴과 동일) — assertion은 무변경. `cornerPipeline.ts`·`coeffLookup.ts`의
+`#13` 골격(파이프라인 순서·`app_config` 조회 로직·규칙 C·D 판정 로직)은
+전혀 재구현하지 않음. `stripComments` 4중 복제도 그대로 무수정. 두 tsc
+게이트 0에러. 기존 543개 테스트 전부 유지 통과(깨진 것 없음 — 브랜드
+생성자를 직접 테스트하던 파일 하나가 삭제·재배치됐을 뿐, 그 안의
+assertion·기존 543개 중 다른 어떤 것도 실패하지 않았다) + 신규 7개
+(550/34, 스위트는 파일 1개 삭제로 35→34). `UNRESOLVED` 집계 정의4/소비2
+그대로. 상세는 HANDOFF.md 참조)
+
+이전 갱신: 2026-09-18 (`#13` 코너 파이프라인 골격 — **완료**.
 `.claude/state/prompts/phase-7/20-engine-dev-pipeline-r3.md` 수행.
 r3가 착수 조건 ①을 "Edge Function tsc 범위"(이미 해소 완료로 확인됨,
 전용 tsconfig·루트 exclude·ambient.d.ts·게이트 2 전부 커밋돼 있음)에서

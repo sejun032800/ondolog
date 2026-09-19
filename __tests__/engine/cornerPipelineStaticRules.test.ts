@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as BrandedTypes from '../../src/engine/corners/brandedTypes'
+import type { ValidatedContent, CoeffBundle } from '../../src/engine/corners/brandedTypes'
 
 /**
  * 코너 생성 파이프라인 정적 규칙 C·D·E — 새 스위트.
@@ -40,10 +41,26 @@ import * as BrandedTypes from '../../src/engine/corners/brandedTypes'
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * 규칙 E — 브랜드 정의 모듈. `ValidatedContent`/`CoeffBundle`이 여기서만
- * 정의되고, 캐스트도 여기서만 허용된다(17-0-3-A).
+ * 규칙 E — 브랜드 값 승인 생성 모듈 목록 (r25 전면 개정).
+ *
+ * r18 시점에는 예외가 "브랜드 정의 모듈"(`brandedTypes.ts`) 단일 경로
+ * 였다 — 생성 함수(`validateCornerContent`·`buildCoeffBundle`)가 그
+ * 모듈 안의 공개 export였기 때문이다. 하지만 공개 export는 그
+ * 모듈 밖 아무 코드나 `coeffLookup.ts`를 거치지 않고 리터럴 객체로
+ * `buildCoeffBundle(...)`을 직접 호출해 유효한 `CoeffBundle`을 만들 수
+ * 있게 했다(docs/ONDOLOG_MASTER.md Part 17-0-2 r25). 그래서 r25는
+ * 생성자 자체를 "그 값을 만들 자격이 있는 모듈" 안으로 옮기라고
+ * 요구했고, 예외도 그 두 모듈로 바뀐다 — 이제 `brandedTypes.ts`는 이
+ * 목록에 **없다**(타입 선언만 남아 캐스트가 없으므로 예외가 필요 없다).
+ *
+ * 이 배열이 정적 규칙 E의 원본이다(r21 "정적 규칙의 상수가 원본").
  */
-const BRAND_DEFINITION_MODULE = 'src/engine/corners/brandedTypes.ts'
+const APPROVED_BRAND_CONSTRUCTOR_MODULES: readonly string[] = [
+  // ValidatedContent<T> — Zod 파싱 + FORBIDDEN_KEYS 검사를 실제로 거치는 자리.
+  'supabase/functions/_shared/cornerPipeline.ts',
+  // CoeffBundle — app_config를 실제로 읽는 자리 (규칙 D 지정 모듈과 동일).
+  'supabase/functions/_shared/coeffLookup.ts',
+]
 
 /**
  * 규칙 C — LLM 호출(fetch/LLM SDK)이 허용되는 유일한 모듈 경로.
@@ -202,20 +219,21 @@ const BRAND_CAST_PATTERNS: readonly RegExp[] = [
 ]
 
 /**
- * 규칙 E — 브랜드 캐스트 금지, 단 브랜드 정의 모듈 안은 예외(r18).
- * `as ValidatedContent`·`as CoeffBundle` 캐스트가 `BRAND_DEFINITION_MODULE`
- * 밖에서 나타나면 위반이다. 정의 모듈 안의 캐스트는 브랜드 값을 만드는
- * 유일한 합법적 경로이므로 예외로 둔다 — 예외가 없으면 `#13`이 브랜드
- * 값을 만들 수단이 아예 없어진다.
+ * 규칙 E — 브랜드 캐스트 금지, 단 승인된 생성 모듈 목록 안은 예외(r25).
+ * `as ValidatedContent`·`as CoeffBundle` 캐스트가
+ * `APPROVED_BRAND_CONSTRUCTOR_MODULES` 목록 밖에서 나타나면 위반이다.
+ * 목록 안의 캐스트는 각 브랜드 값을 만드는 유일한 합법적 경로이므로
+ * 예외로 둔다 — 예외가 없으면 생성자가 브랜드 값을 만들 수단이 아예
+ * 없어진다.
  */
 function ruleE_brandCastViolations(relFilePath: string, rawSource: string): string[] {
-  if (relFilePath === BRAND_DEFINITION_MODULE) return []
+  if (APPROVED_BRAND_CONSTRUCTOR_MODULES.includes(relFilePath)) return []
   const source = stripComments(rawSource)
   const violations: string[] = []
   for (const pattern of BRAND_CAST_PATTERNS) {
     if (pattern.test(source)) {
       violations.push(
-        `${relFilePath}: 브랜드 캐스트(${pattern})가 정의 모듈(${BRAND_DEFINITION_MODULE}) 밖에서 발견됨`,
+        `${relFilePath}: 브랜드 캐스트(${pattern})가 승인된 생성 모듈 목록(${APPROVED_BRAND_CONSTRUCTOR_MODULES.join(', ')}) 밖에서 발견됨`,
       )
     }
   }
@@ -420,7 +438,7 @@ describe('규칙 D — app_config 조회 경계 (합성 입력)', () => {
 // 4. 규칙 E — 합성 입력 (위반 / 정상 / 주석전용 / 정의 모듈 예외)
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('규칙 E — 브랜드 캐스트 금지, 정의 모듈 예외 (합성 입력)', () => {
+describe('규칙 E — 브랜드 캐스트 금지, 승인된 생성 모듈 목록 예외 (합성 입력)', () => {
   const nonDefinitionPath = 'supabase/functions/generate-monthly-issue/index.ts'
 
   it('위반: 정의 모듈 밖에서 as ValidatedContent 캐스트 → 걸린다', () => {
@@ -460,25 +478,29 @@ describe('규칙 E — 브랜드 캐스트 금지, 정의 모듈 예외 (합성 
     expect(ruleE_brandCastViolations(nonDefinitionPath, commentOnly)).toEqual([])
   })
 
-  it('정의 모듈 예외: 정의 모듈 안의 as ValidatedContent 캐스트는 안 걸린다', () => {
-    const withinDefinitionModule = `
+  it('승인 모듈 예외: cornerPipeline.ts(ValidatedContent 승인 모듈) 안의 캐스트는 안 걸린다', () => {
+    const withinApprovedModule = `
       export function validateCornerContent(raw: unknown) {
         return raw as ValidatedContent<CornerContent>
       }
     `
-    expect(ruleE_brandCastViolations(BRAND_DEFINITION_MODULE, withinDefinitionModule)).toEqual([])
+    expect(
+      ruleE_brandCastViolations('supabase/functions/_shared/cornerPipeline.ts', withinApprovedModule),
+    ).toEqual([])
   })
 
-  it('정의 모듈 예외: 정의 모듈 안의 as CoeffBundle 캐스트도 안 걸린다', () => {
-    const withinDefinitionModule = `
+  it('승인 모듈 예외: coeffLookup.ts(CoeffBundle 승인 모듈) 안의 캐스트는 안 걸린다', () => {
+    const withinApprovedModule = `
       export function buildCoeffBundle(raw: unknown) {
         return { ...raw, version: '1.0.0' } as CoeffBundle
       }
     `
-    expect(ruleE_brandCastViolations(BRAND_DEFINITION_MODULE, withinDefinitionModule)).toEqual([])
+    expect(
+      ruleE_brandCastViolations('supabase/functions/_shared/coeffLookup.ts', withinApprovedModule),
+    ).toEqual([])
   })
 
-  it('정의 모듈 예외는 경로 일치에만 적용된다 — 같은 캐스트라도 다른 경로면 걸린다', () => {
+  it('승인 모듈 예외는 경로 일치에만 적용된다 — 같은 캐스트라도 다른 경로면 걸린다', () => {
     const sameContentDifferentPath = `
       export function validateCornerContent(raw: unknown) {
         return raw as ValidatedContent<CornerContent>
@@ -488,6 +510,17 @@ describe('규칙 E — 브랜드 캐스트 금지, 정의 모듈 예외 (합성 
       ruleE_brandCastViolations('src/engine/corners/otherFile.ts', sameContentDifferentPath).length,
     ).toBeGreaterThan(0)
   })
+
+  it('r25: brandedTypes.ts는 이제 승인 목록 밖이다 — 그 경로의 캐스트도 걸린다', () => {
+    const castInDefinitionModule = `
+      export function shortcut(raw: unknown) {
+        return raw as CoeffBundle
+      }
+    `
+    expect(
+      ruleE_brandCastViolations('src/engine/corners/brandedTypes.ts', castInDefinitionModule).length,
+    ).toBeGreaterThan(0)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -495,43 +528,54 @@ describe('규칙 E — 브랜드 캐스트 금지, 정의 모듈 예외 (합성 
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('src/engine/corners/brandedTypes.ts — 실제 파일이 규칙 C·D·E를 위반하지 않는다', () => {
-  const absPath = path.join(REPO_ROOT, 'src/engine/corners/brandedTypes.ts')
+  const brandedTypesRelPath = 'src/engine/corners/brandedTypes.ts'
+  const absPath = path.join(REPO_ROOT, brandedTypesRelPath)
   const source = fs.readFileSync(absPath, 'utf8')
 
   it('규칙 C 위반 없음 (LLM 호출 없음)', () => {
-    expect(ruleC_llmCallBoundaryViolations(BRAND_DEFINITION_MODULE, source)).toEqual([])
+    expect(ruleC_llmCallBoundaryViolations(brandedTypesRelPath, source)).toEqual([])
   })
 
   it('규칙 D 위반 없음 (app_config 접근 없음)', () => {
-    expect(ruleD_appConfigLookupBoundaryViolations(BRAND_DEFINITION_MODULE, source)).toEqual([])
+    expect(ruleD_appConfigLookupBoundaryViolations(brandedTypesRelPath, source)).toEqual([])
   })
 
-  it('규칙 E 위반 없음 (캐스트가 정의 모듈 안에 있어 예외 대상 — #13 이후 상태)', () => {
-    // #13부터 이 파일은 `validateCornerContent`·`buildCoeffBundle` 안에
-    // 캐스트를 정확히 두 곳 포함한다. 규칙 E는 "정의 모듈 안의 캐스트"를
-    // 예외로 두므로(r18) 캐스트가 실재해도 위반 목록은 여전히 빈
-    // 배열이어야 한다 — 이 테스트는 그 예외가 실파일에도 그대로
-    // 적용되는지 확인한다(합성 입력 테스트만으로는 실파일의 실제 캐스트
-    // 형태가 패턴과 맞는지 보장되지 않는다).
-    expect(ruleE_brandCastViolations(BRAND_DEFINITION_MODULE, source)).toEqual([])
+  it('규칙 E 위반 없음 — r25부터는 예외가 아니라 캐스트가 실제로 0건이기 때문이다', () => {
+    // r18~r24까지는 이 파일이 규칙 E의 예외 대상(정의 모듈)이라 캐스트가
+    // 있어도 위반 목록이 비었다. r25는 생성자를 승인 모듈(cornerPipeline.ts·
+    // coeffLookup.ts)로 옮기면서 이 파일을 예외 목록에서 뺐다(위
+    // APPROVED_BRAND_CONSTRUCTOR_MODULES 참조) — 그래서 이 테스트가
+    // 여전히 빈 배열을 기대하는 근거가 바뀌었다: 이제는 "예외라서"가
+    // 아니라 "이 파일에 `as ValidatedContent`·`as CoeffBundle` 캐스트가
+    // 정말 하나도 없어서"다. 아래 두 번째 단언이 그 전제 자체를 직접
+    // 검증한다 — 예외가 사라졌는데 캐스트가 실수로 남아 있으면 이
+    // describe 블록의 첫 두 단언과 달리 이 자리에서 곧바로 드러난다.
+    expect(ruleE_brandCastViolations(brandedTypesRelPath, source)).toEqual([])
+    // 주석(문서화용 백틱 인용 포함)을 제거한 뒤에도 캐스트가 없어야
+    // "진짜로 0건"이 증명된다 — 원문 그대로 검사하면 위 docblock 안의
+    // `as ValidatedContent`/`as CoeffBundle` 문구(코드가 아니라 산문
+    // 인용)에 오탐한다.
+    const codeOnly = stripComments(source)
+    expect(codeOnly).not.toMatch(/\bas\s+ValidatedContent\b/)
+    expect(codeOnly).not.toMatch(/\bas\s+CoeffBundle\b/)
   })
 
-  it('런타임 export는 생성 함수 둘뿐이다 (#13이 추가한 것과 정확히 일치)', () => {
-    // #12 시점에는 `export type`만 있어 런타임 값이 하나도 없었고,
-    // Babel CJS interop이 그런 모듈에 빈 `default` 객체를 자동으로
-    // 합성해 붙였다(이 테스트의 이전 버전이 그 상태를 `['default']`로
-    // 단언했었다). #13이 `validateCornerContent`·`buildCoeffBundle` 두
-    // 함수를 **이 모듈 안에서만**(export 금지·규칙 E) 실제로
-    // export하면서, 모듈에 실제 런타임 값이 생겨 그 synthetic default
-    // 합성이 더 이상 일어나지 않는다(Babel은 실제 export가 하나라도
-    // 있으면 default를 합성하지 않는다) — 그래서 `default`가 이제는
-    // 목록에서 사라지는 것이 맞는 상태다. 그 밖의 키가 나타나면 생성
-    // 함수가 다른 곳에도 있거나 의도치 않은 값이 export됐다는 뜻이다.
-    expect(new Set(Object.keys(BrandedTypes))).toEqual(
-      new Set(['validateCornerContent', 'buildCoeffBundle']),
-    )
-    expect(typeof BrandedTypes.validateCornerContent).toBe('function')
-    expect(typeof BrandedTypes.buildCoeffBundle).toBe('function')
+  it('r25: brandedTypes.ts는 이제 승인된 생성 모듈 목록에 없다', () => {
+    expect(APPROVED_BRAND_CONSTRUCTOR_MODULES).not.toContain(brandedTypesRelPath)
+  })
+
+  it('런타임 export가 없다 (r25 — 생성 함수 둘 다 승인 모듈로 이전됨)', () => {
+    // r25 이전(#13)에는 `validateCornerContent`·`buildCoeffBundle` 두
+    // 함수가 실제 런타임 값으로 export돼 있어 Babel이 synthetic default를
+    // 합성하지 않았다. 이제 이 파일은 다시 `export type`만 남은
+    // type-only 모듈이다 — #12 시점과 같은 상태로 되돌아갔으므로, Babel
+    // CJS interop이 빈 `default`를 합성해 붙인다(그 원래 근거는 #12
+    // 시점 조사, 이 파일의 이전 버전 주석 참조). 어떤 형태로든
+    // `validateCornerContent`/`buildCoeffBundle`이라는 이름의 런타임
+    // 값이 다시 나타나면 생성자가 이 파일로 되돌아왔다는 뜻이므로
+    // 명시적으로 걸러낸다.
+    expect(Object.keys(BrandedTypes)).not.toContain('validateCornerContent')
+    expect(Object.keys(BrandedTypes)).not.toContain('buildCoeffBundle')
   })
 })
 
@@ -556,15 +600,69 @@ describe('#13이 만든 실제 파일 전체 — 세 규칙(C·D·E) 실사, 위
     expect(source).toMatch(/\.from\(\s*['"]app_config['"]\s*\)/)
   })
 
-  it('cornerPipeline.ts·saveCornerResult.ts는 app_config·LLM 호출·브랜드 캐스트 중 어느 것도 직접 하지 않는다(전부 지정 모듈에 위임)', () => {
-    for (const rel of [
-      'supabase/functions/_shared/cornerPipeline.ts',
-      'supabase/functions/_shared/saveCornerResult.ts',
-    ]) {
-      const source = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8')
-      expect(ruleC_llmCallBoundaryViolations(rel, source)).toEqual([])
-      expect(ruleD_appConfigLookupBoundaryViolations(rel, source)).toEqual([])
-      expect(ruleE_brandCastViolations(rel, source)).toEqual([])
-    }
+  it('saveCornerResult.ts는 app_config·LLM 호출·브랜드 캐스트 중 어느 것도 직접 하지 않는다(전부 지정/승인 모듈에 위임)', () => {
+    // saveCornerResult.ts는 r25 이후에도 ValidatedContent/CoeffBundle을
+    // 타입으로만 소비한다 — 생성자 이전의 영향을 받지 않는 파일이다
+    // (r25 조사 결과, HANDOFF.md 참조).
+    const rel = 'supabase/functions/_shared/saveCornerResult.ts'
+    const source = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8')
+    expect(ruleC_llmCallBoundaryViolations(rel, source)).toEqual([])
+    expect(ruleD_appConfigLookupBoundaryViolations(rel, source)).toEqual([])
+    expect(ruleE_brandCastViolations(rel, source)).toEqual([])
+  })
+
+  it('cornerPipeline.ts는 app_config·LLM 호출을 직접 하지 않는다(둘 다 지정 모듈에 위임)', () => {
+    // r25 이후 cornerPipeline.ts는 ValidatedContent의 승인된 생성
+    // 모듈이 됐으므로 브랜드 캐스트(규칙 E)는 이 파일에서 더 이상
+    // "안 한다"가 아니라 "이 파일이 승인 모듈이라 안 걸린다"로 바뀐다
+    // — 그 확인은 바로 아래 테스트가 맡는다.
+    const rel = 'supabase/functions/_shared/cornerPipeline.ts'
+    const source = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8')
+    expect(ruleC_llmCallBoundaryViolations(rel, source)).toEqual([])
+    expect(ruleD_appConfigLookupBoundaryViolations(rel, source)).toEqual([])
+  })
+
+  it('r25: cornerPipeline.ts는 as ValidatedContent 캐스트를 실제로 담고 있어도(승인 모듈 자신) 규칙 E에 안 걸린다', () => {
+    const rel = 'supabase/functions/_shared/cornerPipeline.ts'
+    const source = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8')
+    expect(ruleE_brandCastViolations(rel, source)).toEqual([])
+    // "승인 모듈이라 안 걸린다"는 exemption이 캐스트 자체가 없는 파일을
+    // 우연히 봐준 게 아님을 함께 보장 — coeffLookup.ts의 app_config 자기
+    // 확인 테스트와 같은 패턴(위 참조).
+    expect(source).toMatch(/\bas\s+ValidatedContent\b/)
+  })
+
+  it('r25: coeffLookup.ts는 as CoeffBundle 캐스트를 실제로 담고 있어도(승인 모듈 자신) 규칙 E에 안 걸린다', () => {
+    const source = fs.readFileSync(path.join(REPO_ROOT, APP_CONFIG_LOOKUP_MODULE), 'utf8')
+    expect(ruleE_brandCastViolations(APP_CONFIG_LOOKUP_MODULE, source)).toEqual([])
+    expect(source).toMatch(/\bas\s+CoeffBundle\b/)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// 7. 우회 차단 증명 — 타입 층: 승인 모듈 밖에서 리터럴로 브랜드 값을
+//    만들 수 없다 (r25 3부, `@ts-expect-error`로 작동 확인).
+//
+//    이 describe 블록은 정적 규칙(문자열 스캔)이 아니라 타입 층 자체를
+//    증명한다 — `npx tsc --noEmit -p .`가 이 파일을 검사할 때, 아래
+//    `@ts-expect-error` 다음 줄이 실제로 타입 에러를 내지 않으면
+//    "사용되지 않은 @ts-expect-error 지시어"로 tsc 자신이 실패한다
+//    (TypeScript 내장 동작). 즉 이 테스트가 통과한다는 것은 "존재 확인"이
+//    아니라 "그 우회가 실제로 컴파일 에러를 낸다는 작동 확인"이다.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('우회 차단 증명 — 브랜드 값은 리터럴 객체로 만들 수 없다 (타입 층, @ts-expect-error)', () => {
+  it('ValidatedContent<T>는 검증을 거치지 않은 리터럴 객체를 대입할 수 없다', () => {
+    // @ts-expect-error ValidatedContent<T>는 __validated(unique symbol) 브랜드가 없는 리터럴을 거부한다 — cornerPipeline.ts의 validateCornerContent만이 이 타입을 만들 수 있다.
+    const fake: ValidatedContent<{ title: string }> = { title: '우회 시도' }
+    // 컴파일이 막혔다는 사실 자체가 이 테스트의 목적이다. 런타임 값은
+    // (JS는 타입 소거 언어라) 그대로 존재한다 — 확인만 한다.
+    expect(fake.title).toBe('우회 시도')
+  })
+
+  it('CoeffBundle은 version 필드를 갖춘 리터럴 객체라도 대입할 수 없다', () => {
+    // @ts-expect-error CoeffBundle은 __fromConfig(unique symbol) 브랜드가 없는 리터럴을 거부한다 — coeffLookup.ts의 buildCoeffBundle만이 이 타입을 만들 수 있다.
+    const fake: CoeffBundle = { version: '1.0.0' }
+    expect(fake.version).toBe('1.0.0')
   })
 })
