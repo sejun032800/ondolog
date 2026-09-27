@@ -9,6 +9,58 @@
 > `#13-r4`(브랜드 생성자 이전)도 같은 이유로 `#13` 절을 그대로 두고
 > 위에 새 절만 추가한다.)
 
+## 마이그레이션 021(앱 UI 테마) — 파일 작성 완료, 원격 미적용 (2026-09-27, db-architect)
+
+위임: `.claude/state/prompts/phase-7/23-db-architect-app-ui-theme.md`.
+근거: `docs/ONDOLOG_SCHEMA.md` §9-C(유일한 근거, MASTER Part 9-7 결정
+7·8·9·11). 001~020은 적용된 것이라 무수정, 021만 신규 작성.
+
+**산출물**: `supabase/migrations/021_app_ui_theme.sql` — §9-C 네 부분을
+순서대로 한 파일에:
+1. 9-C-2 컬럼 추가 — `couples.magazine_theme`(text+check, default
+   'basic'), `issues.theme`(text+check, default 'basic'), `dates.sky_color`
+   (text, `^#[0-9A-Fa-f]{6}$` 또는 null)
+2. 9-C-3 `issues.theme` 불변 트리거 — `fn_issues_theme_immutable()` +
+   `tg_issues_theme_immutable`(발행 후, 즉 `published_at is not null`일
+   때만 변경 차단)
+3. 9-C-4 `issues_public` 뷰 재생성 — 009의 기존 13개 컬럼(`id, couple_id,
+   issue_type, issue_number, title, cover_path, period_start, period_end,
+   pdf_digital_path, page_count, is_trial, published_at, created_at`) 그대로
+   유지, `theme`를 목록 **끝**에 추가(14개). `pdf_print_path`는 계속 제외.
+4. 9-C-5 `pdf_profiles` 갱신 — 010의 기존값
+   `{"digital":{"dpi":150,"scale":1.5},"print":{"dpi":300,"scale":3,"bleedMm":3}}`
+   에서 `scale`만 제거해
+   `{"digital":{"dpi":150},"print":{"dpi":300,"bleedMm":3}}`로. 색공간 키는
+   추가하지 않음(Chromium PDF 출력이 RGB뿐이라 CMYK 키를 넣으면 "조정했다고
+   믿는 사람이 생기는" 함정 키가 됨 — `scale` 폐기와 동일 이유).
+
+**§9-C DDL 대조**: 문자 단위로 대조 완료, 차이 없음(9-C-2/9-C-3/9-C-4/
+9-C-5 전 블록 원문 그대로 옮김). 컬럼 추가가 트리거보다 먼저 배치돼
+있어 트리거가 참조하는 `theme` 컬럼이 트리거 생성 시점에 이미 존재.
+
+**절대 규칙 준수**: ENUM 미사용(text+check), 뷰 새 컬럼은 목록 끝,
+`pdf_print_path` 미노출, 얼굴 임베딩/특징 벡터 컬럼 없음(`sky_color`는
+기기 계산 평균색이라 절대 규칙 1과 무관 — §9-C-2 원문 그대로 확인),
+001~020 무수정(`git status --porcelain` 확인, 신규 파일 1개만 존재).
+
+**검증**: `npx tsc --noEmit -p .` 0에러, `npx tsc --noEmit -p
+supabase/functions/tsconfig.json` 0에러, `npx jest --ci --watchAll=false`
+550/34 그대로(회귀 없음 — 이 작업은 SQL 파일 하나만 추가했고 테스트
+코드는 손대지 않음).
+
+**원격 미적용 — 다음 사람이 할 일**:
+1. `npx supabase db push`로 021 원격 적용
+2. `supabase gen types typescript --linked`로 `src/types/database.ts`
+   재생성(이번 세션은 손으로 고치지 않음 — 프롬프트가 명시적으로 금지)
+3. 적용 후 §9-C-3 트리거가 발행 후 UPDATE만 막고 발행 전(`published_at
+   is null`)에는 허용하는지 실제 UPDATE로 재확인 권장(파일 검증은
+   정적 대조로만 했음)
+
+**범위 밖으로 건드리지 않은 것**: 원격 적용(`db push`), `database.ts`
+수동 수정, RLS 정책 변경, 색공간 키 추가, `docs/` 편집, 커밋·푸시.
+`interview_*`/`guest_*`(§9-B, 마이그레이션 022)는 이번 작업 대상이
+아니라 미착수 그대로.
+
 ## `#13-r4` 브랜드 생성자 이전 — 완료 (2026-09-19, engine-dev)
 
 위임: `.claude/state/prompts/phase-7/21-engine-dev-brand-constructors.md`.

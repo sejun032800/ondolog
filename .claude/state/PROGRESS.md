@@ -1,6 +1,21 @@
 # 진행 상황
 
-최종 갱신: 2026-09-19 (`#13-r4` 브랜드 생성자 이전 — **완료**.
+최종 갱신: 2026-09-27 (마이그레이션 021 앱 UI 테마 — 파일 작성
+**완료, 원격 미적용**. `.claude/state/prompts/phase-7/23-db-architect-app-ui-theme.md`
+수행, 근거 `docs/ONDOLOG_SCHEMA.md` §9-C 유일. `supabase/migrations/
+021_app_ui_theme.sql` 신규 작성 — 9-C-2(컬럼: `couples.magazine_theme`/
+`issues.theme`/`dates.sky_color`, 전부 text+check, ENUM 미사용) →
+9-C-3(`issues.theme` 불변 트리거, 발행 후만 차단) → 9-C-4(`issues_public`
+뷰 재생성, 009의 기존 13컬럼 그대로 + `theme`를 목록 끝에 추가, 14컬럼,
+`pdf_print_path` 계속 제외) → 9-C-5(`pdf_profiles`에서 `scale`만 제거,
+색공간 키 미추가) 순서로 한 파일에 담음. §9-C DDL과 문자 단위 대조
+결과 차이 없음. 001~020 무수정 확인(`git status --porcelain`에 신규
+파일 1개만). 두 tsc 게이트 0에러, jest 550/34 그대로 유지(회귀 없음).
+**원격 미적용** — 사람이 `npx supabase db push` 후 `supabase gen types
+typescript --linked`로 `src/types/database.ts` 재생성 필요(이 세션은
+손으로 고치지 않음). 상세는 HANDOFF.md 참조)
+
+이전 갱신: 2026-09-19 (`#13-r4` 브랜드 생성자 이전 — **완료**.
 `.claude/state/prompts/phase-7/21-engine-dev-brand-constructors.md` 수행,
 근거 `docs/ONDOLOG_MASTER.md` Part 17-0-2 r25. `#13`에서
 `validateCornerContent`/`buildCoeffBundle`이 `src/engine/corners/
