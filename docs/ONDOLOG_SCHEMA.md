@@ -76,7 +76,7 @@
 
 ### 0-8. Phase 2 확장 코너는 별도 섹션으로 분리
 
-우리 사이 인터뷰·특별 게스트는 **MVP 범위 밖**이라 §9-B에 모아두었다. 마이그레이션도 021로 후순위에 둔다.
+우리 사이 인터뷰·특별 게스트는 **MVP 범위 밖**이라 §9-B에 모아두었다. 마이그레이션도 **022**로 후순위에 둔다(021은 앱 UI 테마가 먼저 사용 — §9-C).
 
 두 코너의 스키마가 기존 테이블에 얹히지 않고 독립된 이유:
 
@@ -1018,7 +1018,7 @@ insert into public.app_config (key, value, description) values
 ## 9-B. Phase 2 확장 코너
 
 > MASTER Part 17-6(우리 사이 인터뷰), 17-8(특별 게스트) 대응.
-> MVP 범위 밖이므로 마이그레이션 순서상 후순위(021 이후)에 적용한다.
+> MVP 범위 밖이므로 마이그레이션 순서상 후순위(**022**)에 적용한다. 021은 §9-C가 먼저 쓴다.
 
 ### 9-B-1. `interview_questions` — 고정 질문 풀
 
@@ -1207,6 +1207,126 @@ create policy guest_responses_update on public.guest_responses
 ### 9-B-7. 미해결 — 외부인 응답 웹 페이지
 
 특별 게스트는 **앱 밖에 웹 페이지가 필요하다.** 링크를 받은 사람이 앱 설치 없이 답변하는 화면이다. Supabase Edge Function 서빙 또는 별도 호스팅이 필요하며, Phase 2 확장 시점에 결정한다.
+
+---
+
+## 9-C. 앱 UI 테마 (마이그레이션 021)
+
+> **정의 확정, 미적용.** 근거는 MASTER Part 9-7(결정 7·8·9·11)이며, 이 절이
+> `db-architect`의 유일한 근거다. 앞 절들의 `create table`은 적용된 001~020을
+> 나타내므로 **고치지 않고, 021은 `alter`로 얹는다.**
+
+### 9-C-1. 테마 식별자
+
+```
+'basic' · 'hip' · 'neon' · 'lovely' · 'night' · 'ondol'
+```
+
+| 키 | 표시명 |
+|---|---|
+| `basic` | 기본 |
+| `hip` | 힙 |
+| `neon` | 네온핑크 |
+| `lovely` | 러블리 |
+| `night` | 야간 |
+| `ondol` | 온돌 |
+
+**근거: 발행물 조판기가 이미 이 키로 산출물을 낸다** — `ONDOLOG_Corners_{hip,lovely,neon,night,ondol}_digital.pdf`,
+기본은 접미사 없음. 디자인 세션의 `build_themes.py` 키와 다르면 그쪽을 따르고 이 절을 고친다.
+
+**ENUM이 아니라 `text` + `check`로 둔다.** 테마 추가가 `alter type ... add value`보다 가볍고,
+`add value`는 트랜잭션 안에서 쓸 수 없는 제약이 있다.
+
+### 9-C-2. 컬럼
+
+```sql
+-- 다음 호에 적용될 테마. 구독 만료 시 'basic'으로 되돌린다(MASTER 9-7-3).
+alter table public.couples
+  add column magazine_theme text not null default 'basic'
+    check (magazine_theme in ('basic','hip','neon','lovely','night','ondol'));
+
+-- 발행 시점 고정값. 불변(아래 트리거).
+alter table public.issues
+  add column theme text not null default 'basic'
+    check (theme in ('basic','hip','neon','lovely','night','ondol'));
+
+-- 대표 사진 평균색. 기기에서 계산, 사진 없는 날은 null.
+alter table public.dates
+  add column sky_color text
+    check (sky_color is null or sky_color ~ '^#[0-9A-Fa-f]{6}$');
+```
+
+**기존 발행 행은 `'basic'`으로 채워진다** — `default`가 그 값이다. 테마 기능 이전의 발행물이므로
+사실과 맞는다.
+
+**`sky_color`는 절대 규칙 1과 무관하다.** 얼굴 특징이 아니라 평균색이며 기기에서 계산한다.
+**원본 사진이나 특징 데이터를 함께 보내지 않는다.**
+
+> ⚠️ **디자인 문서의 `date_records`는 이 저장소에 없다.** 데이트 테이블은 `public.dates`(006)다.
+> 디자인 산출물에 `date_records.sky_color`로 적힌 것은 **`dates.sky_color`**를 뜻한다.
+
+### 9-C-3. `issues.theme` 불변 트리거
+
+```sql
+create or replace function public.fn_issues_theme_immutable()
+returns trigger language plpgsql as $$
+begin
+  if old.published_at is not null and new.theme is distinct from old.theme then
+    raise exception 'issues.theme은 발행 후 바꿀 수 없다 (issue %)', old.id;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger tg_issues_theme_immutable
+  before update on public.issues
+  for each row execute function public.fn_issues_theme_immutable();
+```
+
+**문서 규칙으로만 두지 않는다.** 발행이 되돌릴 수 없다는 것이 제품의 핵심 감각이고(결정 2),
+`issues.theme`는 과거 호의 재현성을 지키는 값이다. 규칙이 코드에만 있으면 운영자의 수동
+UPDATE 하나로 깨진다.
+
+**발행 전(`published_at is null`)에는 바뀔 수 있다.** 제작 현황에서 테마를 고르는 것이 그 구간이다.
+
+### 9-C-4. `issues_public` 뷰 재생성
+
+```sql
+create or replace view public.issues_public
+with (security_invoker = true) as
+select
+  id, couple_id, issue_type, issue_number, title, cover_path,
+  period_start, period_end,
+  pdf_digital_path,
+  page_count, is_trial, published_at, created_at,
+  theme
+from public.issues;
+```
+
+**뷰가 명시 컬럼 목록이라 `theme`를 추가해도 자동으로 노출되지 않는다.** 속표지가 발행물 팔레트를
+쓰고, 제작 현황 하단 "러블리에서 변경됨" 행이 이력을 보여주려면 앱이 알아야 한다.
+
+**새 컬럼은 목록 끝에 둔다.** `create or replace view`는 기존 컬럼의 순서·이름을 바꿀 수 없다.
+`pdf_print_path`는 여전히 제외한다.
+
+### 9-C-5. `pdf_profiles` 정리
+
+```sql
+update public.app_config
+set value = '{"digital":{"dpi":150},"print":{"dpi":300,"bleedMm":3}}'::jsonb
+where key = 'pdf_profiles';
+```
+
+**`scale`만 제거한다. 색공간 키는 넣지 않는다.**
+
+`scale`을 없애는 이유는 **Chromium이 텍스트를 벡터로 출력해 결과물이 바뀌지 않기 때문**이다
+(MASTER 9-7-1, 결정 11). 같은 이유로 **색공간 키도 지금 넣지 않는다** — Chromium의 PDF 출력은
+RGB이며 CMYK를 낼 수 없다. `"colorSpace":"CMYK"`를 적어도 렌더러가 무시하면 **`scale`과 똑같은
+함정**, 즉 조정했다고 믿는 사람이 생기는 키가 된다. 색공간은 **실물 인쇄 파트너와 변환 단계가
+정해질 때** 그 단계가 실제로 소비하는 형태로 추가한다.
+
+`dpi`는 유지한다. 다만 **파이프라인이 사진 리샘플링 기준으로 실제로 소비하는지 Phase 8에서
+확인한다.** 소비하지 않으면 같은 이유로 제거 대상이다.
 
 ---
 
@@ -1769,14 +1889,22 @@ supabase/migrations/
 ├── 019_avatars_storage_policies.sql    -- 대표사진 버킷 경로·정책
 ├── 020_seed_love_type_descriptions.sql -- 36종 description_ko 시드
 │
+│
+├── 021_app_ui_theme.sql                -- magazine_theme · issues.theme · dates.sky_color (§9-C)
+│                                       --   issues_public 뷰 재생성, pdf_profiles.scale 제거
+│
 │   ── Phase 2 확장 (미착수) ──
-└── 021_phase2_corners.sql              -- interview_*, guest_* (§9-B)
+└── 022_phase2_corners.sql              -- interview_*, guest_* (§9-B)
                                         --   entry_type에 'setlog' 추가
 ```
 
 **016과 020의 순서 주의**: `love_type_labels`에 라벨 행이 먼저 INSERT되어 있어야 020의 `description_ko` UPDATE가 매칭된다. 016이 비어 있으면 020은 **에러 없이 0건 갱신**되어 조용히 실패한다.
 
-**021은 MVP 범위 밖이다.** Phase 2 확장 착수 시점에 적용한다.
+**021은 Phase 11(앱 UI 전면 교체)의 선행이다.** 테마 선택을 저장할 곳이 먼저 있어야 한다.
+
+**022는 MVP 범위 밖이다.** Phase 2 확장 착수 시점에 적용한다. **이전 문서에서 021로 예약했던 것을
+022로 옮겼다(2026-09-24)** — 마이그레이션은 파일명 순으로 적용되므로, 먼저 쓰일 것이 먼저 번호를
+갖는다. 예약만 하고 쓰지 않은 번호를 건너뛰면 새 DB와 기존 DB의 적용 순서가 달라진다.
 
 ---
 
