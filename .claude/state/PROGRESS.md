@@ -1,6 +1,20 @@
 # 진행 상황
 
-최종 갱신: 2026-09-27 (마이그레이션 021 앱 UI 테마 — 파일 작성
+최종 갱신: 2026-09-27 (마이그레이션 021 **원격 적용 확인 + 단계 B 검증**,
+메인 세션. `23-main-session-dispatch-theme.md` 단계 B 수행. 사람이
+`db push` 후 `migration list --linked`에서 021 local=remote 확인.
+`gen types`로 `src/types/database.ts` 재생성 — 신규 필드 넷(`couples.
+magazine_theme`/`issues.theme`/`dates.sky_color`/`issues_public.theme`)만
+추가, 다른 테이블 타입 변경 없음(CLI 출력 차이: `PostgrestVersion`
+"14.15"→"14.5", 헬퍼 제네릭 괄호 5곳, 파일 인코딩 UTF-16LE→UTF-8 BOM).
+§14 검증: RLS 미적용 0행 / `pdf_print_path` 노출 0 / 임베딩 컬럼 0행.
+트리거·CHECK는 원격 존재 확인(`tg_issues_theme_immutable` 활성,
+`*_theme_check`·`dates_sky_color_check`). **동작 실증은 미완** — 원격
+`issues`·`couples`가 0행이라 대상 행 없음(테스트 행 생성 금지 지시대로
+만들지 않음, 세 문장은 begin/rollback으로 실행해 0행 영향). 실데이터
+생긴 뒤 재실증 필요. 게이트 0/0/550·34)
+
+이전 갱신: 2026-09-27 (마이그레이션 021 앱 UI 테마 — 파일 작성
 **완료, 원격 미적용**. `.claude/state/prompts/phase-7/23-db-architect-app-ui-theme.md`
 수행, 근거 `docs/ONDOLOG_SCHEMA.md` §9-C 유일. `supabase/migrations/
 021_app_ui_theme.sql` 신규 작성 — 9-C-2(컬럼: `couples.magazine_theme`/
