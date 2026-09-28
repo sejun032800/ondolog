@@ -76,7 +76,7 @@
 
 ### 0-8. Phase 2 확장 코너는 별도 섹션으로 분리
 
-우리 사이 인터뷰·특별 게스트는 **MVP 범위 밖**이라 §9-B에 모아두었다. 마이그레이션도 **022**로 후순위에 둔다(021은 앱 UI 테마가 먼저 사용 — §9-C).
+우리 사이 인터뷰·특별 게스트는 **MVP 범위 밖**이라 §9-B에 모아두었다. 마이그레이션은 **착수 시점의 다음 번호**를 쓴다(번호를 미리 예약하지 않는다 — §13).
 
 두 코너의 스키마가 기존 테이블에 얹히지 않고 독립된 이유:
 
@@ -1018,7 +1018,7 @@ insert into public.app_config (key, value, description) values
 ## 9-B. Phase 2 확장 코너
 
 > MASTER Part 17-6(우리 사이 인터뷰), 17-8(특별 게스트) 대응.
-> MVP 범위 밖이므로 마이그레이션 순서상 후순위(**022**)에 적용한다. 021은 §9-C가 먼저 쓴다.
+> MVP 범위 밖이므로 착수 시점의 다음 번호로 적용한다(§13).
 
 ### 9-B-1. `interview_questions` — 고정 질문 풀
 
@@ -1327,6 +1327,67 @@ RGB이며 CMYK를 낼 수 없다. `"colorSpace":"CMYK"`를 적어도 렌더러�
 
 `dpi`는 유지한다. 다만 **파이프라인이 사진 리샘플링 기준으로 실제로 소비하는지 Phase 8에서
 확인한다.** 소비하지 않으면 같은 이유로 제거 대상이다.
+
+### 9-C-6. 트리거 실증 방법 (확정)
+
+**임시 테이블에 같은 함수를 걸어 실증한다.** 원격 `issues`가 0행이라 실제 테이블로는 작용 대상이
+없고, 픽스처를 만들려면 `auth.users → profiles → couples → issues` 연쇄 삽입이 필요하다.
+
+```sql
+create temp table t_issues (like public.issues including defaults);
+create trigger tg_t before update on t_issues
+  for each row execute function public.fn_issues_theme_immutable();
+
+insert into t_issues (id, couple_id, issue_type, issue_number, period_start, period_end, published_at)
+values (gen_random_uuid(), gen_random_uuid(), 'monthly', 1, current_date, current_date, now()),
+       (gen_random_uuid(), gen_random_uuid(), 'monthly', 2, current_date, current_date, null);
+
+update t_issues set theme = 'lovely' where issue_number = 2;  -- 통과해야 한다
+update t_issues set theme = 'lovely' where issue_number = 1;  -- 예외여야 한다
+```
+
+**원격 `auth.users`를 건드리지 않고, 실행 도구의 트랜잭션 의미론에도 기대지 않는다.** 롤백 방식은
+SQL 실행기가 문장마다 자동 커밋하면 픽스처가 원격에 남는다. 임시 테이블은 세션이 끝나면 사라진다.
+
+**함수 로직 실증 + 실제 바인딩 존재 확인 = 완결이다.** 바인딩(`BEFORE UPDATE`, 활성)은 이미
+확인됐으므로, 남은 것은 함수가 실제로 막는지이며 이 방법이 그것을 본다. 외래키는 `like`가
+복제하지 않으므로 연쇄 삽입이 필요 없다.
+
+**이 SQL을 저장소에 남긴다** — 재현 가능해야 한다.
+
+### 9-C-7. 미적용 — 발행 시 테마 복사 (Phase 7 발행 묶음)
+
+**`published_at`이 null에서 값으로 바뀌는 UPDATE에서 `theme`를 `couples.magazine_theme`로 채운다.
+DB 트리거로 둔다.**
+
+```sql
+-- 발행 전이는 한 문장 안에서 원자적으로
+if old.published_at is null and new.published_at is not null then
+  new.theme := (select magazine_theme from public.couples where id = new.couple_id);
+end if;
+```
+
+**앱 코드가 아니라 트리거인 이유** — 불변 트리거와 같다. 누가 발행하든 스냅샷이 보장돼야 하고,
+발행 경로가 둘 이상이 되면 한쪽이 복사를 빠뜨린다. 불변 트리거는 `old.published_at is not null`만
+검사하므로 발행 전이 행에서는 통과하고, 이 트리거가 값을 채운다.
+
+**구독 만료 판단은 여기 없다.** 만료 시 `magazine_theme`가 이미 `'basic'`으로 되돌려져 있으므로
+(MASTER 9-7-3) 발행 시점에는 그 값을 복사하기만 한다.
+
+**적용 시점: Phase 7 발행 파이프라인과 같은 마이그레이션.** 지금은 발행 코드가 없어 트리거가
+작용할 경로가 없다. `corners.skip_reason` CHECK 제약과 한 묶음으로 둔다.
+
+### 9-C-8. 미적용 — 테마 잠금의 DB 강제 (Phase 9)
+
+**`couples_update` RLS가 열려 있어 무료 유저가 API로 `magazine_theme`를 직접 `'lovely'`로 바꿀 수
+있다.** 앱 화면의 잠금은 우회된다. **알려진 구멍이다.**
+
+**지금 막지 않는다.** 결제(Phase 9)가 없어 "구독자"라는 개념이 DB에 없고, 지금 강제하면 테마 선택
+화면의 개발·검증이 막힌다.
+
+**Phase 9 완료 기준에 넣는다.** `magazine_theme` 컬럼에 대한 직접 UPDATE를 회수하고, 구독 자격을
+확인하는 `security definer` 함수로만 쓰게 한다. **Phase 9 완료 전에는 공개 배포하지 않는다** — 이
+구멍이 열린 채 출시되면 유료 기능이 무료가 된다.
 
 ---
 
@@ -1894,7 +1955,7 @@ supabase/migrations/
 │                                       --   issues_public 뷰 재생성, pdf_profiles.scale 제거
 │
 │   ── Phase 2 확장 (미착수) ──
-└── 022_phase2_corners.sql              -- interview_*, guest_* (§9-B)
+└── (번호 미정)_phase2_corners.sql     -- interview_*, guest_* (§9-B)
                                         --   entry_type에 'setlog' 추가
 ```
 
@@ -1902,9 +1963,12 @@ supabase/migrations/
 
 **021은 Phase 11(앱 UI 전면 교체)의 선행이다.** 테마 선택을 저장할 곳이 먼저 있어야 한다.
 
-**022는 MVP 범위 밖이다.** Phase 2 확장 착수 시점에 적용한다. **이전 문서에서 021로 예약했던 것을
-022로 옮겼다(2026-09-24)** — 마이그레이션은 파일명 순으로 적용되므로, 먼저 쓰일 것이 먼저 번호를
-갖는다. 예약만 하고 쓰지 않은 번호를 건너뛰면 새 DB와 기존 DB의 적용 순서가 달라진다.
+**Phase 2 확장은 MVP 범위 밖이며, 착수 시점의 다음 번호를 쓴다.**
+
+> **마이그레이션 번호를 미리 예약하지 않는다 (2026-09-24).** 021을 Phase 2용으로 예약해 둔 탓에
+> 앱 UI 테마가 먼저 필요해졌을 때 번호를 한 번 밀어야 했고, 다음 마이그레이션이 생기면 또 밀린다.
+> **파일명 순으로 적용되므로 먼저 쓰일 것이 먼저 번호를 갖는 것이 유일하게 안전한 규칙이다.**
+> 계획 중인 마이그레이션은 이름만 적고 번호는 파일을 만드는 시점에 정한다.
 
 ---
 
