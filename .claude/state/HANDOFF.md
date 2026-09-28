@@ -2696,3 +2696,5 @@ A·B) 통과 유지 / `scripts/norm/unresolvedInventory.ts` 실행 결과 **정�
 소비 2**(합계 6) 그대로 / `git status --short` 수정 파일 3개뿐
 (`src/engine/constants/unresolved.ts`, `src/engine/temperature.ts`,
 `__tests__/engine/temperatureBaseline.test.ts`) / 커밋·푸시 없음.
+
+원격 SQL 실행 도구: Supabase MCP execute_sql. 다문장 스크립트는 한 번의 호출로 실행되며, 중간에 에러가 나면 에러 메시지만 반환된다.

@@ -1,6 +1,14 @@
 # 진행 상황
 
-최종 갱신: 2026-09-27 (마이그레이션 021 **원격 적용 확인 + 단계 B 검증**,
+최종 갱신: 2026-09-28 (021 **트리거 동작 실증 완료**, 메인 세션, 근거 SCHEMA
+§9-C-6 r32. `scripts/db/verify_021_theme_trigger.sql` 신규(§9-C-6 SQL 원문 +
+두 UPDATE 사이 관측 select 1문장). Supabase MCP `execute_sql` 1회 호출로 파일
+전체 실행 → 마지막 UPDATE에서 `P0001: issues.theme은 발행 후 바꿀 수 없다`
+예외 확인. 관측 select 출력은 도구가 에러 시 에러만 반환해 받지 못함(분할
+실행 금지로 재실행 안 함). 실행 후 `pg_tables` t_issues 0 / `public.issues`
+0행 확인. 게이트 0/0/550·34)
+
+이전 갱신: 2026-09-27 (마이그레이션 021 **원격 적용 확인 + 단계 B 검증**,
 메인 세션. `23-main-session-dispatch-theme.md` 단계 B 수행. 사람이
 `db push` 후 `migration list --linked`에서 021 local=remote 확인.
 `gen types`로 `src/types/database.ts` 재생성 — 신규 필드 넷(`couples.
