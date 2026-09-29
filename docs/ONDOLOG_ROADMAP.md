@@ -6,6 +6,25 @@
 
 ---
 
+## 개정 마커
+
+```
+DOC_REVISION: 2026-09-24-r1
+```
+
+**MASTER의 마커와 번호가 독립이다.** 두 문서는 따로 바뀌므로 하나로 묶으면 한쪽만 바뀔 때도
+둘 다 올려야 하고, 그러다 한쪽을 빠뜨린다. **사전 점검은 파일별로 확인한다.**
+
+```powershell
+Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: <PM이 알려준 값>'
+```
+
+> **왜 생겼는가.** r27·r28에서 Phase 11을 신설했으나 저장소의 ROADMAP에 반영되지 않았고,
+> MASTER에만 마커가 있어 아무도 잡지 못했다. `ui-builder`에게 Phase 11을 위임했다면 그
+> 에이전트는 Phase 11이 무엇인지 몰랐다.
+
+---
+
 ## 0. 문서 관계
 
 | 문서 | 역할 |
