@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-09-30 (메인 세션, `24-...-r3`): HANDOFF 아카이브 정리 — 30섹션 중 24개를 `.claude/state/archive/handoff-20260924.md`로 이동, 6개 남김 + "열린 항목" 표 추가, 검증 4-1·4-2·4-3 통과, HANDOFF 180450→33139 bytes(20KB 초과, 보고함), PE 인수인계서 4-2·5-2 표 갱신, 게이트 0/0/550·34.
+
 최종 갱신: 2026-09-28 (021 **트리거 동작 실증 완료**, 메인 세션, 근거 SCHEMA
 §9-C-6 r32. `scripts/db/verify_021_theme_trigger.sql` 신규(§9-C-6 SQL 원문 +
 두 UPDATE 사이 관측 select 1문장). Supabase MCP `execute_sql` 1회 호출로 파일

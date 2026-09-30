@@ -185,6 +185,8 @@ AI는 **관찰하고 짚어줄 수 있다.** 감정의 결을 읽고 긍정적�
 | 기존 코드 수정 | "기존 배치를 유지하면서 토큰만 교체하는 것이 기본 방침입니다" |
 | 대시보드 설정 필요 | "대시보드 설정이 필요하면 절차를 보고하세요" |
 | 완료 후 | "PROGRESS.md 갱신, HANDOFF.md에 {인계 내용} 기록" |
+| 전제 부재 | "전제가 없으면 대체물을 찾아 나서지 말고 멈추고 보고한다. 저장소 밖 경로는 지시 없이 읽지 않는다." |
+| 상태 파일 | "삭제·재편 금지. 완료 항목을 `.claude/state/archive/`로 옮기는 것은 허용. HANDOFF에는 열린 것만 둔다." |
 
 ## 4-3. 에이전트별 템플릿
 
@@ -399,10 +401,12 @@ rule-auditor 에이전트로 Phase {N} 규칙 감사를 실행해주세요.
 | 사건 | 처방 |
 |---|---|
 | PowerShell 히어독(`@'...'@`)이 파일 내용으로 기록됨 (3회 발생) | **파일 작성은 에디터에서.** 터미널은 한 줄 명령만 |
-| JSON 수정본을 기존 파일에 append → 객체 2개 | 전체 교체(`Set-Content`), 작성 후 `ConvertFrom-Json` 검증 |
+| JSON 수정본을 기존 파일에 append → 객체 2개 | 전체 교체는 `[IO.File]::ReadAllText`로 읽어 수정한 뒤 `[IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false))`로 쓴다. **`Set-Content` 금지**(PS 5.1이 인코딩을 바꿈). `ReadAllText`는 원래 줄바꿈을 보존한다. 작성 후 `ConvertFrom-Json` 검증 |
 | 폴더 이동 중 빈 `package.json`이 덮어씀 | 이동 전 백업, 이동 후 `npm pkg get` 확인 |
 | `.gitignore` 없이 `git add` → `node_modules` 커밋 | `git init` 직후 `.gitignore` 먼저 |
 | 폰트가 `.otf`인데 코드는 `.ttf` require | 자산 파일의 실제 확장자 확인 |
+| `git show`로 원본을 읽어 파일을 다시 씀 → CRLF가 LF로 바뀜 (`core.autocrlf=true`) | **다시 쓰는 작업은 디스크에서 읽고 원래 줄바꿈으로 쓴다.** `git show`는 비교용으로만 |
+| 지시서에 "이번에 한해" 예외 문구 | **절대 규칙 8개는 지시서로 풀지 않는다.** 운영 규칙(저장소 밖 경로 금지 등)은 지시서에 대상과 범위를 명시해 한 번 풀 수 있다 |
 
 ---
 
