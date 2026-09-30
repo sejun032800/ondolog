@@ -11,6 +11,8 @@
 > r2 변경: **디스크에서 읽기** · **원래 줄바꿈으로 쓰기** · **"열린 항목"
 > 섹션(포인터만, 존재 확인 포함)** · **남김 기준을 "다른 곳에 원본이
 > 없는 것"으로**
+>
+> r2 개정(위임 전, r33 반영): 규칙 F 포인터 · 리비전 확인 · 인수인계서 5-2 두 행
 
 ---
 
@@ -31,6 +33,14 @@
 git status --porcelain
 (Get-Item .claude/state/HANDOFF.md).Length
 ```
+
+```powershell
+Select-String -Path docs/ONDOLOG_MASTER.md  -Pattern 'DOC_REVISION: 2026-09-25-r33'
+Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-09-24-r1'
+```
+
+두 리비전 모두 출력이 있어야 합니다. 없으면 문서를 편집하지 말고
+멈추고 보고하세요. **"열린 항목"의 포인터가 r33의 절을 가리킵니다.**
 
 작업 트리가 clean이어야 합니다. **clean이므로 디스크의 파일이 원본입니다.**
 
@@ -92,7 +102,7 @@ HANDOFF의 계약 서술은 대개 **원본의 사본**입니다. 원본이 바�
 | 항목 | 상태 | 원본 |
 |---|---|---|
 | `#15` `stripComments` 통합 | 미실행 | `.claude/state/prompts/phase-7/22-engine-dev-strip-comments.md` |
-| `#14` 코너 3종 + 규칙 F | 미실행. 규칙 F는 원본 미기록 | `docs/ONDOLOG_MASTER.md` 17-0 |
+| `#14` 코너 3종 + 규칙 F | 미실행 | `docs/ONDOLOG_MASTER.md` 17-0 · 규칙 F는 §17-0-3 |
 | 모듈 경로 계약 | 유효 | `__tests__/engine/cornerPipelineStaticRules.test.ts`의 `LLM_CALL_MODULE` · `APP_CONFIG_LOOKUP_MODULE` · `APPROVED_BRAND_CONSTRUCTOR_MODULES` |
 | 발행 시 테마 복사 트리거 | 미적용 (Phase 7 발행 묶음) | `docs/ONDOLOG_SCHEMA.md` §9-C-7 |
 | 테마 잠금 DB 강제 | 미적용 (Phase 9, 그 전 공개 배포 금지) | `docs/ONDOLOG_SCHEMA.md` §9-C-8 |
@@ -171,6 +181,7 @@ UTF-8(BOM 없음)으로 씁니다.
 | 파일 경로 | 파일이 존재 |
 | `§9-C-7` · `§9-C-8` | SCHEMA에 `### 9-C-7` · `### 9-C-8`로 시작하는 제목이 존재 |
 | MASTER `17-0` | MASTER에 `### 17-0`으로 시작하는 제목이 존재 |
+| MASTER `§17-0-3` 규칙 F | MASTER에 `#### 17-0-3`으로 시작하는 제목이 존재하고, **그 절 안에 `규칙 F` 또는 `F.` 항목이 존재** |
 | `MODULE` 상수 셋 | 테스트 파일에 `const LLM_CALL_MODULE` · `const APP_CONFIG_LOOKUP_MODULE` · `APPROVED_BRAND_CONSTRUCTOR_MODULES` 정의가 존재 |
 | `tsconfig.json`의 `include` | 파일에 `"include"` 키가 존재 |
 
@@ -194,8 +205,8 @@ UTF-8(BOM 없음)으로 씁니다.
 
 ## 6. PE 인수인계서 기록
 
-`docs/ONDOLOG_PROMPT_ENGINEER_HANDOFF.md`의 **두 표에만** 행을 추가합니다.
-**기존 행은 수정하지 마세요.** 이 파일의 이 두 자리만 편집을 허가합니다.
+`docs/ONDOLOG_PROMPT_ENGINEER_HANDOFF.md`의 **Part 4-2·5-2 두 표만** 편집합니다.
+행 추가 셋, **기존 행 수정 하나**(6-3)입니다. 그 밖의 행·절은 건드리지 마세요.
 
 ### 6-1. Part 4-2 표 마지막 행 뒤에 두 행
 
@@ -204,11 +215,30 @@ UTF-8(BOM 없음)으로 씁니다.
 | 상태 파일 | "삭제·재편 금지. 완료 항목을 `.claude/state/archive/`로 옮기는 것은 허용. HANDOFF에는 열린 것만 둔다." |
 ```
 
-### 6-2. Part 5-2 표 마지막 행 뒤에 한 행
+### 6-2. Part 5-2 표 마지막 행 뒤에 두 행
 
 ```
 | `git show`로 원본을 읽어 파일을 다시 씀 → CRLF가 LF로 바뀜 (`core.autocrlf=true`) | **다시 쓰는 작업은 디스크에서 읽고 원래 줄바꿈으로 쓴다.** `git show`는 비교용으로만 |
+| 지시서에 "이번에 한해" 예외 문구 | **절대 규칙 8개는 지시서로 풀지 않는다.** 운영 규칙(저장소 밖 경로 금지 등)은 지시서에 대상과 범위를 명시해 한 번 풀 수 있다 |
 ```
+
+### 6-3. Part 5-2 표의 기존 행 하나 — 처방만 교체
+
+**이 행 하나만 수정을 허가합니다.** 사건 열은 그대로, 처방 열만 바꿉니다.
+
+찾을 행 (정확히 이 문자열):
+
+```
+| JSON 수정본을 기존 파일에 append → 객체 2개 | 전체 교체(`Set-Content`), 작성 후 `ConvertFrom-Json` 검증 |
+```
+
+바꿀 행:
+
+```
+| JSON 수정본을 기존 파일에 append → 객체 2개 | 전체 교체는 `[IO.File]::ReadAllText`로 읽어 수정한 뒤 `[IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false))`로 쓴다. **`Set-Content` 금지**(PS 5.1이 인코딩을 바꿈). `ReadAllText`는 원래 줄바꿈을 보존한다. 작성 후 `ConvertFrom-Json` 검증 |
+```
+
+**찾을 행이 정확히 일치하지 않으면 수정하지 말고 보고하세요.**
 
 표의 열 수·구분자가 기존 행과 맞는지 확인하세요. **문구는 바꾸지 마세요.**
 
@@ -232,6 +262,7 @@ npx jest --ci --watchAll=false
 
 ```
 ## 시작
+- MASTER r33 / ROADMAP r1: {O/X} / {O/X}
 - HANDOFF 크기 (전): {N} bytes, 줄바꿈 {CRLF/LF}
 - 스냅샷 경로: {경로} (작업 후 삭제 {O/X})
 
@@ -251,8 +282,10 @@ npx jest --ci --watchAll=false
 - 20KB 안팎: {O / 넘음 — 크게 남은 섹션과 여기에만 있는 것}
 
 ## PE 인수인계서
-- 4-2 두 행 / 5-2 한 행 추가: {O/X}
-- 기존 행 변경: {없음 / 있음 — 위반}
+- 4-2 두 행 추가: {O/X}
+- 5-2 두 행 추가: {O/X}
+- 5-2 `Set-Content` 행 처방 교체: {O/X — 찾을 행 정확히 일치했는가}
+- 그 밖의 기존 행 변경: {없음 / 있음 — 위반}
 - git diff docs/ONDOLOG_PROMPT_ENGINEER_HANDOFF.md 전문
 
 ## 게이트
@@ -278,7 +311,7 @@ npx jest --ci --watchAll=false
 - **크기를 맞추려고 여기에만 있는 것이 든 섹션을 아카이브로 보내는 것**
 - `Set-Content`·`Out-File`·`>` 리다이렉트
 - **검증 스크립트·스냅샷을 저장소에 남기는 것**
-- PE 인수인계서의 **기존 행 수정**, 지정된 두 표 외 편집
+- PE 인수인계서의 **6-3 외 기존 행 수정**, Part 4-2·5-2 외 편집
 - 그 밖의 `docs/` 편집, 설정 파일 변경
 - 전제가 없을 때 대체물을 찾아 나서는 것
 - `$env:TEMP` 외 저장소 밖 경로를 읽는 것
