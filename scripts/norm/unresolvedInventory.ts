@@ -49,6 +49,7 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { stripComments } from '../lib/stripComments'
 
 /**
  * 집계 대상 루트 — src/engine/ 하위 전체(재귀).
@@ -71,10 +72,7 @@ const REPO_ROOT = process.cwd()
  * 파일의 줄번호와 정확히 대응한다.
  */
 function stripCommentsPreservingLines(source: string): string {
-  const blockStripped = source.replace(/\/\*[\s\S]*?\*\//g, (match) =>
-    match.replace(/[^\n]/g, ''),
-  )
-  return blockStripped.replace(/\/\/.*$/gm, '')
+  return stripComments(source, { preserveLines: true })
 }
 
 /** `src/engine/` 하위를 재귀로 순회해 `.ts`(테스트 제외)만 모은다. */

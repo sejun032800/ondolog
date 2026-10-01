@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { useSessionStore } from '../../src/store/sessionStore'
+import { stripComments } from '../../scripts/lib/stripComments'
 
 /**
  * 정적 검사: 비로그인 구간(화면 2~5) 스토어는 영속 저장소를 쓰지 않는다.
@@ -13,9 +14,6 @@ import { useSessionStore } from '../../src/store/sessionStore'
  * 제거한 실행 코드만 검사한다(__tests__/engine/determinismStaticRules.test.ts
  * 와 동일 기법).
  */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-}
 
 describe('sessionStore.ts — 영속 저장소 미사용 정적 검사', () => {
   const source = stripComments(

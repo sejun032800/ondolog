@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { stripComments } from '../../scripts/lib/stripComments'
 import {
   DNA_SCORE_MAX,
   DNA_SCORE_MIN,
@@ -56,7 +57,7 @@ describe('dnaScore.ts 소스 정적 검사 — 절대평가 원칙 (백분위·�
   )
   // 이 파일 자체가 "왜 percentile/population을 안 쓰는지"를 TSDoc
   // 주석으로 설명하며 그 단어를 인용하므로, 실행 코드만 검사한다.
-  const source = rawSource.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  const source = stripComments(rawSource)
 
   it('percentile/백분위 관련 계산 코드가 없다', () => {
     expect(source).not.toMatch(/function\s+\w*[Pp]ercentile/)

@@ -16,13 +16,27 @@
 
 | 항목 | 상태 | 원본 |
 |---|---|---|
-| `#15` `stripComments` 통합 | 미실행 | `.claude/state/prompts/phase-7/22-engine-dev-strip-comments.md` |
+| `#15` `stripComments` 통합 | r2 실행됨 (아래 새 절, 검토 대기) | `.claude/state/prompts/phase-7/22-engine-dev-strip-comments.md` |
 | `#14` 코너 3종 + 규칙 F | 미실행 | `docs/ONDOLOG_MASTER.md` 17-0 · 규칙 F는 §17-0-3 |
 | 모듈 경로 계약 | 유효 | `__tests__/engine/cornerPipelineStaticRules.test.ts`의 `LLM_CALL_MODULE` · `APP_CONFIG_LOOKUP_MODULE` · `APPROVED_BRAND_CONSTRUCTOR_MODULES` |
 | 발행 시 테마 복사 트리거 | 미적용 (Phase 7 발행 묶음) | `docs/ONDOLOG_SCHEMA.md` §9-C-7 |
 | 테마 잠금 DB 강제 | 미적용 (Phase 9, 그 전 공개 배포 금지) | `docs/ONDOLOG_SCHEMA.md` §9-C-8 |
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
+
+## `#15` r2 `stripComments` 통합 산출 (2026-10-01, engine-dev)
+
+- 복제본 전수 7곳, 전부 입력은 소스 코드 문자열 -> 7곳 모두 통합 (제외 없음):
+  `__tests__/store/sessionStore.test.ts`(src/store/sessionStore.ts 소스), `__tests__/engine/importBoundary.test.ts`,
+  `determinismStaticRules.test.ts`, `dnaScore.test.ts`(인라인), `dnaBaseScore.test.ts`(인라인), `cornerPipelineStaticRules.test.ts`(#13 판),
+  `scripts/norm/unresolvedInventory.ts`(개행 보존판).
+- 공용 유틸: `scripts/lib/stripComments.ts` — `stripComments(source, { preserveLines?: boolean })`, 기본 꺼짐. `unresolvedInventory`만 `preserveLines: true`.
+- 통합 대상 스위트는 assertion 무수정 통과 (수정은 import 갱신, 인라인 복제본 호출 치환, docblock 한 문장뿐).
+- 합성 입력 테스트: `__tests__/scripts/stripComments.test.ts` (6건, 결정론 100회 포함) 통과.
+- 재실행에서 새로 걸린 위반: 없음.
+- `unresolvedInventory`: 정의 4 / 소비 2 유지.
+- 게이트: tsc 0 / tsc(functions) 0 / jest 556 (550 + 신규 6) · 35 스위트.
+- 남은 불일치(지정 외라 미수정): `cornerPipelineStaticRules.test.ts`의 제목 "다시 로컬로 정의하는 이유"·"공용 유틸 (이 파일 로컬 ...)" 주석·함수 제거 후 남은 "이 복제본은..." docblock, `unresolvedInventory.ts` docblock의 "다른 로컬 모듈을 import하지 않아" 문구.
 
 ## node_modules 백업 (2026-09-12, main session)
 

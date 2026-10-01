@@ -1,3 +1,5 @@
+2026-10-01 (engine-dev, `#15` r2): `stripComments` 복제본 7곳 전부 `scripts/lib/stripComments.ts`로 통합(URL 미탐 수정, `preserveLines` 옵션 기본 꺼짐), 기존 스위트 assertion 무수정 통과, 신규 6건, 새 위반 없음, unresolvedInventory 정의 4 / 소비 2 유지, 게이트 0/0/556·35.
+
 # 진행 상황
 
 2026-09-30 (메인 세션, `24-...-r3`): HANDOFF 아카이브 정리 — 30섹션 중 24개를 `.claude/state/archive/handoff-20260924.md`로 이동, 6개 남김 + "열린 항목" 표 추가, 검증 4-1·4-2·4-3 통과, HANDOFF 180450→33139 bytes(20KB 초과, 보고함), PE 인수인계서 4-2·5-2 표 갱신, 게이트 0/0/550·34.

@@ -19,6 +19,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+import { stripComments } from '../../scripts/lib/stripComments'
 import type { EnneagramCore } from '../../src/constants/enneagram'
 import { COMPATIBILITY } from '../../src/constants/compatibility'
 import { UnresolvedConstantError } from '../../src/engine/constants/unresolved'
@@ -218,9 +219,7 @@ describe('dnaScore.ts 소스 정적 검사 — chat_delta는 양이 아니라 �
   )
   // docblock은 온도의 DailyActivityRaw(chatMessageCount 등)와 대비하려고 그
   // 이름을 인용하므로, 주석을 제거한 실행 코드만 검사한다.
-  const source = rawSource
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/.*$/gm, '')
+  const source = stripComments(rawSource)
 
   it('발화 건수/메시지 수 같은 양 기반 식별자가 실행 코드에 없다', () => {
     expect(source).not.toMatch(/messageCount/i)

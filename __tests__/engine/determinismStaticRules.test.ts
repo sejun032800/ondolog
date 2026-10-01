@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { stripComments } from '../../scripts/lib/stripComments'
 
 /**
  * TSDoc 주석이 계약을 설명하려고 금지 패턴 자체를 인용하는 경우(이
@@ -7,9 +8,6 @@ import * as path from 'path'
  * 있어, 주석을 제거한 실행 코드만 검사한다. 이 저장소의 엔진 소스는
  * 문자열 리터럴 안에 `//`나 블록 주석 구분자가 들어가지 않는다.
  */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-}
 
 /**
  * 결정론 계약의 정적 검사: src/engine/ 하위 어디에도

@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as BrandedTypes from '../../src/engine/corners/brandedTypes'
 import type { ValidatedContent, CoeffBundle } from '../../src/engine/corners/brandedTypes'
+import { stripComments } from '../../scripts/lib/stripComments'
 
 /**
  * 코너 생성 파이프라인 정적 규칙 C·D·E — 새 스위트.
@@ -18,9 +19,14 @@ import type { ValidatedContent, CoeffBundle } from '../../src/engine/corners/bra
  *
  * ── `stripComments`를 다시 로컬로 정의하는 이유 ──────────────────────
  * 기존 스위트 4개가 이미 각자 `stripComments`를 파일 로컬로 복제해
- * 두고 있다(조사 결과, 1부 참조). 위임 프롬프트가 "복제된 유틸을
- * 공용 모듈로 추출·통합하지 않는다"고 명시해 이 파일도 같은 패턴을
- * 따른다 — 기존 파일을 import하지 않고 독립적으로 정의한다.
+ * 두고 있다(조사 결과, 1부 참조). 당시 위임은 "복제된 유틸을 공용
+ * 모듈로 추출·통합하지 않는다"고 했다 — 검증 도구는 중복이 결합보다
+ * 안전하다는 판단이었고, 고칠 일이 생기면 그때가 통합 시점이라는
+ * 단서를 달았다. 지금 통합한 것은 그 판단이 바뀌어서가 아니라 단서가
+ * 충족돼서다 — URL의 `://`를 줄 주석으로 오인해 뒤 코드가 지워지는
+ * 미탐이 그 고칠 일이었고, 복제본마다 따로 고치면 하나만 고쳐지고
+ * 나머지는 미탐이 남는다. 그래서 `scripts/lib/stripComments.ts`로
+ * 합쳤다.
  *
  * ── 규칙 로직을 순수 함수로 분리한 이유 ──────────────────────────────
  * 기존 스위트들은 `expect(source).not.toMatch(pattern)`을 테스트
@@ -97,10 +103,6 @@ const APP_CONFIG_LOOKUP_MODULE = 'supabase/functions/_shared/coeffLookup.ts'
  * `//` 바로 앞이 `:`이면(=URL 스킴 구분자) 줄 주석으로 보지 않도록
  * 부정 후방탐색(negative lookbehind)으로 좁혔다.
  */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<!:)\/\/.*$/gm, '')
-}
-
 /**
  * `supabase/functions/`·`src/services/`·`src/engine/corners/` 재귀 수집.
  * `.ts`만 수집, `.test.ts` 제외. 디렉터리가 없으면 빈 배열을 반환한다
