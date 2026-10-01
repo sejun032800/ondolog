@@ -23,7 +23,7 @@
 git status --porcelain
 Select-String -Path docs/ONDOLOG_MASTER.md  -Pattern 'DOC_REVISION: 2026-09-26-r35'
 Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-09-28-r3'
-git log --oneline -10 | Select-String -Pattern 'stripComments'
+git log --oneline -- scripts/lib/stripComments.ts
 Test-Path scripts/lib/stripComments.ts
 ```
 
@@ -32,10 +32,13 @@ Test-Path scripts/lib/stripComments.ts
 | `git status --porcelain` | **빈 출력** |
 | MASTER 리비전 | 한 줄 출력 |
 | ROADMAP 리비전 | 한 줄 출력 |
-| `git log … stripComments` | **한 줄 이상** — `#15`가 커밋됐다는 뜻 |
+| `git log -- scripts/lib/stripComments.ts` | **한 줄 이상** — `#15` 산출물이 커밋됐다는 뜻 |
 | `Test-Path` | `True` |
 
 **하나라도 기대와 다르면 멈추고 보고하세요.**
+
+> 커밋 확인은 **커밋 메시지가 아니라 산출물 파일**로 합니다. 이 저장소의
+> 커밋 메시지는 `1001 오후 시작`처럼 날짜 형식이라 내용 단어로는 찾을 수 없습니다.
 
 ---
 
@@ -103,8 +106,24 @@ Test-Path scripts/lib/stripComments.ts
   ```
   그 아래 표 머리(열 이름 줄과 구분 줄) + 옮긴 행
 
-- `#15` 실행 때 HANDOFF에 생긴 **새 섹션**도 완료된 기록이므로 **통째로**
-  같은 아카이브로 옮깁니다
+- `#15` 실행 때 HANDOFF에 생긴 **새 섹션**은 **기준 B로 판정한 뒤** 옮깁니다
+
+  **닫혔다는 건 아카이브 후보라는 뜻이지 판정을 건너뛰어도 된다는 뜻이
+  아닙니다.** 닫힌 작업의 섹션에도 다른 곳에 원본이 없는 것이 들어 있을
+  수 있습니다 — "레지스트리 정리" 섹션 끝의 `execute_sql` 메모가 그랬습니다.
+
+  섹션 안의 내용을 하나씩 아래 표와 대조합니다.
+
+  | 내용 | 원본 |
+  |---|---|
+  | 공용 유틸 위치·`preserveLines` 옵션 | 코드 (`scripts/lib/stripComments.ts`) |
+  | 새 기준선 556 · 35 | ROADMAP §1 (r3) |
+  | 고친 컴파일 명령 | 1단계 이후의 `unresolvedInventory.ts` docblock |
+  | "숨어 있던 위반 0", "제외 0 경위" 같은 경과 | 이력 — 아카이브로 가면 된다 |
+
+  - **전부 원본이 있으면** 섹션을 **통째로** 같은 아카이브로 옮깁니다
+  - **표에 없는 내용이 있으면 옮기지 말고** 섹션을 남긴 채 그 내용을
+    보고하세요. 제자리가 어디인지는 PM이 정합니다
 
 ### 3-2. PROGRESS 기록 한 줄
 
@@ -118,8 +137,8 @@ Test-Path scripts/lib/stripComments.ts
 
 ### 3-4. 검증
 
-- HANDOFF에서 사라진 것이 **`#15` 행 + `#15` 새 섹션뿐**이고, 둘 다 아카이브에
-  **바이트 그대로** 있다
+- HANDOFF에서 사라진 것이 **`#15` 행** (+ 기준 B를 통과했다면 **`#15` 새 섹션**)뿐이고,
+  옮긴 것은 아카이브에 **바이트 그대로** 있다
 - PROGRESS에서 추가된 것이 **제목 아래 한 줄뿐**이다
 - 세 파일 모두 **맨 LF 0개**
 
@@ -127,9 +146,9 @@ Test-Path scripts/lib/stripComments.ts
 
 ---
 
-## 4. PE 인수인계서 — 행 추가 셋
+## 4. PE 인수인계서 — 행 추가 넷
 
-`docs/ONDOLOG_PROMPT_ENGINEER_HANDOFF.md`. **아래 세 행 외에는 건드리지
+`docs/ONDOLOG_PROMPT_ENGINEER_HANDOFF.md`. **아래 네 행 외에는 건드리지
 마세요.** 이 파일은 LF입니다.
 
 ### 4-1. Part 4-2 표 마지막 행 뒤에 둘
@@ -139,10 +158,11 @@ Test-Path scripts/lib/stripComments.ts
 | 열린 항목 | "상태 칸 갱신 허용. 원본 칸은 실제로 실행한 지시서를 가리키도록 갱신 허용. 닫힌 행은 아카이브로 옮긴다." |
 ```
 
-### 4-2. Part 5-2 표 마지막 행 뒤에 하나
+### 4-2. Part 5-2 표 마지막 행 뒤에 둘
 
 ```
 | `Get-ChildItem -Exclude node_modules`가 `node_modules`를 거르지 못함 (`-Exclude`는 파일 이름에만 걸림) | **저장소 파일 검색은 `git ls-files`로 한다.** 추적하는 파일만 보므로 빌드 산출물·임시 파일도 함께 걸러진다 |
+| 커밋 여부를 커밋 메시지의 단어로 확인 → 커밋돼 있는데 실패 (메시지가 `1001 오후 시작` 같은 날짜 형식) | **커밋 확인은 산출물 파일 기준으로 한다.** `git log --oneline -- <파일>`이 한 줄 이상이면 커밋된 것이다 |
 ```
 
 ---
@@ -182,11 +202,12 @@ npx jest --ci --watchAll=false
 - assertion·실행 코드 변경: {없음 / 있음 — 위반}
 
 ## 상태 파일
-- 아카이브로 옮긴 것: {`#15` 행, `#15` 섹션}
+- 아카이브로 옮긴 것: {`#15` 행 / `#15` 섹션 — 옮김 or 남김}
+- `#15` 섹션 기준 B 대조: {각 내용 → 원본 위치} / 표에 없는 내용: {없음 / 목록 — 섹션 남김}
 - 검증: 사라진 것 일치 {O/X} / 바이트 동일 {O/X} / PROGRESS 추가 한 줄 {O/X} / 맨 LF {각 0}
 
 ## 인수인계서
-- 4-2 두 행 / 5-2 한 행: {O/X}
+- 4-2 두 행 / 5-2 두 행: {O/X}
 - 그 밖의 변경: {없음 / 있음 — 위반}
 
 ## 게이트
@@ -207,8 +228,9 @@ npx jest --ci --watchAll=false
 - **assertion·실행 코드 변경**
 - **PROGRESS·아카이브에 적힌 옛 명령을 고치는 것** — 이력이다
 - 목록 밖 주석 수정 — 발견하면 보고
+- **닫힌 섹션을 기준 B 대조 없이 아카이브로 옮기는 것**
 - 빌드 산출물을 지우지 않고 명령을 실행하는 것
-- 지정된 세 행 외의 인수인계서 편집
+- 지정된 네 행 외의 인수인계서 편집
 - `git show HEAD:`로 원본을 읽어 파일을 다시 쓰는 것, 줄바꿈을 바꾸는 것
 - `Set-Content`·`Out-File`·`>` 리다이렉트
 - 그 밖의 `docs/` 편집, 설정 파일 변경
