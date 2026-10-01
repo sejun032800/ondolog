@@ -1,11 +1,13 @@
 # 메인 세션 지시 — `#15`: `stripComments` 통합 위임
 
 > 대상: 클로드 코드 메인 세션 (개발 총괄)
-> 보관 경로: `.claude/state/prompts/phase-7/22-main-session-dispatch-strip.md`
+> 보관 경로: `.claude/state/prompts/phase-7/22-main-session-dispatch-strip-r2.md`
 > 작성: 프롬프트 엔지니어 세션 / 2026-09-19
-> 개정: 2026-09-30 — 리비전 MASTER r35 · ROADMAP r2. 위임 전 초안이라 덮어씀
+> **r2 — 재실행.** 원본은 병렬 보관. 1부에서 복제본 일곱, 동작이 다른 것 하나로 멈췄다.
+> r2 변경: 공용 유틸 `scripts/lib/stripComments.ts` · 줄번호 보존 옵션(기본 꺼짐) ·
+> 용도 확인 · docblock 한 문장 정정 허가 · 인벤토리 수 변경 시 새 기준선
 >
-> 짝: `22-engine-dev-strip-comments.md`
+> 짝: `22-engine-dev-strip-comments-r2.md`
 
 ---
 
@@ -22,6 +24,12 @@
 
 ---
 
+**이번에 확인할 결정 셋** (PM 확정):
+
+- `unresolvedInventory`의 복제본은 **줄번호 보존 옵션(기본 꺼짐)을 켜서** 공용 유틸을 쓴다
+- 공용 유틸 위치는 **`scripts/lib/stripComments.ts`**
+- `sessionStore.test.ts` 복제본은 **용도가 소스 코드 검사가 아니면 제외**
+
 ## 0단계 — 파일명 확인
 
 ```powershell
@@ -31,7 +39,7 @@ Get-ChildItem .claude/state/prompts/phase-7 -File | Select-Object Name
 
 - [ ] 저장소 전체에 공백·괄호 파일명이 없는가
       (`app/(modals)` 같은 Expo Router 라우트 그룹은 정상입니다)
-- [ ] 이번 위임 파일이 `22-engine-dev-strip-comments.md`로 있는가
+- [ ] 이번 위임 파일이 `22-engine-dev-strip-comments-r2.md`로 있는가
 
 ---
 
@@ -42,7 +50,7 @@ Get-ChildItem .claude/state/prompts/phase-7 -File | Select-Object Name
 | `CLAUDE.md` | 절대 규칙 8개 |
 | `.claude/state/PROGRESS.md` · `HANDOFF.md` | 현재 상태 |
 | `.claude/agents/engine-dev.md` | 위임 대상 에이전트의 정의 |
-| `.claude/state/prompts/phase-7/22-engine-dev-strip-comments.md` | **이번에 위임할 프롬프트 원문** |
+| `.claude/state/prompts/phase-7/22-engine-dev-strip-comments-r2.md` | **이번에 위임할 프롬프트 원문** |
 
 ---
 
@@ -117,7 +125,7 @@ jest                                      → 550 tests / 34 suites
 아래 문서의 지시를 engine-dev 역할로 직접 수행해주세요.
 다른 에이전트를 호출하지 마세요.
 
-.claude/state/prompts/phase-7/22-engine-dev-strip-comments.md 를
+.claude/state/prompts/phase-7/22-engine-dev-strip-comments-r2.md 를
 전문 읽고 그 문서의 지시를 정확히 이행해주세요. 이 메시지에는 요약이
 없습니다. 그 파일이 지시의 전부입니다.
 
@@ -125,7 +133,7 @@ jest                                      → 550 tests / 34 suites
 1. 이 버그가 왜 오탐이 아니라 미탐인지
 2. 동작 동일성을 무엇으로 증명하는지
 3. 재실행에서 새 위반이 나오면 무엇을 해야 하는지
-4. 복제본의 내용이 서로 다르면 무엇을 해야 하는지
+4. 복제본의 정규식이나 용도(입력 종류)가 다르면 무엇을 해야 하는지
 
 확인 후, 문서가 지시한 1부 전수 조사 결과를 먼저 보고하고,
 그다음 2~4부를 진행해주세요.
@@ -138,17 +146,30 @@ jest                                      → 550 tests / 34 suites
 **에이전트 보고를 신뢰 근거로 쓰지 마세요.** 아래는 전부 당신이
 직접 확인하는 항목입니다.
 
+### 4-0. 공용 유틸 위치와 옵션
+
+```powershell
+Test-Path scripts/lib/stripComments.ts
+Get-ChildItem -Recurse -File -Include *.ts -Exclude node_modules | Select-String -Pattern 'scripts/lib/stripComments' -List
+```
+
+- [ ] 공용 유틸이 **`scripts/lib/stripComments.ts`**에 있는가 (`src/` 아님)
+- [ ] `__tests__/`와 `scripts/norm/` **양쪽에서 import**하는가
+- [ ] 줄번호 보존 옵션이 **기본 꺼짐**이고, **`unresolvedInventory`만 켜서** 부르는가
+
 ### 4-1. 남은 복제본이 없는가 — 핵심 검증
 
 ```powershell
 Get-ChildItem . -Recurse -File -Include *.ts -Exclude node_modules | Select-String -Pattern 'stripComments|replace\(/\\/\\*' -List
 ```
 
-- [ ] **정의가 한 곳뿐인가**
+- [ ] **통합 대상의 정의가 한 곳뿐인가**
+- [ ] 남아 있는 다른 정의는 **에이전트가 "용도가 달라 제외"로 보고한 것뿐인가** —
+      제외 사유를 직접 읽고, 그 복제본이 실제로 소스 코드가 아닌 데이터를 다루는지 확인하세요
 - [ ] 2-3 기록의 나머지가 **전부 import로 바뀌었는가**
 - [ ] 인라인으로 남은 것이 없는가
 
-### 4-2. 네 스위트가 수정 없이 통과하는가 — 동작 동일성의 증거
+### 4-2. 통합 대상 스위트가 수정 없이 통과하는가 — 동작 동일성의 증거
 
 ```powershell
 git diff __tests__/
@@ -156,12 +177,23 @@ git diff __tests__/
 
 diff를 **직접 읽으세요.**
 
-- [ ] **import 경로 갱신만** 있는가
+- [ ] 변경이 **허용된 셋뿐**인가 — import 경로 갱신, 인라인 복제본을
+      공용 유틸 호출로 바꾼 것(`dnaScore`·`dnaBaseScore`), docblock 한 문장(4-2-b)
 - [ ] **assertion과 기댓값이 하나도 안 바뀌었는가**
-- [ ] 네 스위트가 전부 통과하는가
+- [ ] 통합 대상 스위트가 전부 통과하는가
 
 **assertion이 바뀌었으면 추출이 아니라 변경입니다.** 보고하고
 멈추세요.
+
+### 4-2-b. docblock 한 문장
+
+```powershell
+git diff __tests__/engine/cornerPipelineStaticRules.test.ts
+```
+
+- [ ] 주석 변경이 **그 한 문장뿐**인가
+- [ ] 바뀐 문장이 **옛 판단("중복이 결합보다 안전")과 충족된 단서("고칠 일이
+      생기면 그때가 통합 시점" → URL 미탐)를 모두** 담는가 — 지워졌으면 위반
 
 ### 4-3. 미탐이 사라졌는가
 
@@ -212,7 +244,8 @@ git status --porcelain -uall tsconfig.json supabase/functions/tsconfig.json supa
 ```
 
 - **두 게이트 모두 0 에러**
-- `UNRESOLVED` 집계: **정의 4 / 소비 2** 유지
+- `UNRESOLVED` 집계: **정의 4 / 소비 2 유지, 또는 바뀌었다면 "새 기준선 {N}/{M}"과
+  원인이 보고됐는가.** 바뀐 것은 실패가 아니라 발견입니다 — 직접 실행해 수를 확인하세요
 - 테스트: 550 대비 감소 없음
 - 마지막 명령: **출력 없음**
 
@@ -235,14 +268,22 @@ git status --porcelain -uall tsconfig.json supabase/functions/tsconfig.json supa
 - 2-3 기록과 일치: {O/X — 누락·추가}
 - 정규식이 서로 달랐는가: {같음 / 다름 — 내용}
 
+## 결정 반영
+- 공용 유틸 위치: {경로} — scripts/lib {O/X}
+- import: __tests__ {O/X} / scripts/norm {O/X}
+- 줄번호 보존 옵션: 기본 꺼짐 {O/X} / unresolvedInventory만 켬 {O/X}
+- sessionStore.test.ts 입력 종류: {소스 코드 / 그 밖 — 무엇} → {통합 / 제외}
+- docblock: 한 문장만 {O/X} / 옛 판단·충족된 단서 둘 다 {O/X}
+
 ## 남은 복제본 (핵심)
 - 현재 매치 전문: {출력}
-- 정의가 한 곳뿐: {O/X}
+- 통합 대상 정의가 한 곳뿐: {O/X}
+- 통합 제외 복제본: {경로 · 에이전트가 적은 사유 · 메인 세션 직접 확인 결과}
 - 인라인 잔존: {없음 / 있음 — 경로}
 
 ## 동작 동일성
 - git diff __tests__/ 요지: {import 경로만 / assertion도 — 보고}
-- 네 스위트 통과: {O/X}
+- 통합 대상 스위트 통과: {O/X}
 
 ## 미탐 소멸
 - URL 뒤 위반 합성 입력: {있음 — 내용 / 없음}
@@ -263,7 +304,7 @@ git status --porcelain -uall tsconfig.json supabase/functions/tsconfig.json supa
 ## 표준 검증
 - tsc -p . : {N}에러 / tsc -p supabase/functions: {N}에러
 - jest: 550 → {현재} / {N} suites
-- UNRESOLVED 집계: 정의 {N} / 소비 {M}
+- UNRESOLVED 집계: 정의 {N} / 소비 {M} — {유지 / 새 기준선, 원인}
 - 금지 파일 변경: {없음 / 있음}
 
 ## 판단이 필요한 지점
