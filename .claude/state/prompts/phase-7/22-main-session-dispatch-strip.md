@@ -3,7 +3,7 @@
 > 대상: 클로드 코드 메인 세션 (개발 총괄)
 > 보관 경로: `.claude/state/prompts/phase-7/22-main-session-dispatch-strip.md`
 > 작성: 프롬프트 엔지니어 세션 / 2026-09-19
-> 개정: 2026-09-27 — 리비전 MASTER r32 · ROADMAP r1. 위임 전 초안이라 덮어씀
+> 개정: 2026-09-30 — 리비전 MASTER r35 · ROADMAP r2. 위임 전 초안이라 덮어씀
 >
 > 짝: `22-engine-dev-strip-comments.md`
 
@@ -67,8 +67,8 @@ Test-Path src/engine/corners/brandedTypes.ts
 ### 2-2. MASTER가 최신본인가
 
 ```powershell
-Select-String -Path docs/ONDOLOG_MASTER.md  -Pattern 'DOC_REVISION: 2026-09-24-r32'
-Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-09-24-r1'
+Select-String -Path docs/ONDOLOG_MASTER.md  -Pattern 'DOC_REVISION: 2026-09-26-r35'
+Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-09-26-r2'
 ```
 
 **둘 다 출력이 있어야 합니다.** 하나라도 없으면 문서를 편집하지 말고
@@ -226,7 +226,7 @@ git status --porcelain -uall tsconfig.json supabase/functions/tsconfig.json supa
 
 ## 사전 점검
 - 산출물 존재: {O/X}
-- MASTER r32: {O/X} / ROADMAP r1: {O/X}
+- MASTER r35: {O/X} / ROADMAP r2: {O/X}
 - 복제본 현황 (변경 전): {출력 전문}
 - 기준선: tsc -p . {N}에러 / tsc -p supabase {N}에러 / jest {N} tests {N} suites
 
