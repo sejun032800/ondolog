@@ -9,7 +9,8 @@
 > 열어보지 않고 옮겨 생긴 전제 오류다. 실제 문제는 **명령이 bash 문법**
 > (줄 끝 `\`, `rm -rf`)이라 PowerShell에서 그대로 돌리면 `--outDir` 없이
 > 첫 줄이 따로 실행되어 저장소 안에 `.js`가 생길 수 있다는 것이다.
-> r2 변경: 1-1의 목적을 **PowerShell에서 그대로 실행되는 명령으로 바꾸기**로
+> r2 변경: 1-1의 목적을 **PowerShell에서 그대로 실행되는 명령으로 바꾸기**로,
+> **`generate-norm.ts`도 함께**(PM 승인). 인수인계서 4-2에 한 행 추가
 
 ---
 
@@ -53,9 +54,12 @@ Test-Path scripts/lib/stripComments.ts
 
 ### 1-1. 명령의 원본은 스크립트 docblock 한 곳
 
-`scripts/norm/unresolvedInventory.ts` 상단 docblock의 1회용 컴파일·실행
-명령이 원본입니다. **지금은 bash 문법**이라 이 프로젝트의 개발 환경
-(Windows/PowerShell)에서 그대로 실행되지 않습니다.
+아래 **두 스크립트** 상단 docblock의 1회용 컴파일·실행 명령이 원본입니다.
+**둘 다 지금은 bash 문법**이라 이 프로젝트의 개발 환경(Windows/PowerShell)에서
+그대로 실행되지 않습니다.
+
+- `scripts/norm/unresolvedInventory.ts`
+- `scripts/generate-norm.ts`
 
 **PowerShell 형식으로 바꿉니다.** 다른 스크립트 docblock들이 이미 쓰는
 형식과 같게 합니다.
@@ -97,11 +101,42 @@ Test-Path .norm-build
 **4/2가 나오지 않거나, `.js`가 생겼거나, 명령이 실패하면** 생긴 파일을
 지우고 멈추고 보고하세요.
 
-### 1-3. 같은 문제를 가진 다른 docblock
+### 1-3. `generate-norm.ts` 실증 — 검증 방식이 다릅니다
 
-`scripts/generate-norm.ts`의 docblock도 bash 형식이라고 보고됐습니다.
-**이번 범위가 아니므로 고치지 않습니다.** `#15` 때문에 생긴 것이 아니기
-때문입니다. 확인한 사실만 보고에 적습니다.
+이 스크립트는 **실행하면 규준집단 파일을 씁니다**(`src/engine/data/`).
+돌려서 숫자를 보는 방식으로 실증하면 그 파일이 다시 쓰입니다. 그래서
+**결과가 바뀌지 않았는지**로 확인합니다.
+
+**새 PowerShell 창에서**, 1-2와 같은 방식으로 실행합니다 (빌드 산출물
+선삭제 → 주석 머리만 떼고 그대로 실행).
+
+실행 후:
+
+```powershell
+git status --porcelain --untracked-files=all src/engine/data/
+git status --porcelain --untracked-files=all | Select-String -Pattern '\.js$'
+Test-Path .norm-build
+```
+
+| 명령 | 기대 출력 |
+|---|---|
+| `src/engine/data/` 상태 | **빈 출력** |
+| `.js` 검색 | **빈 출력** |
+| `Test-Path .norm-build` | `False` |
+
+**같은 코드로 재생성하면 기존 파일과 바이트가 같아야 합니다.** 그것이
+드리프트 감지 테스트가 지켜온 보장입니다.
+
+**`src/engine/data/`에 무언가 바뀌었거나 새 파일이 생겼으면:**
+
+```powershell
+git checkout -- src/engine/data/
+git clean -n src/engine/data/      # 지울 대상을 먼저 확인
+git clean -f src/engine/data/      # 확인한 뒤에만
+```
+
+복원하고 **멈추고 보고하세요.** 그건 명령 문법 문제가 아니라 **더 큰 문제의
+신호**입니다. 바뀐 파일 이름과 `git diff --stat` 결과를 보고에 적습니다.
 
 ## 2. 사실과 달라진 주석 정정
 
@@ -178,16 +213,17 @@ Test-Path .norm-build
 
 ---
 
-## 4. PE 인수인계서 — 행 추가 넷
+## 4. PE 인수인계서 — 행 추가 다섯
 
-`docs/ONDOLOG_PROMPT_ENGINEER_HANDOFF.md`. **아래 네 행 외에는 건드리지
+`docs/ONDOLOG_PROMPT_ENGINEER_HANDOFF.md`. **아래 다섯 행 외에는 건드리지
 마세요.** 이 파일은 LF입니다.
 
-### 4-1. Part 4-2 표 마지막 행 뒤에 둘
+### 4-1. Part 4-2 표 마지막 행 뒤에 셋
 
 ```
 | 사전 점검 | "사전 점검의 모든 항목은 실행할 명령과 기대 출력으로 쓴다. 명령이 없는 전제 조건은 검사되지 않는다." |
 | 열린 항목 | "상태 칸 갱신 허용. 원본 칸은 실제로 실행한 지시서를 가리키도록 갱신 허용. 닫힌 행은 아카이브로 옮긴다." |
+| 보고를 전제로 | "다른 세션의 보고를 지시서의 전제로 옮길 때는 그 대상을 파일로 직접 확인한다. 보고는 확인할 위치를 알려줄 뿐, 확인을 대신하지 않는다." |
 ```
 
 ### 4-2. Part 5-2 표 마지막 행 뒤에 둘
@@ -222,15 +258,18 @@ npx jest --ci --watchAll=false
 - 0단계 표 다섯: {각 기대와 일치 O/X}
 
 ## 실행 명령 (최우선)
-- docblock 명령 변경 전 전문: {그대로}
-- 변경 후 전문: {그대로}
+- unresolvedInventory.ts 변경 전 전문: {그대로}
+- unresolvedInventory.ts 변경 후 전문: {그대로}
 - 옵션·순서 변경: {없음 / 있음 — 위반}
 - 새 PowerShell 창에서 그대로 실행: {O/X}
 - 빌드 산출물 선삭제: {O/X}
 - 결과: 정의 {N} / 소비 {M} (4/2여야 함)
 - 실행 후 .js 생성: {없음 / 있음 — 경로}
 - 실행 후 .norm-build 잔존: {없음 / 있음}
-- generate-norm.ts docblock 형식: {bash / PowerShell} (고치지 않음)
+- generate-norm.ts 변경 전 전문 / 후 전문: {그대로}
+- generate-norm.ts 실행: {O/X}
+- 실행 후 src/engine/data/ 상태: {빈 출력 / 바뀜 — 파일명, 복원함}
+- 실행 후 .js 생성 / .norm-build 잔존: {없음 / 있음}
 
 ## 주석 정정
 | 파일 | 바뀐 것 |
@@ -244,7 +283,7 @@ npx jest --ci --watchAll=false
 - 검증: 사라진 것 일치 {O/X} / 바이트 동일 {O/X} / PROGRESS 추가 한 줄 {O/X} / 맨 LF {각 0}
 
 ## 인수인계서
-- 4-2 두 행 / 5-2 두 행: {O/X}
+- 4-2 세 행 / 5-2 두 행: {O/X}
 - 그 밖의 변경: {없음 / 있음 — 위반}
 
 ## 게이트
@@ -269,8 +308,9 @@ npx jest --ci --watchAll=false
 - 빌드 산출물을 지우지 않고 명령을 실행하는 것
 - **bash 문법 명령을 PowerShell에서 실행하는 것**
 - 명령의 옵션·순서를 바꾸는 것 — 문법만 바꾼다
-- `generate-norm.ts` 등 범위 밖 docblock 수정
-- 지정된 네 행 외의 인수인계서 편집
+- 두 스크립트 외 docblock 수정
+- **`generate-norm.ts` 실행으로 바뀐 `src/engine/data/`를 그대로 두는 것** — 복원하고 보고
+- 지정된 다섯 행 외의 인수인계서 편집
 - `git show HEAD:`로 원본을 읽어 파일을 다시 쓰는 것, 줄바꿈을 바꾸는 것
 - `Set-Content`·`Out-File`·`>` 리다이렉트
 - 그 밖의 `docs/` 편집, 설정 파일 변경
