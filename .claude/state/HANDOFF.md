@@ -16,7 +16,6 @@
 
 | 항목 | 상태 | 원본 |
 |---|---|---|
-| `#15` `stripComments` 통합 | r2 실행됨 (아래 새 절, 검토 대기) | `.claude/state/prompts/phase-7/22-engine-dev-strip-comments.md` |
 | `#14` 코너 3종 + 규칙 F | 미실행 | `docs/ONDOLOG_MASTER.md` 17-0 · 규칙 F는 §17-0-3 |
 | 모듈 경로 계약 | 유효 | `__tests__/engine/cornerPipelineStaticRules.test.ts`의 `LLM_CALL_MODULE` · `APP_CONFIG_LOOKUP_MODULE` · `APPROVED_BRAND_CONSTRUCTOR_MODULES` |
 | 발행 시 테마 복사 트리거 | 미적용 (Phase 7 발행 묶음) | `docs/ONDOLOG_SCHEMA.md` §9-C-7 |

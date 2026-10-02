@@ -2,11 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { stripComments } from '../../scripts/lib/stripComments'
 
-/**
- * 이 파일들 스스로가 "enneagramPrevalence를 import하지 않는다"는 계약을
- * TSDoc 주석으로 설명하면서 그 이름을 인용한다. 주석을 제거한 실행
- * 코드(실제 import/참조 여부)만 검사해야 오탐이 없다.
- */
+/** `stripComments`는 `scripts/lib/stripComments.ts`에 있다. */
 
 /**
  * 물리적 경계 검증: src/engine/loveTypeInference.ts(채점 로직)는

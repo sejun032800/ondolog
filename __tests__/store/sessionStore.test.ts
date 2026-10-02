@@ -8,12 +8,7 @@ import { stripComments } from '../../scripts/lib/stripComments'
  * 근거: docs/ONDOLOG_MASTER.md Part 9-1 "데이터 생명주기 2구간 정책" —
  * "비로그인 구간의 소멸은 의도된 설계다. 영속 저장소(AsyncStorage) 사용 금지."
  */
-/**
- * TSDoc 주석이 계약을 설명하려고 금지 패턴 자체를 인용한다(이 파일
- * 스스로 "AsyncStorage를 쓰지 않는다"고 문서화하는 문장 등) — 주석을
- * 제거한 실행 코드만 검사한다(__tests__/engine/determinismStaticRules.test.ts
- * 와 동일 기법).
- */
+/** `stripComments`는 `scripts/lib/stripComments.ts`에 있다. */
 
 describe('sessionStore.ts — 영속 저장소 미사용 정적 검사', () => {
   const source = stripComments(

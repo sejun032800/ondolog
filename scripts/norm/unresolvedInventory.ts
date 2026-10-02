@@ -34,15 +34,15 @@
  * 없는 상대 import를 해석하지 못하므로, `scripts/generate-norm.ts`·
  * `scripts/norm/attachment-diagnostic.ts`와 같이 1회용으로 컴파일 후
  * 실행한다 (의존성·설정 파일 변경 없음, 임시 산출물은 build 디렉터리).
- * 이 스크립트는 다른 로컬 모듈을 import하지 않아 tsc가 공통 루트를
- * 추론할 다른 입력 파일이 없으므로, `--rootDir .`를 명시해 저장소 루트
+ * 입력 파일이 이 스크립트와 `scripts/lib/stripComments.ts`뿐이라 tsc가
+ * 공통 루트를 `scripts/`로 추론하므로, `--rootDir .`를 명시해 저장소 루트
  * 기준 경로(`scripts/norm/unresolvedInventory.js`)로 산출되게 한다:
  *
- *   npx tsc scripts/norm/unresolvedInventory.ts --ignoreConfig --ignoreDeprecations "6.0" \
- *     --outDir .norm-build --rootDir . --module commonjs --moduleResolution node \
+ *   npx tsc scripts/norm/unresolvedInventory.ts --ignoreConfig --ignoreDeprecations "6.0" `
+ *     --outDir .norm-build --rootDir . --module commonjs --moduleResolution node `
  *     --target es2022 --esModuleInterop --skipLibCheck --resolveJsonModule --types node
  *   node .norm-build/scripts/norm/unresolvedInventory.js
- *   rm -rf .norm-build
+ *   Remove-Item -Recurse -Force .norm-build
  *
  * `.norm-build/`는 임시 산출물이다(커밋 금지).
  */

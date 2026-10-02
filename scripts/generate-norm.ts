@@ -14,11 +14,11 @@
  * 확장자 없는 상대 import를 해석하지 못하므로, 1회용으로 컴파일 후
  * 실행한다 (의존성·설정 파일 변경 없음, 임시 산출물은 build 디렉터리):
  *
- *   npx tsc scripts/generate-norm.ts --ignoreConfig --ignoreDeprecations "6.0" \
- *     --outDir .norm-build --module commonjs --moduleResolution node \
+ *   npx tsc scripts/generate-norm.ts --ignoreConfig --ignoreDeprecations "6.0" `
+ *     --outDir .norm-build --module commonjs --moduleResolution node `
  *     --target es2022 --esModuleInterop --skipLibCheck --resolveJsonModule --types node
  *   node .norm-build/scripts/generate-norm.js
- *   rm -rf .norm-build
+ *   Remove-Item -Recurse -Force .norm-build
  *
  * `.norm-build/`는 임시 산출물이다(커밋 금지). 커밋되는 것은
  * `src/engine/data/norm-{NORM_VERSION}.json` 하나뿐이다. 과거 버전

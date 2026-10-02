@@ -2,6 +2,8 @@
 
 # 진행 상황
 
+2026-10-02 (메인 세션, `26-...-r2`): `#15` 후속 정리 — `unresolvedInventory.ts`·`generate-norm.ts` docblock 실행 명령을 PowerShell 형식으로(옵션·순서 불변, 실증 4/2·규준 파일 바이트 불변), 사실과 달라진 주석 5개 파일 정정, HANDOFF `#15` 행 → `archive/handoff-20261001.md`(`#15` 절은 기준 B 미통과로 남김), PE 인수인계서 4-2·5-2 행 추가.
+
 2026-09-30 (메인 세션, `24-...-r3`): HANDOFF 아카이브 정리 — 30섹션 중 24개를 `.claude/state/archive/handoff-20260924.md`로 이동, 6개 남김 + "열린 항목" 표 추가, 검증 4-1·4-2·4-3 통과, HANDOFF 180450→33139 bytes(20KB 초과, 보고함), PE 인수인계서 4-2·5-2 표 갱신, 게이트 0/0/550·34.
 
 > 현재 상태의 원본은 `docs/ONDOLOG_ROADMAP.md` §1이다. 이전 갱신 이력은 `.claude/state/archive/`로 옮긴다.
