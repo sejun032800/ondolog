@@ -23,6 +23,242 @@
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 
+## `#14` 1부 — 코너 3종 설계 보고 (2026-10-04, corner-pipeline) — 코드 없음, 승인 대기
+
+위임: `.claude/state/prompts/phase-7/29-corner-pipeline-corners-design.md`.
+**코드를 쓰지 않았다.** 조사 중 r26 실현성 확인용 임시 테스트 파일 1개를
+만들었다가 삭제했다(`git status` 클린 확인). 이 절 외 변경: `PROGRESS.md` 한 줄.
+**2부(구현)는 아래 "승인 필요"가 정리되기 전에 시작하지 않는다.**
+
+### A. 조사 결과 (파일을 열어 확인한 사실)
+
+| 항목 | 사실 |
+|---|---|
+| `runCornerPipeline` | `params = { input, preconditionCheck(input)=>boolean, buildPrompt(input)=>string, schema: ZodType<TPayload>, llmClient, lookupCoeffBundle? }`. 코너가 주입하는 것은 이 셋(선행 검사·프롬프트·스키마)뿐이고, **커플·기간 맥락을 받는 자리가 없다** |
+| `validateCornerContent(raw, schema)` | Zod `safeParse` → 실패 `schema_invalid` → **`findForbiddenKeys(parsed.data)`** → 위반 `forbidden_content` → `parsed.data as ValidatedContent<T>`. **브랜드가 붙는 값은 "LLM 출력 스키마의 파싱 결과"다.** 저장 스키마와 다른 형태(원문 채우기 후)를 만들 수 없다 |
+| `llmClient` | `call(prompt: string)`. 본문 `messages: [{ role:'user', content: prompt }]` 한 덩어리. **캐시 지점·system 블록·블록 구조 없음.** 예산(3회)은 인스턴스 내부, SDK 없이 `fetch` |
+| `APPROVED_BRAND_CONSTRUCTOR_MODULES` | `cornerPipeline.ts` · `coeffLookup.ts` 두 곳(테스트 상수가 원본). `LLM_CALL_MODULE`=`_shared/llmClient.ts`, `APP_CONFIG_LOOKUP_MODULE`=`_shared/coeffLookup.ts`. 수집 범위 `supabase/functions` · `src/services` · `src/engine/corners` |
+| r26 (Deno 쪽 테스트) | **가능.** `supabase/functions/_shared/` 아래 `.test.ts`를 jest(`jest-expo`, 기본 testMatch)가 수집하고, **`./cornerPipeline.ts` 정적 import가 jest에서 해석된다.** 루트 tsc는 `exclude`로 그 파일을 보지 않아 0. **전용 tsconfig(`types: []`)에서는 jest 전역(`describe/it/expect`)이 없어 TS2593/2304** — 파일 맨 위 `/// <reference types="jest" />`(`@types/jest`는 직접 devDependency)로 해소됨(jest 통과 + 전용 tsc 0 + 루트 tsc 0 실측). `@jest/globals` import도 동작하나 `package.json`에 없는 전이 의존이라 쓰지 않는다. `tsconfig.json`·`package.json` 변경 불필요 |
+| 규칙 F 사전 점검 | 추적 파일 355개 basename 전수 검사 → 위반 0건(`git ls-files`, `^[A-Za-z0-9._-]+$`). 루트 파일(`CLAUDE.md` 등)은 수집 범위 밖 |
+| **골격의 구멍 (발견)** | **`findForbiddenKeys`가 Zod 파싱 *결과*에 걸린다.** Zod `object`는 선언 안 된 키를 **지운다**(실측: `parse({title,verdict})` → `{"title":"x"}`). LLM이 스스로 만든 `verdict` 같은 키는 **검사 전에 사라져 `forbidden_content`가 영영 발생하지 않는다.** 기존 테스트 3건은 전부 금지 키(`score`·`verdict`)를 **스키마에 선언해** 이 경로를 못 본다. §17-0-4가 막으려는 "그릇을 스스로 만든다"가 정확히 이 경우다 |
+
+### B. 설계
+
+#### B-1. 파일 배치 (2-1)
+
+`supabase/functions/` 아래에 LLM·파이프라인 코드를 두고, **저장 스키마만** `src/types/corners/`(CLAUDE.md 디렉터리 구조: "Zod 스키마")에 둔다. 앱(렌더러·뷰어)이 저장 형태를 읽어야 하므로 앱이 import 가능한 쪽에 있어야 하기 때문이다. `src/engine/`에는 아무것도 두지 않는다.
+
+```
+src/types/corners/storedContent.ts              신규  저장 스키마 3종 + 공통 값 객체 (zod만 import하는 leaf 1파일)
+supabase/functions/_shared/llmRequest.ts        신규  PromptBlock·LlmRequest (타입만)
+supabase/functions/_shared/cornerModule.ts      신규  CornerContext·CornerModule·ScopedRecord·응답 결과 (타입만)
+supabase/functions/_shared/referenceResolution.ts 신규 ID 해석 3조건 (순수, 브랜드 없음)
+supabase/functions/_shared/cornerPipeline.ts    수정  runCornerPipeline 시그니처 + validateCornerResponse(유일한 ValidatedContent 생성자)
+supabase/functions/_shared/llmClient.ts         수정  call(LlmRequest), 캐시 지점 → 전송 본문
+supabase/functions/_shared/corners/dateArchive.ts  신규  17-1
+supabase/functions/_shared/corners/sweetWords.ts   신규  17-4
+supabase/functions/_shared/corners/thisMonth.ts    신규  17-5
+```
+
+`storedContent.ts`를 **한 파일**로 두는 이유: 이 파일은 Edge(`.ts` 확장자 import 규약)와 루트(`.ts` 확장자 금지, TS5097) **양쪽이 읽는다.** 파일끼리 relative import를 하면 둘 중 한쪽이 깨지므로(r22 "배타적") **다른 파일을 import하지 않는 leaf**여야 한다. `forbiddenKeys.ts`·`brandedTypes.ts`가 이미 그 형태다.
+
+#### B-2. 코너마다 두 함수 + 선행 검사 (2-2)
+
+```ts
+// cornerModule.ts (타입만)
+interface CornerContext {
+  readonly coupleId: string               // 호출부가 corners/issues 행에서 가져온다. 입력 레코드에서 읽지 않는다
+  readonly period: { readonly start: string; readonly end: string }   // ISO8601
+  readonly periodLabel: string
+}
+interface ScopedRecord { readonly id: string; readonly coupleId: string; readonly occurredAt: string }  // 입력 레코드가 반드시 싣는 최소 필드
+interface CornerModule<TInput, TStored extends object> {
+  hasMaterial(input: TInput): boolean                                        // 선행 검사 — 재료가 0인가만
+  buildRequest(input: TInput, ctx: CornerContext): LlmRequest                // 요청 만들기
+  processResponse(raw: unknown, input: TInput, ctx: CornerContext): CornerResponseResult<TStored>   // 응답 처리
+}
+type CornerResponseResult<T> =
+  | { ok: true; content: ValidatedContent<T> }
+  | { ok: false; reason: 'schema_invalid' | 'forbidden_content' | 'insufficient_input'; detail: string }
+```
+
+- 세 메서드는 **동기 순수 함수**다. 반환 타입이 `Promise`가 아니므로 `async`로 짜면 인터페이스 불일치로 컴파일이 막힌다.
+- **선행 검사의 자리는 코너의 `hasMaterial`**(17-1: 조립된 데이트 ≥1 / 17-4: 기간 내 채팅 ≥1 / 17-5: 채팅·사진·데이트 합 ≥1). 경계값 없음(§17-0-5-D). 호출은 골격이 한다(순서 ①, 시도 0).
+- `processResponse`는 **직접 검사하지 않고** 골격이 export하는 `validateCornerResponse`에 코너 고유 부품(LLM 스키마·참조 조회표·채우기 함수·저장 스키마)을 넘긴다. 코너가 검사를 건너뛰거나 순서를 바꿀 수 없게 하기 위해서다(B-4).
+
+**"코너가 전송을 모른다"를 확인하는 수단 — 셋을 겹친다.**
+
+1. **타입**: 위 인터페이스가 동기라 `Promise`·`async`가 컴파일에서 막힌다.
+2. **정적 검사(신규, 코너 디렉터리 한정)**: `_shared/corners/*.ts`를 `stripComments` 후 문자열로 읽어 `\basync\b`·`\bawait\b`·`\bPromise\b`·`\bfetch\b`·`setTimeout|setInterval`·`\bDeno\b`·`llmClient|createLlmClient|LlmClient` 식별자·`llmClient.ts` import가 **없음**을 단언한다. 허용 import는 `zod`와 `_shared`의 `cornerModule`·`llmRequest`·`cornerPipeline`·`referenceResolution`, `src/types/corners/storedContent`로 한정. 위반·정상 합성 입력 테스트를 함께 둔다. (MASTER 규칙 C·D·E·F 표에는 없는 **추가 검사**다 — 규칙으로 올릴지는 마스터 PM 판단.)
+3. **행동**: 코너 테스트는 `llmClient` 없이 세 함수를 직접 호출해 통과한다(전송 객체를 만들 필요 자체가 없음).
+
+#### B-3. 골격 변경 (2-3)
+
+```ts
+// llmRequest.ts — 벤더 중립. Zod·SDK·cache_control 필드명을 모른다
+interface PromptBlock { readonly text: string; readonly cacheBreakpoint?: true }
+interface LlmRequest { readonly system: readonly PromptBlock[]; readonly user: readonly PromptBlock[] }
+
+// llmClient.ts
+call(request: LlmRequest): Promise<LlmCallResult>      // 기존 call(prompt: string) 대체
+
+// cornerPipeline.ts
+interface CornerPipelineParams<TInput, TStored extends object> {
+  readonly corner: CornerModule<TInput, TStored>
+  readonly input: TInput
+  readonly context: CornerContext
+  readonly llmClient: LlmClient                         // 코너 1건당 인스턴스, 예산은 안에 (#13 형태 유지)
+  readonly lookupCoeffBundle?: () => Promise<CoeffBundle>
+}
+```
+
+- 골격이 `corner.hasMaterial` → (계수) → `corner.buildRequest` → `llmClient.call` 루프 → `JSON.parse` → `corner.processResponse`를 호출한다. 재시도 판단은 지금과 같다: `schema_invalid` 1회, `forbidden_content`·`insufficient_input` 0회, `generation_failed`는 `llmClient`가 소진.
+- `insufficient_input`은 이제 **두 곳에서** 나온다. 호출 전(`hasMaterial` 거짓, 시도 0)과 호출 후(`processResponse`가 명시적 빈 결과 반환, 시도 ≥1, 재시도 없음).
+- **프롬프트 캐싱**: 코너가 `cacheBreakpoint`를 **블록에 표시**하고, `llmClient`만 그것을 Anthropic 본문의 `cache_control`로 번역한다(`system` 블록 배열 / `messages[0].content` 블록 배열). 코너는 `cache_control`이라는 이름을 모른다. 코너 프롬프트 배치: **system = 역할·원칙·출력 형식(정적, 마지막 블록에 표시)**, **user = 조립된 입력(가변, 표시 없음)**. 표시 개수 상한(4)은 `llmClient`가 확인한다. 캐시 최소 길이 등 수치는 2부 착수 시 `claude-api` 문서로 확인하고 지어내지 않는다.
+- **층 분리**: `llmClient`는 `LlmRequest`(문자열 블록)만 안다 — Zod·`FORBIDDEN_KEYS` 무지식. 골격은 HTTP·`cache_control`을 모른다. 규칙 C 두 패턴(SDK import·호스트 문자열)은 그대로 `llmClient.ts` 한 곳.
+- **예산은 인자로 흐르지 않는다** — 인스턴스 안에 남는다. `call`의 인자가 `LlmRequest`로 바뀌어도 예산 로직은 건드리지 않는다.
+- **기존 테스트 영향**: `runCornerPipeline`·`llmClient.call`의 공개 시그니처가 바뀌므로 `cornerPipeline.test.ts`·`llmClient.test.ts`, 그리고 `validateCornerContent`를 픽스처로 쓰는 `saveCornerResult.test.ts`는 호출부를 고쳐야 한다. **검사하는 동작(순서·사유·재시도·예산)은 같게 유지하고 assertion 의미를 줄이지 않는다.** "기존 assertion 무수정"은 이 세 파일에 한해 성립하지 않는다 — 미리 밝힌다.
+
+#### B-4. 검사 순서와 `ValidatedContent`가 생기는 자리 (2-4)
+
+```
+Zod(LLM 출력 스키마) → FORBIDDEN_KEYS(LLM이 반환한 raw 객체) → [명시적 빈 결과?] → ID 해석 → 원문 채우기 → 저장 스키마 → 브랜드
+```
+
+**`validateCornerResponse`를 `cornerPipeline.ts`에 두고, 기존 `validateCornerContent`는 제거한다.**
+
+```ts
+function validateCornerResponse<TLlm extends { readonly kind: string }, TStored extends object>(a: {
+  raw: unknown
+  llmSchema: ZodType<TLlm>
+  refLookups: Readonly<Record<string, (id: string) => ScopedRecord | undefined>>  // 참조 키 → 입력에서 만든 조회
+  context: CornerContext
+  fill: (llm: TLlm) => { ok: true; value: unknown } | { ok: false; detail: string }  // 원문 채우기, 순수
+  storedSchema: ZodType<TStored>
+}): CornerResponseResult<TStored>
+```
+
+- **브랜드 캐스트는 이 함수 안에서 정확히 한 번**(저장 스키마 통과 직후). `APPROVED_BRAND_CONSTRUCTOR_MODULES`는 **변경하지 않는다**(두 곳 그대로). 코너 모듈은 목록에 **없고**, 따라서 규칙 E가 코너 파일의 캐스트를 그대로 잡는다 — 목록을 늘릴 이유가 없다.
+- **검증 없이 브랜드를 붙이는 공개 함수를 두지 않는다.** 브랜드를 만드는 유일한 export가 7단계를 전부 거치는 이 함수다. 기존 `validateCornerContent(raw, schema)`를 남기면 **그것이 새 구멍**이 된다: LLM 출력 스키마 결과에 곧바로 브랜드를 붙여 ID 해석·채우기를 건너뛴 값이 저장 함수를 통과한다. 그래서 이름만 바꾸지 않고 **제거**한다. 브랜드 대상도 달라진다 — `ValidatedContent<LLM 출력>`이 아니라 **`ValidatedContent<저장 내용>`**(저장되는 것이 검증을 통과했다는 뜻이어야 하므로).
+- 단계: ① `llmSchema.safeParse(raw)` 실패 → `schema_invalid` ② **`findForbiddenKeys(raw)`** 위반 → `forbidden_content` ③ `parsed.kind === 'none'` → `insufficient_input`(코드 위치 이 한 곳) ④ ID 해석(B-7) 실패 → `schema_invalid` ⑤ `fill` 실패 → `schema_invalid` ⑥ `storedSchema.safeParse(filled)` 실패 → `schema_invalid` ⑦ 캐스트.
+- **`FORBIDDEN_KEYS`를 어디에 거는가 — LLM이 반환한 객체(raw)에만.** 파이프라인이 채운 저장 내용(⑤ 결과)에는 걸지 않는다: 엔진 주입값·원문 텍스트·저장 스키마 고유 키가 오탐될 수 있고, §17-0-4 제목이 "LLM 출력에만"이다. **raw에 거는 것이 A절 구멍의 해법이다** — Zod가 지우기 전의 객체를 보므로 스스로 만든 키가 보인다. 순서(Zod 통과 후 FK)는 문서 그대로 유지한다. 이는 현재 골격(`parsed.data`)과 **동작이 달라지는 지점**이며, 선언 안 된 `verdict` 키가 `forbidden_content`가 되는 테스트를 2부에서 추가한다.
+- ⑥ 실패를 `schema_invalid`로 둔 이유: 문서의 사유가 4값뿐이고 새 값을 만들 수 없다. 채우기 코드 버그도 같은 값으로 보이는 한계가 있다 — 코너 테스트가 정상 입력에서 ⑥을 통과함을 항상 확인한다.
+
+#### B-5. LLM 출력 스키마 / 저장 스키마 (2-5)
+
+공통: LLM 출력 스키마에는 **원문 텍스트 필드가 없다.** 객체는 Zod 기본(미선언 키 제거)이라, LLM이 `turns[].text`를 써서 보내도 **스키마가 버리고** 저장 내용은 입력의 원문으로만 채워진다. 키 이름은 `FORBIDDEN_KEYS` 부분 문자열에 걸리지 않게 짓는다(예: 맞춤 질문의 키를 `suggestion`으로 지으면 **키 자체가 금지어**다 → `tailoredQuestion`. 값 `'suggestion'`은 키가 아니라 무관). 테스트로 모든 LLM 스키마의 정상 샘플이 `findForbiddenKeys`를 통과함을 단언한다.
+
+| 코너 | LLM 출력 (참조·AI 문장만) | 파이프라인이 채움 (입력에서) |
+|---|---|---|
+| 17-1 | `{ kind:'articles', featuredDateId, articles:[{ dateId, title≤20, stopCaptions:[{ seq, caption }], tailoredQuestion:{ text, basis } }] }` | `dateOn`·`region`·`recalled`·`recallReason`·`stops`(시간·장소·좌표·사진·`userNotes` 원문)·`summary`·`closingQuestions`의 고정 2종·`header` |
+| 17-4 | `{ kind:'none' }` \| `{ kind:'excerpts', main:[{ context, messageIds[1..4] }], sub:[{ messageId }] }` | `turns[].speaker/text/at`·`attribution`·`sub[].speaker/text`·`warmthIndex`(입력 주입, Q4) |
+| 17-5 | `{ kind:'none' }` \| `{ kind:'theme', theme:{ headline≤16, lead, polarity:'neutral'\|'positive', signals }, articles[2..4]:[{ title≤20, body, evidence:[…참조] min1 }], closing }` | `evidence`의 원문·시각·출처, `seq` (Q2·Q3 확정 전 미완) |
+
+- 저장 스키마는 CORNER_CONTENT §2·§6·§7 그대로(봉투 §0-3 포함). `aiCaption` 배타·`featured` 유일·`closingQuestions` 3종 고정·`articles` 2~4·`evidence` ≥1·`polarity`에 `negative` 없음을 **저장 스키마의 `superRefine`/enum으로 한 번 더** 건다(채우기 코드가 틀려도 저장 전에 걸리도록).
+- 17-1에서 `userNotes`가 있는 정거장에 LLM이 `caption`을 달면 **`fill`이 거부 → `schema_invalid`**(조용히 버리면 "AI가 물러난다"가 지켜진 것처럼 보이는 모델 오류가 숨는다 — §17-0-5-D의 "섞지 않는다"와 같은 취지). 입력의 모든 데이트가 정확히 한 번씩 기사가 되는지, `(dateId, seq)`가 입력에 있는지도 `fill`이 확인한다.
+- **§9-7-2 길이 상한이 걸리는 자리** (단위: 코드포인트 `Array.from(s).length` — Q9 기본값)
+
+| 필드 | 상한 | LLM 출력 스키마 | 저장 스키마 |
+|---|---|---|---|
+| `articles[].title` (17-1·17-5) | 20 | 걸림 (재시도 대상으로 잡기 위해) | 걸림 (재확인) |
+| `theme.headline` (17-5) | 16 | 걸림 | 걸림 |
+| 코너 제목 `header.title` | 7 | 해당 없음 (LLM이 쓰지 않음) | 걸림 — **Q5 선결** |
+| `statChanges[].explanation` | 120 | 연애리그 — 이번 범위 밖 | — |
+
+  문서에 길이 상한이 없는 필드(`context`·`body`·`lead`·`aiCaption`·`closing`)에는 **상한을 만들지 않는다.**
+
+#### B-6. 명시적 빈 결과 (2-6)
+
+| 코너 | 표현 | 비고 |
+|---|---|---|
+| 17-1 | **빈 결과 variant가 없다.** 스키마가 `kind:'articles'`만 허용하고 `articles`는 min 1 | 데이트가 있으면 만든다. `{kind:'none'}`이 오면 Zod 실패 → `schema_invalid` (막는 형태) |
+| 17-4 | `{ kind:'none' }` | 허용하는 형태 |
+| 17-5 | `{ kind:'none' }` | 허용하는 형태 (`articles` 편수는 2~4, 그 아래는 `none`으로만 표현) |
+
+**섞이지 않는 보장:** ① 빈 결과 판정 코드 위치는 `validateCornerResponse` ③ **한 곳**이고, **Zod 파싱이 성공한 뒤에만** 도달한다. 파싱 실패(깨진 JSON·`{}`·`[]`·`kind` 오탈자·`articles: []`)는 ①에서 이미 `schema_invalid`다. ② 비어 있음은 **리터럴 `kind:'none'` 하나로만** 표현된다. 빈 배열·null·누락은 빈 결과가 아니다. ③ `none` + 부가 키는 Zod가 부가 키를 버려 `none`으로 읽힌다 — 모델이 명시적으로 "없음"이라 했으므로 만들지 않는 쪽(원칙 ②)이 안전하다. ④ 결과 타입 `reason`의 `insufficient_input`은 이 한 분기에서만 생성된다.
+
+#### B-7. ID 해석 (2-7)
+
+**세 조건을 입력의 소속과 별개로, 각각 명시적으로 검사한다.** `referenceResolution.ts`(순수, 브랜드 무관)가 다음을 이 순서로 하고, 실패 `detail`에 **어느 조건이 깨졌는지**를 적는다(사유 값은 `schema_invalid` 그대로, 새 값 없음).
+
+| # | 조건 | 검사 |
+|---|---|---|
+| 1 | 존재한다 | 코너가 입력으로 만든 조회표 `refLookups[참조키](id)`가 레코드를 돌려준다 |
+| 2 | **그 커플의 것이다** | `record.coupleId === context.coupleId`. **`context.coupleId`는 호출부가 corners/issues 행에서 넘기며, 입력 레코드에서 가져오지 않는다** |
+| 3 | 해당 호의 기간 안이다 | `context.period.start <= record.occurredAt < context.period.end` (경계 규칙은 Q10) |
+
+- **참조 필드를 코너가 "신고"하지 않는다.** 골격이 LLM 출력을 순회해 **키가 `Id`/`Ids`로 끝나는 모든 값**을 수집하고 전부 조회한다. 조회표에 없는 `*Id` 키는 **실패(fail-closed)**. 코너 작성자가 참조 하나를 검사 대상에서 빠뜨릴 수 없다.
+- 입력 레코드(`ScopedRecord`)는 `id`·`coupleId`·`occurredAt`을 **반드시** 싣는다(타입 필수 필드).
+
+**입력에 들어 있다는 것만으로 갈음하면 안 되는 이유:** 입력 조립은 `#14` 뒤의 **별도 작업**이고 아직 없다. 조립 쿼리가 커플 조건을 빠뜨리거나 기간을 잘못 잡으면 **다른 커플의 레코드가 입력 집합에 섞인다.** "입력에 있는가"만 보면 그 레코드는 존재 조건을 통과하고, LLM은 입력(프롬프트)에 그것이 보이므로 참조할 수 있다 — 그러면 **다른 커플의 메시지가 지면에 실린다**(§17-0-4-A: 가장 무거운 사고). 2·3번이 입력의 구성과 무관하게 **레코드 자체의 소속·시각**을 보기 때문에 조립 실수가 마지막 방어선에서 걸린다.
+
+#### B-8. 규칙 F (2-8)
+
+- 위치: **`__tests__/build/fileNameRule.test.ts`** (저장소 전체 위생 검사라 `engine/`이 아니라 `build/`, `edgeFunctionsTypecheck.test.ts`와 같은 자리). 판정은 순수 함수 `fileNameViolations(relPath)`: **basename만** `^[A-Za-z0-9._-]+$` 검사, 디렉터리명은 보지 않는다.
+- 수집: `git ls-files --cached --others --exclude-standard -z` 결과 중 `docs/ src/ app/ scripts/ __tests__/ supabase/ .claude/ assets/` 아래만. **"커밋될 파일"과 정확히 같은 집합**이고, 아직 `git add` 전인 새 파일(위반이 처음 생기는 자리)도 잡힌다. `.gitignore`가 `node_modules/`·`.expo/` 등 비추적 경로를 이미 제외하므로 별도 제외 목록이 필요 없다. `-z`는 한글 경로의 따옴표 이스케이프를 피하려는 것이다. git이 없는 환경에서는 `fs` 재귀 + `node_modules`·`.git`·`.expo`·`.norm-build` 제외로 폴백한다.
+- 합성 입력: 위반 — `a b.md`, `file (1).md`, `한글.md`, `x+y.ts`, `a(1).ts` / 정상 — `index.tsx`, `.gitkeep`, `a-b_c.d.ts`, **`app/(tabs)/index.tsx`·`app/(modals)/x.tsx`(디렉터리 괄호는 통과)**.
+- 실제 저장소 검사: 위 수집 결과 전체에 위반 0건 단언(사전 점검 355개 위반 0 확인).
+
+#### B-9. 테스트 배치 (2-9)
+
+- **새 코너·골격 테스트는 대상과 같은 트리에 둔다**(`supabase/functions/_shared/*.test.ts`, `_shared/corners/*.test.ts`). `.ts` 확장자 **정적 import**, 파일 첫 줄 `/// <reference types="jest" />`. → `require(경로변수)` 우회가 **없어지고 타입 검사를 받는다**(`edgeFunctionsTypecheck.test.ts`가 이 파일들을 함께 검사). A절 실측으로 가능함을 확인했다.
+- 고쳐야 하는 기존 세 파일(`cornerPipeline`·`llmClient`·`saveCornerResult`)은 **같은 트리로 옮기며 정적 import로 전환**하는 것을 제안한다(호출부를 어차피 고친다). `coeffLookup.test.ts`는 손대지 않는다면 `require` 우회가 한 곳 남는다 — **함께 옮길지 Q11.**
+- 정적 규칙(C·D·E)은 `.test.ts`를 수집에서 제외하므로 새 테스트 위치가 규칙에 영향을 주지 않는다.
+- Deno 런타임 해석: 코너 파일이 **런타임에서** `zod`를 쓰는 것은 이번이 처음이다(지금까지는 `import type`뿐이라 지워졌다). 베어 `zod`는 jest·tsc에서는 풀리나 **Deno 배포에는 import map이 필요하다**(`supabase/functions/deno.json` 같은 설정 파일 — 만들지 않았고 사람 몫). 입력 조립·배포 단계 전에 해소해야 한다.
+
+### C. 2부에서 증명할 것 — 각각의 테스트
+
+| 증명 | 테스트 |
+|---|---|
+| 코너 코드에 호출·대기 코드가 없다 | `_shared/corners/*.ts` 소스 문자열 검사(B-2-2) 위반·정상 합성 입력 + 실제 파일 통과 + 코너 테스트가 `llmClient` 없이 세 함수를 호출 |
+| 캐시 지점이 `llmClient` 요청에 실제로 실린다 | `fetchImpl` 주입으로 본문을 캡처해 `cacheBreakpoint` 블록에만 `cache_control`이 붙고 나머지엔 없음을 단언 · 코너별 `buildRequest`가 표시 ≥1을 가지며 **표시 앞 블록에 입력 레코드 텍스트가 없고** 서로 다른 두 입력에서 표시까지의 접두가 동일 |
+| 다른 커플 ID 참조 — (가) LLM이 입력에 없는 ID를 지어냄 | 조회표에 없는 id → `schema_invalid`, detail에 "존재" |
+| (나) 입력에 다른 커플 레코드가 섞여 있고 LLM이 참조 | 레코드가 입력 조회표에 **있고 기간 안**인데 `coupleId`만 다름 → `schema_invalid`, detail에 "소속". 존재·기간은 만족하도록 만들어 조건 2 단독을 증명 |
+| 기간 밖 ID | 존재·소속 만족, `occurredAt`만 기간 밖(양쪽 경계) → `schema_invalid`, detail에 "기간" |
+| 매핑 없는 `*Id` 키 | fail-closed → `schema_invalid` |
+| 명시적 빈 결과 ↔ 파싱 실패 분리 | `{kind:'none'}` → `insufficient_input`(시도 ≥1, 재시도 0). `{}`·`[]`·깨진 JSON·`kind` 오탈자·`articles:[]`·17-1의 `{kind:'none'}` → `schema_invalid` |
+| 원문을 LLM이 써도 저장에 안 들어감 | LLM 출력에 변조한 `text`·`turns[].text`를 섞어 보내고, 저장 내용이 **입력 원문과 문자 단위 일치** |
+| `FORBIDDEN_KEYS` 구멍 | **선언 안 된** `verdict` 키 → `forbidden_content`(현행 골격이면 통과해 버리는 사례) · 채워진 저장 내용에는 걸지 않음 |
+| 규칙 C·D·E 유지 | 기존 합성 입력 그대로 + 실제 저장소 통과(코너 파일 포함). 승인 목록 불변이므로 합성 입력 갱신은 "코너 모듈 경로의 캐스트는 위반" 한 건 추가 |
+| 규칙 F | 위반·정상 합성 입력 + 저장소 실제 파일 전수 통과 |
+| 게이트 | `tsc -p .` 0 · `tsc -p supabase/functions/tsconfig.json` 0 · jest 556·35 대비 감소 없음 |
+
+### D. 문서와 다르게 읽힌 자리 (문서가 원본, 이 보고가 아니라 문서를 고쳐야 할 후보)
+
+1. **`CORNER_CONTENT.md` §0-2 다이어그램**: "Zod 실패 시 재시도, **3회 실패 시 failed** / 금지 키 검사 **위반 시 재시도**". §17-0-5-A는 `forbidden_content` **재시도 없음**, `schema_invalid` 1회. §9를 MASTER 포인터로 바꾸는 작업(`28`) 뒤에도 이 다이어그램이 남아 있다. 이 보고는 §17-0이 원본이라는 전제로 설계했다.
+2. **§9-7-2 "코너 제목 7자" ↔ CORNER_CONTENT §6-3 예시 `header.title: "이달의 다정한 말들"`(10자)** · MASTER 17-4 "이달의 다정한 말들". 서로 충돌한다(Q5).
+3. **§17-0-4-A 기간 조건 ↔ 17-1 "그때 그 시절" 재소환** (과거 데이트가 정의상 기간 밖) · 17-5 "극히 적음: 기간 확장해서라도" (Q1).
+4. **CLAUDE.md 디렉터리 구조("Zod 스키마는 `src/types/corners/`") ↔ §17-0-0("코너 파이프라인 코드는 `supabase/functions/`")**: B-1에서 저장 스키마만 `src/types/corners/`, 나머지는 `supabase/functions/`로 갈라 둘을 함께 만족시켰다. 이 분할이 의도와 맞는지 확인 요청.
+5. **MASTER 17-4(서브 4~6개) ↔ CORNER_CONTENT §6-1(`sub` 개수 미규정)**, **"main 월간 2~3 / 일간 1"**(Q8).
+6. 17-1 "마무리 질문 유형 평점형·회상형은 **고정 질문**" ↔ 문구는 예시 열에만 있다(Q7).
+
+### E. 승인 필요 — 결정 전에 2부를 시작하지 않는다
+
+**문서 공백 (지어내지 않고 묻는다)**
+
+- **Q1 재소환 데이트의 기간 조건(17-1).** 재소환 데이트는 정의상 과거라 "해당 호의 기간 안" 조건을 만족할 수 없다. (가) 재소환은 입력에 `recalled:true`로 표시된 레코드에 한해 조건 3 대신 "기간 **이전**"을 요구하고 조건 1·2는 그대로 / (나) 다른 규칙 — 어느 쪽인가? 17-5의 "기간 확장"은 호출부가 확장된 기간을 `context.period`로 넘기는 것으로 처리해도 되는가?
+- **Q2 17-5 `Evidence`.** `type:'photo'`에 사진 경로·참조 필드가 없어(`at/excerpt/attribution/metric*`뿐) 사진 근거를 저장·렌더링할 수 없다. 데이트(`date`)를 근거로 삼는 타입도 없다. `metric`은 17-0-5-D 표의 17-5 입력(채팅·사진·데이트)에 포함되지 않는다. 사진 근거의 저장 형태와 `metric` 포함 여부는?
+- **Q3 `theme.signals[].value/count` 출처.** `count`를 LLM이 쓰면 검증 불가능한 수치(지어낸 값)가 된다. 파이프라인이 계산하는 방식이 정해져 있는가? 없으면 `count`를 어떻게 다루는가?
+- **Q4 `warmthIndex`.** CORNER_CONTENT §10이 "산출식 미결정"으로 열어 둔 항목이다. 이 설계는 **입력이 `warmthIndex: number | null`을 싣고 파이프라인이 그대로 주입**(LLM 출력 아님, `null` 허용)한다고 둔다. 맞는가?
+- **Q5 `header.title`.** 누가 정하는가(코너별 고정 상수 vs LLM), 그리고 7자 상한이 예시·MASTER 문구("이달의 다정한 말들", 10자)와 충돌한다. 어느 쪽이 원본인가?
+- **Q6 `Attribution.display`·시간대.** 예시 "2026.08.22 09:20, 아침 대화 중"의 "아침"을 만드는 규칙(시간대 구분)과 시각 표기 시간대(예시는 +09:00)가 문서에 없다.
+- **Q7 17-1 고정 질문 문구·`mapInfographic`·기사 순서.** 평점형·회상형 문구를 예시 그대로 상수로 쓰는가? `pins`(`label`·`order`)와 `bounds`를 어떤 규칙으로 파생하는가(없으면 `null` 고정?)? 기사 순서는 입력 순서/날짜순/LLM 중 어느 것인가?
+- **Q8 17-4 개수.** `main` 월간 2~3·일간 1, `sub` 4~6(MASTER)을 스키마 하한·상한으로 건다면, 다정한 대화가 1개뿐인 달은 `none`(`insufficient_input`)이 되는데 그것이 의도인가? 일간/월간은 `CornerContext.cadence`로 받아 스키마를 만들면 되는가?
+- **Q10(→Q9 포함) 기간 경계·길이 단위.** `[start, end)`(끝 배타)로 두고 코드포인트 길이로 센다 — 문서에 없어 둔 **기본값**이다. 확인 요청.
+
+**이 설계가 스스로 고른 것 (이의 없으면 그대로)**
+
+- Q9 `FORBIDDEN_KEYS`를 Zod 결과가 아니라 **raw에** 건다(A절 구멍, 동작 변경).
+- 기존 `validateCornerContent` 제거 → `validateCornerResponse`로 교체, 브랜드 대상이 저장 내용으로 바뀐다.
+- "존재" = **입력 레코드 집합 기준**이다(DB 재조회 포트를 두지 않음). 입력 조립이 DB 스냅샷을 만들어 넘기는 구조라 `#14` 범위에서는 충분하다고 보았다. 다만 **입력에 다른 커플 레코드가 섞이면 LLM 요청 시점에 이미 외부로 전송된다** — 응답 검사는 지면 노출만 막는다. 호출 전 입력 소속 점검을 둘지(실패 사유 새 값이 필요해 문서 밖) 입력 조립 작업의 몫으로 넘길지는 마스터 PM 판단.
+- 코너 디렉터리 정적 검사(B-2-2)를 신규로 둔다(규칙 번호 부여는 PM 판단).
+- Q11 `coeffLookup.test.ts`도 같은 트리로 옮겨 `require` 우회를 모두 없앨지.
+
+### F. 변경한 파일
+
+- `.claude/state/HANDOFF.md`(이 절), `.claude/state/PROGRESS.md`(제목 아래 한 줄). 그 밖 변경 없음 — `package.json`·`tsconfig.json`·`app.json`·`eas.json` 무변경, 커밋·푸시 없음.
+- 게이트 기준선 재확인: 루트 `tsc` 0 · 전용 `tsc` 0 (조사 중 실측). jest 전체는 이번 1부에서 다시 돌리지 않았다(코드 변경 없음, 기준 556·35 유지).
+
 ## node_modules 백업 (2026-09-12, main session)
 
 node_modules 백업: ..\ondolog-node_modules-20260910.zip (219548890 bytes, 2026-09-10)
