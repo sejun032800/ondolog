@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-04 (메인 세션, `28`): `CORNER_CONTENT.md` 파이프라인 서술을 MASTER 포인터로 — §0-2 배치 위치 줄, §9 전체(파일 배치 + 9-1 파이프라인 계약) → §17-0 포인터 표, §6-2 "스킵 우선" 행·"검증" 문단 → §17-0-5-D·§17-0-4-A 포인터. §2~§7 스키마 무변경, 게이트 0/0/556·35.
+
 2026-10-01 (engine-dev, `#15` r2): `stripComments` 복제본 7곳 전부 `scripts/lib/stripComments.ts`로 통합(URL 미탐 수정, `preserveLines` 옵션 기본 꺼짐), 기존 스위트 assertion 무수정 통과, 신규 6건, 새 위반 없음, unresolvedInventory 정의 4 / 소비 2 유지, 게이트 0/0/556·35.
 
 2026-10-04 (메인 세션, `27`): `#15` 마무리 정리 — `cornerPipelineStaticRules.test.ts` "공용 유틸" 헤더 주석 한 줄을 공용 유틸 사용 사실에 맞게, `generate-norm.ts` docblock의 버전 값을 지우고 `enumerate.ts`의 `NORM_VERSION`을 가리키게, 이 파일의 `#15` 줄을 제목 아래로 이동, HANDOFF `#15` 절 기준 B 통과 → `archive/handoff-20261001.md` 끝으로 이동, 게이트 0/0/556·35.

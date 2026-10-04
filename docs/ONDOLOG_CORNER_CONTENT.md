@@ -32,7 +32,7 @@ LLM 출력(문자열)
   → corners.content 저장
 ```
 
-배치 위치: `src/types/corners/*.ts` (Zod 스키마), `src/engine/corners/*.ts` (생성 로직)
+배치 위치: `docs/ONDOLOG_MASTER.md` §17-0-0을 따른다 — 코너 생성은 Edge Function이며 코드는 `supabase/functions/` 아래에 있다.
 
 ### 0-3. 공통 봉투
 
@@ -592,10 +592,10 @@ interface SweetExcerpt {
 | **출처 필수** | 모든 인용에 `attribution` 동반. "— 2026.08.22 09:20, 아침 대화 중" |
 | **AI 문장은 `context` 하나뿐** | `context`는 정황 서술만. "정말 다정하시네요" 류 감상 금지 |
 | **평가 필드 없음** | 스키마에 `rating`·`comment`·`praise` 필드를 **정의하지 않는다** |
-| **스킵 우선** | 다정한 발화가 없으면 `status='skipped'`, `skip_reason='no_warm_messages'`. 억지 생성 금지 |
+| **스킵 우선** | 다정한 발화가 없으면 억지로 생성하지 않는다. 기록 방식은 `docs/ONDOLOG_MASTER.md` §17-0-5-D |
 | 다툼 제외 | 화해 대화도 포함하지 않는다 (다툼 맥락 자체를 소환하지 않음) |
 
-**검증**: 저장 전 `turns[].text`를 원본 `messages.body`와 대조해 불일치 시 재생성한다.
+**원문 보장**: `turns[].text`는 LLM이 쓰지 않고 파이프라인이 원본에서 채운다 — `docs/ONDOLOG_MASTER.md` §17-0-4-A.
 
 ### 6-3. 예시
 
@@ -712,45 +712,19 @@ interface ThisMonthPayload {
 
 ---
 
-## 9. 파일 배치
+## 9. 파일 배치와 파이프라인
 
-```
-src/
-  types/corners/
-    envelope.ts          # CornerEnvelope, 공통 값 객체, FORBIDDEN_KEYS
-    dateArchive.ts       # Zod schema + TS type
-    loveDna.ts
-    leagueWeekly.ts
-    leagueMonthly.ts
-    sweetWords.ts
-    thisMonth.ts
-    index.ts             # corner_type → schema 매핑
-  engine/corners/
-    generate.ts          # 공통 파이프라인 (LLM → parse → validate → save)
-    validators.ts        # 금지 키 검사, 원문 대조 검증
-    dateArchive.ts       # 코너별 프롬프트 + 후처리
-    ...
-```
+**이 절의 원본은 `docs/ONDOLOG_MASTER.md` §17-0이다.** 이 문서는 코너별
+**저장 스키마(§2~§7)**의 원본이고, 배치와 파이프라인 동작은 다시 적지 않는다.
 
-### 9-1. 공통 생성 파이프라인 계약
-
-```ts
-async function generateCorner(
-  cornerType: CornerType,
-  coupleId: string,
-  period: { start: string; end: string }
-): Promise<CornerResult> {
-  // 1. 원재료 수집 (해당 기간 entries/messages/dates/stats)
-  // 2. 데이터 충분성 판정 → 부족하면 skip 또는 축소
-  // 3. LLM 호출 (코너별 프롬프트)
-  // 4. JSON.parse → Zod.parse  (실패 시 최대 3회 재시도)
-  // 5. 금지 키 검사 + 코너별 추가 검증(원문 대조 등)
-  // 6. 미디어를 magazine 버킷으로 복제하고 경로 치환
-  // 7. corners.content 저장, status='ready'
-}
-```
-
-**중요**: 6단계(미디어 복제)를 건너뛰면 원본 삭제 시 발행물이 깨진다. 스냅샷 원칙은 텍스트뿐 아니라 **미디어에도 적용**된다.
+| 주제 | 원본 |
+|---|---|
+| 실행 주체·코드 위치 | §17-0-0 (모듈 경로 계약은 정적 규칙의 `MODULE` 상수, §17-0-3) |
+| 검사 순서 | §17-0-4 |
+| 원문은 LLM이 쓰지 않는다 (ID 참조 → 파이프라인이 채움) | §17-0-4-A |
+| 실패 사유 · 재시도 | §17-0-5 · §17-0-5-A |
+| 재료 부족의 두 시점 | §17-0-5-D |
+| 입력 조립 · 미디어 복제의 위치 | §17-0-5-E (미디어 복제 원칙은 Part 8) |
 
 ---
 
