@@ -85,7 +85,7 @@ const LLM_CALL_MODULE = 'supabase/functions/_shared/llmClient.ts'
 const APP_CONFIG_LOOKUP_MODULE = 'supabase/functions/_shared/coeffLookup.ts'
 
 // ─────────────────────────────────────────────────────────────────────────
-// 공용 유틸 (이 파일 로컬 — 기존 스위트의 복제본과 통합하지 않는다)
+// 공용 유틸 (`scripts/lib/stripComments.ts`에서 가져와 쓴다 — 기존 스위트와 같은 모듈)
 // ─────────────────────────────────────────────────────────────────────────
 
 /** `stripComments`는 `scripts/lib/stripComments.ts`에 있다. */

@@ -1,6 +1,8 @@
+# 진행 상황
+
 2026-10-01 (engine-dev, `#15` r2): `stripComments` 복제본 7곳 전부 `scripts/lib/stripComments.ts`로 통합(URL 미탐 수정, `preserveLines` 옵션 기본 꺼짐), 기존 스위트 assertion 무수정 통과, 신규 6건, 새 위반 없음, unresolvedInventory 정의 4 / 소비 2 유지, 게이트 0/0/556·35.
 
-# 진행 상황
+2026-10-04 (메인 세션, `27`): `#15` 마무리 정리 — `cornerPipelineStaticRules.test.ts` "공용 유틸" 헤더 주석 한 줄을 공용 유틸 사용 사실에 맞게, `generate-norm.ts` docblock의 버전 값을 지우고 `enumerate.ts`의 `NORM_VERSION`을 가리키게, 이 파일의 `#15` 줄을 제목 아래로 이동, HANDOFF `#15` 절 기준 B 통과 → `archive/handoff-20261001.md` 끝으로 이동, 게이트 0/0/556·35.
 
 2026-10-02 (메인 세션, `26-...-r2`): `#15` 후속 정리 — `unresolvedInventory.ts`·`generate-norm.ts` docblock 실행 명령을 PowerShell 형식으로(옵션·순서 불변, 실증 4/2·규준 파일 바이트 불변), 사실과 달라진 주석 5개 파일 정정, HANDOFF `#15` 행 → `archive/handoff-20261001.md`(`#15` 절은 기준 B 미통과로 남김), PE 인수인계서 4-2·5-2 행 추가.
 

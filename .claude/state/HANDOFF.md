@@ -23,20 +23,6 @@
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 
-## `#15` r2 `stripComments` 통합 산출 (2026-10-01, engine-dev)
-
-- 복제본 전수 7곳, 전부 입력은 소스 코드 문자열 -> 7곳 모두 통합 (제외 없음):
-  `__tests__/store/sessionStore.test.ts`(src/store/sessionStore.ts 소스), `__tests__/engine/importBoundary.test.ts`,
-  `determinismStaticRules.test.ts`, `dnaScore.test.ts`(인라인), `dnaBaseScore.test.ts`(인라인), `cornerPipelineStaticRules.test.ts`(#13 판),
-  `scripts/norm/unresolvedInventory.ts`(개행 보존판).
-- 공용 유틸: `scripts/lib/stripComments.ts` — `stripComments(source, { preserveLines?: boolean })`, 기본 꺼짐. `unresolvedInventory`만 `preserveLines: true`.
-- 통합 대상 스위트는 assertion 무수정 통과 (수정은 import 갱신, 인라인 복제본 호출 치환, docblock 한 문장뿐).
-- 합성 입력 테스트: `__tests__/scripts/stripComments.test.ts` (6건, 결정론 100회 포함) 통과.
-- 재실행에서 새로 걸린 위반: 없음.
-- `unresolvedInventory`: 정의 4 / 소비 2 유지.
-- 게이트: tsc 0 / tsc(functions) 0 / jest 556 (550 + 신규 6) · 35 스위트.
-- 남은 불일치(지정 외라 미수정): `cornerPipelineStaticRules.test.ts`의 제목 "다시 로컬로 정의하는 이유"·"공용 유틸 (이 파일 로컬 ...)" 주석·함수 제거 후 남은 "이 복제본은..." docblock, `unresolvedInventory.ts` docblock의 "다른 로컬 모듈을 import하지 않아" 문구.
-
 ## node_modules 백업 (2026-09-12, main session)
 
 node_modules 백업: ..\ondolog-node_modules-20260910.zip (219548890 bytes, 2026-09-10)

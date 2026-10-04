@@ -1,6 +1,6 @@
 /**
  * 규준집단 데이터 파일 생성기 — `src/engine/data/norm-{NORM_VERSION}.json`을
- * 쓴다(현재 `NORM_VERSION`은 `scripts/norm/enumerate.ts`에서 `synthetic-v2`).
+ * 쓴다. 산출 파일명은 `scripts/norm/enumerate.ts`의 `NORM_VERSION`을 따른다.
  *
  * 근거: docs/ONDOLOG_MASTER.md Part 10-8-1 / 10-8-3.
  *
