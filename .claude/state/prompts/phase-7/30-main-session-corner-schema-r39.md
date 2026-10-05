@@ -3,6 +3,9 @@
 > 대상: 클로드 코드 메인 세션 (개발 총괄)
 > 보관 경로: `.claude/state/prompts/phase-7/30-main-session-corner-schema-r39.md`
 > 작성: 프롬프트 엔지니어 세션 / 2026-10-04
+> 개정: 2026-10-04 — 첫 실행이 3단계에서 멈춤. 1-4의 바꿀 문구가 `'metric'`을 담는데
+> 검증은 "§3 한 줄만"을 기대한 **지시서 자체의 모순**이었다. 검증을 "몇 줄인가"에서
+> "어디에 무엇으로 남는가"로 바꿨다. 위임 전·변경 없이 멈췄으므로 덮어씀
 
 ---
 
@@ -133,13 +136,15 @@ interface MonthEvidence {
 
 ```powershell
 Select-String -Path docs/ONDOLOG_CORNER_CONTENT.md -Pattern "'metric'"
+Select-String -Path docs/ONDOLOG_CORNER_CONTENT.md -Pattern 'signals: Array<' -SimpleMatch
 Select-String -Path docs/ONDOLOG_CORNER_CONTENT.md -Pattern 'interface Evidence \{|interface MonthEvidence \{|cornerName'
 git diff --stat
 ```
 
 | 확인 | 기대 |
 |---|---|
-| `'metric'` 검색 | **§3의 `interface Evidence` 안 한 줄만** 남는다 |
+| `'metric'` 검색 | **정확히 두 줄** — ① §3 `interface Evidence`의 `type` 줄(그대로) ② §7 `signals` 바로 위의 **1-4 주석 줄**(제거 사유 기록) |
+| `signals: Array<` 줄 | 한 줄. **그 줄의 `kind` 목록에 `'metric'`이 없다** — `'place' \| 'keyword' \| 'activity'` 셋뿐 |
 | `interface Evidence {` | 한 줄 (§3, 그대로) |
 | `interface MonthEvidence {` | 한 줄 (§7) |
 | `cornerName` | **세 줄 이상** (§1·§2·§6) |
