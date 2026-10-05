@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 /**
  * `coeffLookup.ts` — `app_config` 조회가 허용되는 유일한 모듈(정적 규칙 D).
  * 위임: .claude/state/prompts/phase-7/20-engine-dev-pipeline-r3.md 4부.
@@ -53,12 +54,7 @@ interface AppConfigQueryClientShape {
 type LookupCoeffBundleFn = (client: AppConfigQueryClientShape, configKey: string) => Promise<FakeCoeffBundle>
 type BuildCoeffBundleFn = (raw: Record<string, unknown>) => FakeCoeffBundle
 
-const coeffLookupModulePath = '../../supabase/functions/_shared/coeffLookup'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { lookupCoeffBundle, buildCoeffBundle } = require(coeffLookupModulePath) as {
-  lookupCoeffBundle: LookupCoeffBundleFn
-  buildCoeffBundle: BuildCoeffBundleFn
-}
+import { lookupCoeffBundle, buildCoeffBundle } from './coeffLookup.ts'
 
 function fakeClient(
   row: { key: string; value: unknown } | null,

@@ -1,6 +1,7 @@
+/// <reference types="jest" />
 import { z } from 'zod'
-import type { ValidatedContent, CoeffBundle } from '../../src/engine/corners/brandedTypes'
-import type { SkipReason } from '../../src/engine/corners/pipelineContracts'
+import type { ValidatedContent, CoeffBundle } from '../../../src/engine/corners/brandedTypes'
+import type { SkipReason } from '../../../src/engine/corners/pipelineContracts'
 
 /**
  * `saveCornerResult.ts` — 저장 함수는 `ValidatedContent<T>`만 받는다
@@ -44,17 +45,9 @@ type FixtureValidateResult<T> =
   | { readonly ok: true; readonly content: ValidatedContent<T> }
   | { readonly ok: false; readonly reason: 'schema_invalid' | 'forbidden_content'; readonly detail: string }
 
-const cornerPipelineModulePath = '../../supabase/functions/_shared/cornerPipeline'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { validateCornerContent } = require(cornerPipelineModulePath) as {
-  validateCornerContent: <T>(raw: unknown, schema: z.ZodType<T>) => FixtureValidateResult<T>
-}
+import { validateCornerContent } from './cornerPipeline.ts'
 
-const coeffLookupModulePath = '../../supabase/functions/_shared/coeffLookup'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { buildCoeffBundle } = require(coeffLookupModulePath) as {
-  buildCoeffBundle: (raw: Record<string, unknown>) => CoeffBundle
-}
+import { buildCoeffBundle } from './coeffLookup.ts'
 
 interface CornersTableClientShape {
   from(table: 'corners'): {
@@ -87,12 +80,7 @@ type SaveCornerSuccessFn = <T extends object>(
 
 type SaveCornerFailureFn = (client: CornersTableClientShape, input: SaveCornerFailureInputShape) => Promise<void>
 
-const saveCornerResultModulePath = '../../supabase/functions/_shared/saveCornerResult'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { saveCornerSuccess, saveCornerFailure } = require(saveCornerResultModulePath) as {
-  saveCornerSuccess: SaveCornerSuccessFn
-  saveCornerFailure: SaveCornerFailureFn
-}
+import { saveCornerSuccess, saveCornerFailure } from './saveCornerResult.ts'
 
 const Schema = z.object({ title: z.string() })
 

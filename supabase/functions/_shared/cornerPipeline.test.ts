@@ -1,5 +1,7 @@
+/// <reference types="jest" />
 import { z, type ZodType } from 'zod'
-import type { LlmClient, LlmCallResult } from '../../supabase/functions/_shared/llmClient'
+import type { LlmClient, LlmCallResult } from './llmClient.ts'
+import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 
 /**
  * `cornerPipeline.ts` — 코너 3종이 공유하는 파이프라인 골격
@@ -63,12 +65,7 @@ type ValidateCornerContentResultShape<T> =
 
 type ValidateCornerContentFn = <T>(raw: unknown, schema: ZodType<T>) => ValidateCornerContentResultShape<T>
 
-const cornerPipelineModulePath = '../../supabase/functions/_shared/cornerPipeline'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { runCornerPipeline, validateCornerContent } = require(cornerPipelineModulePath) as {
-  runCornerPipeline: RunCornerPipelineFn
-  validateCornerContent: ValidateCornerContentFn
-}
+import { runCornerPipeline, validateCornerContent } from './cornerPipeline.ts'
 
 const PayloadSchema = z.object({ title: z.string() })
 
@@ -120,7 +117,16 @@ describe('② 계수 조회 — 주입하지 않으면 생략, 주입하면 결�
 
   it('lookupCoeffBundle을 주면 결과의 coeffBundle에 그대로 담긴다', async () => {
     const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
-    const fakeCoeffBundle: FakeCoeffBundle = { version: '1.0.0' }
+    const coeffClient: AppConfigQueryClient = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: { key: 'corner_coeffs', value: { version: '1.0.0' } }, error: null }),
+          }),
+        }),
+      }),
+    }
+    const fakeCoeffBundle = await lookupCoeffBundle(coeffClient, 'corner_coeffs')
     const result = await runCornerPipeline({
       input: {},
       preconditionCheck: () => true,

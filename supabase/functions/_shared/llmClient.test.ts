@@ -1,4 +1,5 @@
-import { createLlmClient, CORNER_LLM_CALL_BUDGET } from '../../supabase/functions/_shared/llmClient'
+/// <reference types="jest" />
+import { createLlmClient, CORNER_LLM_CALL_BUDGET } from './llmClient.ts'
 
 /**
  * `llmClient.ts` — 코너 1건당 호출 예산(3회) + 전송 오류 지수 백오프
