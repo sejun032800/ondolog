@@ -5,6 +5,9 @@
 > 작성: 프롬프트 엔지니어 세션 / 2026-10-05
 >
 > 짝: `33-corner-pipeline-skeleton-behavior.md`
+>
+> 개정: 사전 점검 7번 패턴이 실제 제목(`` `#14` 1부 — … ``, 백틱 포함)과 달라
+> 멈췄다. 백틱 없는 고유 부분으로 바꿈. 위임 전·변경 없이 멈췄으므로 덮어씀
 
 ---
 
@@ -19,7 +22,7 @@ git ls-files supabase/functions/_shared | Select-String -Pattern '\.test\.ts$'
 git ls-files __tests__/functions
 Select-String -Path supabase/functions/_shared/coeffLookup.ts -Pattern '^export function buildCoeffBundle'
 Select-String -Path supabase/functions/_shared/cornerPipeline.ts -Pattern 'validateCornerContent'
-Select-String -Path .claude/state/HANDOFF.md -Pattern '#14 1부' -SimpleMatch
+Select-String -Path .claude/state/HANDOFF.md -Pattern '1부 — 코너 3종 설계 보고' -SimpleMatch
 git ls-files .claude/state/prompts/phase-7 | Select-String -Pattern '33-corner-pipeline-skeleton-behavior'
 ```
 
