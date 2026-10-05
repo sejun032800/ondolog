@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import * as ts from 'typescript'
 import * as BrandedTypes from '../../src/engine/corners/brandedTypes'
 import type { ValidatedContent, CoeffBundle } from '../../src/engine/corners/brandedTypes'
 import { stripComments } from '../../scripts/lib/stripComments'
@@ -60,6 +61,11 @@ import { stripComments } from '../../scripts/lib/stripComments'
  * 목록에 **없다**(타입 선언만 남아 캐스트가 없으므로 예외가 필요 없다).
  *
  * 이 배열이 정적 규칙 E의 원본이다(r21 "정적 규칙의 상수가 원본").
+ *
+ * r40: 승인 모듈 안이라도 **캐스트를 품은 함수가 `export`되면 걸린다**(아래
+ * `findBrandCastDeclarations`). 승인은 "캐스트가 거기 있어도 된다"이지 "그
+ * 캐스트를 품은 함수를 모듈 밖에 공개해도 된다"가 아니다 — r25는 이 구분을 쓰지
+ * 않았고, 생성자가 `export`된 채로 위치만 옮겨 구멍이 그대로 열려 있었다.
  */
 const APPROVED_BRAND_CONSTRUCTOR_MODULES: readonly string[] = [
   // ValidatedContent<T> — Zod 파싱 + FORBIDDEN_KEYS 검사를 실제로 거치는 자리.
@@ -206,6 +212,83 @@ const BRAND_CAST_PATTERNS: readonly RegExp[] = [
   /\bas\s+CoeffBundle\b/,
 ]
 
+const BRAND_TYPE_NAMES: readonly string[] = ['ValidatedContent', 'CoeffBundle']
+
+/** `as T`·`<T>x`의 T가 브랜드 타입 이름인가(`ns.CoeffBundle` 같은 한정 이름도 마지막 식별자로 본다). */
+function isBrandTypeNode(typeNode: ts.TypeNode): boolean {
+  if (!ts.isTypeReferenceNode(typeNode)) return false
+  const name = typeNode.typeName
+  const identifier = ts.isIdentifier(name) ? name.text : name.right.text
+  return BRAND_TYPE_NAMES.includes(identifier)
+}
+
+/** 노드 안(중첩 함수 포함)에 브랜드 캐스트가 하나라도 있는가. */
+function containsBrandCast(root: ts.Node): boolean {
+  let found = false
+  const visit = (node: ts.Node): void => {
+    if (found) return
+    if ((ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) && isBrandTypeNode(node.type)) {
+      found = true
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(root)
+  return found
+}
+
+function hasExportModifier(node: ts.Node): boolean {
+  return ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+}
+
+/**
+ * 브랜드 캐스트를 품은 모듈 최상위 선언(함수 선언·`const` 화살표/함수 표현식·그 밖의
+ * 변수 초기화식·클래스)과 그 선언이 모듈 밖에 공개되는지를 돌려준다 (r40).
+ *
+ * **TypeScript 컴파일러 API로 판정한다.** 문자열 검색은 `export` 키워드의 위치,
+ * 화살표 함수, `export { f }` 재-export, 주석·문자열 속 `export`를 정확히 가리지
+ * 못한다. 공개로 보는 경우:
+ *   - 선언 자체에 `export` 수식어 (`export function f`, `export const f = () => ...`)
+ *   - 비공개 선언을 `export { f }` / `export { f as g }`로 내보냄 (`from` 없는 형태만)
+ *   - `export default f` / `export default <캐스트를 품은 식>`
+ * `export { f } from './x'`는 이 모듈의 선언이 아니므로 대상이 아니다.
+ */
+function findBrandCastDeclarations(rawSource: string): Array<{ name: string; exported: boolean }> {
+  const sourceFile = ts.createSourceFile('module.ts', rawSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const declarations = new Map<string, boolean>() // 로컬 이름 → 공개 여부
+
+  for (const statement of sourceFile.statements) {
+    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && containsBrandCast(statement)) {
+      const name = statement.name?.text ?? 'default'
+      declarations.set(name, hasExportModifier(statement))
+    } else if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (declaration.initializer && ts.isIdentifier(declaration.name) && containsBrandCast(declaration.initializer)) {
+          declarations.set(declaration.name.text, hasExportModifier(statement))
+        }
+      }
+    }
+  }
+
+  // 선언 뒤에 오는 `export { ... }`·`export default ...`를 반영한다(선언을 전부 모은 뒤에 본다).
+  for (const statement of sourceFile.statements) {
+    if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) {
+        const localName = (element.propertyName ?? element.name).text
+        if (declarations.has(localName)) declarations.set(localName, true)
+      }
+    } else if (ts.isExportAssignment(statement)) {
+      if (ts.isIdentifier(statement.expression) && declarations.has(statement.expression.text)) {
+        declarations.set(statement.expression.text, true)
+      } else if (containsBrandCast(statement.expression)) {
+        declarations.set('default', true)
+      }
+    }
+  }
+
+  return Array.from(declarations, ([name, exported]) => ({ name, exported }))
+}
+
 /**
  * 규칙 E — 브랜드 캐스트 금지, 단 승인된 생성 모듈 목록 안은 예외(r25).
  * `as ValidatedContent`·`as CoeffBundle` 캐스트가
@@ -213,9 +296,20 @@ const BRAND_CAST_PATTERNS: readonly RegExp[] = [
  * 목록 안의 캐스트는 각 브랜드 값을 만드는 유일한 합법적 경로이므로
  * 예외로 둔다 — 예외가 없으면 생성자가 브랜드 값을 만들 수단이 아예
  * 없어진다.
+ *
+ * **r40 확장 — 공개 여부.** 승인 모듈 안에서도 캐스트를 품은 함수가 `export`되어
+ * 있으면 위반이다. 위치 검사(목록 밖 캐스트 금지)는 그대로이고, 공개 여부는
+ * `findBrandCastDeclarations`가 컴파일러 API로 판정한다.
  */
 function ruleE_brandCastViolations(relFilePath: string, rawSource: string): string[] {
-  if (APPROVED_BRAND_CONSTRUCTOR_MODULES.includes(relFilePath)) return []
+  if (APPROVED_BRAND_CONSTRUCTOR_MODULES.includes(relFilePath)) {
+    return findBrandCastDeclarations(rawSource)
+      .filter((declaration) => declaration.exported)
+      .map(
+        (declaration) =>
+          `${relFilePath}: 브랜드 캐스트를 품은 '${declaration.name}'이 승인 모듈 밖으로 export됨 — 생성자는 비공개여야 한다(r40)`,
+      )
+  }
   const source = stripComments(rawSource)
   const violations: string[] = []
   for (const pattern of BRAND_CAST_PATTERNS) {
@@ -466,10 +560,13 @@ describe('규칙 E — 브랜드 캐스트 금지, 승인된 생성 모듈 목�
     expect(ruleE_brandCastViolations(nonDefinitionPath, commentOnly)).toEqual([])
   })
 
-  it('승인 모듈 예외: cornerPipeline.ts(ValidatedContent 승인 모듈) 안의 캐스트는 안 걸린다', () => {
+  it('승인 모듈 예외: cornerPipeline.ts(ValidatedContent 승인 모듈) 안의 비공개 캐스트는 안 걸린다', () => {
     const withinApprovedModule = `
-      export function validateCornerContent(raw: unknown) {
+      function brandValidated(raw: unknown) {
         return raw as ValidatedContent<CornerContent>
+      }
+      export function validateCornerResponse(raw: unknown) {
+        return brandValidated(raw)
       }
     `
     expect(
@@ -477,10 +574,13 @@ describe('규칙 E — 브랜드 캐스트 금지, 승인된 생성 모듈 목�
     ).toEqual([])
   })
 
-  it('승인 모듈 예외: coeffLookup.ts(CoeffBundle 승인 모듈) 안의 캐스트는 안 걸린다', () => {
+  it('승인 모듈 예외: coeffLookup.ts(CoeffBundle 승인 모듈) 안의 비공개 캐스트는 안 걸린다', () => {
     const withinApprovedModule = `
-      export function buildCoeffBundle(raw: unknown) {
+      function buildCoeffBundle(raw: unknown) {
         return { ...raw, version: '1.0.0' } as CoeffBundle
+      }
+      export async function lookupCoeffBundle() {
+        return buildCoeffBundle({})
       }
     `
     expect(
@@ -508,6 +608,144 @@ describe('규칙 E — 브랜드 캐스트 금지, 승인된 생성 모듈 목�
     expect(
       ruleE_brandCastViolations('src/engine/corners/brandedTypes.ts', castInDefinitionModule).length,
     ).toBeGreaterThan(0)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// 4-A. 규칙 E 확장 (r40) — 승인 모듈 안에서 캐스트를 품은 함수가 export되면 걸린다.
+//      판정은 TypeScript 컴파일러 API다. 합성 입력은 승인 모듈 경로를 쓴다.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('규칙 E 확장 (r40) — 승인 모듈 안의 생성자 공개 여부 (합성 입력, 컴파일러 API 판정)', () => {
+  const approvedPath = 'supabase/functions/_shared/coeffLookup.ts'
+
+  it('위반: 캐스트를 품은 함수 선언이 export되어 있다', () => {
+    const exposed = `
+      export function buildCoeffBundle(raw: Record<string, unknown>) {
+        return raw as CoeffBundle
+      }
+    `
+    const violations = ruleE_brandCastViolations(approvedPath, exposed)
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain('buildCoeffBundle')
+  })
+
+  it('정상: 같은 함수가 비공개다', () => {
+    const hidden = `
+      function buildCoeffBundle(raw: Record<string, unknown>) {
+        return raw as CoeffBundle
+      }
+      export function lookupCoeffBundle() {
+        return buildCoeffBundle({ version: '1' })
+      }
+    `
+    expect(ruleE_brandCastViolations(approvedPath, hidden)).toEqual([])
+  })
+
+  it('위반: export const + 화살표 함수', () => {
+    const exposed = `
+      export const f = (x: unknown) => x as CoeffBundle
+    `
+    expect(ruleE_brandCastViolations(approvedPath, exposed)).toHaveLength(1)
+  })
+
+  it('위반: 비공개 함수를 export { f }로 내보냈다 (선언보다 export가 앞에 와도)', () => {
+    const reExported = `
+      export { f }
+      function f(x: unknown) {
+        return x as CoeffBundle
+      }
+    `
+    expect(ruleE_brandCastViolations(approvedPath, reExported)).toHaveLength(1)
+  })
+
+  it('위반: 비공개 const 화살표 함수 + export { f }', () => {
+    const reExported = `
+      const f = (x: unknown) => x as ValidatedContent<unknown>
+      export { f }
+    `
+    expect(ruleE_brandCastViolations(approvedPath, reExported)).toHaveLength(1)
+  })
+
+  it('위반: 이름을 바꿔 내보내도(export { f as g }) 걸린다', () => {
+    const renamed = `
+      function f(x: unknown) {
+        return x as CoeffBundle
+      }
+      export { f as publicBuilder }
+    `
+    expect(ruleE_brandCastViolations(approvedPath, renamed)).toHaveLength(1)
+  })
+
+  it('위반: export default f', () => {
+    const exposed = `
+      function f(x: unknown) {
+        return x as CoeffBundle
+      }
+      export default f
+    `
+    expect(ruleE_brandCastViolations(approvedPath, exposed)).toHaveLength(1)
+  })
+
+  it('위반: export된 함수 안의 중첩 함수에 캐스트가 있어도 그 함수가 캐스트를 품은 것이다', () => {
+    const nested = `
+      export function outer() {
+        const inner = (x: unknown) => x as CoeffBundle
+        return inner
+      }
+    `
+    expect(ruleE_brandCastViolations(approvedPath, nested)).toHaveLength(1)
+  })
+
+  it('위반: 캐스트를 품은 값(함수 아님)을 export const로 내보내도 걸린다', () => {
+    const value = `
+      export const bundle = { version: '1' } as CoeffBundle
+    `
+    expect(ruleE_brandCastViolations(approvedPath, value)).toHaveLength(1)
+  })
+
+  it('정상: export된 함수가 캐스트를 품지 않으면 걸리지 않는다 (비공개 생성자를 부르기만 함)', () => {
+    const callerOnly = `
+      function hidden(x: unknown) {
+        return x as CoeffBundle
+      }
+      export function publicPath(x: unknown) {
+        return hidden(x)
+      }
+    `
+    expect(ruleE_brandCastViolations(approvedPath, callerOnly)).toEqual([])
+  })
+
+  it('정상: 다른 모듈의 재-export(export { f } from ...)는 이 모듈의 선언이 아니다', () => {
+    const foreign = `
+      function hidden(x: unknown) {
+        return x as CoeffBundle
+      }
+      export { hidden2 } from './other'
+    `
+    expect(ruleE_brandCastViolations(approvedPath, foreign)).toEqual([])
+  })
+
+  it('정상: 주석·문자열 안의 export 문구는 판정하지 않는다 (문자열 검색이 아니라 구문 분석)', () => {
+    const textOnly = `
+      // export function buildCoeffBundle(raw) { return raw as CoeffBundle }
+      /* export const f = (x) => x as CoeffBundle */
+      const note = 'export function f() { return x as CoeffBundle }'
+      function hidden(x: unknown) {
+        return x as CoeffBundle
+      }
+      export const label = note
+    `
+    expect(ruleE_brandCastViolations(approvedPath, textOnly)).toEqual([])
+  })
+
+  it('승인 모듈 밖에서는 공개 여부와 무관하게 캐스트 자체가 위반이다 (위치 검사 유지)', () => {
+    const hiddenButOutside = `
+      function f(x: unknown) {
+        return x as CoeffBundle
+      }
+    `
+    expect(ruleE_brandCastViolations('supabase/functions/_shared/other.ts', hiddenButOutside).length).toBeGreaterThan(0)
   })
 })
 
@@ -620,6 +858,20 @@ describe('#13이 만든 실제 파일 전체 — 세 규칙(C·D·E) 실사, 위
     expect(source).toMatch(/\bas\s+ValidatedContent\b/)
   })
 
+  it('r40: 승인 모듈 둘 다 캐스트를 품은 함수가 실제로 있고, 그 함수는 export되지 않는다', () => {
+    const expectations: Array<[string, string]> = [
+      ['supabase/functions/_shared/cornerPipeline.ts', 'brandValidated'],
+      ['supabase/functions/_shared/coeffLookup.ts', 'buildCoeffBundle'],
+    ]
+    for (const [rel, castFunctionName] of expectations) {
+      const source = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8')
+      const declarations = findBrandCastDeclarations(source)
+      // 판정 도구가 빈 결과로 통과하는 게 아니라 실제 캐스트 함수를 찾아내고 있음을 함께 보인다.
+      expect(declarations).toEqual([{ name: castFunctionName, exported: false }])
+      expect(ruleE_brandCastViolations(rel, source)).toEqual([])
+    }
+  })
+
   it('r25: coeffLookup.ts는 as CoeffBundle 캐스트를 실제로 담고 있어도(승인 모듈 자신) 규칙 E에 안 걸린다', () => {
     const source = fs.readFileSync(path.join(REPO_ROOT, APP_CONFIG_LOOKUP_MODULE), 'utf8')
     expect(ruleE_brandCastViolations(APP_CONFIG_LOOKUP_MODULE, source)).toEqual([])
@@ -641,7 +893,7 @@ describe('#13이 만든 실제 파일 전체 — 세 규칙(C·D·E) 실사, 위
 
 describe('우회 차단 증명 — 브랜드 값은 리터럴 객체로 만들 수 없다 (타입 층, @ts-expect-error)', () => {
   it('ValidatedContent<T>는 검증을 거치지 않은 리터럴 객체를 대입할 수 없다', () => {
-    // @ts-expect-error ValidatedContent<T>는 __validated(unique symbol) 브랜드가 없는 리터럴을 거부한다 — cornerPipeline.ts의 validateCornerContent만이 이 타입을 만들 수 있다.
+    // @ts-expect-error ValidatedContent<T>는 __validated(unique symbol) 브랜드가 없는 리터럴을 거부한다 — cornerPipeline.ts의 validateCornerResponse만이 이 타입을 만들 수 있다.
     const fake: ValidatedContent<{ title: string }> = { title: '우회 시도' }
     // 컴파일이 막혔다는 사실 자체가 이 테스트의 목적이다. 런타임 값은
     // (JS는 타입 소거 언어라) 그대로 존재한다 — 확인만 한다.
@@ -649,7 +901,7 @@ describe('우회 차단 증명 — 브랜드 값은 리터럴 객체로 만들 �
   })
 
   it('CoeffBundle은 version 필드를 갖춘 리터럴 객체라도 대입할 수 없다', () => {
-    // @ts-expect-error CoeffBundle은 __fromConfig(unique symbol) 브랜드가 없는 리터럴을 거부한다 — coeffLookup.ts의 buildCoeffBundle만이 이 타입을 만들 수 있다.
+    // @ts-expect-error CoeffBundle은 __fromConfig(unique symbol) 브랜드가 없는 리터럴을 거부한다 — coeffLookup.ts의 lookupCoeffBundle(안의 비공개 생성자)만이 이 타입을 만들 수 있다.
     const fake: CoeffBundle = { version: '1.0.0' }
     expect(fake.version).toBe('1.0.0')
   })

@@ -49,6 +49,12 @@
  * 정적 규칙 E의 예외 목록(`cornerPipelineStaticRules.test.ts`의
  * `APPROVED_BRAND_CONSTRUCTOR_MODULES`)에 이 파일 경로가 들어 있어야
  * 통과한다.
+ *
+ * ── r40: `buildCoeffBundle`은 비공개다 ──────────────────────────────────
+ * r25는 생성자를 이 파일로 옮기기만 하고 `export`를 남겼다 — 누구든 import해서
+ * 리터럴로 `CoeffBundle`을 만들 수 있었다. 이제 이 모듈이 공개하는 것은 조회에서
+ * 브랜드까지 이어지는 정식 경로 `lookupCoeffBundle` 하나뿐이다. 정적 규칙 E는
+ * 승인 모듈 안에서 캐스트를 품은 함수가 `export`되면 걸린다.
  */
 
 import type { CoeffBundle } from '../../../src/engine/corners/brandedTypes.ts'
@@ -92,9 +98,9 @@ export interface AppConfigQueryClient {
  *
  * 이 파일 안에서 정확히 한 번(바로 아래) `as CoeffBundle` 캐스트한다 —
  * 정적 규칙 E는 이 캐스트를 이 파일 경로에 한해 예외로 둔다(승인 모듈
- * 목록, 위 docblock 참조).
+ * 목록, 위 docblock 참조). **`export`하지 않는다(r40).**
  */
-export function buildCoeffBundle(raw: Record<string, unknown>): CoeffBundle {
+function buildCoeffBundle(raw: Record<string, unknown>): CoeffBundle {
   if (typeof raw.version !== 'string' || raw.version.length === 0) {
     throw new Error('buildCoeffBundle: version 필드가 없거나 문자열이 아닙니다')
   }

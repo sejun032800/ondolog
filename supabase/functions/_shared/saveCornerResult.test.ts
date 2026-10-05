@@ -7,47 +7,59 @@ import type { SkipReason } from '../../../src/engine/corners/pipelineContracts'
  * `saveCornerResult.ts` — 저장 함수는 `ValidatedContent<T>`만 받는다
  * (Part 17-0-2), 실패 사유도 저장한다(Part 3-7-B, 17-0-5-B).
  * 위임: .claude/state/prompts/phase-7/20-engine-dev-pipeline-r3.md 5부
- * + .claude/state/prompts/phase-7/21-engine-dev-brand-constructors.md
- * (r25 — 아래 참조).
+ * + .claude/state/prompts/phase-7/21-engine-dev-brand-constructors.md (r25)
+ * + .claude/state/prompts/phase-7/33-corner-pipeline-skeleton-behavior.md (r40).
  *
- * ── 왜 `saveCornerSuccess`/`saveCornerFailure`만 `require(경로변수)`인가 ─
- * `src/engine/corners/brandedTypes.ts`·`pipelineContracts.ts`는 루트
- * `tsconfig.json` 범위 안에서 안전하게 정적 import된다(다른 디렉터리를
- * 참조하지 않는다 — r25로 brandedTypes.ts는 아예 아무것도 import하지
- * 않는 순수 타입 모듈이 됐다). 반면 `saveCornerResult.ts`는 그 둘을
- * **`.ts` 확장자를 명시해** 상대경로로 import한다(Deno 표준). 정적으로
- * 가져오면 루트 tsc가 전이적으로 그 파일을 파싱해 `TS5097`을 낸다 —
- * `coeffLookup.test.ts`와 같은 이유(그 파일 docblock 참조).
- * `ValidatedContent`/`CoeffBundle`은 안전한 쪽에서 타입만 가져와 타입
- * 강제(브랜드)를 그대로 유지한다.
+ * 이 파일은 대상과 같은 트리에 있고 `.ts` 확장자 정적 import로 대상을 가져온다.
+ * 루트 tsc는 `exclude`로 이 파일을 보지 않고, 전용 tsconfig가 타입 검사한다
+ * (`__tests__/build/edgeFunctionsTypecheck.test.ts`).
  *
- * ── r25: 이 파일의 테스트 픽스처를 만드는 방법이 바뀌었다 ────────────────
- * 이 테스트는 `saveCornerSuccess`/`saveCornerFailure`에 넘길
- * `ValidatedContent<T>`·`CoeffBundle` 값이 필요하다(저장 함수 자신은
- * 이 값을 만들지 않고 소비만 한다). r25 이전에는 `brandedTypes.ts`가
- * 두 생성자를 공개 export해서 안전하게 정적 import할 수 있었다. r25로
- * 생성자가 `cornerPipeline.ts`(`validateCornerContent`)·
- * `coeffLookup.ts`(`buildCoeffBundle`)로 옮겨가면서, 그 두 파일도
- * `.ts` 확장자 import를 갖게 됐다(`brandedTypes.ts`를 그렇게 가져온다).
- * 그래서 이 픽스처들도 `coeffLookup.test.ts`/`cornerPipeline.test.ts`와
- * 같은 이유로 `require(경로변수)`를 쓴다.
+ * ── 픽스처는 정식 경로로만 만든다 (r40) ───────────────────────────────────
+ * 저장 함수에 넘길 `ValidatedContent<T>`·`CoeffBundle`은 이 테스트가 만들 수 없다 —
+ * 브랜드를 붙이는 함수와 `buildCoeffBundle`은 승인 모듈 안의 비공개 함수다.
+ * 그래서 `ValidatedContent`는 `validateCornerResponse`(LLM 응답 문자열 → 17-0-4의
+ * 순서 전체), `CoeffBundle`은 `lookupCoeffBundle`(`AppConfigQueryClient` 가짜 → 조회)
+ * 로만 얻는다. 이 파일에는 브랜드 캐스트도, `buildCoeffBundle` 호출도 없다.
  */
 
-// 픽스처 값이 실제로 `ValidatedContent<T>`/`CoeffBundle`(브랜드 타입,
-// 위에서 `import type`)을 갖도록 선언한다 — 그래야 아래에서
-// `saveCornerSuccess({ content: validated.content, coeffBundle, ... })`가
-// 그 함수의 실제 시그니처(`ValidatedContent<T>`/`CoeffBundle` 요구)와
-// 컴파일 시점에 맞는다. 런타임 함수 자체는 `cornerPipeline.ts`/
-// `coeffLookup.ts`가 정확히 한 번 캐스트해 만든 진짜 브랜드 값을
-// 돌려준다 — 이 타입 선언은 그 사실을 이 파일 안에서 다시 진술할
-// 뿐이다(구조적으로 재선언하지 않고 실제 브랜드 타입을 그대로 쓴다).
-type FixtureValidateResult<T> =
-  | { readonly ok: true; readonly content: ValidatedContent<T> }
-  | { readonly ok: false; readonly reason: 'schema_invalid' | 'forbidden_content'; readonly detail: string }
+import {
+  validateCornerResponse,
+  type CornerContext,
+  type CornerResponseSpec,
+} from './cornerPipeline.ts'
+import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 
-import { validateCornerContent } from './cornerPipeline.ts'
+const CONTEXT: CornerContext = { coupleId: 'couple-a' }
 
-import { buildCoeffBundle } from './coeffLookup.ts'
+/** 4~6단계가 비어 있는 합성 스펙 — 픽스처를 정식 경로로 만들기 위한 것. */
+function passThroughSpec<T>(schema: z.ZodType<T>): CornerResponseSpec<T, T> {
+  return {
+    llmSchema: schema,
+    isExplicitEmpty: () => false,
+    resolveReferences: () => ({ ok: true }),
+    fill: (llm) => ({ ok: true, value: llm }),
+    storedSchema: schema,
+  }
+}
+
+/** 정식 경로로 `ValidatedContent<{ title: string }>`를 얻는다. */
+function validatedFixture(title: string) {
+  return validateCornerResponse(JSON.stringify({ title }), passThroughSpec(Schema), CONTEXT)
+}
+
+/** 정식 경로로 `CoeffBundle`을 얻는다 — `app_config` 가짜 → `lookupCoeffBundle`. */
+function coeffBundleFixture(version: string) {
+  const client: AppConfigQueryClient = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: { key: 'corner_coeffs', value: { version } }, error: null }),
+        }),
+      }),
+    }),
+  }
+  return lookupCoeffBundle(client, 'corner_coeffs')
+}
 
 interface CornersTableClientShape {
   from(table: 'corners'): {
@@ -111,11 +123,11 @@ function fakeErrorClient(message: string): CornersTableClientShape {
 
 describe('saveCornerSuccess — 검증된 값만 받는다(타입 층)', () => {
   it('ValidatedContent<T>를 받아 status=ready로 갱신하고 coeffVersion을 content에 함께 기록한다', async () => {
-    const validated = validateCornerContent({ title: 'x' }, Schema)
+    const validated = validatedFixture('x')
     expect(validated.ok).toBe(true)
     if (!validated.ok) return
 
-    const coeffBundle = buildCoeffBundle({ version: '1.0.0' })
+    const coeffBundle = await coeffBundleFixture('1.0.0')
     const client = fakeClient()
 
     await saveCornerSuccess(client, {
@@ -138,7 +150,7 @@ describe('saveCornerSuccess — 검증된 값만 받는다(타입 층)', () => {
   })
 
   it('coeffBundle이 없으면 content에 coeffVersion을 기록하지 않는다(계수를 쓰지 않는 MVP 3종)', async () => {
-    const validated = validateCornerContent({ title: 'y' }, Schema)
+    const validated = validatedFixture('y')
     if (!validated.ok) throw new Error('unreachable')
     const client = fakeClient()
 
@@ -155,7 +167,7 @@ describe('saveCornerSuccess — 검증된 값만 받는다(타입 층)', () => {
   })
 
   it('DB 오류면 던진다', async () => {
-    const validated = validateCornerContent({ title: 'z' }, Schema)
+    const validated = validatedFixture('z')
     if (!validated.ok) throw new Error('unreachable')
     const client = fakeErrorClient('conflict')
 
@@ -249,9 +261,9 @@ describe('타입 층 강제 — 완료 기준 "저장 함수는 ValidatedContent
 
 describe('결정론 — 동일 입력 100회 반복 → 100회 동일 결과(패치 내용 기준)', () => {
   it('같은 입력으로 100회 저장해도 patch 내용이 항상 같다', async () => {
-    const validated = validateCornerContent({ title: 'stable' }, Schema)
+    const validated = validatedFixture('stable')
     if (!validated.ok) throw new Error('unreachable')
-    const coeffBundle = buildCoeffBundle({ version: '1.0.0' })
+    const coeffBundle = await coeffBundleFixture('1.0.0')
 
     let firstPatchJson = ''
     for (let i = 0; i < 100; i++) {

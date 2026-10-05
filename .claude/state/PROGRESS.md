@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-05 (corner-pipeline, `33`): `#14` 2부 2단계 — 골격 동작 변경. `buildCoeffBundle`·브랜드 부착 함수 비공개(r40), `validateCornerContent` 제거 → `validateCornerResponse`(JSON.parse → 원본 객체 금지 키 → Zod → 빈 결과 → ID 해석 → 채우기 → 저장 스키마), 호출 전 소속 단언(`CoupleMembershipError`, LLM 0회), 규칙 E 공개 여부(컴파일러 API). 게이트 tsc 0 / tsc(functions) 0 / jest 594·35 (기준 556·35). 상세·열린 판단은 HANDOFF `#14` 2부 2단계 절.
+
 2026-10-05 (메인 세션, `31-r2`): `#14` 2부 1단계 — `_shared` 네 테스트(`cornerPipeline`·`llmClient`·`saveCornerResult`·`coeffLookup`)를 `__tests__/functions/`에서 `supabase/functions/_shared/`로 `git mv`. `require(경로변수)` 우회 → `.ts` 정적 import, 파일 맨 위 `/// <reference types="jest" />`, `cornerPipeline.test.ts`의 브랜드 없는 `CoeffBundle` 픽스처를 `lookupCoeffBundle`(가짜 `AppConfigQueryClient`) 정식 경로로(MASTER r40). assertion·테스트 이름 무수정. 게이트 0 / 0 / 556 · 35. 2-3은 추가된 줄 기준(경로 한정 없이)으로 재확인해 빈 출력. 머리 주석 정리·`buildCoeffBundle` 비공개는 2단계. 미커밋
 
 2026-10-05 (메인 세션, `30`): `CORNER_CONTENT.md`에 r39(MASTER 17-0-7) 저장 스키마 반영 — 봉투 header에 `cornerName` 추가·`title` 7자 규칙(§1·§2·§6 예시), §6 예시 `warmthIndex: null`, §6-1 main 1~3·sub 0~6, §7-1 signals에서 `metric` 제거(count는 파이프라인 계산), §7 evidence → 신규 `MonthEvidence`(§3 `Evidence` 무변경). 아홉 곳 외 변경 없음, LF 유지. 게이트 0 / 0 / 556 · 35. 미커밋
