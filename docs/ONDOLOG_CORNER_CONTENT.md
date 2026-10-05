@@ -42,7 +42,8 @@ LLM 출력(문자열)
 interface CornerEnvelope<P> {
   schemaVersion: string;   // "1.0" — 구조 변경 시 증가
   header: {
-    title: string;         // 지면 제목
+    cornerName: string;    // 코너 이름 — 앱 화면·목차용, 길이 제한 없음, 코너별 상수 (MASTER 17-0-7)
+    title: string;         // 지면 제목 — 지면 머리용, 7자 이내(코드포인트), 코너별 상수. 문구는 디자인이 정한다
     subtitle?: string;
     periodLabel: string;   // "2026년 8월", "8월 3주차"
   };
@@ -196,7 +197,8 @@ interface ClosingQuestion {
 {
   "schemaVersion": "1.0",
   "header": {
-    "title": "데이트 아카이브",
+    "cornerName": "데이트 아카이브",
+    "title": "<지면 제목 — 디자인 확정 전>",
     "periodLabel": "2026년 8월"
   },
   "payload": {
@@ -564,10 +566,10 @@ interface SweetWordsPayload {
   warmthIndex: number | null;     // 그 기간 다정 지수 (0~100)
 
   /** 메인 인용 — 대화 단위 */
-  main: SweetExcerpt[];           // 월간 2~3개 / 일간 1개
+  main: SweetExcerpt[];           // 월간 1~3개 / 일간 1개 (MASTER 17-0-7)
 
   /** 서브 — 단문 나열 */
-  sub: Array<{
+  sub: Array<{                    // 0~6개 (MASTER 17-0-7)
     attribution: Attribution;
     speaker: string;
     text: string;                 // 원문 그대로
@@ -602,9 +604,9 @@ interface SweetExcerpt {
 ```json
 {
   "schemaVersion": "1.0",
-  "header": { "title": "이달의 다정한 말들", "periodLabel": "2026년 8월" },
+  "header": { "cornerName": "이달의 다정한 말들", "title": "<지면 제목 — 디자인 확정 전>", "periodLabel": "2026년 8월" },
   "payload": {
-    "warmthIndex": 72,
+    "warmthIndex": null,
     "main": [
       {
         "context": "아침 출근길에 오간 대화",
@@ -642,7 +644,8 @@ interface ThisMonthPayload {
     /** 부정 테마 배제 — 'negative'는 스키마상 허용하지 않는다 */
     polarity: 'neutral' | 'positive';
     /** 테마 추출 근거가 된 신호 */
-    signals: Array<{ kind: 'place' | 'keyword' | 'activity' | 'metric'; value: string; count: number }>;
+    /** count는 파이프라인이 계산한다 — 그 신호가 참조한 근거 ID 개수. LLM이 쓰지 않는다. 'metric'은 MVP에서 뺀다 (MASTER 17-0-7) */
+    signals: Array<{ kind: 'place' | 'keyword' | 'activity'; value: string; count: number }>;
   };
 
   /** 데이터량에 따라 2~4편 */
@@ -650,10 +653,24 @@ interface ThisMonthPayload {
     seq: number;
     title: string;
     body: string;
-    evidence: Evidence[];         // 최소 1개
+    evidence: MonthEvidence[];    // 최소 1개
   }>;
 
   closing: string;                // 다음 달로 이어지는 한 줄
+}
+```
+
+```ts
+/**
+ * 17-5 전용 근거. §3의 Evidence와 별개다 — 연애 DNA는 metric 근거를 쓰므로 공유하지 않는다.
+ * LLM은 근거를 ID로만 참조하고, 아래 필드는 파이프라인이 이번 입력 레코드에서 채운다 (MASTER 17-0-4-A).
+ */
+interface MonthEvidence {
+  type: 'message' | 'photo' | 'date';
+  at: string;                    // 근거의 시각·날짜
+  excerpt?: string;              // type 'message' — 원문 그대로
+  attribution?: Attribution;     // type 'message'
+  photoPath?: string;            // type 'photo' — 발행 시 magazine 버킷 경로로 치환된다 (Part 8)
 }
 ```
 
