@@ -604,7 +604,7 @@ interface SweetExcerpt {
 ```json
 {
   "schemaVersion": "1.0",
-  "header": { "cornerName": "이달의 다정한 말들", "title": "<지면 제목 — 디자인 확정 전>", "periodLabel": "2026년 8월" },
+  "header": { "cornerName": "다정한 말들", "title": "<지면 제목 — 디자인 확정 전>", "periodLabel": "2026년 8월" },
   "payload": {
     "warmthIndex": null,
     "main": [

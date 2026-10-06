@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-06 (메인 세션, `37`, r45): 문서 정리 — 인수인계서 5-2 줄바꿈 행의 처방 칸 교체(기준은 저장소 index의 LF, 작업 트리 줄바꿈 검사 폐기), 4-2에 "확인과 관문" 행 추가, CORNER_CONTENT 다정한 말들 `cornerName`을 "다정한 말들"로. 게이트 tsc 0 / tsc(functions) 0 / jest 630·35. 미커밋
+
 2026-10-06 (corner-pipeline, `36`): `#14` 2부 2단계-d - 골격 마무리(MASTER r44). `scopedRecords` 한 번만 호출(호출 횟수로 확인), `resolveRecordReferences` 비공개, `kind`를 `RecordKind` 유니온으로, `path` 존재 확인 `findMissingReferencePaths` 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 630·35 (기준 619·35). 고친 assertion 1곳은 HANDOFF `36` 절. 미커밋
 
 2026-10-06 (corner-pipeline, `35`): `#14` 2부 2단계-c - ID 해석을 선언으로(MASTER r43). 코너가 넘기는 것은 `ReferenceMapping`(`none` | `fields`: path·kind·copy)뿐, `resolveReferences`·`fill` 함수 자리 제거, 존재·커플·기간(`isRecordInPeriod` 하나)·원문 채우기는 골격. `validateCornerResponse` 4번째 인자 `records` 필수, `ScopedRecord`에 `kind`·`source`. 게이트 tsc 0 / tsc(functions) 0 / jest 619·35 (기준 608·35). 판단 6건·고친 assertion은 HANDOFF `35` 절. 미커밋

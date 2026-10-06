@@ -19,6 +19,7 @@ git status --porcelain
 Select-String -Path docs/ONDOLOG_MASTER.md  -Pattern 'DOC_REVISION: 2026-10-06-r45'
 Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-10-04-r4'
 Select-String -Path docs/ONDOLOG_CORNER_CONTENT.md -Pattern '"cornerName": "다정한 말들"' -SimpleMatch
+Select-String -Path docs/ONDOLOG_CORNER_CONTENT.md -Pattern '디자인 확정 전' -SimpleMatch
 Select-String -Path .claude/state/HANDOFF.md -Pattern '1부 — 코너 3종 설계 보고' -SimpleMatch
 Select-String -Path supabase/functions/_shared/cornerPipeline.ts -Pattern 'findMissingReferencePaths'
 git ls-files .claude/state/prompts/phase-7 | Select-String -Pattern '38-corner-pipeline-three-corners'
@@ -29,6 +30,7 @@ git ls-files .claude/state/prompts/phase-7 | Select-String -Pattern '38-corner-p
 | `git status --porcelain` | 빈 출력 |
 | MASTER r45 / ROADMAP r4 | 각 한 줄 |
 | CORNER_CONTENT 코너 이름 | 한 줄 — `37-`이 반영됐다 |
+| CORNER_CONTENT 지면 제목 자리표시자 | **빈 출력** — `39-`가 반영됐다 |
 | 1부 설계 보고 | 한 줄 이상 |
 | `findMissingReferencePaths` | 한 줄 이상 |
 | 위임 파일 | 한 줄 |
