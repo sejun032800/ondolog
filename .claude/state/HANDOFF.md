@@ -23,6 +23,22 @@
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 
+## `#14` 2부 2단계-d - 골격 마무리 (2026-10-06, corner-pipeline, `36`) - 구현 완료
+
+위임: `.claude/state/prompts/phase-7/36-corner-pipeline-skeleton-final.md` (MASTER 17-0-4 r44).
+게이트: tsc 0 / tsc(functions) 0 / jest **630 / 35** (기준 619 / 35, 감소 없음, 신규 11건).
+변경: `supabase/functions/_shared/cornerPipeline.ts`, `cornerPipeline.test.ts`, 이 절, `PROGRESS.md` 한 줄. `llmClient.ts`·`package.json`·설정 파일 무변경, 의존성 없음.
+
+1. `scopedRecords`: `runCornerPipeline`이 ⓪에서 한 번 불러 `records`에 담고, 단언과 `validateCornerResponse`(재시도 포함)에 같이 넘긴다. 시험은 호출 횟수(성공·schema_invalid 재시도·선행 검사 미달·단언 실패 모두 1), 그리고 부를 때마다 다른 집합을 돌려주는 함수에서 첫 결과만 쓰인다는 것.
+2. `resolveRecordReferences`: `export` 제거. 시험은 `validateCornerResponse`(선언 경로)로 한다.
+3. `kind`: `export type RecordKind = 'message' | 'photo' | 'date'`를 `ScopedRecord.kind`·`IdFieldDeclaration.kind`에 적용. 유니온 밖은 `@ts-expect-error` 테스트.
+4. `findMissingReferencePaths(llmSchema, mapping)`: 스키마에 없는 선언의 `path` 목록을 돌려준다(빈 배열이면 전부 있음). Zod 4 `_zod.def`를 읽어 object/array와 래퍼(optional·nullable·default·pipe·lazy·union 등)를 따라간다. 문법이 틀린 `path`는 던지지 않고 없는 자리로 센다. 코너 테스트는 3단계에서 `expect(findMissingReferencePaths(schema, mapping)).toEqual([])`로 부른다.
+
+**고친 assertion 1곳**: `r42 - 기간 판정 함수는 하나다 > 응답 쪽(ID 해석)도 같은 결과`의 `resolve` 도우미가 `resolveRecordReferences`를 직접 불렀다(비공개가 되어 불가). `validateCornerResponse` + 한 칸짜리 선언 매핑으로 바꿨다. 기대값(`in`·`start`·`old-recalled` 통과, `end`·`old`·`foreign-recalled`·없는 ID 막힘)은 그대로.
+
+**문서와 다르게 읽힌 자리 / 판단**: 위임과 MASTER는 시험의 정식 입구를 `resolveDeclaredReferences`라 부르나 그 함수는 처음부터 비공개였다. 공개하면 `resolveRecordReferences`를 비공개로 한 이유(코너가 미리 해석해 볼 길)가 되살아나므로 공개하지 않고, 이미 공개된 입구 `validateCornerResponse`로 시험했다. 문서가 `resolveDeclaredReferences`의 공개를 뜻했다면 알려 달라.
+`ScopedRecord.kind` 유니온화로 3단계의 종류 어휘는 `message`·`photo`·`date` 세 값으로 고정된다.
+
 ## `#14` 2부 2단계-c - ID 해석을 선언으로 (2026-10-06, corner-pipeline, `35`) - 구현 완료, 3단계 전에 확인할 판단 6건
 
 위임: `.claude/state/prompts/phase-7/35-corner-pipeline-declarative-ids.md` (MASTER 17-0-4 r43).

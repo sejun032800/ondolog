@@ -87,18 +87,24 @@ export interface CornerContext {
  * 입력 레코드가 반드시 싣는 필드(17-0-4-B): ID·시각·재소환 표시(+ 소속) + ID 해석용 종류·원문.
  * 소속은 `coupleId`로 읽는다. `recalled`는 입력 조립이 붙이는 표시로, 없으면 재소환이 아니다.
  *
- * `kind`는 이 레코드가 어떤 종류의 ID로 참조되는가(`IdFieldDeclaration.kind`와 같은 값)이고,
+ * `kind`는 이 레코드가 어떤 종류의 ID로 참조되는가(`IdFieldDeclaration.kind`와 같은 값, `RecordKind`)이고,
  * `source`는 입력 조립이 DB에서 가져온 원문 필드들이다. 골격이 선언된 이름으로 그대로 복사한다
- * (17-0-4-A). 종류 이름의 어휘는 코너 3종 단계가 정한다 - 이 파일은 문자열로만 다룬다.
+ * (17-0-4-A).
  */
 export interface ScopedRecord {
   readonly id: string
   readonly coupleId: string
   readonly occurredAt: Date
   readonly recalled?: boolean
-  readonly kind: string
+  readonly kind: RecordKind
   readonly source: Readonly<Record<string, unknown>>
 }
+
+/**
+ * 레코드 종류 — `'message'`·`'photo'`·`'date'` 유니온(MASTER 17-0-4 r44). 오타는 컴파일러가 잡는다.
+ * 새 종류는 문서가 정한 뒤에 여기에 더한다.
+ */
+export type RecordKind = 'message' | 'photo' | 'date'
 
 /** 기간·커플 판정에 필요한 필드만 - `isRecordInPeriod`·`resolveRecordReferences`가 받는 모양. */
 type JudgedRecord = Pick<ScopedRecord, 'id' | 'coupleId' | 'occurredAt' | 'recalled'>
@@ -192,9 +198,11 @@ function assertRecordsBelongToCouple(records: readonly ScopedRecord[], context: 
  * ID 해석(응답 쪽, 17-0-4-A) — 참조한 ID가 이번 입력 레코드에 있고, 그 커플의 것이고,
  * 코너 맥락의 기간 안(재소환은 기간 이전)인지 본다. 기간은 `isRecordInPeriod`를 부른다.
  * **골격이 선언된 ID 필드(`ReferenceMapping`)마다 부른다(r43).** 코너는 이 함수를 부르는 자리도,
- * 대신할 함수를 넘길 자리도 없다 — 코너가 넘기는 것은 매핑뿐이다.
+ * 대신할 함수를 넘길 자리도 없다 — 코너가 넘기는 것은 매핑뿐이다. **비공개다(r44)** — 공개하면 코너가
+ * 스키마의 `refine`이나 `scopedRecords` 안에서 미리 해석해 보는 식으로 판정을 따로 짤 길이 생긴다.
+ * 시험은 정식 입구(`validateCornerResponse`, 선언 경로)로 한다.
  */
-export function resolveRecordReferences(
+function resolveRecordReferences(
   ids: readonly string[],
   records: readonly JudgedRecord[],
   context: CornerContext,
@@ -227,14 +235,14 @@ export type CornerResponseResult<T> =
  * - `path`: LLM 출력 안의 ID 필드 위치. 점으로 잇고 배열은 `[]`를 붙인다(예: `turns[].messageId`).
  *   마지막 칸은 문자열 ID 하나를 가리키는 이름이다(`[]`로 끝나지 않는다). 그 위치의 값이 없으면
  *   (선택 필드) 건너뛰고, 문자열이 아니면 `schema_invalid`다.
- * - `kind`: 그 ID가 가리키는 레코드의 종류 — `ScopedRecord.kind`와 같은 값인 레코드에서만 찾는다.
+ * - `kind`: 그 ID가 가리키는 레코드의 종류(`RecordKind`) — `ScopedRecord.kind`와 같은 값인 레코드에서만 찾는다.
  * - `copy`: `{ 저장 쪽 키: 레코드 source의 필드명 }`. 골격이 ID 필드와 **같은 객체**에 그 키로
  *   원문을 채운다(이미 있으면 덮어쓴다 — 원문이 우선이다, 17-0-4-A). source에 그 필드가 없으면
  *   `schema_invalid`.
  */
 export interface IdFieldDeclaration {
   readonly path: string
-  readonly kind: string
+  readonly kind: RecordKind
   readonly copy: Readonly<Record<string, string>>
 }
 
@@ -313,6 +321,84 @@ function collectHolders(
     holders.push(node)
   }
   return { ok: true, holders }
+}
+
+type SchemaDef = { readonly type?: string; readonly [key: string]: unknown }
+
+function schemaDef(schema: unknown): SchemaDef | undefined {
+  if (typeof schema !== 'object' || schema === null) return undefined
+  const zod = (schema as { _zod?: { def?: SchemaDef } })._zod
+  return zod?.def
+}
+
+/** 모양을 바꾸지 않고 감싼 래퍼를 벗겨 안쪽 스키마들을 돌려준다(유니온·교차는 갈래 전부). */
+function unwrapSchema(schema: unknown, depth = 0): unknown[] {
+  const def = schemaDef(schema)
+  if (def === undefined || depth > 32) return []
+  switch (def.type) {
+    case 'optional':
+    case 'nullable':
+    case 'nonoptional':
+    case 'default':
+    case 'prefault':
+    case 'readonly':
+    case 'catch':
+      return unwrapSchema(def.innerType, depth + 1)
+    case 'pipe':
+      return unwrapSchema(def.in, depth + 1)
+    case 'lazy':
+      return typeof def.getter === 'function' ? unwrapSchema((def.getter as () => unknown)(), depth + 1) : []
+    case 'union':
+      return Array.isArray(def.options) ? def.options.flatMap((o) => unwrapSchema(o, depth + 1)) : []
+    case 'intersection':
+      return [...unwrapSchema(def.left, depth + 1), ...unwrapSchema(def.right, depth + 1)]
+    default:
+      return [schema]
+  }
+}
+
+function schemaHasPath(schema: unknown, segments: readonly string[]): boolean {
+  if (segments.length === 0) return true
+  const [segment, ...rest] = segments
+  const isArray = segment.endsWith('[]')
+  const key = isArray ? segment.slice(0, -2) : segment
+  for (const candidate of unwrapSchema(schema)) {
+    const def = schemaDef(candidate)
+    if (def?.type !== 'object' || typeof def.shape !== 'object' || def.shape === null) continue
+    const field = (def.shape as Record<string, unknown>)[key]
+    if (field === undefined) continue
+    if (!isArray) {
+      if (schemaHasPath(field, rest)) return true
+      continue
+    }
+    for (const arrayCandidate of unwrapSchema(field)) {
+      const arrayDef = schemaDef(arrayCandidate)
+      if (arrayDef?.type === 'array' && schemaHasPath(arrayDef.element, rest)) return true
+    }
+  }
+  return false
+}
+
+/**
+ * **`path` 존재 확인(r44)** — 선언된 `path`가 그 코너의 LLM 출력 스키마에 실제로 있는 자리인지를
+ * 선언과 스키마만으로 판정한다(실제 응답을 기다리지 않는다). 문자열인 `path`의 오타는 컴파일러가
+ * 못 잡으므로, 코너마다 테스트에서 이 함수를 불러 오타를 테스트 실패로 드러낸다.
+ *
+ * 스키마에 없는 선언의 `path`를 돌려준다 — 빈 배열이면 전부 있다. 경로 문법이 틀린 `path`도 "없는
+ * 자리"로 센다(이 함수는 던지지 않는다). `kind: 'none'`은 확인할 것이 없어 빈 배열이다.
+ */
+export function findMissingReferencePaths(
+  llmSchema: ZodType<unknown>,
+  mapping: ReferenceMapping,
+): readonly string[] {
+  if (mapping.kind === 'none') return []
+  return mapping.fields
+    .map((f) => f.path)
+    .filter((path) => {
+      const segments = path.split('.')
+      if (!segments.every((s) => SEGMENT.test(s)) || segments[segments.length - 1].endsWith('[]')) return true
+      return !schemaHasPath(llmSchema, segments)
+    })
 }
 
 /**
@@ -514,7 +600,9 @@ export async function runCornerPipeline<TInput, TPayload>(
 
   // ⓪ 맥락 값 검증 + 소속(커플·기간) 단언 — 어떤 LLM 호출보다 앞. 오염된 입력이 "재료 부족"으로 가려지지 않도록
   // 선행 검사보다도 먼저 본다. 던진 오류는 잡지 않는다(호 전체 중단은 호출자의 일).
-  assertRecordsBelongToCouple(scopedRecords(input), context)
+  // `scopedRecords`는 여기서 한 번만 부른다 — 이 결과를 단언과 ID 해석에 같이 쓴다(r44).
+  const records = scopedRecords(input)
+  assertRecordsBelongToCouple(records, context)
 
   // ① 선행 검사 — 미달이면 LLM을 호출하지 않는다(비용 없음, 사유는 사실).
   if (!preconditionCheck(input)) {
@@ -547,7 +635,7 @@ export async function runCornerPipeline<TInput, TPayload>(
     }
 
     // ④ JSON.parse → FORBIDDEN_KEYS → Zod → 빈 결과 → ID 해석 → 채우기 → 저장 스키마 → 브랜드.
-    const validation = validateCornerResponse(callResult.text, spec, context, scopedRecords(input))
+    const validation = validateCornerResponse(callResult.text, spec, context, records)
     if (validation.ok) {
       // ⑤ ValidatedContent 반환 — 저장은 호출부가 saveCornerResult.ts로 한다.
       return { outcome: 'success', content: validation.content, coeffBundle, llmCallAttempts }

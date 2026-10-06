@@ -5,7 +5,7 @@ import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 import {
   runCornerPipeline,
   isRecordInPeriod,
-  resolveRecordReferences,
+  findMissingReferencePaths,
   InvalidCornerContextError,
   validateCornerResponse,
   CoupleMembershipError,
@@ -1203,7 +1203,13 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
       { id: 'old-recalled', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: before, recalled: true },
       { id: 'foreign-recalled', coupleId: 'couple-b', kind: 'message', source: {}, occurredAt: before, recalled: true },
     ]
-    const resolve = (id: string) => resolveRecordReferences([id], records, CONTEXT).ok
+    // 비공개인 해석 함수 대신 정식 입구(`validateCornerResponse`, 선언 경로)로 시험한다(r44).
+    const refSchemaForMatrix = z.object({ ref: z.string() })
+    const matrixSpec: CornerResponseSpec<{ ref: string }, { ref: string }> = {
+      ...passThroughSpec(refSchemaForMatrix),
+      references: { kind: 'fields', fields: [{ path: 'ref', kind: 'message', copy: {} }] },
+    }
+    const resolve = (id: string) => validateCornerResponse(JSON.stringify({ ref: id }), matrixSpec, CONTEXT, records).ok
 
     it('경계와 재소환이 단언 쪽과 같다', () => {
       expect(resolve('in')).toBe(true)
@@ -1295,3 +1301,134 @@ describe('r42 — 맥락 값 검증: 틀리면 LLM 0회·저장 0회·오류 전
     expect(result.outcome).toBe('success')
   })
 })
+
+describe('r44 - scopedRecords는 한 번만 부른다', () => {
+  const record: ScopedRecord = { id: 'm-1', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: IN_PERIOD }
+
+  function countingScopedRecords(records: readonly ScopedRecord[]) {
+    let calls = 0
+    return { fn: (_input: unknown): readonly ScopedRecord[] => { calls += 1; return records }, calls: () => calls }
+  }
+  const baseParams = (llmClient: LlmClient) => ({
+    input: {},
+    context: CONTEXT,
+    preconditionCheck: () => true,
+    buildPrompt: () => 'p',
+    schema: PayloadSchema,
+    hooks: passHooks(PayloadSchema),
+    llmClient,
+  })
+
+  it('성공 경로 - 호출 횟수 1', async () => {
+    const counter = countingScopedRecords([record])
+    const result = await runCornerPipeline({ ...baseParams(scriptedLlmClient([ok('{"title":"x"}')])), scopedRecords: counter.fn })
+    expect(result.outcome).toBe('success')
+    expect(counter.calls()).toBe(1)
+  })
+
+  it('schema_invalid 재시도로 LLM이 두 번 불려도 호출 횟수 1', async () => {
+    const counter = countingScopedRecords([record])
+    const llmClient = scriptedLlmClient([ok('not json'), ok('{"title":"x"}')])
+    const result = await runCornerPipeline({ ...baseParams(llmClient), scopedRecords: counter.fn })
+    expect(llmClient.callCount()).toBe(2)
+    expect(result.outcome).toBe('success')
+    expect(counter.calls()).toBe(1)
+  })
+
+  it('선행 검사 미달로 LLM이 불리지 않아도 호출 횟수 1(단언이 먼저)', async () => {
+    const counter = countingScopedRecords([record])
+    const result = await runCornerPipeline({
+      ...baseParams(scriptedLlmClient([ok('{"title":"x"}')])),
+      preconditionCheck: () => false,
+      scopedRecords: counter.fn,
+    })
+    expect(result.outcome).toBe('failure')
+    expect(counter.calls()).toBe(1)
+  })
+
+  it('단언이 실패해도 호출 횟수 1', async () => {
+    const counter = countingScopedRecords([{ ...record, coupleId: 'couple-b' }])
+    await expect(
+      runCornerPipeline({ ...baseParams(scriptedLlmClient([ok('{"title":"x"}')])), scopedRecords: counter.fn }),
+    ).rejects.toBeInstanceOf(CoupleMembershipError)
+    expect(counter.calls()).toBe(1)
+  })
+
+  it('단언한 집합과 ID 해석에 쓴 집합이 같다 - 부를 때마다 다른 집합을 돌려주는 함수여도 첫 결과만 쓰인다', async () => {
+    const first: ScopedRecord = { ...record, id: 'first', source: { text: '첫 집합' } }
+    const second: ScopedRecord = { ...record, id: 'second', source: { text: '둘째 집합' } }
+    let calls = 0
+    const schema = z.object({ ref: z.string(), text: z.string().optional() })
+    const result = await runCornerPipeline({
+      ...baseParams(scriptedLlmClient([ok('{"ref":"first"}')])),
+      schema,
+      hooks: {
+        isExplicitEmpty: () => false,
+        references: { kind: 'fields', fields: [{ path: 'ref', kind: 'message', copy: { text: 'text' } }] },
+        storedSchema: schema,
+      },
+      scopedRecords: () => { calls += 1; return calls === 1 ? [first] : [second] },
+    })
+    expect(calls).toBe(1)
+    expect(result.outcome).toBe('success')
+    if (result.outcome === 'success') expect(result.content).toEqual({ ref: 'first', text: '첫 집합' })
+  })
+})
+
+describe('r44 - kind는 유니온이다', () => {
+  it('유니온 밖의 값은 컴파일 오류다', () => {
+    const run = () => {
+      // @ts-expect-error - 'messge'는 RecordKind가 아니다(선언)
+      const declared: ReferenceMapping = { kind: 'fields', fields: [{ path: 'ref', kind: 'messge', copy: {} }] }
+      // @ts-expect-error - 'chat'은 RecordKind가 아니다(레코드)
+      const record: ScopedRecord = { id: 'x', coupleId: 'c', kind: 'chat', source: {}, occurredAt: IN_PERIOD }
+      return [declared, record]
+    }
+    expect(typeof run).toBe('function')
+  })
+
+  it('message·photo·date는 통과한다', () => {
+    const kinds: ScopedRecord['kind'][] = ['message', 'photo', 'date']
+    expect(kinds).toHaveLength(3)
+  })
+})
+
+describe('r44 - path 존재 확인(findMissingReferencePaths)', () => {
+  const Schema = z.object({
+    context: z.string(),
+    turns: z.array(z.object({ messageId: z.string(), text: z.string().optional() })),
+    pick: z.object({ ref: z.string() }).nullable().optional(),
+    nested: z.object({ groups: z.array(z.object({ items: z.array(z.object({ photoId: z.string() })) })) }),
+  })
+  const mapping = (...paths: string[]): ReferenceMapping => ({
+    kind: 'fields',
+    fields: [
+      { path: paths[0], kind: 'message', copy: {} },
+      ...paths.slice(1).map((path) => ({ path, kind: 'message' as const, copy: {} })),
+    ],
+  })
+
+  it('스키마에 있는 자리는 통과한다 - 최상위·배열·선택·nullable·중첩 배열', () => {
+    expect(findMissingReferencePaths(Schema, mapping('turns[].messageId'))).toEqual([])
+    expect(findMissingReferencePaths(Schema, mapping('pick.ref'))).toEqual([])
+    expect(findMissingReferencePaths(Schema, mapping('nested.groups[].items[].photoId'))).toEqual([])
+    expect(findMissingReferencePaths(Schema, mapping('context', 'turns[].messageId'))).toEqual([])
+  })
+
+  it('없는 자리(오타)는 실패로 센다 - 어느 path인지 돌려준다', () => {
+    expect(findMissingReferencePaths(Schema, mapping('turns[].messageld'))).toEqual(['turns[].messageld'])
+    expect(findMissingReferencePaths(Schema, mapping('turn[].messageId'))).toEqual(['turn[].messageId'])
+    expect(findMissingReferencePaths(Schema, mapping('turns.messageId'))).toEqual(['turns.messageId']) // 배열인데 [] 없음
+    expect(findMissingReferencePaths(Schema, mapping('context[].x'))).toEqual(['context[].x']) // 배열이 아님
+    expect(findMissingReferencePaths(Schema, mapping('turns[].messageId', 'pick.rf'))).toEqual(['pick.rf'])
+  })
+
+  it('경로 문법이 틀린 path는 던지지 않고 없는 자리로 센다', () => {
+    expect(findMissingReferencePaths(Schema, mapping('', 'a..b', 'turns[]'))).toEqual(['', 'a..b', 'turns[]'])
+  })
+
+  it('none은 확인할 것이 없다', () => {
+    expect(findMissingReferencePaths(Schema, NO_ID_REFERENCES)).toEqual([])
+  })
+})
+
