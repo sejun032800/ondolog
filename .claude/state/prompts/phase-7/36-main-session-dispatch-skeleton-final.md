@@ -5,6 +5,10 @@
 > 작성: 프롬프트 엔지니어 세션 / 2026-10-06
 >
 > 짝: `36-corner-pipeline-skeleton-final.md`
+>
+> 개정: PROGRESS 맨 LF 확인을 사전 점검에서 뺌. PM 요청은 "한 번 확인"이었는데
+> 관문(기대값 0)으로 넣어 2단계-d와 무관한 이유로 멈췄다. 확인 결과는 PM께 보고됨.
+> 위임 전·변경 없이 멈췄으므로 덮어씀
 
 ---
 
@@ -17,7 +21,6 @@ git status --porcelain
 Select-String -Path docs/ONDOLOG_MASTER.md -Pattern 'DOC_REVISION: 2026-10-06-r44'
 Select-String -Path docs/ONDOLOG_MASTER.md -Pattern '선언의 세 필드 (확정, r44)' -SimpleMatch
 Select-String -Path supabase/functions/_shared/cornerPipeline.ts -Pattern 'ReferenceMapping'
-$t = [IO.File]::ReadAllText('.claude/state/PROGRESS.md'); ([regex]::Matches($t, '(?<!\r)\n')).Count
 git ls-files .claude/state/prompts/phase-7 | Select-String -Pattern '36-corner-pipeline-skeleton-final'
 ```
 
@@ -27,10 +30,7 @@ git ls-files .claude/state/prompts/phase-7 | Select-String -Pattern '36-corner-p
 | MASTER r44 | 한 줄 |
 | r44 문단 | 한 줄 |
 | `ReferenceMapping` | 한 줄 이상 |
-| PROGRESS 맨 LF 수 | **`0`** (PM 요청: 2단계-c 커밋 뒤 맨 LF가 남지 않았는지) |
 | 위임 파일 | 한 줄 |
-
-PROGRESS 맨 LF가 0이 아니면 **위임하지 말고 그 수를 보고하세요.**
 
 ```powershell
 npx tsc --noEmit -p .
@@ -74,7 +74,7 @@ npx jest --ci --watchAll=false
 
 ```
 ## 사전 점검
-- 표 여섯: {각 O/X} / PROGRESS 맨 LF: {N} / 기준선: {0 / 0 / N · M}
+- 표 다섯: {각 O/X} / 기준선: {0 / 0 / N · M}
 
 ## 범위 넷
 | 항목 | 위치 | 확인 |
