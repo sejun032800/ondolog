@@ -34,6 +34,8 @@ import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 const CONTEXT: CornerContext = {
   coupleId: 'couple-a',
   period: { start: new Date('2026-10-01T00:00:00.000Z'), end: new Date('2026-11-01T00:00:00.000Z') },
+  cadence: 'monthly',
+  periodLabel: '2026년 10월',
 }
 
 const NO_REFERENCE_RECORDS: readonly ScopedRecord[] = []

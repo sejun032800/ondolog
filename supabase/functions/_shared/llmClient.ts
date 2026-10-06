@@ -31,7 +31,17 @@
  * 호출해 그 인스턴스를 재사용해야 한다 — 새 인스턴스를 계속 만들면
  * 예산이 매번 리셋되어 상한이 무의미해진다(이건 이 모듈이 막을 수
  * 없는 오용이므로, 호출부 계약으로 문서화한다).
+ *
+ * ── 요청 모양과 프롬프트 캐싱 (Part 17-0-5-F, #14 3단계) ───────────────
+ * `call()`은 벤더 중립 `LlmRequest`(`llmRequest.ts`)를 받는다. 코너가 블록에
+ * 표시한 `cacheBreakpoint`를 전송 형식의 `cache_control`로 옮기는 것은
+ * **이 파일 한 곳뿐**이다 - 코너와 파이프라인은 그 이름을 모른다. 표시는
+ * 그 블록 끝까지를 캐시하라는 뜻이고, 가변 입력은 표시 뒤에 있어야 한다
+ * (그 배치는 코너가 지킨다). 표시 개수 상한은 `MAX_CACHE_BREAKPOINTS`다.
+ * 캐시 최소 길이·유효 시간 같은 수치는 여기서 정하지 않는다(API 기본 동작에 맡긴다).
  */
+
+import type { LlmRequest, PromptBlock } from './llmRequest.ts'
 
 /** 이 모듈 안에만 있는 엔드포인트 상수 (정적 규칙 C가 지키는 값). */
 const LLM_ENDPOINT_HOST = 'api.anthropic.com'
@@ -39,6 +49,21 @@ const LLM_ENDPOINT_URL = `https://${LLM_ENDPOINT_HOST}/v1/messages`
 
 /** 코너 1건당 총 LLM 호출(HTTP 시도) 상한. Part 17-0-5-A "최대 3회". */
 export const CORNER_LLM_CALL_BUDGET = 3
+
+/** 요청 하나에 실을 수 있는 캐시 표시 개수 상한(전송 쪽이 허용하는 수). 넘으면 요청을 만들지 않는다. */
+export const MAX_CACHE_BREAKPOINTS = 4
+
+/**
+ * 요청 자체가 잘못됐다(프로그래밍 오류) - 빈 블록, 사용자 블록 없음, 캐시 표시 초과. 전송 실패가
+ * 아니므로 `generation_failed`로 기록하지 않고 던진다. 네트워크 요청과 예산 소모는 일어나지 않는다.
+ */
+export class InvalidLlmRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    Object.setPrototypeOf(this, new.target.prototype)
+    this.name = 'InvalidLlmRequestError'
+  }
+}
 
 export interface LlmCallSuccess {
   readonly ok: true
@@ -55,11 +80,11 @@ export type LlmCallResult = LlmCallSuccess | LlmCallFailure
 
 export interface LlmClient {
   /**
-   * 프롬프트 1건을 LLM에 보낸다. 파이프라인이 `schema_invalid` 재시도를
+   * 요청 1건을 LLM에 보낸다. 파이프라인이 `schema_invalid` 재시도를
    * 결정하면 같은 클라이언트 인스턴스에 다시 호출한다 — 예산은
-   * 인스턴스가 기억한다.
+   * 인스턴스가 기억한다. 요청이 잘못됐으면 `InvalidLlmRequestError`로 거부된다.
    */
-  call(prompt: string): Promise<LlmCallResult>
+  call(request: LlmRequest): Promise<LlmCallResult>
 }
 
 export interface LlmClientConfig {
@@ -72,6 +97,36 @@ export interface LlmClientConfig {
   fetchImpl?: typeof fetch
   /** 테스트 주입용 지연 함수. 기본은 실제 `setTimeout` 기반 대기. */
   sleepImpl?: (ms: number) => Promise<void>
+}
+
+/** 전송 형식의 텍스트 블록. 캐시 표시는 `cache_control`로 옮겨진다 - 이 이름을 아는 곳은 이 파일뿐이다. */
+interface WireTextBlock {
+  readonly type: 'text'
+  readonly text: string
+  readonly cache_control?: { readonly type: 'ephemeral' }
+}
+
+function toWireBlocks(blocks: readonly PromptBlock[]): WireTextBlock[] {
+  return blocks.map((block) =>
+    block.cacheBreakpoint === true
+      ? { type: 'text', text: block.text, cache_control: { type: 'ephemeral' } }
+      : { type: 'text', text: block.text },
+  )
+}
+
+function assertValidRequest(request: LlmRequest): void {
+  if (request.user.length === 0) {
+    throw new InvalidLlmRequestError('LLM 요청에 user 블록이 없다')
+  }
+  for (const block of [...request.system, ...request.user]) {
+    if (block.text.trim().length === 0) {
+      throw new InvalidLlmRequestError('LLM 요청에 빈 텍스트 블록이 있다')
+    }
+  }
+  const breakpoints = [...request.system, ...request.user].filter((b) => b.cacheBreakpoint === true).length
+  if (breakpoints > MAX_CACHE_BREAKPOINTS) {
+    throw new InvalidLlmRequestError(`캐시 표시가 ${breakpoints}개다 - 상한은 ${MAX_CACHE_BREAKPOINTS}개`)
+  }
 }
 
 function defaultSleep(ms: number): Promise<void> {
@@ -96,7 +151,7 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
 
   let callsUsed = 0
 
-  async function attemptOnce(prompt: string): Promise<{ ok: true; text: string } | { ok: false; detail: string }> {
+  async function attemptOnce(request: LlmRequest): Promise<{ ok: true; text: string } | { ok: false; detail: string }> {
     try {
       const response = await fetchFn(LLM_ENDPOINT_URL, {
         method: 'POST',
@@ -108,7 +163,8 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
         body: JSON.stringify({
           model: config.model,
           max_tokens: maxTokens,
-          messages: [{ role: 'user', content: prompt }],
+          ...(request.system.length > 0 ? { system: toWireBlocks(request.system) } : {}),
+          messages: [{ role: 'user', content: toWireBlocks(request.user) }],
         }),
       })
 
@@ -129,7 +185,9 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
   }
 
   return {
-    async call(prompt: string): Promise<LlmCallResult> {
+    async call(request: LlmRequest): Promise<LlmCallResult> {
+      // 요청이 잘못됐으면 예산을 쓰지 않고 거부한다(전송 실패가 아니다).
+      assertValidRequest(request)
       let lastDetail = '호출 예산 소진'
 
       while (callsUsed < CORNER_LLM_CALL_BUDGET) {
@@ -140,7 +198,7 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
           await sleepFn(backoffDelayMs(attemptIndexZeroBased))
         }
 
-        const result = await attemptOnce(prompt)
+        const result = await attemptOnce(request)
         if (result.ok) {
           return { ok: true, text: result.text }
         }

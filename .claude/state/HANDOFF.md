@@ -23,6 +23,77 @@
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 
+## `#14` 3단계 - 코너 3종 (2026-10-06, corner-pipeline, `38`) - 구현 완료, PM 확인할 판단 있음
+
+위임: `.claude/state/prompts/phase-7/38-corner-pipeline-three-corners.md`.
+게이트: tsc 0 / tsc(functions) 0 / jest **855 / 45** (기준 630 / 35, 감소 없음, 신규 225건·파일 10개).
+`package.json`·`tsconfig.json`·`app.json`·`eas.json` 무변경, 의존성 추가 없음, 커밋·푸시 없음.
+
+### 만든 것
+
+| 범위 | 파일 |
+|---|---|
+| 1 코너 셋 | `supabase/functions/_shared/corners/{dateArchive,sweetWords,thisMonth,cornerCommon}.ts` (+ 각 `.test.ts`, `cornersWireCache.test.ts`) |
+| 1 저장 스키마 | `src/types/corners/storedContent.ts` (zod만 import하는 leaf, CORNER_CONTENT §0-3·§1·§2·§6·§7) + `__tests__/types/corners/storedContent.test.ts` |
+| 2 `LlmRequest`·캐싱 | `_shared/llmRequest.ts`(타입), `_shared/llmClient.ts`(`call(request)`, `cacheBreakpoint` -> `cache_control`), `cornerPipeline.ts`(`buildRequest`, `CornerModule`, `runCornerModule`, `processCornerResponse`) |
+| 3 지면 제목·이름 | `src/types/corners/cornerTitles.ts` + `__tests__/types/corners/cornerTitles.test.ts`(`^[가-힣 ]{1,7}$`) |
+| 4 시간대 라벨 | `_shared/timeOfDayLabel.ts` + `.test.ts`(경계) + `__tests__/functions/timeOfDayLabelTimezone.test.ts`(시간대 5곳) |
+| 5 `findMissingReferencePaths` | 코너 테스트마다 선언된 path를 스키마와 대조(17-4는 월간·일간 둘) |
+| 6 카나리아 | `_shared/referencePathCanary.test.ts` |
+| 규칙 G | `__tests__/engine/cornerStaticRuleG.test.ts`(신규 파일, 기존 정적 규칙 파일 무수정) |
+| 픽스처 | `_shared/testFixtures/cornerFixtures.ts`(테스트 전용) |
+
+### 구조 요지
+
+- 코너는 `CornerModule` = 동기 순수 함수(`hasMaterial`·`scopedRecords`·`buildRequest`) + 선언(`responseSpec(input, context)`). 부르고 기다리는 코드가 없다(규칙 G 시험).
+- **캐시**: system = 공통 원칙(표시) + 코너 지시(표시), user = 가변 입력(표시 없음). 시험: 표시 앞에 입력 텍스트 없음 / 다른 입력에서 접두 동일 / 코너 -> 진짜 `createLlmClient` -> 전송 본문에서 system 둘에만 `cache_control`.
+- **LLM 출력 ≠ 저장**: LLM은 id·AI 문장만. 원문은 골격의 `copy` 선언, 파생값(수치·고정 문구·순서·헤더·지도·요약)은 저장 스키마의 `transform` 안에서 입력으로 계산하고 저장 스키마를 통과해야 브랜드가 붙는다.
+- **시간대 라벨**: `new Date(ms + 9h).getUTCHours()`로 계산, 환경 시간대를 읽는 호출 없음. jest 안에서 `process.env.TZ`를 바꾸면 실제 프로세스에 닿지 않아(첫 시도에서 확인) **시간대마다 별도 Node 프로세스**로 시험하고, 자식이 그 시간대로 돌았는지(12:00Z의 현지 시)를 먼저 단언한다. 변이 확인: 구현을 `getHours()`로 바꾸면 2건 실패(되돌림).
+- **카나리아**: 기준 스키마의 있는 경로 25개 전부 "있다" / 없는 경로 14개 전부 "없다"(음성 대조) / 실패 메시지 "Zod 내부 구조가 바뀌었다 (Zod 4.4.3)". 변이 확인: `def.shape`·`optional` 케이스를 깨면 메시지와 함께 실패(되돌림).
+- **공개 변환 검토 결과**: `z.toJSONSchema(s, { io: 'input', unrepresentable: 'any' })`를 따라가면 기준 스키마·세 코너 스키마·오타 변형에서 **내부 구조 판정과 같은 답**이다(카나리아가 교차 검증으로 계속 맞대어 본다). 옮기지는 않았다 - 위임이 "검토하고 보고"였고, 옮기면 재귀 스키마의 `$ref` 해석이 필요하며 PM이 본 기존 구현이 바뀐다. MASTER r45 표는 "같은 판정이 되면 옮긴다"이므로 **옮길지 PM이 정해 달라**(옮기면 교차 검증의 `publicHasPath`가 구현의 뼈대).
+
+### 고친 기존 assertion과 이유 (고친 것은 호출 모양뿐, 기대값은 그대로)
+
+| 파일 | 변경 | 이유 |
+|---|---|---|
+| `cornerPipeline.test.ts` | `buildPrompt: () => 'p'` 등 -> `buildRequest: () => req('p')` (약 40곳) | 프롬프트 문자열이 `LlmRequest`로 바뀜(범위 2). `req()`는 user 블록 하나짜리 합성 요청 |
+| `cornerPipeline.test.ts` | "buildPrompt이 input을 받아 실제로 쓰인다" 한 건: 제목, 받는 쪽 `call: async (prompt)` -> `(request)`, 받은 값 `request.user`의 텍스트를 이어 붙임. **기대값 `'프롬프트: 이 문자열'` 그대로** | 같은 이유 |
+| `cornerPipeline.test.ts`·`saveCornerResult.test.ts` | `CONTEXT`에 `cadence`·`periodLabel` 추가 | `CornerContext` 필수 필드 추가(아래 판단 1) |
+| `cornerPipeline.test.ts` | 맥락 값 검증 표에 행 하나 추가(빈 `periodLabel`) | 새 단언. 기존 행·기대값 무변경 |
+| `llmClient.test.ts` | `client.call('p')` -> `client.call(req('p'))` 전부 | 시그니처 변경 |
+
+### 문서와 다르게 읽힌 자리 (MASTER를 따랐다)
+
+1. 1부 설계 B-2·B-4(`CornerModule.processResponse`·`fill`·`refLookups`·`*Id` 자동 수집)는 r43·r44의 **선언형 `ReferenceMapping`**과 `scopedRecords` 한 번 호출로 대체됐다 -> MASTER를 따름. `processResponse` 대신 `responseSpec` + 골격의 `processCornerResponse`.
+2. 1부 Q8의 `main` 2~3 -> MASTER 17-0-7의 **월간 1~3 / 일간 1**.
+3. 1부 Q5의 "이달의 다정한 말들" 코너 이름 -> r45의 **"다정한 말들"**.
+4. 1부 Q6의 시간대 라벨 미정 -> r45의 `_shared/` 함수 하나.
+5. CORNER_CONTENT §0-2 다이어그램("3회 실패 시 failed / 금지 키 위반 시 재시도")은 여전히 §17-0-5-A와 어긋난다(1부 D-1 그대로, 이번에도 고치지 않음). 구현은 §17-0-5-A를 따랐다.
+
+### PM이 확인할 판단 (문서에 정확한 값이 없어 정한 것)
+
+1. **`CornerContext`에 `cadence`·`periodLabel` 필수 필드를 더했다.** `cadence`는 r39 "`CornerContext.cadence`로 받아", `periodLabel`은 1부 설계 B-2와 봉투 `header.periodLabel`. 빈 `periodLabel`은 `InvalidCornerContextError`로 멈춘다(골격 동작 추가).
+2. **파생값 계산 자리**: 골격에 훅을 더하지 않고 **저장 스키마의 `transform`**(입력·맥락을 닫아 둔 스키마를 `responseSpec`이 만든다)에 두었다. 결과는 저장 스키마를 통과해야 브랜드가 붙는다. 훅 자리를 따로 두는 쪽이 낫다면 알려 달라.
+3. **17-1 `summary`와 지도는 이번 기간 데이트(재소환 제외)만** 센다. 재소환은 그 기간의 기록이 아니기 때문. 재소환 포함이 맞다면 `dateArchive.ts`의 `thisPeriod` 한 곳.
+4. **17-1 핀은 장소명과 좌표가 둘 다 있는 정거장만**(라벨을 지어내지 않는다), `bounds`는 그 핀의 좌표 최소·최대, `order`는 1부터 전체 방문 순.
+5. **17-1은 입력의 모든 데이트가 정확히 한 번씩 기사가 되어야 한다**(빠지거나 겹치면 `schema_invalid`). 선별은 입력 조립의 일이라는 읽기. 유저 기록이 있는 구간에 캡션을 달면 `schema_invalid`(조용히 버리지 않음).
+6. **17-5 `articles[].seq`는 0부터**(`DateStop.seq` 선례), 신호·기사 근거는 각각 1개 이상, `count`는 **서로 다른** 근거의 수.
+7. **17-4**: 대화의 턴은 시각 오름차순으로 놓고, 대화의 `attribution`은 첫 턴 메시지의 것(LLM이 정하지 않음).
+8. **`llmClient`**: 잘못된 요청(user 없음·빈 텍스트 블록·표시 5개 이상)은 `InvalidLlmRequestError`로 던지고 예산·네트워크를 쓰지 않는다. 표시 상한 4는 1부 설계의 값이며 `claude-api` 문서로 다시 확인하지 않았다(최소 길이·유효 시간은 코드에 넣지 않았다).
+9. **입력 레코드 모양은 계약 초안**: `cornerCommon.ts`의 `ChatMessageRecord`·`PhotoRecord`·`DateRecord`와 `source` 필드 이름(`speaker`·`text`·`at`·`attribution` / `path`·`at` / `dateOn`·`region`·`recallReason`·`stops`). 입력 조립이 이 모양으로 채워야 한다.
+
+### 관찰 (고치지 않음)
+
+- `llmClient.call`은 **인스턴스의 두 번째 호출부터 첫 시도 앞에서 500ms 대기**한다(`callsUsed > 0`이면 백오프). 파이프라인이 `schema_invalid`로 다시 부를 때도 대기한다. 의도인지 확인 필요(테스트는 `sleepImpl`을 주입해 영향 없음).
+
+### 열린 항목
+
+- 입력 조립(별도 작업): 위 판단 9의 레코드 모양, **표기 문자열 조립**(`"2026.08.22 09:20, 아침 대화 중"`의 날짜·시각 부분도 같은 +09:00 고정 오프셋으로 만들어야 한다 - `timeOfDayLabel`은 라벨 하나만 만든다).
+- Deno 배포: 코너 파일이 런타임에서 `zod`를 bare import한다(1부 B-9 그대로) - import map은 사람 몫.
+- `warmthIndex` 산출식 미결정(입력이 `null`을 싣는다).
+- 규칙 F 시험(`fileNameRule`)은 이 작업 범위 밖이라 여전히 없다. 새 파일 이름은 전부 ASCII.
+- 공개 변환으로 옮길지(위 "공개 변환 검토 결과").
+
 ## `#14` 2부 2단계-d - 골격 마무리 (2026-10-06, corner-pipeline, `36`) - 구현 완료
 
 위임: `.claude/state/prompts/phase-7/36-corner-pipeline-skeleton-final.md` (MASTER 17-0-4 r44).

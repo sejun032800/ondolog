@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-06 (corner-pipeline, `38`): `#14` 3단계 - 코너 3종(17-1 데이트 아카이브·17-4 다정한 말들·17-5 이달의 우리). `LlmRequest`(블록·`cacheBreakpoint`)·`llmClient.call(request)`가 캐시 표시를 `cache_control`로 옮김, 지면 제목·코너 이름 상수와 `^[가-힣 ]{1,7}$` 시험, 시간대 라벨 `timeOfDayLabel`(+09:00 고정, 시간대 5곳 별도 프로세스로 시험), 코너별 `findMissingReferencePaths`, Zod 카나리아(+공개 변환 교차 검증), 규칙 G 시험. 게이트 tsc 0 / tsc(functions) 0 / jest 855·45 (기준 630·35). 판단·고친 assertion은 HANDOFF `38` 절. 미커밋
+
 2026-10-06 (메인 세션, `39`, r41 미반영분): CORNER_CONTENT 지면 제목 자리표시자 두 곳 교체(§2 "함께한 하루", §6 "다정한 말들"), 인수인계서 4-2 "우회 실증"·5-2 rename diff 행 추가(확인 0/0). 게이트 tsc 0 / tsc(functions) 0 / jest 630·35. 미커밋
 
 2026-10-06 (메인 세션, `37`, r45): 문서 정리 — 인수인계서 5-2 줄바꿈 행의 처방 칸 교체(기준은 저장소 index의 LF, 작업 트리 줄바꿈 검사 폐기), 4-2에 "확인과 관문" 행 추가, CORNER_CONTENT 다정한 말들 `cornerName`을 "다정한 말들"로. 게이트 tsc 0 / tsc(functions) 0 / jest 630·35. 미커밋

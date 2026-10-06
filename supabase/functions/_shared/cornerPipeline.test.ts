@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 import { z } from 'zod'
 import type { LlmClient, LlmCallResult } from './llmClient.ts'
+import type { LlmRequest } from './llmRequest.ts'
 import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 import {
   runCornerPipeline,
@@ -46,7 +47,17 @@ const PayloadSchema = z.object({ title: z.string() })
 /** 호출자 맥락 — 커플 식별자·기간은 입력이 아니라 호출자에게서 온다. 기간 `[start, end)`. */
 const PERIOD_START = new Date('2026-10-01T00:00:00.000Z')
 const PERIOD_END = new Date('2026-11-01T00:00:00.000Z')
-const CONTEXT: CornerContext = { coupleId: 'couple-a', period: { start: PERIOD_START, end: PERIOD_END } }
+const CONTEXT: CornerContext = {
+  coupleId: 'couple-a',
+  period: { start: PERIOD_START, end: PERIOD_END },
+  cadence: 'monthly',
+  periodLabel: '2026년 10월',
+}
+
+/** 합성 요청 - user 블록 하나. 캐시 표시 없음. */
+function req(text: string): LlmRequest {
+  return { system: [], user: [{ text }] }
+}
 /** 기간 안의 시각. */
 const IN_PERIOD = new Date('2026-10-15T03:00:00.000Z')
 
@@ -161,7 +172,7 @@ describe('① 선행 검사 — 미달이면 LLM을 호출하지 않는다', () 
       scopedRecords: NO_RECORDS,
       input: { entries: [] as string[] },
       preconditionCheck: (input) => input.entries.length > 0,
-      buildPrompt: () => 'prompt',
+      buildRequest: () => req('prompt'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -180,7 +191,7 @@ describe('② 계수 조회 — 주입하지 않으면 생략, 주입하면 결�
       scopedRecords: NO_RECORDS,
       input: {},
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -206,7 +217,7 @@ describe('② 계수 조회 — 주입하지 않으면 생략, 주입하면 결�
       scopedRecords: NO_RECORDS,
       input: {},
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -225,7 +236,7 @@ describe('③ LLM 호출 실패 — generation_failed는 파이프라인이 추�
       scopedRecords: NO_RECORDS,
       input: {},
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -243,7 +254,7 @@ describe('④ Zod 파싱 실패 — schema_invalid는 파이프라인이 최대 
       scopedRecords: NO_RECORDS,
       input: {},
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -261,7 +272,7 @@ describe('④ Zod 파싱 실패 — schema_invalid는 파이프라인이 최대 
       scopedRecords: NO_RECORDS,
       input: {},
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient: scriptedLlmClient([ok('{"title":123}'), ok('{"title":456}')]),
@@ -281,7 +292,7 @@ describe('④ Zod 파싱 실패 — schema_invalid는 파이프라인이 최대 
       scopedRecords: NO_RECORDS,
       input: {},
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -300,7 +311,7 @@ describe('⑤ FORBIDDEN_KEYS 위반 — forbidden_content는 재시도하지 않
       scopedRecords: NO_RECORDS,
       input: {},
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: SchemaWithScore,
       hooks: passHooks(SchemaWithScore),
       llmClient,
@@ -322,7 +333,7 @@ describe('⑥ 성공 — ValidatedContent 반환 (저장은 이 함수의 책임
       scopedRecords: NO_RECORDS,
       input: {},
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -337,11 +348,11 @@ describe('⑥ 성공 — ValidatedContent 반환 (저장은 이 함수의 책임
 })
 
 describe('코너별 부분은 전부 주입된다 — 골격 자신은 내용을 모른다', () => {
-  it('buildPrompt이 input을 받아 실제로 쓰인다(프롬프트 문자열이 그대로 전달됨을 간접 확인)', async () => {
+  it('buildRequest가 input을 받아 실제로 쓰인다(요청이 그대로 전달됨을 간접 확인)', async () => {
     let receivedPrompt = ''
     const llmClient: LlmClient = {
-      call: async (prompt) => {
-        receivedPrompt = prompt
+      call: async (request) => {
+        receivedPrompt = request.user.map((b) => b.text).join('')
         return ok('{"title":"x"}')
       },
     }
@@ -350,7 +361,7 @@ describe('코너별 부분은 전부 주입된다 — 골격 자신은 내용을
       scopedRecords: NO_RECORDS,
       input: { keyword: '이 문자열' },
       preconditionCheck: () => true,
-      buildPrompt: (input) => `프롬프트: ${input.keyword}`,
+      buildRequest: (input) => req(`프롬프트: ${input.keyword}`),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -367,7 +378,7 @@ describe('결정론 — 동일 입력(고정된 가짜) 100회 반복 → 100회
         scopedRecords: NO_RECORDS,
         input: {},
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient: scriptedLlmClient([ok('{"title":"고정 결과"}')]),
@@ -399,7 +410,7 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
         context: CONTEXT,
         scopedRecords: NO_RECORDS,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -427,7 +438,7 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
       context: CONTEXT,
       scopedRecords: NO_RECORDS,
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient: scriptedLlmClient([ok(deep)]),
@@ -447,7 +458,7 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
       context: CONTEXT,
       scopedRecords: NO_RECORDS,
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -466,7 +477,7 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
       context: CONTEXT,
       scopedRecords: NO_RECORDS,
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient: scriptedLlmClient([ok('{"title":42,"score":1}')]),
@@ -497,7 +508,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -526,7 +537,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
           context: CONTEXT,
           scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
           preconditionCheck: () => false,
-          buildPrompt: () => 'p',
+          buildRequest: () => req('p'),
           schema: PayloadSchema,
           hooks: passHooks(PayloadSchema),
           llmClient,
@@ -547,7 +558,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -564,7 +575,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
         context: { ...CONTEXT, coupleId: '' },
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -580,7 +591,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
       context: CONTEXT,
       scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -604,7 +615,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       context: CONTEXT,
       scopedRecords: NO_RECORDS,
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: NullableSchema,
       hooks: { ...passHooks(NullableSchema), isExplicitEmpty: (llm) => llm.kind === 'none' },
       llmClient,
@@ -624,7 +635,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       context: CONTEXT,
       scopedRecords: NO_RECORDS,
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: NullableSchema,
       hooks: { ...passHooks(NullableSchema), isExplicitEmpty: () => true },
       llmClient: scriptedLlmClient([ok('{}'), ok('{}')]),
@@ -644,7 +655,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       context: CONTEXT,
       scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: RefSchema,
       hooks: { ...passHooks(RefSchema), references: REF_TO_MESSAGE_TEXT },
       llmClient,
@@ -662,7 +673,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: RefSchema,
         hooks: { ...passHooks(RefSchema), references: REF_TO_MESSAGE_TEXT, storedSchema },
         llmClient: scriptedLlmClient([ok('{"ref":"m-1"}'), ok('{"ref":"m-1"}')]),
@@ -914,7 +925,7 @@ describe('r42 — 검사 단계는 전부 필수다 (빠지면 컴파일 오류)
     input: {},
     context: CONTEXT,
     preconditionCheck: () => true,
-    buildPrompt: () => 'p',
+    buildRequest: () => req('p'),
     schema: PayloadSchema,
     llmClient: scriptedLlmClient([ok('{"title":"x"}')]),
   }
@@ -947,7 +958,7 @@ describe('r43 — 코너가 넘기는 것은 매핑뿐이다 (판정 로직을 �
     context: CONTEXT,
     scopedRecords: NO_RECORDS,
     preconditionCheck: () => true,
-    buildPrompt: () => 'p',
+    buildRequest: () => req('p'),
     schema: PayloadSchema,
     llmClient: scriptedLlmClient([ok('{"title":"x"}')]),
   }
@@ -1130,7 +1141,7 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -1153,7 +1164,7 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -1181,7 +1192,7 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -1244,6 +1255,8 @@ describe('r42 — 맥락 값 검증: 틀리면 LLM 0회·저장 0회·오류 전
     ['날짜가 아닌 기간 시작', { ...CONTEXT, period: { start: new Date('not a date'), end: PERIOD_END } }],
     ['날짜가 아닌 기간 끝', { ...CONTEXT, period: { start: PERIOD_START, end: new Date(NaN) } }],
     ['뒤집힌 기간(시작이 끝보다 늦음)', { ...CONTEXT, period: { start: PERIOD_END, end: PERIOD_START } }],
+    // 3단계: 봉투 header.periodLabel로 그대로 들어가는 값 - 비었으면 판정할 것이 아니라 만들 수 없다.
+    ['빈 기간 표기(periodLabel)', { ...CONTEXT, periodLabel: '  ' }],
   ]
 
   it.each(cases)('%s', async (_name, context) => {
@@ -1256,7 +1269,7 @@ describe('r42 — 맥락 값 검증: 틀리면 LLM 0회·저장 0회·오류 전
         context,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -1277,7 +1290,7 @@ describe('r42 — 맥락 값 검증: 틀리면 LLM 0회·저장 0회·오류 전
         context: { ...CONTEXT, coupleId: '' },
         scopedRecords: NO_RECORDS,
         preconditionCheck: () => false,
-        buildPrompt: () => 'p',
+        buildRequest: () => req('p'),
         schema: PayloadSchema,
         hooks: passHooks(PayloadSchema),
         llmClient,
@@ -1293,7 +1306,7 @@ describe('r42 — 맥락 값 검증: 틀리면 LLM 0회·저장 0회·오류 전
       context: { ...CONTEXT, period: { start: PERIOD_START, end: PERIOD_START } },
       scopedRecords: NO_RECORDS,
       preconditionCheck: () => true,
-      buildPrompt: () => 'p',
+      buildRequest: () => req('p'),
       schema: PayloadSchema,
       hooks: passHooks(PayloadSchema),
       llmClient,
@@ -1313,7 +1326,7 @@ describe('r44 - scopedRecords는 한 번만 부른다', () => {
     input: {},
     context: CONTEXT,
     preconditionCheck: () => true,
-    buildPrompt: () => 'p',
+    buildRequest: () => req('p'),
     schema: PayloadSchema,
     hooks: passHooks(PayloadSchema),
     llmClient,

@@ -1,5 +1,6 @@
 /// <reference types="jest" />
-import { createLlmClient, CORNER_LLM_CALL_BUDGET } from './llmClient.ts'
+import { createLlmClient, CORNER_LLM_CALL_BUDGET, MAX_CACHE_BREAKPOINTS, InvalidLlmRequestError } from './llmClient.ts'
+import type { LlmRequest } from './llmRequest.ts'
 
 /**
  * `llmClient.ts` — 코너 1건당 호출 예산(3회) + 전송 오류 지수 백오프
@@ -19,6 +20,11 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
   } as unknown as Response
 }
 
+/** 합성 요청 - user 블록 하나. 캐시 표시 없음. */
+function req(text: string): LlmRequest {
+  return { system: [], user: [{ text }] }
+}
+
 function noopSleep(): Promise<void> {
   return Promise.resolve()
 }
@@ -32,7 +38,7 @@ describe('llmClient — 성공 경로', () => {
     })
     const client = createLlmClient({ apiKey: 'k', model: 'test-model', fetchImpl, sleepImpl: noopSleep })
 
-    const result = await client.call('prompt')
+    const result = await client.call(req('prompt'))
 
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.text).toBe('{"title":"ok"}')
@@ -45,7 +51,7 @@ describe('llmClient — 성공 경로', () => {
       return jsonResponse({ content: [{ type: 'text', text: '{}' }] })
     })
     const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl: noopSleep })
-    await client.call('p')
+    await client.call(req('p'))
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 })
@@ -61,7 +67,7 @@ describe('llmClient — 전송 오류 지수 백오프 (예산 안에서)', () =
     const sleepImpl = jest.fn(noopSleep)
     const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
 
-    const result = await client.call('p')
+    const result = await client.call(req('p'))
 
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.text).toBe('recovered')
@@ -73,7 +79,7 @@ describe('llmClient — 전송 오류 지수 백오프 (예산 안에서)', () =
     const fetchImpl = jest.fn(async () => jsonResponse({}, false, 503))
     const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl: noopSleep })
 
-    const result = await client.call('p')
+    const result = await client.call(req('p'))
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -89,7 +95,7 @@ describe('llmClient — 전송 오류 지수 백오프 (예산 안에서)', () =
     })
     const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl: noopSleep })
 
-    const result = await client.call('p')
+    const result = await client.call(req('p'))
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.detail).toContain('network down')
@@ -103,20 +109,20 @@ describe('llmClient — 호출 예산 상한 (Part 17-0-5-A "재시도 총량 �
     const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl: noopSleep })
 
     // 1차: 예산(3회)을 전부 소모하며 실패
-    const first = await client.call('p')
+    const first = await client.call(req('p'))
     expect(first.ok).toBe(false)
     expect(fetchImpl).toHaveBeenCalledTimes(CORNER_LLM_CALL_BUDGET)
 
     // 2차: 파이프라인이 "한 번 더" 부르는 상황을 흉내 — 예산이 이미 소진됐으므로
     // 새 네트워크 요청 없이 즉시 거부돼야 한다.
-    const second = await client.call('p')
+    const second = await client.call(req('p'))
     expect(second.ok).toBe(false)
     if (!second.ok) expect(second.reason).toBe('generation_failed')
     expect(fetchImpl).toHaveBeenCalledTimes(CORNER_LLM_CALL_BUDGET) // 추가 호출 없음
 
     // 3차, 4차... 몇 번을 더 불러도 마찬가지다.
-    await client.call('p')
-    await client.call('p')
+    await client.call(req('p'))
+    await client.call(req('p'))
     expect(fetchImpl).toHaveBeenCalledTimes(CORNER_LLM_CALL_BUDGET)
   })
 
@@ -129,14 +135,14 @@ describe('llmClient — 호출 예산 상한 (Part 17-0-5-A "재시도 총량 �
     })
     const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl: noopSleep })
 
-    const r1 = await client.call('p') // 1/3
-    const r2 = await client.call('p') // 2/3 (schema_invalid 재시도 흉내)
-    const r3 = await client.call('p') // 3/3
+    const r1 = await client.call(req('p')) // 1/3
+    const r2 = await client.call(req('p')) // 2/3 (schema_invalid 재시도 흉내)
+    const r3 = await client.call(req('p')) // 3/3
     expect([r1, r2, r3].every((r) => r.ok)).toBe(true)
     expect(fetchImpl).toHaveBeenCalledTimes(3)
 
     // 예산 소진 — 4번째는 네트워크 요청 없이 거부.
-    const r4 = await client.call('p')
+    const r4 = await client.call(req('p'))
     expect(r4.ok).toBe(false)
     expect(fetchImpl).toHaveBeenCalledTimes(3)
   })
@@ -153,8 +159,114 @@ describe('결정론 — 동일 입력 100회 반복(각각 새 클라이언트) 
       })
 
     for (let i = 0; i < 100; i++) {
-      const result = await makeClient().call('p')
+      const result = await makeClient().call(req('p'))
       expect(result).toEqual({ ok: true, text: 'stable' })
     }
+  })
+})
+
+describe('llmClient — 요청 모양과 프롬프트 캐싱 (#14 3단계, Part 17-0-5-F)', () => {
+  interface WireBlock {
+    type: string
+    text: string
+    cache_control?: { type: string }
+  }
+  interface WireBody {
+    system?: WireBlock[]
+    messages: Array<{ role: string; content: WireBlock[] }>
+  }
+
+  /** 보낸 본문을 캡처하는 fetch. */
+  function capturingClient() {
+    const bodies: WireBody[] = []
+    const fetchImpl = jest.fn(async (_url: unknown, init?: { body?: unknown }) => {
+      bodies.push(JSON.parse(String(init?.body)) as WireBody)
+      return jsonResponse({ content: [{ type: 'text', text: '{}' }] })
+    })
+    return { bodies, fetchImpl, client: createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl: noopSleep }) }
+  }
+
+  it('cacheBreakpoint가 표시된 블록에만 cache_control이 실린다 - system과 user 모두', async () => {
+    const { bodies, client } = capturingClient()
+    await client.call({
+      system: [{ text: '공통 원칙', cacheBreakpoint: true }, { text: '코너 지시' }, { text: '출력 형식', cacheBreakpoint: true }],
+      user: [{ text: '기간 안내' }, { text: '입력 레코드', cacheBreakpoint: true }],
+    })
+
+    expect(bodies).toHaveLength(1)
+    const [body] = bodies
+    expect(body.system?.map((b) => b.cache_control)).toEqual([{ type: 'ephemeral' }, undefined, { type: 'ephemeral' }])
+    expect(body.system?.map((b) => b.text)).toEqual(['공통 원칙', '코너 지시', '출력 형식'])
+    expect(body.messages).toHaveLength(1)
+    expect(body.messages[0].role).toBe('user')
+    expect(body.messages[0].content.map((b) => b.cache_control)).toEqual([undefined, { type: 'ephemeral' }])
+    expect(body.messages[0].content.map((b) => b.text)).toEqual(['기간 안내', '입력 레코드'])
+  })
+
+  it('표시가 없으면 cache_control이 본문 어디에도 없다', async () => {
+    const { bodies, client } = capturingClient()
+    await client.call({ system: [{ text: 's' }], user: [{ text: 'u' }] })
+    expect(JSON.stringify(bodies[0])).not.toContain('cache_control')
+  })
+
+  it('system이 비어 있으면 system 키를 보내지 않는다', async () => {
+    const { bodies, client } = capturingClient()
+    await client.call({ system: [], user: [{ text: 'u' }] })
+    expect('system' in bodies[0]).toBe(false)
+  })
+
+  it('블록 순서가 그대로 본문에 실린다(캐시 접두는 순서에 달려 있다)', async () => {
+    const { bodies, client } = capturingClient()
+    await client.call({ system: [{ text: 'a' }, { text: 'b', cacheBreakpoint: true }], user: [{ text: 'c' }, { text: 'd' }] })
+    expect(bodies[0].system?.map((b) => b.text)).toEqual(['a', 'b'])
+    expect(bodies[0].messages[0].content.map((b) => b.text)).toEqual(['c', 'd'])
+  })
+
+  it(`표시가 ${MAX_CACHE_BREAKPOINTS}개를 넘으면 요청 오류다 - 네트워크 요청도 예산 소모도 없다`, async () => {
+    const { fetchImpl, client } = capturingClient()
+    const tooMany = {
+      system: Array.from({ length: MAX_CACHE_BREAKPOINTS }, (_, i) => ({ text: `s${i}`, cacheBreakpoint: true as const })),
+      user: [{ text: 'u', cacheBreakpoint: true as const }],
+    }
+    await expect(client.call(tooMany)).rejects.toBeInstanceOf(InvalidLlmRequestError)
+    expect(fetchImpl).not.toHaveBeenCalled()
+
+    // 예산이 그대로다 - 올바른 요청이 예산 3회를 다 쓸 수 있다.
+    for (let i = 0; i < CORNER_LLM_CALL_BUDGET; i++) {
+      const r = await client.call({ system: [], user: [{ text: 'ok' }] })
+      expect(r.ok).toBe(true)
+    }
+  })
+
+  it(`표시 ${MAX_CACHE_BREAKPOINTS}개는 허용한다`, async () => {
+    const { bodies, client } = capturingClient()
+    await client.call({
+      system: [{ text: 'a', cacheBreakpoint: true }, { text: 'b', cacheBreakpoint: true }, { text: 'c', cacheBreakpoint: true }],
+      user: [{ text: 'd', cacheBreakpoint: true }],
+    })
+    expect(bodies).toHaveLength(1)
+  })
+
+  it('user 블록이 없거나 텍스트가 빈 블록이 있으면 요청 오류다', async () => {
+    const { fetchImpl, client } = capturingClient()
+    await expect(client.call({ system: [{ text: 's' }], user: [] })).rejects.toBeInstanceOf(InvalidLlmRequestError)
+    await expect(client.call({ system: [{ text: '  ' }], user: [{ text: 'u' }] })).rejects.toBeInstanceOf(InvalidLlmRequestError)
+    await expect(client.call({ system: [], user: [{ text: '' }] })).rejects.toBeInstanceOf(InvalidLlmRequestError)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('전송 재시도(예산 안)에서도 같은 본문을 보낸다 - 캐시 표시가 유지된다', async () => {
+    const bodies: WireBody[] = []
+    let attempt = 0
+    const fetchImpl = jest.fn(async (_url: unknown, init?: { body?: unknown }) => {
+      bodies.push(JSON.parse(String(init?.body)) as WireBody)
+      attempt += 1
+      return attempt < 2 ? jsonResponse({}, false, 500) : jsonResponse({ content: [{ type: 'text', text: 'ok' }] })
+    })
+    const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl: noopSleep })
+    await client.call({ system: [{ text: 's', cacheBreakpoint: true }], user: [{ text: 'u' }] })
+    expect(bodies).toHaveLength(2)
+    expect(bodies[1]).toEqual(bodies[0])
+    expect(bodies[1].system?.[0].cache_control).toEqual({ type: 'ephemeral' })
   })
 })

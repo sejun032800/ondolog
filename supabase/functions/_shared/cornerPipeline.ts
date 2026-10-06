@@ -9,6 +9,8 @@
  * (r38·r40 — 검사 순서, 호출 전 소속 단언, 생성자 비공개).
  * + .claude/state/prompts/phase-7/35-corner-pipeline-declarative-ids.md
  * (r43 — ID 해석·원문 채우기는 코너가 넘기는 선언(`ReferenceMapping`)을 골격이 처리한다).
+ * + .claude/state/prompts/phase-7/38-corner-pipeline-three-corners.md
+ * (3단계 — 프롬프트는 `LlmRequest`(캐시 지점 표시), LLM 출력 타입과 저장 타입 분리, `CornerModule`).
  *
  * ── 이 파일이 만들지 않는 것 ──────────────────────────────────────────
  * 코너별 선행 검사 조건·프롬프트 생성 함수·Zod 스키마·4~6단계 훅(명시적 빈
@@ -62,6 +64,7 @@ import { findForbiddenKeys } from '../../../src/engine/corners/forbiddenKeys.ts'
 import type { SkipReason } from '../../../src/engine/corners/pipelineContracts.ts'
 import { SKIP_REASON_RETRY_POLICY } from '../../../src/engine/corners/pipelineContracts.ts'
 import type { LlmClient } from './llmClient.ts'
+import type { LlmRequest } from './llmRequest.ts'
 
 /**
  * 코너 맥락의 기간 — `[start, end)`, 끝 배타(17-0-7 공통 "기간 경계"). 17-5처럼 재료가
@@ -81,6 +84,13 @@ export interface CornerPeriod {
 export interface CornerContext {
   readonly coupleId: string
   readonly period: CornerPeriod
+  /**
+   * 발행 주기(17-0-7 "일간·월간"). 코너가 스키마를 만들 때 쓴다(예: 17-4의 `main` 개수). 값은 호출부가
+   * config(발행 주기)에서 가져온다 - 코너 코드가 정하지 않는다.
+   */
+  readonly cadence: 'daily' | 'monthly'
+  /** 봉투 `header.periodLabel`에 그대로 들어가는 표기("2026년 8월"). 호출부가 만든다. 비어 있으면 멈춘다. */
+  readonly periodLabel: string
 }
 
 /**
@@ -173,6 +183,9 @@ function isValidDate(value: unknown): value is Date {
 function assertCornerContextValues(context: CornerContext): void {
   if (context.coupleId.length === 0) {
     throw new InvalidCornerContextError(context.coupleId, '커플 식별자가 빈 문자열')
+  }
+  if (context.periodLabel.trim().length === 0) {
+    throw new InvalidCornerContextError(context.coupleId, '기간 표기(periodLabel)가 빈 문자열')
   }
   const { start, end } = context.period
   if (!isValidDate(start) || !isValidDate(end)) {
@@ -533,15 +546,16 @@ export function validateCornerResponse<TLlm, TStored>(
  * `runCornerPipeline`의 4~6단계 훅. **전부 필수다(r42)** — 기본값(통과형)이 없고, 빠지면
  * 컴파일 오류다. 참조할 ID가 없는 코너도 "ID가 없다"고 답하는 함수를 넘긴다(단계를 빼는 것이
  * 아니라 "없다"고 답하는 것 — 17-0-4). 이 단계의 골격은 LLM 출력 타입과 저장 타입이 같은
- * 경우(`TPayload`)만 다룬다 — 둘이 달라지는 코너 3종의 시그니처는 3단계에서 정한다.
+ * 경우에도, 다른 경우에도(`TLlm` ≠ `TStored`, 코너 3종) 쓴다. 코너 3종은 `CornerModule`로 넘기고 `runCornerModule`이
+ * 이 params로 옮긴다.
  */
-export interface CornerResponseHooks<TPayload> {
-  readonly isExplicitEmpty: CornerResponseSpec<TPayload, TPayload>['isExplicitEmpty']
+export interface CornerResponseHooks<TLlm, TStored = TLlm> {
+  readonly isExplicitEmpty: CornerResponseSpec<TLlm, TStored>['isExplicitEmpty']
   readonly references: ReferenceMapping
-  readonly storedSchema: ZodType<TPayload>
+  readonly storedSchema: ZodType<TStored>
 }
 
-export interface CornerPipelineParams<TInput, TPayload> {
+export interface CornerPipelineParams<TInput, TLlm, TStored = TLlm> {
   readonly input: TInput
   /**
    * 호출자 맥락. 커플 식별자는 입력이 아니라 호출자에게서 온다(17-0-4-B).
@@ -552,12 +566,15 @@ export interface CornerPipelineParams<TInput, TPayload> {
   readonly scopedRecords: (input: TInput) => readonly ScopedRecord[]
   /** 코너별 선행 검사 조건. `#14`가 채운다 — 이 작업은 내용을 만들지 않는다. */
   readonly preconditionCheck: (input: TInput) => boolean
-  /** 코너별 프롬프트 생성 함수. `#14`가 채운다. */
-  readonly buildPrompt: (input: TInput) => string
-  /** 코너별 Zod 스키마. `#14`가 채운다. */
-  readonly schema: ZodType<TPayload>
+  /**
+   * 코너별 요청 만들기 — 프롬프트 블록과 캐시 지점 표시를 담은 `LlmRequest`를 돌려준다(17-0-5-F).
+   * 코너는 전송 형식을 모른다. 표시를 전송 형식으로 옮기는 것은 `llmClient`뿐이다.
+   */
+  readonly buildRequest: (input: TInput) => LlmRequest
+  /** 코너별 LLM 출력 스키마(3단계). 저장 스키마와 다르다. */
+  readonly schema: ZodType<TLlm>
   /** 17-0-4 4~6단계의 코너별 훅. 전부 필수 — 기본값 없음(r42). */
-  readonly hooks: CornerResponseHooks<TPayload>
+  readonly hooks: CornerResponseHooks<TLlm, TStored>
   /** 코너 1건에 묶인 LLM 클라이언트 — 호출부가 `createLlmClient()`로 만들어 넘긴다. */
   readonly llmClient: LlmClient
   /**
@@ -567,9 +584,9 @@ export interface CornerPipelineParams<TInput, TPayload> {
   readonly lookupCoeffBundle?: () => Promise<CoeffBundle>
 }
 
-export interface CornerPipelineSuccess<TPayload> {
+export interface CornerPipelineSuccess<TStored> {
   readonly outcome: 'success'
-  readonly content: ValidatedContent<TPayload>
+  readonly content: ValidatedContent<TStored>
   readonly coeffBundle: CoeffBundle | undefined
   /** 이번 실행에서 실제로 이뤄진 `llmClient.call()` 횟수(재시도 포함). */
   readonly llmCallAttempts: number
@@ -582,7 +599,7 @@ export interface CornerPipelineFailure {
   readonly llmCallAttempts: number
 }
 
-export type CornerPipelineResult<TPayload> = CornerPipelineSuccess<TPayload> | CornerPipelineFailure
+export type CornerPipelineResult<TStored> = CornerPipelineSuccess<TStored> | CornerPipelineFailure
 
 /**
  * 코너 생성 파이프라인 골격을 한 코너 1건에 대해 실행한다. 코너별
@@ -592,10 +609,10 @@ export type CornerPipelineResult<TPayload> = CornerPipelineSuccess<TPayload> | C
  * 맥락 값이 틀렸거나 입력 레코드가 호출자 맥락의 커플·기간 밖이면 `CoupleMembershipError`(또는 하위 `InvalidCornerContextError`)를 던진다 —
  * LLM은 한 번도 불리지 않고, 실패 사유도 기록되지 않는다.
  */
-export async function runCornerPipeline<TInput, TPayload>(
-  params: CornerPipelineParams<TInput, TPayload>,
-): Promise<CornerPipelineResult<TPayload>> {
-  const { input, context, scopedRecords, preconditionCheck, buildPrompt, schema, hooks, llmClient, lookupCoeffBundle } =
+export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
+  params: CornerPipelineParams<TInput, TLlm, TStored>,
+): Promise<CornerPipelineResult<TStored>> {
+  const { input, context, scopedRecords, preconditionCheck, buildRequest, schema, hooks, llmClient, lookupCoeffBundle } =
     params
 
   // ⓪ 맥락 값 검증 + 소속(커플·기간) 단언 — 어떤 LLM 호출보다 앞. 오염된 입력이 "재료 부족"으로 가려지지 않도록
@@ -612,9 +629,9 @@ export async function runCornerPipeline<TInput, TPayload>(
   // ② 계수 조회 — 코너가 계수를 쓰지 않으면 생략(coeffLookup.ts docblock 참조).
   const coeffBundle = lookupCoeffBundle ? await lookupCoeffBundle() : undefined
 
-  const prompt = buildPrompt(input)
+  const request = buildRequest(input)
 
-  const spec: CornerResponseSpec<TPayload, TPayload> = {
+  const spec: CornerResponseSpec<TLlm, TStored> = {
     llmSchema: schema,
     isExplicitEmpty: hooks.isExplicitEmpty,
     references: hooks.references,
@@ -628,7 +645,7 @@ export async function runCornerPipeline<TInput, TPayload>(
     llmCallAttempts += 1
 
     // ③ LLM 호출 — 전송 재시도는 llmClient 내부 책임(위 docblock).
-    const callResult = await llmClient.call(prompt)
+    const callResult = await llmClient.call(request)
     if (!callResult.ok) {
       // generation_failed — 파이프라인은 이 사유로 추가 재호출을 결정하지 않는다.
       return { outcome: 'failure', reason: 'generation_failed', detail: callResult.detail, llmCallAttempts }
@@ -649,4 +666,71 @@ export async function runCornerPipeline<TInput, TPayload>(
     }
     return { outcome: 'failure', reason: validation.reason, detail: validation.detail, llmCallAttempts }
   }
+}
+
+/**
+ * 코너 하나가 골격에 넘기는 것(17-0-5-F) — **전부 동기 순수 함수와 선언**이다. 코너는 호출 방식(동기든
+ * 배치든)을 모르고, 부르고 기다리는 코드를 품지 않는다(정적 규칙 G). 호출은 골격(`runCornerModule`)이 한다.
+ *
+ * | 자리 | 하는 일 |
+ * |---|---|
+ * | `hasMaterial` | 선행 검사 - **재료가 0인가**만 본다(17-0-5-D). 경계값을 두지 않는다 |
+ * | `scopedRecords` | 입력에서 레코드를 꺼낸다(17-0-4-B, 호출 전 소속 단언·ID 해석이 같이 쓴다) |
+ * | `buildRequest` | 요청 만들기 - 프롬프트 블록·캐시 지점 |
+ * | `responseSpec` | 응답 처리 - LLM 출력 스키마·빈 결과 판정·ID 선언·저장 스키마. 입력과 맥락으로 만든다 |
+ *
+ * `responseSpec`을 입력·맥락의 함수로 둔 이유: 저장 스키마가 주기(`cadence`)에 따라 달라지고, 파이프라인이
+ * 계산하는 값(수치·고정 문구·순서)이 입력에서 오기 때문이다. 그 계산은 저장 스키마의 `transform` 안에서 하며,
+ * 그 결과가 저장 스키마를 통과해야만 브랜드가 붙는다 - 판정은 여전히 골격(`validateCornerResponse`)의 일이다.
+ */
+export interface CornerModule<TInput, TLlm, TStored> {
+  /** 코너 이름 - 앱 화면·목차용(`cornerTitles.ts`의 상수). */
+  readonly cornerName: string
+  /** 지면 제목 - 지면 머리용, 7자 이내(`cornerTitles.ts`의 상수). */
+  readonly pageTitle: string
+  readonly hasMaterial: (input: TInput) => boolean
+  readonly scopedRecords: (input: TInput) => readonly ScopedRecord[]
+  readonly buildRequest: (input: TInput, context: CornerContext) => LlmRequest
+  readonly responseSpec: (input: TInput, context: CornerContext) => CornerResponseSpec<TLlm, TStored>
+}
+
+/**
+ * 코너 모듈의 응답 처리 - LLM 응답 문자열 → 파싱·`FORBIDDEN_KEYS`·ID 해석·원문 채우기 →
+ * `ValidatedContent` 또는 실패 사유(17-0-5-F). 호출은 하지 않는다. 입력 레코드는 한 번만 꺼낸다(r44).
+ */
+export function processCornerResponse<TInput, TLlm, TStored>(
+  corner: CornerModule<TInput, TLlm, TStored>,
+  rawText: string,
+  input: TInput,
+  context: CornerContext,
+): CornerResponseResult<TStored> {
+  const records = corner.scopedRecords(input)
+  return validateCornerResponse(rawText, corner.responseSpec(input, context), context, records)
+}
+
+export interface CornerModuleRunParams<TInput> {
+  readonly input: TInput
+  readonly context: CornerContext
+  readonly llmClient: LlmClient
+  readonly lookupCoeffBundle?: () => Promise<CoeffBundle>
+}
+
+/** 코너 모듈 하나를 골격으로 실행한다 - `runCornerPipeline`에 모듈의 함수·선언을 옮겨 넘길 뿐이다. */
+export function runCornerModule<TInput, TLlm, TStored>(
+  corner: CornerModule<TInput, TLlm, TStored>,
+  params: CornerModuleRunParams<TInput>,
+): Promise<CornerPipelineResult<TStored>> {
+  const { input, context } = params
+  const spec = corner.responseSpec(input, context)
+  return runCornerPipeline<TInput, TLlm, TStored>({
+    input,
+    context,
+    scopedRecords: corner.scopedRecords,
+    preconditionCheck: corner.hasMaterial,
+    buildRequest: (i) => corner.buildRequest(i, context),
+    schema: spec.llmSchema,
+    hooks: { isExplicitEmpty: spec.isExplicitEmpty, references: spec.references, storedSchema: spec.storedSchema },
+    llmClient: params.llmClient,
+    lookupCoeffBundle: params.lookupCoeffBundle,
+  })
 }
