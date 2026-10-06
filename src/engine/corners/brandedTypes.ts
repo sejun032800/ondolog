@@ -36,20 +36,18 @@
  *
  * | 브랜드 | 생성자가 사는 곳 | 함수 |
  * |---|---|---|
- * | `CoeffBundle` | `supabase/functions/_shared/coeffLookup.ts` — 정적 규칙 D가 지정한, `app_config`를 읽는 그 모듈 | `buildCoeffBundle` |
- * | `ValidatedContent<T>` | `supabase/functions/_shared/cornerPipeline.ts` — Zod 파싱(17-0-4 순서 ④) + `FORBIDDEN_KEYS` 검사(순서 ⑤)를 실제로 거치는 그 자리 | `validateCornerContent` |
+ * | `CoeffBundle` | `supabase/functions/_shared/coeffLookup.ts` — 정적 규칙 D가 지정한, `app_config`를 읽는 그 모듈 | `lookupCoeffBundle` (공개 경로는 이것 하나. 브랜드를 붙이는 `buildCoeffBundle`은 비공개) |
+ * | `ValidatedContent<T>` | `supabase/functions/_shared/cornerPipeline.ts` — 17-0-4의 순서 전체(JSON.parse, 원본 객체 `FORBIDDEN_KEYS`, Zod, 빈 결과, ID 해석, 원문 채우기, 저장 스키마)를 실제로 거치는 그 자리 | `validateCornerResponse` (공개 경로는 이것 하나. 브랜드를 붙이는 `brandValidated`는 비공개) |
  *
  * 각 생성자는 그 모듈 안에서 **정확히 한 번**만 캐스트한다 — `CoeffBundle`은
- * 조회 결과로부터, `ValidatedContent`는 Zod·`FORBIDDEN_KEYS` 통과 후에만.
+ * 조회 결과로부터, `ValidatedContent`는 17-0-4의 검사를 전부 통과한 뒤에만.
  * 이 모듈은 이제 브랜드 심볼을 만드는 캐스트를 하나도 갖지 않는다.
  *
- * `CornerValidationFailureReason`·`CornerValidationResult<T>`는 브랜드
- * 타입이 아니라 `validateCornerContent`의 결과를 기술하는 평범한 타입이다
- * (캐스트로 만드는 값이 아니라 문자열 리터럴 유니온 + 그 유니온을 담는
- * 판별 유니온일 뿐 — `pipelineContracts.ts`가 `SkipReason`을 이 파일에
- * 두지 않은 것과 같은 논리). 생성자와 함께 `cornerPipeline.ts`로
- * 옮겼다 — 이 모듈 밖에서 이 두 타입을 이름으로 import하는 곳이
- * 없음을 확인했다(r25 1부 조사).
+ * 결과를 기술하는 타입(`CornerResponseFailureReason`·`CornerResponseResult<T>`)은
+ * 브랜드 타입이 아니라 `validateCornerResponse`의 결과를 기술하는 평범한 타입이다
+ * (문자열 리터럴 유니온 + 그 유니온을 담는 판별 유니온일 뿐 — `pipelineContracts.ts`가
+ * `SkipReason`을 이 파일에 두지 않은 것과 같은 논리). 생성자와 함께 `cornerPipeline.ts`에 있다.
+ * (옛 이름 `validateCornerContent`·`CornerValidationResult`는 r40에서 제거됐다.)
  *
  * ── 브랜드 심볼을 export하지 않는다 ──────────────────────────────────
  * 아래 두 타입은 `unique symbol` 타입의 프로퍼티를 인라인으로 선언한다
@@ -69,15 +67,16 @@
  */
 
 /**
- * LLM이 생성한 코너 콘텐츠 중 검증(Zod 파싱 + `FORBIDDEN_KEYS` 검사,
- * Part 17-0-4)을 **통과한 것만** 이 타입을 가질 수 있다.
+ * LLM이 생성한 코너 콘텐츠 중 검증(17-0-4의 순서 전체 — JSON.parse, `FORBIDDEN_KEYS`,
+ * Zod, 빈 결과, ID 해석, 원문 채우기, 저장 스키마)을 **통과한 것만** 이 타입을 가질 수 있다.
  *
  * 저장 함수가 이 타입만 받도록 설계하면, 검증을 건너뛴 content는
  * 타입 층에서 이미 막힌다(17-0-2 "검증 안 된 LLM 출력 저장" 방지).
  *
  * 이 타입의 값을 만드는 유일한 방법은 캐스트뿐이고, 그 캐스트는
  * `supabase/functions/_shared/cornerPipeline.ts`(정적 규칙 E 승인
- * 모듈) 안에서만 허용된다. 생성 함수는 그 모듈의 `validateCornerContent`다.
+ * 모듈)의 비공개 `brandValidated` 안 한 곳뿐이다. 그 모듈이 공개하는 정식 경로는
+ * `validateCornerResponse` 하나다.
  */
 export type ValidatedContent<T> = T & { readonly __validated: unique symbol }
 
@@ -97,8 +96,8 @@ export type ValidatedContent<T> = T & { readonly __validated: unique symbol }
  *
  * 이 타입의 값을 만드는 유일한 방법은 캐스트뿐이고, 그 캐스트는
  * `supabase/functions/_shared/coeffLookup.ts`(정적 규칙 E 승인 모듈,
- * 정적 규칙 D가 지정한 그 조회 모듈과 동일) 안에서만 허용된다. 생성
- * 함수는 그 모듈의 `buildCoeffBundle`이다.
+ * 정적 규칙 D가 지정한 그 조회 모듈과 동일)의 비공개 `buildCoeffBundle`
+ * 안 한 곳뿐이다. 그 모듈이 공개하는 정식 경로는 `lookupCoeffBundle` 하나다.
  */
 export type CoeffBundle = {
   /* 계수 — 구체 필드는 #14가 코너별 요구사항에 맞춰 정한다 */

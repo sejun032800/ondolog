@@ -23,6 +23,22 @@
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 
+## `#14` 2부 2단계-b — 훅 필수화와 기간 단언 (2026-10-05, corner-pipeline, `34`) — 구현 완료, 3단계 전에 확인할 판단 4건
+
+위임: `.claude/state/prompts/phase-7/34-corner-pipeline-hooks-period.md`.
+게이트: tsc 0 · tsc(functions) 0 · jest **612 · 36**(기준 594 · 35, 신규 18건·파일 1개).
+변경: `supabase/functions/_shared/cornerPipeline.ts`, 같은 트리 테스트 2개, 신규 `__tests__/functions/cornerPeriodSingleSource.test.ts`, `src/engine/corners/brandedTypes.ts`(주석만).
+
+**기간 판정 함수** 정의: `cornerPipeline.ts`의 `isRecordInPeriod` 한 곳. 호출: 입력 쪽 `assertRecordsBelongToCouple`, 응답 쪽 `resolveRecordReferences`. 소스 확인은 `__tests__/functions/cornerPeriodSingleSource.test.ts`(functions tsconfig에 node 타입이 없어 별도 파일).
+
+판단 4건(문서에 정확한 값이 없어 정한 것 - 3단계 전에 확인):
+1. 맥락 값 실패 오류 클래스: `InvalidCornerContextError`(`CoupleMembershipError`의 하위). "소속 단언과 같은 방식"을 같은 곳에서 잡히는 것으로 읽었다. 빈 커플 식별자도 이 클래스로 바뀌었다(기존 `instanceof CoupleMembershipError` assertion은 그대로 통과).
+2. `ScopedRecord`의 필드명: `occurredAt: Date`, `recalled?: boolean`. 문서는 "ID·시각·재소환 표시"만 말한다. 3단계가 입력 조립과 맞출 때 이름을 확정해야 한다.
+3. ID 해석 훅(`resolveReferences`)이 헬퍼 `resolveRecordReferences`를 쓰도록 강제하는 장치는 없다. 훅은 코너가 채우는 함수이므로, 3단계 코너 훅이 이 헬퍼를 부르는지는 코너 구현 때 정적 검사로 볼지 정해야 한다. 지금은 헬퍼가 `isRecordInPeriod`를 부르는 것까지만 증명했다.
+4. 레코드 시각이 날짜가 아니면(NaN) 단언·ID 해석 모두 막는다. 시작과 끝이 같은 기간은 값으로는 올바르다(전부 기간 밖).
+
+기존 테스트 assertion: **고친 assertion 0건**. 바뀐 것은 픽스처뿐이다 - ⑤ 훅 필수(기존 호출 전부에 `hooks: passHooks(...)`, 부분 훅은 `...passHooks()` 전개), ⑥ 기간 단언(`CONTEXT.period`, 레코드 `occurredAt`, `saveCornerResult.test.ts`의 `CONTEXT`). ⑦ 해당 없음(새 실패 조건은 신규 테스트로만 추가).
+
 ## `#14` 2부 2단계 — 골격 동작 변경 (2026-10-05, corner-pipeline) — 구현 완료, 3단계 전에 확인할 판단 5건
 
 위임: `.claude/state/prompts/phase-7/33-corner-pipeline-skeleton-behavior.md`.

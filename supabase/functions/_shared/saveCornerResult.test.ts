@@ -29,7 +29,10 @@ import {
 } from './cornerPipeline.ts'
 import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 
-const CONTEXT: CornerContext = { coupleId: 'couple-a' }
+const CONTEXT: CornerContext = {
+  coupleId: 'couple-a',
+  period: { start: new Date('2026-10-01T00:00:00.000Z'), end: new Date('2026-11-01T00:00:00.000Z') },
+}
 
 /** 4~6단계가 비어 있는 합성 스펙 — 픽스처를 정식 경로로 만들기 위한 것. */
 function passThroughSpec<T>(schema: z.ZodType<T>): CornerResponseSpec<T, T> {

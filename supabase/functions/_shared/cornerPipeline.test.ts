@@ -4,11 +4,15 @@ import type { LlmClient, LlmCallResult } from './llmClient.ts'
 import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 import {
   runCornerPipeline,
+  isRecordInPeriod,
+  resolveRecordReferences,
+  InvalidCornerContextError,
   validateCornerResponse,
   CoupleMembershipError,
   type CornerContext,
   type CornerPipelineResult,
   type CornerResponseSpec,
+  type CornerResponseHooks,
   type ScopedRecord,
 } from './cornerPipeline.ts'
 import { saveCornerSuccess, saveCornerFailure, type CornersTableClient } from './saveCornerResult.ts'
@@ -37,8 +41,25 @@ import { saveCornerSuccess, saveCornerFailure, type CornersTableClient } from '.
 
 const PayloadSchema = z.object({ title: z.string() })
 
-/** 호출자 맥락 — 커플 식별자는 입력이 아니라 호출자에게서 온다. */
-const CONTEXT: CornerContext = { coupleId: 'couple-a' }
+/** 호출자 맥락 — 커플 식별자·기간은 입력이 아니라 호출자에게서 온다. 기간 `[start, end)`. */
+const PERIOD_START = new Date('2026-10-01T00:00:00.000Z')
+const PERIOD_END = new Date('2026-11-01T00:00:00.000Z')
+const CONTEXT: CornerContext = { coupleId: 'couple-a', period: { start: PERIOD_START, end: PERIOD_END } }
+/** 기간 안의 시각. */
+const IN_PERIOD = new Date('2026-10-15T03:00:00.000Z')
+
+/**
+ * 합성 훅(테스트 전용 — 파이프라인에는 통과형 기본값이 없다, r42). 빈 결과 없음·ID 해석 통과·
+ * 채우기 그대로·저장 스키마 = LLM 스키마. 코너가 "없다"고 답하는 함수를 넘기는 형태와 같다.
+ */
+function passHooks<T>(schema: z.ZodType<T>): CornerResponseHooks<T> {
+  return {
+    isExplicitEmpty: () => false,
+    resolveReferences: () => ({ ok: true }),
+    fill: (llm) => ({ ok: true, value: llm }),
+    storedSchema: schema,
+  }
+}
 /** 레코드를 싣지 않는 입력용 — 소속 단언의 대상이 없다. */
 const NO_RECORDS = (): readonly ScopedRecord[] => []
 
@@ -113,6 +134,7 @@ describe('① 선행 검사 — 미달이면 LLM을 호출하지 않는다', () 
       preconditionCheck: (input) => input.entries.length > 0,
       buildPrompt: () => 'prompt',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
 
@@ -131,6 +153,7 @@ describe('② 계수 조회 — 주입하지 않으면 생략, 주입하면 결�
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
     expect(result.outcome).toBe('success')
@@ -156,6 +179,7 @@ describe('② 계수 조회 — 주입하지 않으면 생략, 주입하면 결�
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
       lookupCoeffBundle: async () => fakeCoeffBundle,
     })
@@ -174,6 +198,7 @@ describe('③ LLM 호출 실패 — generation_failed는 파이프라인이 추�
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
     expect(result).toEqual({ outcome: 'failure', reason: 'generation_failed', detail: 'HTTP 500', llmCallAttempts: 1 })
@@ -191,6 +216,7 @@ describe('④ Zod 파싱 실패 — schema_invalid는 파이프라인이 최대 
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
     expect(result.outcome).toBe('success')
@@ -208,6 +234,7 @@ describe('④ Zod 파싱 실패 — schema_invalid는 파이프라인이 최대 
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient: scriptedLlmClient([ok('{"title":123}'), ok('{"title":456}')]),
     }).then((result) => {
       expect(result.outcome).toBe('failure')
@@ -227,6 +254,7 @@ describe('④ Zod 파싱 실패 — schema_invalid는 파이프라인이 최대 
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
     expect(result.outcome).toBe('success')
@@ -245,6 +273,7 @@ describe('⑤ FORBIDDEN_KEYS 위반 — forbidden_content는 재시도하지 않
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: SchemaWithScore,
+      hooks: passHooks(SchemaWithScore),
       llmClient,
     })
     expect(result.outcome).toBe('failure')
@@ -266,6 +295,7 @@ describe('⑥ 성공 — ValidatedContent 반환 (저장은 이 함수의 책임
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
     expect(result).toEqual({
@@ -293,6 +323,7 @@ describe('코너별 부분은 전부 주입된다 — 골격 자신은 내용을
       preconditionCheck: () => true,
       buildPrompt: (input) => `프롬프트: ${input.keyword}`,
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
     expect(receivedPrompt).toBe('프롬프트: 이 문자열')
@@ -309,6 +340,7 @@ describe('결정론 — 동일 입력(고정된 가짜) 100회 반복 → 100회
         preconditionCheck: () => true,
         buildPrompt: () => 'p',
         schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
         llmClient: scriptedLlmClient([ok('{"title":"고정 결과"}')]),
       })
       expect(result).toEqual({
@@ -340,6 +372,7 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
         preconditionCheck: () => true,
         buildPrompt: () => 'p',
         schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
         llmClient,
       },
       cornersClient,
@@ -367,6 +400,7 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient: scriptedLlmClient([ok(deep)]),
     })
     expect(result.outcome).toBe('failure')
@@ -386,6 +420,7 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
     expect(result).toEqual({
@@ -404,6 +439,7 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient: scriptedLlmClient([ok('{"title":42,"score":1}')]),
     })
     expect(result.outcome).toBe('failure')
@@ -419,8 +455,8 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면 LLM은 0회 불린다', () => {
-  const ownRecord: ScopedRecord = { id: 'm-1', coupleId: 'couple-a' }
-  const foreignRecord: ScopedRecord = { id: 'm-2', coupleId: 'couple-b' }
+  const ownRecord: ScopedRecord = { id: 'm-1', coupleId: 'couple-a', occurredAt: IN_PERIOD }
+  const foreignRecord: ScopedRecord = { id: 'm-2', coupleId: 'couple-b', occurredAt: IN_PERIOD }
 
   it('다른 커플 레코드가 있으면 LLM 0회·저장 0회이고 전용 오류가 전파된다', async () => {
     const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
@@ -434,6 +470,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
         preconditionCheck: () => true,
         buildPrompt: () => 'p',
         schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
         llmClient,
       },
       cornersClient,
@@ -462,6 +499,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
           preconditionCheck: () => false,
           buildPrompt: () => 'p',
           schema: PayloadSchema,
+          hooks: passHooks(PayloadSchema),
           llmClient,
         },
         cornersClient,
@@ -482,6 +520,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
         preconditionCheck: () => true,
         buildPrompt: () => 'p',
         schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
         llmClient,
       }),
     ).rejects.toBeInstanceOf(CoupleMembershipError)
@@ -492,12 +531,13 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
     const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
     await expect(
       runCornerPipeline({
-        input: { records: [{ id: 'm-3', coupleId: '' }] },
-        context: { coupleId: '' },
+        input: { records: [{ id: 'm-3', coupleId: '', occurredAt: IN_PERIOD }] },
+        context: { ...CONTEXT, coupleId: '' },
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
         buildPrompt: () => 'p',
         schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
         llmClient,
       }),
     ).rejects.toBeInstanceOf(CoupleMembershipError)
@@ -507,12 +547,13 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
   it('대조: 전부 같은 커플이면 통과해 LLM이 불린다', async () => {
     const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
     const result = await runCornerPipeline({
-      input: { records: [ownRecord, { id: 'm-4', coupleId: 'couple-a' }] },
+      input: { records: [ownRecord, { id: 'm-4', coupleId: 'couple-a', occurredAt: IN_PERIOD }] },
       context: CONTEXT,
       scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
       llmClient,
     })
     expect(result.outcome).toBe('success')
@@ -536,7 +577,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: NullableSchema,
-      hooks: { isExplicitEmpty: (llm) => llm.kind === 'none' },
+      hooks: { ...passHooks(NullableSchema), isExplicitEmpty: (llm) => llm.kind === 'none' },
       llmClient,
     })
     expect(result).toEqual({
@@ -556,7 +597,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: NullableSchema,
-      hooks: { isExplicitEmpty: () => true },
+      hooks: { ...passHooks(NullableSchema), isExplicitEmpty: () => true },
       llmClient: scriptedLlmClient([ok('{}'), ok('{}')]),
     })
     expect(result.outcome).toBe('failure')
@@ -577,6 +618,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       buildPrompt: () => 'p',
       schema: NullableSchema,
       hooks: {
+        ...passHooks(NullableSchema),
         resolveReferences: () => {
           call += 1
           return call === 1 ? { ok: false, detail: '존재하지 않는 ID' } : { ok: true }
@@ -597,7 +639,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: NullableSchema,
-      hooks: { fill: (llm) => ({ ok: true, value: { kind: llm.kind, title: '입력에서 채운 원문' } }), storedSchema: Stored },
+      hooks: { ...passHooks(NullableSchema), fill: (llm) => ({ ok: true, value: { kind: llm.kind, title: '입력에서 채운 원문' } }), storedSchema: Stored },
       llmClient: scriptedLlmClient([ok('{"kind":"a"}')]),
     })
     expect(filledOk.outcome).toBe('success')
@@ -610,7 +652,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: NullableSchema,
-      hooks: { fill: () => ({ ok: false, detail: '입력에 없는 ID' }) },
+      hooks: { ...passHooks(NullableSchema), fill: () => ({ ok: false, detail: '입력에 없는 ID' }) },
       llmClient: scriptedLlmClient([ok('{"kind":"a"}'), ok('{"kind":"a"}')]),
     })
     expect(fillFails.outcome === 'failure' && fillFails.reason).toBe('schema_invalid')
@@ -622,7 +664,7 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
       schema: NullableSchema,
-      hooks: { storedSchema: Stored },
+      hooks: { ...passHooks(NullableSchema), storedSchema: Stored },
       llmClient: scriptedLlmClient([ok('{"kind":"a"}'), ok('{"kind":"a"}')]), // title이 없어 저장 스키마 실패
     })
     expect(storedFails.outcome === 'failure' && storedFails.reason).toBe('schema_invalid')
@@ -849,5 +891,223 @@ describe('결정론 — 동일 입력 100회 반복 → 100회 동일 결과 (va
       expect(r.ok).toBe(false)
       if (!r.ok) expect(r.reason).toBe('forbidden_content')
     }
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// r42 — 훅 필수화, 기간 단언, 기간 판정 함수 하나, 맥락 값 검증
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('r42 — 검사 단계는 전부 필수다 (빠지면 컴파일 오류)', () => {
+  // 아래 호출은 실행하지 않는다 — 타입 검사만 본다. `@ts-expect-error`가 두 게이트에서
+  // 0 에러라면 각 줄이 실제로 오류를 내고 있다는 뜻이다(오류가 없으면 디렉티브가 오류가 된다).
+  const base = {
+    input: {},
+    context: CONTEXT,
+    preconditionCheck: () => true,
+    buildPrompt: () => 'p',
+    schema: PayloadSchema,
+    llmClient: scriptedLlmClient([ok('{"title":"x"}')]),
+  }
+  const hooks = passHooks(PayloadSchema)
+
+  it('빈 결과 판정·ID 해석·원문 채우기·scopedRecords를 하나씩 빼면 각각 컴파일이 안 된다', () => {
+    const typeOnly = (): void => {
+      // @ts-expect-error — 빈 결과 판정(isExplicitEmpty)이 빠졌다
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { resolveReferences: hooks.resolveReferences, fill: hooks.fill, storedSchema: hooks.storedSchema } })
+      // @ts-expect-error — ID 해석(resolveReferences)이 빠졌다
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, fill: hooks.fill, storedSchema: hooks.storedSchema } })
+      // @ts-expect-error — 원문 채우기(fill)가 빠졌다
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, resolveReferences: hooks.resolveReferences, storedSchema: hooks.storedSchema } })
+      // @ts-expect-error — hooks 통째로 빠졌다
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS })
+      // @ts-expect-error — scopedRecords가 빠졌다
+      void runCornerPipeline({ ...base, hooks })
+    }
+    expect(typeof typeOnly).toBe('function')
+  })
+})
+
+describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
+  const at = (iso: string): Date => new Date(iso)
+
+  it('경계 — 시작 시각과 같으면 통과, 끝 시각과 같으면 막힌다 (끝 배타)', () => {
+    expect(isRecordInPeriod({ occurredAt: PERIOD_START }, CONTEXT.period)).toBe(true)
+    expect(isRecordInPeriod({ occurredAt: PERIOD_END }, CONTEXT.period)).toBe(false)
+    expect(isRecordInPeriod({ occurredAt: at('2026-10-31T23:59:59.999Z') }, CONTEXT.period)).toBe(true)
+    expect(isRecordInPeriod({ occurredAt: at('2026-09-30T23:59:59.999Z') }, CONTEXT.period)).toBe(false)
+  })
+
+  it('경계 — 단언(입력 쪽)도 같다: 끝 시각 레코드는 LLM 0회로 막히고, 시작 시각 레코드는 통과한다', async () => {
+    const run = (occurredAt: Date) => {
+      const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
+      const promise = runCornerPipeline({
+        input: { records: [{ id: 'b-1', coupleId: 'couple-a', occurredAt }] },
+        context: CONTEXT,
+        scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
+        preconditionCheck: () => true,
+        buildPrompt: () => 'p',
+        schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
+        llmClient,
+      })
+      return { promise, llmClient }
+    }
+    const atEnd = run(PERIOD_END)
+    await expect(atEnd.promise).rejects.toBeInstanceOf(CoupleMembershipError)
+    expect(atEnd.llmClient.callCount()).toBe(0)
+    const atStart = run(PERIOD_START)
+    expect((await atStart.promise).outcome).toBe('success')
+  })
+
+  it('재소환 — 같은 커플: 표시 + 기간 이전은 통과, 표시 없이 기간 이전은 막힌다', async () => {
+    const before = at('2026-08-10T00:00:00.000Z')
+    const run = (recalled: boolean | undefined) => {
+      const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
+      const promise = runCornerPipeline({
+        input: { records: [{ id: 'r-1', coupleId: 'couple-a', occurredAt: before, recalled }] },
+        context: CONTEXT,
+        scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
+        preconditionCheck: () => true,
+        buildPrompt: () => 'p',
+        schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
+        llmClient,
+      })
+      return { promise, llmClient }
+    }
+    expect((await run(true).promise).outcome).toBe('success')
+    const plain = run(undefined)
+    await expect(plain.promise).rejects.toBeInstanceOf(CoupleMembershipError)
+    expect(plain.llmClient.callCount()).toBe(0)
+    await expect(run(false).promise).rejects.toBeInstanceOf(CoupleMembershipError)
+  })
+
+  it('재소환인데 기간 안인 레코드는 막힌다 ("기간 안" 대신 "기간 이전"을 요구)', () => {
+    expect(isRecordInPeriod({ occurredAt: IN_PERIOD, recalled: true }, CONTEXT.period)).toBe(false)
+    expect(isRecordInPeriod({ occurredAt: PERIOD_START, recalled: true }, CONTEXT.period)).toBe(false)
+  })
+
+  it('재소환 — 다른 커플: 재소환 표시가 있어도 막힌다 (표시로 커플 조건을 풀 수 없다)', async () => {
+    const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
+    const cornersClient = recordingCornersClient()
+    const promise = runAndPersist(
+      {
+        input: { records: [{ id: 'x-1', coupleId: 'couple-b', occurredAt: new Date('2026-08-10T00:00:00.000Z'), recalled: true }] },
+        context: CONTEXT,
+        scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
+        preconditionCheck: () => true,
+        buildPrompt: () => 'p',
+        schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
+        llmClient,
+      },
+      cornersClient,
+    )
+    await expect(promise).rejects.toMatchObject({ name: 'CoupleMembershipError', offendingRecordIds: ['x-1'] })
+    expect(llmClient.callCount()).toBe(0)
+    expect(cornersClient.updates).toHaveLength(0)
+  })
+
+  describe('응답 쪽(ID 해석)도 같은 결과', () => {
+    const before = at('2026-08-10T00:00:00.000Z')
+    const records: ScopedRecord[] = [
+      { id: 'in', coupleId: 'couple-a', occurredAt: IN_PERIOD },
+      { id: 'start', coupleId: 'couple-a', occurredAt: PERIOD_START },
+      { id: 'end', coupleId: 'couple-a', occurredAt: PERIOD_END },
+      { id: 'old', coupleId: 'couple-a', occurredAt: before },
+      { id: 'old-recalled', coupleId: 'couple-a', occurredAt: before, recalled: true },
+      { id: 'foreign-recalled', coupleId: 'couple-b', occurredAt: before, recalled: true },
+    ]
+    const resolve = (id: string) => resolveRecordReferences([id], records, CONTEXT).ok
+
+    it('경계와 재소환이 단언 쪽과 같다', () => {
+      expect(resolve('in')).toBe(true)
+      expect(resolve('start')).toBe(true)
+      expect(resolve('end')).toBe(false)
+      expect(resolve('old')).toBe(false)
+      expect(resolve('old-recalled')).toBe(true)
+      expect(resolve('foreign-recalled')).toBe(false)
+      expect(resolve('없는-ID')).toBe(false)
+    })
+
+    it('validateCornerResponse 안에서도 같다 — 통과하면 성공, 막히면 schema_invalid', () => {
+      const refSchema = z.object({ ref: z.string() })
+      const spec: CornerResponseSpec<{ ref: string }, { ref: string }> = {
+        ...passThroughSpec(refSchema),
+        resolveReferences: (llm, ctx) => resolveRecordReferences([llm.ref], records, ctx),
+      }
+      const run = (ref: string) => validateCornerResponse(JSON.stringify({ ref }), spec, CONTEXT)
+      expect(run('old-recalled').ok).toBe(true)
+      for (const blocked of ['old', 'end', 'foreign-recalled']) {
+        const r = run(blocked)
+        expect(r.ok).toBe(false)
+        if (!r.ok) expect(r.reason).toBe('schema_invalid')
+      }
+    })
+  })
+})
+
+describe('r42 — 맥락 값 검증: 틀리면 LLM 0회·저장 0회·오류 전파', () => {
+  const cases: Array<[string, CornerContext]> = [
+    ['빈 커플 식별자', { ...CONTEXT, coupleId: '' }],
+    ['날짜가 아닌 기간 시작', { ...CONTEXT, period: { start: new Date('not a date'), end: PERIOD_END } }],
+    ['날짜가 아닌 기간 끝', { ...CONTEXT, period: { start: PERIOD_START, end: new Date(NaN) } }],
+    ['뒤집힌 기간(시작이 끝보다 늦음)', { ...CONTEXT, period: { start: PERIOD_END, end: PERIOD_START } }],
+  ]
+
+  it.each(cases)('%s', async (_name, context) => {
+    const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
+    const cornersClient = recordingCornersClient()
+    const promise = runAndPersist(
+      {
+        // 레코드가 멀쩡해 보여도 맥락 값이 틀리면 멈춘다.
+        input: { records: [{ id: 'c-1', coupleId: context.coupleId, occurredAt: IN_PERIOD }] },
+        context,
+        scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
+        preconditionCheck: () => true,
+        buildPrompt: () => 'p',
+        schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
+        llmClient,
+      },
+      cornersClient,
+    )
+    await expect(promise).rejects.toBeInstanceOf(InvalidCornerContextError)
+    await expect(promise).rejects.toBeInstanceOf(CoupleMembershipError) // 소속 단언과 같은 곳에서 잡힌다
+    expect(llmClient.callCount()).toBe(0)
+    expect(cornersClient.updates).toHaveLength(0)
+  })
+
+  it('선행 검사가 미달이어도 맥락 값 검증이 먼저다', async () => {
+    const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
+    await expect(
+      runCornerPipeline({
+        input: {},
+        context: { ...CONTEXT, coupleId: '' },
+        scopedRecords: NO_RECORDS,
+        preconditionCheck: () => false,
+        buildPrompt: () => 'p',
+        schema: PayloadSchema,
+        hooks: passHooks(PayloadSchema),
+        llmClient,
+      }),
+    ).rejects.toBeInstanceOf(InvalidCornerContextError)
+    expect(llmClient.callCount()).toBe(0)
+  })
+
+  it('대조: 시작과 끝이 같은 기간은 값으로는 올바르다', async () => {
+    const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
+    const result = await runCornerPipeline({
+      input: {},
+      context: { ...CONTEXT, period: { start: PERIOD_START, end: PERIOD_START } },
+      scopedRecords: NO_RECORDS,
+      preconditionCheck: () => true,
+      buildPrompt: () => 'p',
+      schema: PayloadSchema,
+      hooks: passHooks(PayloadSchema),
+      llmClient,
+    })
+    expect(result.outcome).toBe('success')
   })
 })

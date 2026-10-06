@@ -15,7 +15,7 @@
  * 실패 사유로" 엮을지만 정한다.
  *
  * ── 순서 (Part 17-0-4, 17-0-4-B, 17-0-5) ──────────────────────────────
- * ⓪ 소속 단언      → 입력 레코드의 커플이 호출자 맥락의 커플과 다르면
+ * ⓪ 소속 단언      → 맥락 값이 틀렸거나 입력 레코드가 맥락의 커플·기간 밖이면
  *                     `CoupleMembershipError`로 멈춘다(실패 사유 기록 없음, 삼키지 않음)
  * ① 선행 검사      → 미달이면 insufficient_input, LLM 호출하지 않음
  * ② 계수 조회      → CoeffBundle (코너가 계수를 쓰지 않으면 생략)
@@ -62,18 +62,58 @@ import { SKIP_REASON_RETRY_POLICY } from '../../../src/engine/corners/pipelineCo
 import type { LlmClient } from './llmClient.ts'
 
 /**
- * 호출자 맥락 — 커플 식별자는 **호출부가 corners/issues 행에서** 넘긴다. 입력
- * 레코드에서 읽지 않는다(입력이 오염됐다면 입력 안의 식별자도 믿을 수 없다,
- * 17-0-4-B). 기간(`period`)은 코너 3종 단계에서 더한다.
+ * 코너 맥락의 기간 — `[start, end)`, 끝 배타(17-0-7 공통 "기간 경계"). 17-5처럼 재료가
+ * 적어 기간을 넓히는 코너는 호출부가 넓힌 기간을 여기 넘긴다(17-0-4-A). 호 기간이 아니라
+ * 이 값이 기준이다.
+ */
+export interface CornerPeriod {
+  readonly start: Date
+  readonly end: Date
+}
+
+/**
+ * 호출자 맥락 — 커플 식별자와 기간은 **호출부가 corners/issues 행에서** 넘긴다. 입력
+ * 레코드에서 읽지 않는다(입력이 오염됐다면 입력 안의 식별자도 믿을 수 없다, 17-0-4-B).
+ * 두 값은 비어 있거나 틀리면 단언이 실패한다(r42, `assertCornerContextValues`).
  */
 export interface CornerContext {
   readonly coupleId: string
+  readonly period: CornerPeriod
 }
 
-/** 입력 레코드가 반드시 싣는 최소 필드. 소속은 `coupleId`로 읽는다. */
+/**
+ * 입력 레코드가 반드시 싣는 최소 필드(17-0-4-B): ID·시각·재소환 표시(+ 소속).
+ * 소속은 `coupleId`로 읽는다. `recalled`는 입력 조립이 붙이는 표시로, 없으면 재소환이 아니다.
+ */
 export interface ScopedRecord {
   readonly id: string
   readonly coupleId: string
+  readonly occurredAt: Date
+  readonly recalled?: boolean
+}
+
+/**
+ * **기간 판정 함수 — 이 파일에 정의된 유일한 곳(r42).** 호출 전 소속 단언(입력 쪽,
+ * `assertRecordsBelongToCouple`)과 ID 해석(응답 쪽, `resolveRecordReferences`)이 둘 다 이
+ * 함수를 부른다. 같은 규칙을 두 곳에 따로 짜지 않는다.
+ *
+ * - 일반 레코드: `start <= occurredAt < end` (끝 배타, 시작 포함 — 17-0-7)
+ * - `recalled: true` 레코드(17-1 재소환): **기간 이전** — `occurredAt < start`
+ * - 레코드 시각이 날짜가 아니면(비교가 성립하지 않으면) 통과시키지 않는다.
+ *
+ * 커플 조건은 이 함수의 일이 아니다. 재소환 표시는 이 함수의 결과만 바꾸며 커플 조건을
+ * 풀지 못한다(호출하는 쪽이 커플 조건을 따로 항상 건다).
+ */
+export function isRecordInPeriod(
+  record: Pick<ScopedRecord, 'occurredAt' | 'recalled'>,
+  period: CornerPeriod,
+): boolean {
+  const t = record.occurredAt.getTime()
+  const start = period.start.getTime()
+  const end = period.end.getTime()
+  if (Number.isNaN(t) || Number.isNaN(start) || Number.isNaN(end)) return false
+  if (record.recalled === true) return t < start
+  return t >= start && t < end
 }
 
 /**
@@ -85,9 +125,10 @@ export class CoupleMembershipError extends Error {
   readonly expectedCoupleId: string
   readonly offendingRecordIds: readonly string[]
 
-  constructor(expectedCoupleId: string, offendingRecordIds: readonly string[]) {
+  constructor(expectedCoupleId: string, offendingRecordIds: readonly string[], message?: string) {
     super(
-      `코너 입력에 호출자 맥락의 커플이 아닌 레코드가 있다 (coupleId=${expectedCoupleId}, 레코드 ${offendingRecordIds.length}건: ${offendingRecordIds.join(', ')})`,
+      message ??
+        `코너 입력에 호출자 맥락의 커플·기간 밖인 레코드가 있다 (coupleId=${expectedCoupleId}, 레코드 ${offendingRecordIds.length}건: ${offendingRecordIds.join(', ')})`,
     )
     Object.setPrototypeOf(this, new.target.prototype)
     this.name = 'CoupleMembershipError'
@@ -96,16 +137,64 @@ export class CoupleMembershipError extends Error {
   }
 }
 
+/**
+ * 맥락 값 자체가 틀렸다(r42) — 빈 커플 식별자, 날짜가 아닌 기간, 뒤집힌 기간. 판정 기준이
+ * 없으면 판정할 수 없고, 그때 통과시키면 모든 레코드가 걸러지지 않은 채 나간다. 소속 단언과
+ * 같은 방식으로 멈춘다(`CoupleMembershipError`의 하위 — 같은 곳에서 잡힌다).
+ */
+export class InvalidCornerContextError extends CoupleMembershipError {
+  constructor(expectedCoupleId: string, reason: string) {
+    super(expectedCoupleId, [], `코너 맥락 값이 올바르지 않다: ${reason}`)
+    this.name = 'InvalidCornerContextError'
+  }
+}
+
+function isValidDate(value: unknown): value is Date {
+  return value instanceof Date && !Number.isNaN(value.getTime())
+}
+
+function assertCornerContextValues(context: CornerContext): void {
+  if (context.coupleId.length === 0) {
+    throw new InvalidCornerContextError(context.coupleId, '커플 식별자가 빈 문자열')
+  }
+  const { start, end } = context.period
+  if (!isValidDate(start) || !isValidDate(end)) {
+    throw new InvalidCornerContextError(context.coupleId, '기간의 시작·끝이 날짜가 아님')
+  }
+  if (start.getTime() > end.getTime()) {
+    throw new InvalidCornerContextError(context.coupleId, '기간의 시작이 끝보다 늦음')
+  }
+}
+
+/** 호출 전 단언 — 커플과 기간을 함께 본다(r42). 기간 판정은 `isRecordInPeriod`. */
 function assertRecordsBelongToCouple(records: readonly ScopedRecord[], context: CornerContext): void {
-  const expected = context.coupleId
-  // 맥락의 커플 식별자가 비어 있으면 소속을 확인할 방법이 없다 — 통과시키지 않는다.
-  if (expected.length === 0) {
-    throw new CoupleMembershipError(expected, records.map((r) => r.id))
-  }
-  const offending = records.filter((r) => r.coupleId !== expected).map((r) => r.id)
+  assertCornerContextValues(context)
+  const offending = records
+    .filter((r) => r.coupleId !== context.coupleId || !isRecordInPeriod(r, context.period))
+    .map((r) => r.id)
   if (offending.length > 0) {
-    throw new CoupleMembershipError(expected, offending)
+    throw new CoupleMembershipError(context.coupleId, offending)
   }
+}
+
+/**
+ * ID 해석 헬퍼(응답 쪽, 17-0-4-A) — 참조한 ID가 이번 입력 레코드에 있고, 그 커플의 것이고,
+ * 코너 맥락의 기간 안(재소환은 기간 이전)인지 본다. 기간은 `isRecordInPeriod`를 부른다.
+ * 코너의 `resolveReferences` 훅은 이 함수로 세 조건을 건다.
+ */
+export function resolveRecordReferences(
+  ids: readonly string[],
+  records: readonly ScopedRecord[],
+  context: CornerContext,
+): { readonly ok: true } | { readonly ok: false; readonly detail: string } {
+  const byId = new Map(records.map((r) => [r.id, r] as const))
+  for (const id of ids) {
+    const record = byId.get(id)
+    if (record === undefined) return { ok: false, detail: `존재하지 않는 ID: ${id}` }
+    if (record.coupleId !== context.coupleId) return { ok: false, detail: `다른 커플의 레코드: ${id}` }
+    if (!isRecordInPeriod(record, context.period)) return { ok: false, detail: `기간 밖의 레코드: ${id}` }
+  }
+  return { ok: true }
 }
 
 /**
@@ -219,16 +308,16 @@ export function validateCornerResponse<TLlm, TStored>(
 }
 
 /**
- * `runCornerPipeline`의 4~6단계 훅. 생략하면 통과형 기본값(빈 결과 없음·ID 해석
- * 통과·채우기 없음·저장 스키마 = LLM 스키마)이다. 이 단계의 골격은 LLM 출력
- * 타입과 저장 타입이 같은 경우(`TPayload`)만 다룬다 — 둘이 달라지는 코너 3종의
- * 시그니처는 3단계에서 정한다.
+ * `runCornerPipeline`의 4~6단계 훅. **전부 필수다(r42)** — 기본값(통과형)이 없고, 빠지면
+ * 컴파일 오류다. 참조할 ID가 없는 코너도 "ID가 없다"고 답하는 함수를 넘긴다(단계를 빼는 것이
+ * 아니라 "없다"고 답하는 것 — 17-0-4). 이 단계의 골격은 LLM 출력 타입과 저장 타입이 같은
+ * 경우(`TPayload`)만 다룬다 — 둘이 달라지는 코너 3종의 시그니처는 3단계에서 정한다.
  */
 export interface CornerResponseHooks<TPayload> {
-  readonly isExplicitEmpty?: CornerResponseSpec<TPayload, TPayload>['isExplicitEmpty']
-  readonly resolveReferences?: CornerResponseSpec<TPayload, TPayload>['resolveReferences']
-  readonly fill?: CornerResponseSpec<TPayload, TPayload>['fill']
-  readonly storedSchema?: ZodType<TPayload>
+  readonly isExplicitEmpty: CornerResponseSpec<TPayload, TPayload>['isExplicitEmpty']
+  readonly resolveReferences: CornerResponseSpec<TPayload, TPayload>['resolveReferences']
+  readonly fill: CornerResponseSpec<TPayload, TPayload>['fill']
+  readonly storedSchema: ZodType<TPayload>
 }
 
 export interface CornerPipelineParams<TInput, TPayload> {
@@ -246,8 +335,8 @@ export interface CornerPipelineParams<TInput, TPayload> {
   readonly buildPrompt: (input: TInput) => string
   /** 코너별 Zod 스키마. `#14`가 채운다. */
   readonly schema: ZodType<TPayload>
-  /** 17-0-4 4~6단계의 코너별 훅. 생략하면 통과형 기본값이다. */
-  readonly hooks?: CornerResponseHooks<TPayload>
+  /** 17-0-4 4~6단계의 코너별 훅. 전부 필수 — 기본값 없음(r42). */
+  readonly hooks: CornerResponseHooks<TPayload>
   /** 코너 1건에 묶인 LLM 클라이언트 — 호출부가 `createLlmClient()`로 만들어 넘긴다. */
   readonly llmClient: LlmClient
   /**
@@ -279,7 +368,7 @@ export type CornerPipelineResult<TPayload> = CornerPipelineSuccess<TPayload> | C
  * 부분(선행 검사·프롬프트·스키마)은 전부 `params`로 주입받는다 — 이
  * 함수 자신은 어떤 코너인지 모른다.
  *
- * 입력 레코드가 호출자 맥락의 커플과 다르면 `CoupleMembershipError`를 던진다 —
+ * 맥락 값이 틀렸거나 입력 레코드가 호출자 맥락의 커플·기간 밖이면 `CoupleMembershipError`(또는 하위 `InvalidCornerContextError`)를 던진다 —
  * LLM은 한 번도 불리지 않고, 실패 사유도 기록되지 않는다.
  */
 export async function runCornerPipeline<TInput, TPayload>(
@@ -288,7 +377,7 @@ export async function runCornerPipeline<TInput, TPayload>(
   const { input, context, scopedRecords, preconditionCheck, buildPrompt, schema, hooks, llmClient, lookupCoeffBundle } =
     params
 
-  // ⓪ 소속 단언 — 어떤 LLM 호출보다 앞. 오염된 입력이 "재료 부족"으로 가려지지 않도록
+  // ⓪ 맥락 값 검증 + 소속(커플·기간) 단언 — 어떤 LLM 호출보다 앞. 오염된 입력이 "재료 부족"으로 가려지지 않도록
   // 선행 검사보다도 먼저 본다. 던진 오류는 잡지 않는다(호 전체 중단은 호출자의 일).
   assertRecordsBelongToCouple(scopedRecords(input), context)
 
@@ -304,10 +393,10 @@ export async function runCornerPipeline<TInput, TPayload>(
 
   const spec: CornerResponseSpec<TPayload, TPayload> = {
     llmSchema: schema,
-    isExplicitEmpty: hooks?.isExplicitEmpty ?? (() => false),
-    resolveReferences: hooks?.resolveReferences ?? (() => ({ ok: true })),
-    fill: hooks?.fill ?? ((llm) => ({ ok: true, value: llm })),
-    storedSchema: hooks?.storedSchema ?? schema,
+    isExplicitEmpty: hooks.isExplicitEmpty,
+    resolveReferences: hooks.resolveReferences,
+    fill: hooks.fill,
+    storedSchema: hooks.storedSchema,
   }
 
   let llmCallAttempts = 0

@@ -1,5 +1,9 @@
 # 진행 상황
 
+2026-10-06 (메인 세션, `34` 마무리, r43): `__tests__/functions/cornerPeriodSingleSource.test.ts` 삭제(문자열 기반 정적 검사 — PM 결정) 및 빈 디렉터리 제거. brandedTypes.ts 주석을 지시 범위(40·80행)보다 넓게 고침 — 메인 세션 확인 후 PM 사후 승인(r43). 게이트 tsc 0 / tsc(functions) 0 / jest 608·35 (612·36에서 4·1 감소). 미커밋
+
+2026-10-05 (corner-pipeline, `34`): `#14` 2부 2단계-b — 훅 4~6단계 전부 필수(통과형 기본값 제거, `hooks` 필수), 소속 단언에 기간(`context.period`, `[start, end)`, 재소환은 기간 이전·커플 조건은 그대로), 기간 판정 `isRecordInPeriod` 한 곳을 단언·ID 해석(`resolveRecordReferences`)이 공유, 맥락 값 검증(`InvalidCornerContextError`), `brandedTypes.ts` 주석 정정(타입 정의 무변경). 게이트 tsc 0 / tsc(functions) 0 / jest 612·36 (기준 594·35). 상세는 HANDOFF `34` 절. 미커밋
+
 2026-10-05 (corner-pipeline, `33`): `#14` 2부 2단계 — 골격 동작 변경. `buildCoeffBundle`·브랜드 부착 함수 비공개(r40), `validateCornerContent` 제거 → `validateCornerResponse`(JSON.parse → 원본 객체 금지 키 → Zod → 빈 결과 → ID 해석 → 채우기 → 저장 스키마), 호출 전 소속 단언(`CoupleMembershipError`, LLM 0회), 규칙 E 공개 여부(컴파일러 API). 게이트 tsc 0 / tsc(functions) 0 / jest 594·35 (기준 556·35). 상세·열린 판단은 HANDOFF `#14` 2부 2단계 절.
 
 2026-10-05 (메인 세션, `31-r2`): `#14` 2부 1단계 — `_shared` 네 테스트(`cornerPipeline`·`llmClient`·`saveCornerResult`·`coeffLookup`)를 `__tests__/functions/`에서 `supabase/functions/_shared/`로 `git mv`. `require(경로변수)` 우회 → `.ts` 정적 import, 파일 맨 위 `/// <reference types="jest" />`, `cornerPipeline.test.ts`의 브랜드 없는 `CoeffBundle` 픽스처를 `lookupCoeffBundle`(가짜 `AppConfigQueryClient`) 정식 경로로(MASTER r40). assertion·테스트 이름 무수정. 게이트 0 / 0 / 556 · 35. 2-3은 추가된 줄 기준(경로 한정 없이)으로 재확인해 빈 출력. 머리 주석 정리·`buildCoeffBundle` 비공개는 2단계. 미커밋
