@@ -25,7 +25,9 @@ import type { SkipReason } from '../../../src/engine/corners/pipelineContracts'
 import {
   validateCornerResponse,
   type CornerContext,
+  NO_ID_REFERENCES,
   type CornerResponseSpec,
+  type ScopedRecord,
 } from './cornerPipeline.ts'
 import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 
@@ -34,20 +36,21 @@ const CONTEXT: CornerContext = {
   period: { start: new Date('2026-10-01T00:00:00.000Z'), end: new Date('2026-11-01T00:00:00.000Z') },
 }
 
+const NO_REFERENCE_RECORDS: readonly ScopedRecord[] = []
+
 /** 4~6단계가 비어 있는 합성 스펙 — 픽스처를 정식 경로로 만들기 위한 것. */
 function passThroughSpec<T>(schema: z.ZodType<T>): CornerResponseSpec<T, T> {
   return {
     llmSchema: schema,
     isExplicitEmpty: () => false,
-    resolveReferences: () => ({ ok: true }),
-    fill: (llm) => ({ ok: true, value: llm }),
+    references: NO_ID_REFERENCES,
     storedSchema: schema,
   }
 }
 
 /** 정식 경로로 `ValidatedContent<{ title: string }>`를 얻는다. */
 function validatedFixture(title: string) {
-  return validateCornerResponse(JSON.stringify({ title }), passThroughSpec(Schema), CONTEXT)
+  return validateCornerResponse(JSON.stringify({ title }), passThroughSpec(Schema), CONTEXT, NO_REFERENCE_RECORDS)
 }
 
 /** 정식 경로로 `CoeffBundle`을 얻는다 — `app_config` 가짜 → `lookupCoeffBundle`. */

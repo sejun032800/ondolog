@@ -13,6 +13,8 @@ import {
   type CornerPipelineResult,
   type CornerResponseSpec,
   type CornerResponseHooks,
+  NO_ID_REFERENCES,
+  type ReferenceMapping,
   type ScopedRecord,
 } from './cornerPipeline.ts'
 import { saveCornerSuccess, saveCornerFailure, type CornersTableClient } from './saveCornerResult.ts'
@@ -55,11 +57,38 @@ const IN_PERIOD = new Date('2026-10-15T03:00:00.000Z')
 function passHooks<T>(schema: z.ZodType<T>): CornerResponseHooks<T> {
   return {
     isExplicitEmpty: () => false,
-    resolveReferences: () => ({ ok: true }),
-    fill: (llm) => ({ ok: true, value: llm }),
+    references: NO_ID_REFERENCES,
     storedSchema: schema,
   }
 }
+/** ID 해석 대상 레코드가 없는 호출용 — 선언이 `none`이거나 참조가 없는 경우. */
+const NO_REFERENCE_RECORDS: readonly ScopedRecord[] = []
+/**
+ * 합성 레코드 — 종류 `message`, 원문 필드 `text`. 선언(`ReferenceMapping`)이 이 종류·필드를 가리킨다.
+ * 종류 이름과 필드명은 테스트 안에서만 쓰는 합성 값이다(코너 3종의 어휘는 3단계가 정한다).
+ */
+function messageRecord(
+  id: string,
+  over: Partial<Pick<ScopedRecord, 'coupleId' | 'occurredAt' | 'recalled' | 'source'>> = {},
+): ScopedRecord {
+  return { id, coupleId: 'couple-a', kind: 'message', source: { text: `원문(${id})` }, occurredAt: IN_PERIOD, ...over }
+}
+
+/** `{ ref: 'x' }` 모양 출력의 `ref`가 `message` 레코드의 ID이고, 원문 `text`를 `text`로 채운다는 선언. */
+const REF_TO_MESSAGE_TEXT: ReferenceMapping = {
+  kind: 'fields',
+  fields: [{ path: 'ref', kind: 'message', copy: { text: 'text' } }],
+}
+
+/**
+ * 5단계가 실행되면 던지는 선언(경로 문법 오류) — "이후 단계는 실행되지 않는다"를 보이는 용도.
+ * 5단계에 닿았다면 결과 대신 예외가 나온다.
+ */
+const TRIPWIRE_IF_RESOLVED: ReferenceMapping = {
+  kind: 'fields',
+  fields: [{ path: '[]잘못된 경로', kind: 'message', copy: {} }],
+}
+
 /** 레코드를 싣지 않는 입력용 — 소속 단언의 대상이 없다. */
 const NO_RECORDS = (): readonly ScopedRecord[] => []
 
@@ -455,8 +484,8 @@ describe('r38 — 금지 키는 Zod가 지우기 전의 원본 객체에 걸린�
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면 LLM은 0회 불린다', () => {
-  const ownRecord: ScopedRecord = { id: 'm-1', coupleId: 'couple-a', occurredAt: IN_PERIOD }
-  const foreignRecord: ScopedRecord = { id: 'm-2', coupleId: 'couple-b', occurredAt: IN_PERIOD }
+  const ownRecord: ScopedRecord = { id: 'm-1', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: IN_PERIOD }
+  const foreignRecord: ScopedRecord = { id: 'm-2', coupleId: 'couple-b', kind: 'message', source: {}, occurredAt: IN_PERIOD }
 
   it('다른 커플 레코드가 있으면 LLM 0회·저장 0회이고 전용 오류가 전파된다', async () => {
     const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
@@ -531,7 +560,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
     const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
     await expect(
       runCornerPipeline({
-        input: { records: [{ id: 'm-3', coupleId: '', occurredAt: IN_PERIOD }] },
+        input: { records: [{ id: 'm-3', coupleId: '', kind: 'message', source: {}, occurredAt: IN_PERIOD }] },
         context: { ...CONTEXT, coupleId: '' },
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
@@ -547,7 +576,7 @@ describe('r38 — 호출 전 소속 단언: 다른 커플 레코드가 섞이면
   it('대조: 전부 같은 커플이면 통과해 LLM이 불린다', async () => {
     const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
     const result = await runCornerPipeline({
-      input: { records: [ownRecord, { id: 'm-4', coupleId: 'couple-a', occurredAt: IN_PERIOD }] },
+      input: { records: [ownRecord, { id: 'm-4', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: IN_PERIOD }] },
       context: CONTEXT,
       scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
       preconditionCheck: () => true,
@@ -608,65 +637,47 @@ describe('4~6단계 훅 — 파이프라인 경로 (합성 훅)', () => {
   })
 
   it('5: ID 해석 실패 → schema_invalid, 재시도 1회 후 성공하면 attempts=2', async () => {
-    let call = 0
-    const llmClient = scriptedLlmClient([ok('{"kind":"a","title":"지어낸 참조"}'), ok('{"kind":"a","title":"실존 참조"}')])
+    const RefSchema = z.object({ ref: z.string() })
+    const llmClient = scriptedLlmClient([ok('{"ref":"지어낸-ID"}'), ok('{"ref":"m-1"}')])
     const result = await runCornerPipeline({
-      input: {},
+      input: { records: [messageRecord('m-1')] },
       context: CONTEXT,
-      scopedRecords: NO_RECORDS,
+      scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
       preconditionCheck: () => true,
       buildPrompt: () => 'p',
-      schema: NullableSchema,
-      hooks: {
-        ...passHooks(NullableSchema),
-        resolveReferences: () => {
-          call += 1
-          return call === 1 ? { ok: false, detail: '존재하지 않는 ID' } : { ok: true }
-        },
-      },
+      schema: RefSchema,
+      hooks: { ...passHooks(RefSchema), references: REF_TO_MESSAGE_TEXT },
       llmClient,
     })
     expect(result.outcome).toBe('success')
     if (result.outcome === 'success') expect(result.llmCallAttempts).toBe(2)
   })
 
-  it('6: 채우기 결과가 저장 내용이 되고, 채우기 실패·저장 스키마 실패는 schema_invalid다', async () => {
-    const Stored = z.object({ kind: z.string(), title: z.string() })
-    const filledOk = await runCornerPipeline({
-      input: {},
-      context: CONTEXT,
-      scopedRecords: NO_RECORDS,
-      preconditionCheck: () => true,
-      buildPrompt: () => 'p',
-      schema: NullableSchema,
-      hooks: { ...passHooks(NullableSchema), fill: (llm) => ({ ok: true, value: { kind: llm.kind, title: '입력에서 채운 원문' } }), storedSchema: Stored },
-      llmClient: scriptedLlmClient([ok('{"kind":"a"}')]),
-    })
-    expect(filledOk.outcome).toBe('success')
-    if (filledOk.outcome === 'success') expect(filledOk.content).toEqual({ kind: 'a', title: '입력에서 채운 원문' })
+  it('6: 골격이 채운 원문이 저장 내용이 되고, 채우기 실패·저장 스키마 실패는 schema_invalid다', async () => {
+    const RefSchema = z.object({ ref: z.string() })
+    const Stored = z.object({ ref: z.string() }).passthrough() // 채워진 text를 지우지 않는다
+    const run = (records: ScopedRecord[], storedSchema: z.ZodType<{ ref: string }>) =>
+      runCornerPipeline({
+        input: { records },
+        context: CONTEXT,
+        scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
+        preconditionCheck: () => true,
+        buildPrompt: () => 'p',
+        schema: RefSchema,
+        hooks: { ...passHooks(RefSchema), references: REF_TO_MESSAGE_TEXT, storedSchema },
+        llmClient: scriptedLlmClient([ok('{"ref":"m-1"}'), ok('{"ref":"m-1"}')]),
+      })
 
-    const fillFails = await runCornerPipeline({
-      input: {},
-      context: CONTEXT,
-      scopedRecords: NO_RECORDS,
-      preconditionCheck: () => true,
-      buildPrompt: () => 'p',
-      schema: NullableSchema,
-      hooks: { ...passHooks(NullableSchema), fill: () => ({ ok: false, detail: '입력에 없는 ID' }) },
-      llmClient: scriptedLlmClient([ok('{"kind":"a"}'), ok('{"kind":"a"}')]),
-    })
+    const filledOk = await run([messageRecord('m-1')], Stored)
+    expect(filledOk.outcome).toBe('success')
+    if (filledOk.outcome === 'success') expect(filledOk.content).toEqual({ ref: 'm-1', text: '원문(m-1)' })
+
+    // 레코드 원문에 선언된 필드가 없으면 채울 수 없다.
+    const fillFails = await run([messageRecord('m-1', { source: {} })], RefSchema)
     expect(fillFails.outcome === 'failure' && fillFails.reason).toBe('schema_invalid')
 
-    const storedFails = await runCornerPipeline({
-      input: {},
-      context: CONTEXT,
-      scopedRecords: NO_RECORDS,
-      preconditionCheck: () => true,
-      buildPrompt: () => 'p',
-      schema: NullableSchema,
-      hooks: { ...passHooks(NullableSchema), storedSchema: Stored },
-      llmClient: scriptedLlmClient([ok('{"kind":"a"}'), ok('{"kind":"a"}')]), // title이 없어 저장 스키마 실패
-    })
+    // 채운 결과가 저장 스키마에 맞지 않는다(저장 스키마가 요구하는 키가 없음).
+    const storedFails = await run([messageRecord('m-1')], z.object({ ref: z.string() }).refine((v) => 'title' in v))
     expect(storedFails.outcome === 'failure' && storedFails.reason).toBe('schema_invalid')
   })
 })
@@ -680,8 +691,7 @@ function passThroughSpec<T>(schema: z.ZodType<T>): CornerResponseSpec<T, T> {
   return {
     llmSchema: schema,
     isExplicitEmpty: () => false,
-    resolveReferences: () => ({ ok: true }),
-    fill: (llm) => ({ ok: true, value: llm }),
+    references: NO_ID_REFERENCES,
     storedSchema: schema,
   }
 }
@@ -697,6 +707,7 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
       JSON.stringify({ title: '한강 데이트', note: '자전거' }),
       passThroughSpec(SamplePayloadSchema),
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -705,15 +716,15 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
   })
 
   it('1: JSON이 아니면 schema_invalid (이후 단계는 실행되지 않는다)', () => {
-    const resolveReferences = jest.fn(() => ({ ok: true as const }))
+    // 5단계에 닿으면 예외가 나는 선언 — 결과가 반환됐다는 것이 5단계 미실행의 증거다.
     const result = validateCornerResponse(
       '이건 JSON이 아님',
-      { ...passThroughSpec(SamplePayloadSchema), resolveReferences },
+      { ...passThroughSpec(SamplePayloadSchema), references: TRIPWIRE_IF_RESOLVED },
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('schema_invalid')
-    expect(resolveReferences).not.toHaveBeenCalled()
   })
 
   it('2: 스키마에 선언된 금지 키 → forbidden_content', () => {
@@ -722,6 +733,7 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
       JSON.stringify({ title: 'x', score: 100 }),
       passThroughSpec(SchemaWithScore),
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -735,6 +747,7 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
       JSON.stringify({ title: 'x', verdict: 'good' }),
       passThroughSpec(SamplePayloadSchema),
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('forbidden_content')
@@ -749,6 +762,7 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
       JSON.stringify({ title: 'x', payload: { verdict: 'good' } }),
       passThroughSpec(NestedSchema),
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('forbidden_content')
@@ -760,6 +774,7 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
       JSON.stringify({ title: 42, advice: '더 자주 만나세요' }),
       { ...passThroughSpec(SamplePayloadSchema), isExplicitEmpty },
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok === false && result.reason).toBe('forbidden_content')
     expect(isExplicitEmpty).not.toHaveBeenCalled()
@@ -770,6 +785,7 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
       JSON.stringify({ title: 'x', mood: '잔잔함' }),
       passThroughSpec(SamplePayloadSchema),
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.content).toEqual({ title: 'x' })
@@ -781,6 +797,7 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
       JSON.stringify({ title: 42 }),
       { ...passThroughSpec(SamplePayloadSchema), isExplicitEmpty },
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -791,90 +808,82 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
   })
 
   it('3: JSON은 맞지만 완전히 다른 타입(배열)이어도 schema_invalid로 처리된다(throw하지 않는다)', () => {
-    const result = validateCornerResponse('[1,2,3]', passThroughSpec(SamplePayloadSchema), CONTEXT)
+    const result = validateCornerResponse('[1,2,3]', passThroughSpec(SamplePayloadSchema), CONTEXT, NO_REFERENCE_RECORDS)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('schema_invalid')
   })
 
   it('4: 명시적 빈 결과 → insufficient_input (ID 해석·채우기는 실행되지 않는다)', () => {
-    const resolveReferences = jest.fn(() => ({ ok: true as const }))
-    const fill = jest.fn((llm: { title: string }) => ({ ok: true as const, value: llm }))
     const result = validateCornerResponse(
       JSON.stringify({ title: 'none' }),
-      { ...passThroughSpec(SamplePayloadSchema), isExplicitEmpty: (llm) => llm.title === 'none', resolveReferences, fill },
+      { ...passThroughSpec(SamplePayloadSchema), isExplicitEmpty: (llm) => llm.title === 'none', references: TRIPWIRE_IF_RESOLVED },
       CONTEXT,
+      NO_REFERENCE_RECORDS,
     )
     expect(result.ok === false && result.reason).toBe('insufficient_input')
-    expect(resolveReferences).not.toHaveBeenCalled()
-    expect(fill).not.toHaveBeenCalled()
   })
 
   it('5: ID 해석 실패 → schema_invalid, detail이 보존되고 채우기는 실행되지 않는다', () => {
-    const fill = jest.fn((llm: { title: string }) => ({ ok: true as const, value: llm }))
+    // 다른 커플의 레코드를 가리킨다. 원문 필드가 비어 있으므로 채우기까지 갔다면 detail이 달라진다.
     const result = validateCornerResponse(
-      JSON.stringify({ title: 'x' }),
-      { ...passThroughSpec(SamplePayloadSchema), resolveReferences: () => ({ ok: false, detail: '소속: 다른 커플의 레코드' }), fill },
+      JSON.stringify({ ref: 'm-9' }),
+      { ...passThroughSpec(z.object({ ref: z.string() })), references: REF_TO_MESSAGE_TEXT },
       CONTEXT,
+      [messageRecord('m-9', { coupleId: 'couple-b', source: {} })],
     )
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.reason).toBe('schema_invalid')
-      expect(result.detail).toBe('소속: 다른 커플의 레코드')
+      expect(result.detail).toBe('다른 커플의 레코드: m-9')
     }
-    expect(fill).not.toHaveBeenCalled()
   })
 
-  it('훅은 호출자 맥락을 받는다', () => {
-    const seen: string[] = []
-    validateCornerResponse(
-      JSON.stringify({ title: 'x' }),
-      {
-        ...passThroughSpec(SamplePayloadSchema),
-        resolveReferences: (_llm, ctx) => {
-          seen.push(ctx.coupleId)
-          return { ok: true }
-        },
-        fill: (llm, ctx) => {
-          seen.push(ctx.coupleId)
-          return { ok: true, value: llm }
-        },
-      },
-      CONTEXT,
-    )
-    expect(seen).toEqual(['couple-a', 'couple-a'])
+  it('선언은 호출자 맥락(커플)을 기준으로 판정한다', () => {
+    // 같은 레코드·같은 응답이 맥락의 커플에 따라 통과하거나 막힌다 — 판정 기준은 입력이 아니라 맥락이다.
+    const spec = { ...passThroughSpec(z.object({ ref: z.string() })), references: REF_TO_MESSAGE_TEXT }
+    const records = [messageRecord('m-1')]
+    const own = validateCornerResponse(JSON.stringify({ ref: 'm-1' }), spec, CONTEXT, records)
+    const other = validateCornerResponse(JSON.stringify({ ref: 'm-1' }), spec, { ...CONTEXT, coupleId: 'couple-b' }, records)
+    expect(own.ok).toBe(true)
+    expect(other.ok === false && other.reason).toBe('schema_invalid')
   })
 
   it('6: 채우기 → 저장 스키마를 거친 값이 저장 내용이 되고, 채운 내용에는 금지 키 검사를 걸지 않는다', () => {
-    // 저장 스키마 고유 키(`score` — 엔진 주입값이라고 가정)는 LLM 출력이 아니므로 걸리지 않는다.
-    const Stored = z.object({ title: z.string(), score: z.number() })
+    // 저장 스키마 고유 키(`score` — 입력 조립이 싣는 값이라고 가정)는 LLM 출력이 아니므로 걸리지 않는다.
+    const Stored = z.object({ ref: z.string(), text: z.string(), score: z.number() })
     const result = validateCornerResponse(
-      JSON.stringify({ title: 'ref-1' }),
+      JSON.stringify({ ref: 'm-1' }),
       {
-        llmSchema: z.object({ title: z.string() }),
+        llmSchema: z.object({ ref: z.string() }),
         isExplicitEmpty: () => false,
-        resolveReferences: () => ({ ok: true }),
-        fill: (llm) => ({ ok: true, value: { title: `원문(${llm.title})`, score: 7 } }),
+        references: {
+          kind: 'fields',
+          fields: [{ path: 'ref', kind: 'message', copy: { text: 'text', score: 'score' } }],
+        },
         storedSchema: Stored,
       },
       CONTEXT,
+      [messageRecord('m-1', { source: { text: '원문(m-1)', score: 7 } })],
     )
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.content).toEqual({ title: '원문(ref-1)', score: 7 })
+    if (result.ok) expect(result.content).toEqual({ ref: 'm-1', text: '원문(m-1)', score: 7 })
   })
 
   it('6: 채우기 실패 → schema_invalid, 저장 스키마 실패 → schema_invalid', () => {
-    const base = passThroughSpec(SamplePayloadSchema)
+    const RefSchema = z.object({ ref: z.string() })
     const fillFails = validateCornerResponse(
-      JSON.stringify({ title: 'x' }),
-      { ...base, fill: () => ({ ok: false, detail: '입력에 없는 ID' }) },
+      JSON.stringify({ ref: 'm-1' }),
+      { ...passThroughSpec(RefSchema), references: REF_TO_MESSAGE_TEXT },
       CONTEXT,
+      [messageRecord('m-1', { source: {} })],
     )
     expect(fillFails.ok === false && fillFails.reason).toBe('schema_invalid')
 
     const storedFails = validateCornerResponse(
-      JSON.stringify({ title: 'x' }),
-      { ...base, fill: () => ({ ok: true, value: { title: 123 } }) },
+      JSON.stringify({ ref: 'm-1' }),
+      { ...passThroughSpec(RefSchema), references: REF_TO_MESSAGE_TEXT, storedSchema: z.object({ ref: z.string(), text: z.number() }) },
       CONTEXT,
+      [messageRecord('m-1')],
     )
     expect(storedFails.ok === false && storedFails.reason).toBe('schema_invalid')
   })
@@ -885,7 +894,7 @@ describe('결정론 — 동일 입력 100회 반복 → 100회 동일 결과 (va
     const SchemaWithScore = z.object({ title: z.string(), score: z.number() })
     const text = JSON.stringify({ title: 'x', score: 1 })
     const results = Array.from({ length: 100 }, () =>
-      validateCornerResponse(text, passThroughSpec(SchemaWithScore), CONTEXT),
+      validateCornerResponse(text, passThroughSpec(SchemaWithScore), CONTEXT, NO_REFERENCE_RECORDS),
     )
     for (const r of results) {
       expect(r.ok).toBe(false)
@@ -911,20 +920,195 @@ describe('r42 — 검사 단계는 전부 필수다 (빠지면 컴파일 오류)
   }
   const hooks = passHooks(PayloadSchema)
 
-  it('빈 결과 판정·ID 해석·원문 채우기·scopedRecords를 하나씩 빼면 각각 컴파일이 안 된다', () => {
+  it('빈 결과 판정·ID 해석 선언·저장 스키마·scopedRecords를 하나씩 빼면 각각 컴파일이 안 된다', () => {
     const typeOnly = (): void => {
       // @ts-expect-error — 빈 결과 판정(isExplicitEmpty)이 빠졌다
-      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { resolveReferences: hooks.resolveReferences, fill: hooks.fill, storedSchema: hooks.storedSchema } })
-      // @ts-expect-error — ID 해석(resolveReferences)이 빠졌다
-      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, fill: hooks.fill, storedSchema: hooks.storedSchema } })
-      // @ts-expect-error — 원문 채우기(fill)가 빠졌다
-      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, resolveReferences: hooks.resolveReferences, storedSchema: hooks.storedSchema } })
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { references: hooks.references, storedSchema: hooks.storedSchema } })
+      // @ts-expect-error — ID 해석 선언(references)이 빠졌다 — 참조할 ID가 없어도 NO_ID_REFERENCES로 "없다"를 답해야 한다
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, storedSchema: hooks.storedSchema } })
+      // @ts-expect-error — 저장 스키마(storedSchema)가 빠졌다
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, references: hooks.references } })
       // @ts-expect-error — hooks 통째로 빠졌다
       void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS })
       // @ts-expect-error — scopedRecords가 빠졌다
       void runCornerPipeline({ ...base, hooks })
     }
     expect(typeof typeOnly).toBe('function')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// r43 — ID 해석은 선언이다. 코너가 판정 규칙을 넣을 자리가 타입에 없다.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('r43 — 코너가 넘기는 것은 매핑뿐이다 (판정 로직을 넣을 자리가 타입에 없다)', () => {
+  const base = {
+    input: {},
+    context: CONTEXT,
+    scopedRecords: NO_RECORDS,
+    preconditionCheck: () => true,
+    buildPrompt: () => 'p',
+    schema: PayloadSchema,
+    llmClient: scriptedLlmClient([ok('{"title":"x"}')]),
+  }
+  const hooks = passHooks(PayloadSchema)
+
+  it('옛 함수 자리(resolveReferences·fill)는 hooks에도 spec에도 없다 - 넣으려 하면 컴파일이 안 된다', () => {
+    const typeOnly = (): void => {
+      // @ts-expect-error — hooks에 ID 해석 함수를 넘길 자리가 없다
+      void runCornerPipeline({ ...base, hooks: { ...hooks, resolveReferences: () => ({ ok: true }) } })
+      // @ts-expect-error — hooks에 원문 채우기 함수를 넘길 자리가 없다
+      void runCornerPipeline({ ...base, hooks: { ...hooks, fill: () => ({ ok: true, value: {} }) } })
+      // @ts-expect-error — spec에도 같다
+      const spec: CornerResponseSpec<{ title: string }, { title: string }> = { ...passThroughSpec(PayloadSchema), resolveReferences: () => ({ ok: true }) }
+      void spec
+    }
+    expect(typeof typeOnly).toBe('function')
+  })
+
+  it('references 자리에는 함수를 넘길 수 없다 - 매핑(none | fields)만 들어간다', () => {
+    const typeOnly = (): void => {
+      // @ts-expect-error — 함수는 ReferenceMapping이 아니다
+      void runCornerPipeline({ ...base, hooks: { ...hooks, references: () => ({ ok: true }) } })
+      // @ts-expect-error — 판정 함수를 품은 객체도 아니다
+      void runCornerPipeline({ ...base, hooks: { ...hooks, references: { kind: 'none', judge: () => true } } })
+      // @ts-expect-error — 빈 fields는 "없다"가 아니다(없으면 NO_ID_REFERENCES)
+      void runCornerPipeline({ ...base, hooks: { ...hooks, references: { kind: 'fields', fields: [] } } })
+    }
+    expect(typeof typeOnly).toBe('function')
+  })
+
+  it('필드 선언에는 위치(path)·종류(kind)·복사(copy)만 있다 - 기간·커플·판정 값을 넣을 키가 없다', () => {
+    const typeOnly = (): void => {
+      // @ts-expect-error — 선언에 판정 함수를 더할 수 없다
+      const a: ReferenceMapping = { kind: 'fields', fields: [{ path: 'ref', kind: 'message', copy: {}, inPeriod: () => true }] }
+      void a
+      // @ts-expect-error — 레코드 쪽 판정 값(coupleId)을 선언에 담을 수 없다
+      const b: ReferenceMapping = { kind: 'fields', fields: [{ path: 'ref', kind: 'message', copy: {}, coupleId: 'couple-a' }] }
+      void b
+      // @ts-expect-error — path·kind·copy 중 하나라도 빠지면 안 된다
+      const c: ReferenceMapping = { kind: 'fields', fields: [{ path: 'ref', kind: 'message' }] }
+      void c
+    }
+    expect(typeof typeOnly).toBe('function')
+  })
+
+  it('판정은 골격 한 곳이다 - 선언이 있어도 기간 밖·다른 커플·없는 ID는 골격이 막는다', () => {
+    const run = (records: ScopedRecord[], ref: string) =>
+      validateCornerResponse(
+        JSON.stringify({ ref }),
+        { ...passThroughSpec(z.object({ ref: z.string() })), references: REF_TO_MESSAGE_TEXT },
+        CONTEXT,
+        records,
+      )
+    const records = [
+      messageRecord('ok'),
+      messageRecord('late', { occurredAt: PERIOD_END }),
+      messageRecord('other', { coupleId: 'couple-b' }),
+    ]
+    expect(run(records, 'ok').ok).toBe(true)
+    for (const blocked of ['late', 'other', '없는-ID']) {
+      const r = run(records, blocked)
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.reason).toBe('schema_invalid')
+    }
+  })
+})
+
+describe('r43 - 선언대로 찾고 채운다', () => {
+  const TurnsSchema = z.object({
+    context: z.string(),
+    turns: z.array(z.object({ messageId: z.string(), text: z.string().optional() })),
+  })
+  /** 저장 쪽은 채워진 text·speaker를 지우지 않는다. */
+  const TurnsStored = z.object({ context: z.string(), turns: z.array(z.object({ messageId: z.string() }).passthrough()) })
+  const TURNS_MAPPING: ReferenceMapping = {
+    kind: 'fields',
+    fields: [{ path: 'turns[].messageId', kind: 'message', copy: { text: 'text', speaker: 'speaker' } }],
+  }
+  const turnsSpec = { llmSchema: TurnsSchema, isExplicitEmpty: () => false, references: TURNS_MAPPING, storedSchema: TurnsStored }
+  const records = [
+    messageRecord('m-1', { source: { text: '원문 하나', speaker: '민' } }),
+    messageRecord('m-2', { source: { text: '원문 둘', speaker: '지' } }),
+  ]
+
+  it('turns[].messageId - 배열의 모든 칸을 해석하고 원문을 같은 객체에 채운다', () => {
+    const result = validateCornerResponse(
+      JSON.stringify({ context: '아침 대화', turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }] }),
+      turnsSpec,
+      CONTEXT,
+      records,
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.content).toEqual({
+        context: '아침 대화',
+        turns: [
+          { messageId: 'm-1', text: '원문 하나', speaker: '민' },
+          { messageId: 'm-2', text: '원문 둘', speaker: '지' },
+        ],
+      })
+    }
+  })
+
+  it('LLM이 원문 자리에 쓴 값은 덮어쓴다(원문 우선) - LLM 출력이 저장 내용의 원문이 되지 않는다', () => {
+    const result = validateCornerResponse(
+      JSON.stringify({ context: 'c', turns: [{ messageId: 'm-1', text: 'LLM이 바꿔 쓴 말' }] }),
+      turnsSpec,
+      CONTEXT,
+      records,
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(JSON.stringify(result.content)).toContain('원문 하나')
+      expect(JSON.stringify(result.content)).not.toContain('LLM이 바꿔 쓴 말')
+    }
+  })
+
+  it('배열 칸 중 하나라도 막히면 전체가 schema_invalid다', () => {
+    const result = validateCornerResponse(
+      JSON.stringify({ context: 'c', turns: [{ messageId: 'm-1' }, { messageId: '지어낸-ID' }] }),
+      turnsSpec,
+      CONTEXT,
+      records,
+    )
+    expect(result.ok === false && result.reason).toBe('schema_invalid')
+  })
+
+  it('다른 종류의 레코드는 찾지 않는다 - ID가 같아도 선언한 종류에서만 찾는다', () => {
+    const result = validateCornerResponse(
+      JSON.stringify({ context: 'c', turns: [{ messageId: 'p-1' }] }),
+      turnsSpec,
+      CONTEXT,
+      [{ ...messageRecord('p-1'), kind: 'photo' }],
+    )
+    expect(result.ok === false && result.reason).toBe('schema_invalid')
+  })
+
+  it('선택 필드가 비어 있으면 건너뛴다(참조 0건) - 있는데 문자열이 아니면 schema_invalid다', () => {
+    const OptionalSchema = z.object({ pick: z.object({ ref: z.unknown().optional() }).optional() })
+    const mapping: ReferenceMapping = { kind: 'fields', fields: [{ path: 'pick.ref', kind: 'message', copy: { text: 'text' } }] }
+    const run = (payload: unknown) =>
+      validateCornerResponse(JSON.stringify(payload), { ...passThroughSpec(OptionalSchema), references: mapping }, CONTEXT, records)
+    expect(run({}).ok).toBe(true)
+    expect(run({ pick: {} }).ok).toBe(true)
+    const wrongType = run({ pick: { ref: 7 } })
+    expect(wrongType.ok === false && wrongType.reason).toBe('schema_invalid')
+  })
+
+  it('경로 문법이 틀린 선언은 프로그래밍 오류라 던진다', () => {
+    for (const path of ['', 'a..b', 'turns[]', '1abc', 'a[0].b']) {
+      const mapping: ReferenceMapping = { kind: 'fields', fields: [{ path, kind: 'message', copy: {} }] }
+      expect(() =>
+        validateCornerResponse(JSON.stringify({ a: {} }), { ...passThroughSpec(z.object({ a: z.unknown() })), references: mapping }, CONTEXT, records),
+      ).toThrow()
+    }
+  })
+
+  it('참조 필드가 없는 코너는 none을 넘기고, 레코드가 있어도 아무것도 채우지 않는다', () => {
+    const result = validateCornerResponse(JSON.stringify({ title: 'x' }), passThroughSpec(PayloadSchema), CONTEXT, records)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.content).toEqual({ title: 'x' })
   })
 })
 
@@ -942,7 +1126,7 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
     const run = (occurredAt: Date) => {
       const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
       const promise = runCornerPipeline({
-        input: { records: [{ id: 'b-1', coupleId: 'couple-a', occurredAt }] },
+        input: { records: [{ id: 'b-1', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt }] },
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
@@ -965,7 +1149,7 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
     const run = (recalled: boolean | undefined) => {
       const llmClient = scriptedLlmClient([ok('{"title":"x"}')])
       const promise = runCornerPipeline({
-        input: { records: [{ id: 'r-1', coupleId: 'couple-a', occurredAt: before, recalled }] },
+        input: { records: [{ id: 'r-1', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: before, recalled }] },
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
@@ -993,7 +1177,7 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
     const cornersClient = recordingCornersClient()
     const promise = runAndPersist(
       {
-        input: { records: [{ id: 'x-1', coupleId: 'couple-b', occurredAt: new Date('2026-08-10T00:00:00.000Z'), recalled: true }] },
+        input: { records: [{ id: 'x-1', coupleId: 'couple-b', kind: 'message', source: {}, occurredAt: new Date('2026-08-10T00:00:00.000Z'), recalled: true }] },
         context: CONTEXT,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,
@@ -1012,12 +1196,12 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
   describe('응답 쪽(ID 해석)도 같은 결과', () => {
     const before = at('2026-08-10T00:00:00.000Z')
     const records: ScopedRecord[] = [
-      { id: 'in', coupleId: 'couple-a', occurredAt: IN_PERIOD },
-      { id: 'start', coupleId: 'couple-a', occurredAt: PERIOD_START },
-      { id: 'end', coupleId: 'couple-a', occurredAt: PERIOD_END },
-      { id: 'old', coupleId: 'couple-a', occurredAt: before },
-      { id: 'old-recalled', coupleId: 'couple-a', occurredAt: before, recalled: true },
-      { id: 'foreign-recalled', coupleId: 'couple-b', occurredAt: before, recalled: true },
+      { id: 'in', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: IN_PERIOD },
+      { id: 'start', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: PERIOD_START },
+      { id: 'end', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: PERIOD_END },
+      { id: 'old', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: before },
+      { id: 'old-recalled', coupleId: 'couple-a', kind: 'message', source: {}, occurredAt: before, recalled: true },
+      { id: 'foreign-recalled', coupleId: 'couple-b', kind: 'message', source: {}, occurredAt: before, recalled: true },
     ]
     const resolve = (id: string) => resolveRecordReferences([id], records, CONTEXT).ok
 
@@ -1035,9 +1219,9 @@ describe('r42 — 기간 판정 함수는 하나다 (isRecordInPeriod)', () => {
       const refSchema = z.object({ ref: z.string() })
       const spec: CornerResponseSpec<{ ref: string }, { ref: string }> = {
         ...passThroughSpec(refSchema),
-        resolveReferences: (llm, ctx) => resolveRecordReferences([llm.ref], records, ctx),
+        references: { kind: 'fields', fields: [{ path: 'ref', kind: 'message', copy: {} }] },
       }
-      const run = (ref: string) => validateCornerResponse(JSON.stringify({ ref }), spec, CONTEXT)
+      const run = (ref: string) => validateCornerResponse(JSON.stringify({ ref }), spec, CONTEXT, records)
       expect(run('old-recalled').ok).toBe(true)
       for (const blocked of ['old', 'end', 'foreign-recalled']) {
         const r = run(blocked)
@@ -1062,7 +1246,7 @@ describe('r42 — 맥락 값 검증: 틀리면 LLM 0회·저장 0회·오류 전
     const promise = runAndPersist(
       {
         // 레코드가 멀쩡해 보여도 맥락 값이 틀리면 멈춘다.
-        input: { records: [{ id: 'c-1', coupleId: context.coupleId, occurredAt: IN_PERIOD }] },
+        input: { records: [messageRecord('c-1', { coupleId: context.coupleId })] },
         context,
         scopedRecords: (input: { records: ScopedRecord[] }) => input.records,
         preconditionCheck: () => true,

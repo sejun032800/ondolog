@@ -23,6 +23,42 @@
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 
+## `#14` 2부 2단계-c - ID 해석을 선언으로 (2026-10-06, corner-pipeline, `35`) - 구현 완료, 3단계 전에 확인할 판단 6건
+
+위임: `.claude/state/prompts/phase-7/35-corner-pipeline-declarative-ids.md` (MASTER 17-0-4 r43).
+게이트: tsc 0 / tsc(functions) 0 / jest **619 / 35** (기준 608 / 35, 감소 없음).
+변경: `supabase/functions/_shared/cornerPipeline.ts`, 같은 트리 테스트 2개(`cornerPipeline.test.ts`, `saveCornerResult.test.ts`), 이 절, `PROGRESS.md` 한 줄. `llmClient.ts`·`package.json`·설정 파일 무변경, 의존성 없음.
+
+**코너가 넘기는 타입**: `ReferenceMapping = { kind: 'none' } | { kind: 'fields', fields: [IdFieldDeclaration, ...] }`, `IdFieldDeclaration = { path, kind, copy }`. 함수 자리 없음. `CornerResponseSpec`·`CornerResponseHooks`에서 `resolveReferences`·`fill`을 지우고 `references: ReferenceMapping` 하나로 바꿨다. 참조할 ID가 없는 코너는 `NO_ID_REFERENCES`(필수, 빼면 컴파일 오류).
+
+**골격이 하는 것**: `validateCornerResponse` 5단계(`resolveDeclaredReferences`)가 선언 경로를 따라 ID를 모아 `resolveRecordReferences`(-> `isRecordInPeriod`)로 존재·커플·기간을 판정하고, 6단계(`fillDeclaredReferences`)가 `copy`대로 레코드 원문을 ID 필드와 같은 객체에 채운다(LLM이 쓴 값은 덮어쓴다). 빈 결과 판정(`isExplicitEmpty`)은 그대로.
+
+**시그니처 변화**: `validateCornerResponse(rawText, spec, context, records)` - 4번째 `records` 필수(ID 해석이 이번 입력 레코드를 봐야 하므로). `runCornerPipeline`은 `scopedRecords(input)`을 그대로 넘긴다. `ScopedRecord`에 `kind: string`, `source: Record<string, unknown>` 필수 추가.
+
+판단 6건(문서에 정확한 값이 없어 정한 것 - 3단계 전에 확인):
+1. **`copy`(채우기 선언)**: 문서 표는 "ID 필드의 위치와 종류"만 말한다. 원문 채우기도 골격이 하려면 "어느 키에 어느 원문 필드를"이 필요해 `copy: { 저장 키: source 필드명 }`을 더했다. 판정 값이 아니라 이름 대응이다. 시각 표기(`attribution.display`)처럼 계산이 필요한 값은 선언으로 못 옮기므로 입력 조립이 `source`에 미리 싣는 것으로 읽었다.
+2. **`ScopedRecord.kind`·`source`**: 종류 이름의 어휘(`message`/`photo`/...)는 정하지 않았다(문자열). 테스트의 `message`·`text`는 합성 값.
+3. **경로 문법**: `a.b[].c`. 마지막 칸은 문자열 ID 하나(`[]`로 끝나지 않음 - ID 배열 필드는 지원하지 않는다). 값이 없으면(선택 필드) 건너뜀, 문자열이 아니거나 모양이 선언과 다르면 `schema_invalid`, 문법이 틀린 선언은 던진다(프로그래밍 오류).
+4. **경로가 Zod 출력 타입과 대조되지 않는다**: `path`는 문자열이라 오타를 컴파일이 못 잡는다. 3단계 코너 테스트가 실제 응답으로 확인해야 한다.
+5. **`resolveRecordReferences`는 여전히 export**(기존 ID 해석 테스트가 직접 부른다). 코너가 부를 수는 있지만 결과를 골격에 돌려줄 자리가 없다.
+6. **`ScopedRecord` 필드가 필수로 늘어** 호출 전 단언 대상 레코드도 `kind`·`source`를 싣는다(입력 조립 몫).
+
+기존 테스트 assertion 변경(이유 포함)은 최종 보고서에 목록으로 둔다. 비교 대상 없는 픽스처 변경(레코드 `kind`·`source`, `validateCornerResponse` 4번째 인자, `passHooks`/`passThroughSpec`의 `references`)은 assertion 변경이 아니다.
+
+### 고친 assertion과 이유 (cornerPipeline.test.ts)
+| assertion | 이유 |
+|---|---|
+| `resolveReferences`/`fill` jest.fn의 `not.toHaveBeenCalled()` 4건(1단계 JSON 아님, 4단계 빈 결과) | 함수 자리가 없어져 spy를 걸 수 없다. 5단계에 닿으면 던지는 선언(`TRIPWIRE_IF_RESOLVED`)을 넘기고, 결과가 반환된다는 것으로 같은 사실("이후 단계 미실행")을 보인다 |
+| `detail`이 `'소속: 다른 커플의 레코드'`(코너가 쓴 문자열) | 골격이 판정하므로 골격의 문구 `'다른 커플의 레코드: m-9'`로 바뀐다. detail 보존 자체는 같다 |
+| `expect(seen).toEqual(['couple-a','couple-a'])`("훅은 호출자 맥락을 받는다") | 훅이 없다. 같은 사실을 "같은 레코드·응답이 맥락의 커플에 따라 통과/차단"으로 보인다(제목도 바꿈) |
+| 채우기 결과 `{ title: '원문(ref-1)', score: 7 }`, `{ kind, title: '입력에서 채운 원문' }` | 채우기가 코너 함수가 아니라 `copy` 선언이라 입력(레코드 `source`)과 기대값이 달라진다. "채운 값이 저장 내용이 되고 금지 키 검사는 채운 내용에 걸리지 않는다"는 의미는 유지 |
+| `@ts-expect-error` 2줄(`resolveReferences`가 빠졌다, `fill`이 빠졌다) | 대상 키가 없어졌다. `references` 누락·`storedSchema` 누락으로 교체, 옛 함수 자리가 없다는 새 검사를 추가 |
+
+주: 기존 ID 해석 테스트(`resolveRecordReferences` 직접 호출, 기간 경계·재소환·다른 커플)의 assertion은 그대로 통과한다. `응답 쪽(ID 해석)도 같은 결과` 안의 validateCornerResponse 비교만 훅 대신 선언을 쓰도록 spec 입력이 바뀌었고 assertion은 같다.
+
+신규 테스트(11건): r43 타입 구조 3, 판정 골격 한 곳 1, 선언대로 찾고 채움 7(배열·덮어쓰기·부분 실패·종류 분리·선택 필드·문법 오류·none).
+
+
 ## `#14` 2부 2단계-b — 훅 필수화와 기간 단언 (2026-10-05, corner-pipeline, `34`) — 구현 완료, 3단계 전에 확인할 판단 4건
 
 위임: `.claude/state/prompts/phase-7/34-corner-pipeline-hooks-period.md`.

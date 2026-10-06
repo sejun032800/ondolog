@@ -1,5 +1,6 @@
 # 진행 상황
 
+2026-10-06 (corner-pipeline, `35`): `#14` 2부 2단계-c - ID 해석을 선언으로(MASTER r43). 코너가 넘기는 것은 `ReferenceMapping`(`none` | `fields`: path·kind·copy)뿐, `resolveReferences`·`fill` 함수 자리 제거, 존재·커플·기간(`isRecordInPeriod` 하나)·원문 채우기는 골격. `validateCornerResponse` 4번째 인자 `records` 필수, `ScopedRecord`에 `kind`·`source`. 게이트 tsc 0 / tsc(functions) 0 / jest 619·35 (기준 608·35). 판단 6건·고친 assertion은 HANDOFF `35` 절. 미커밋
 2026-10-06 (메인 세션, `34` 마무리, r43): `__tests__/functions/cornerPeriodSingleSource.test.ts` 삭제(문자열 기반 정적 검사 — PM 결정) 및 빈 디렉터리 제거. brandedTypes.ts 주석을 지시 범위(40·80행)보다 넓게 고침 — 메인 세션 확인 후 PM 사후 승인(r43). 게이트 tsc 0 / tsc(functions) 0 / jest 608·35 (612·36에서 4·1 감소). 미커밋
 
 2026-10-05 (corner-pipeline, `34`): `#14` 2부 2단계-b — 훅 4~6단계 전부 필수(통과형 기본값 제거, `hooks` 필수), 소속 단언에 기간(`context.period`, `[start, end)`, 재소환은 기간 이전·커플 조건은 그대로), 기간 판정 `isRecordInPeriod` 한 곳을 단언·ID 해석(`resolveRecordReferences`)이 공유, 맥락 값 검증(`InvalidCornerContextError`), `brandedTypes.ts` 주석 정정(타입 정의 무변경). 게이트 tsc 0 / tsc(functions) 0 / jest 612·36 (기준 594·35). 상세는 HANDOFF `34` 절. 미커밋

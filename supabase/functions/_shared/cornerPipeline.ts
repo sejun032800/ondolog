@@ -7,6 +7,8 @@
  * (r25 — 브랜드 생성자를 `brandedTypes.ts`에서 이 파일로 이전)
  * + .claude/state/prompts/phase-7/33-corner-pipeline-skeleton-behavior.md
  * (r38·r40 — 검사 순서, 호출 전 소속 단언, 생성자 비공개).
+ * + .claude/state/prompts/phase-7/35-corner-pipeline-declarative-ids.md
+ * (r43 — ID 해석·원문 채우기는 코너가 넘기는 선언(`ReferenceMapping`)을 골격이 처리한다).
  *
  * ── 이 파일이 만들지 않는 것 ──────────────────────────────────────────
  * 코너별 선행 검사 조건·프롬프트 생성 함수·Zod 스키마·4~6단계 훅(명시적 빈
@@ -82,15 +84,24 @@ export interface CornerContext {
 }
 
 /**
- * 입력 레코드가 반드시 싣는 최소 필드(17-0-4-B): ID·시각·재소환 표시(+ 소속).
+ * 입력 레코드가 반드시 싣는 필드(17-0-4-B): ID·시각·재소환 표시(+ 소속) + ID 해석용 종류·원문.
  * 소속은 `coupleId`로 읽는다. `recalled`는 입력 조립이 붙이는 표시로, 없으면 재소환이 아니다.
+ *
+ * `kind`는 이 레코드가 어떤 종류의 ID로 참조되는가(`IdFieldDeclaration.kind`와 같은 값)이고,
+ * `source`는 입력 조립이 DB에서 가져온 원문 필드들이다. 골격이 선언된 이름으로 그대로 복사한다
+ * (17-0-4-A). 종류 이름의 어휘는 코너 3종 단계가 정한다 - 이 파일은 문자열로만 다룬다.
  */
 export interface ScopedRecord {
   readonly id: string
   readonly coupleId: string
   readonly occurredAt: Date
   readonly recalled?: boolean
+  readonly kind: string
+  readonly source: Readonly<Record<string, unknown>>
 }
+
+/** 기간·커플 판정에 필요한 필드만 - `isRecordInPeriod`·`resolveRecordReferences`가 받는 모양. */
+type JudgedRecord = Pick<ScopedRecord, 'id' | 'coupleId' | 'occurredAt' | 'recalled'>
 
 /**
  * **기간 판정 함수 — 이 파일에 정의된 유일한 곳(r42).** 호출 전 소속 단언(입력 쪽,
@@ -105,7 +116,7 @@ export interface ScopedRecord {
  * 풀지 못한다(호출하는 쪽이 커플 조건을 따로 항상 건다).
  */
 export function isRecordInPeriod(
-  record: Pick<ScopedRecord, 'occurredAt' | 'recalled'>,
+  record: Pick<JudgedRecord, 'occurredAt' | 'recalled'>,
   period: CornerPeriod,
 ): boolean {
   const t = record.occurredAt.getTime()
@@ -178,13 +189,14 @@ function assertRecordsBelongToCouple(records: readonly ScopedRecord[], context: 
 }
 
 /**
- * ID 해석 헬퍼(응답 쪽, 17-0-4-A) — 참조한 ID가 이번 입력 레코드에 있고, 그 커플의 것이고,
+ * ID 해석(응답 쪽, 17-0-4-A) — 참조한 ID가 이번 입력 레코드에 있고, 그 커플의 것이고,
  * 코너 맥락의 기간 안(재소환은 기간 이전)인지 본다. 기간은 `isRecordInPeriod`를 부른다.
- * 코너의 `resolveReferences` 훅은 이 함수로 세 조건을 건다.
+ * **골격이 선언된 ID 필드(`ReferenceMapping`)마다 부른다(r43).** 코너는 이 함수를 부르는 자리도,
+ * 대신할 함수를 넘길 자리도 없다 — 코너가 넘기는 것은 매핑뿐이다.
  */
 export function resolveRecordReferences(
   ids: readonly string[],
-  records: readonly ScopedRecord[],
+  records: readonly JudgedRecord[],
   context: CornerContext,
 ): { readonly ok: true } | { readonly ok: false; readonly detail: string } {
   const byId = new Map(records.map((r) => [r.id, r] as const))
@@ -208,28 +220,150 @@ export type CornerResponseResult<T> =
   | { readonly ok: true; readonly content: ValidatedContent<T> }
   | { readonly ok: false; readonly reason: CornerResponseFailureReason; readonly detail: string }
 
-export type CornerStepResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly detail: string }
+/**
+ * ID 필드 하나의 선언(17-0-4 r43) — "출력의 어느 필드가 어떤 종류의 ID인가"와, 그 레코드의
+ * 원문 필드를 어느 이름으로 옮겨 적을지. 판정에 쓸 수 있는 값은 없다.
+ *
+ * - `path`: LLM 출력 안의 ID 필드 위치. 점으로 잇고 배열은 `[]`를 붙인다(예: `turns[].messageId`).
+ *   마지막 칸은 문자열 ID 하나를 가리키는 이름이다(`[]`로 끝나지 않는다). 그 위치의 값이 없으면
+ *   (선택 필드) 건너뛰고, 문자열이 아니면 `schema_invalid`다.
+ * - `kind`: 그 ID가 가리키는 레코드의 종류 — `ScopedRecord.kind`와 같은 값인 레코드에서만 찾는다.
+ * - `copy`: `{ 저장 쪽 키: 레코드 source의 필드명 }`. 골격이 ID 필드와 **같은 객체**에 그 키로
+ *   원문을 채운다(이미 있으면 덮어쓴다 — 원문이 우선이다, 17-0-4-A). source에 그 필드가 없으면
+ *   `schema_invalid`.
+ */
+export interface IdFieldDeclaration {
+  readonly path: string
+  readonly kind: string
+  readonly copy: Readonly<Record<string, string>>
+}
+
+/**
+ * 코너가 ID 해석에 대해 넘기는 유일한 것(r43). 참조할 ID가 없는 코너도 "없다"를 명시한다 —
+ * 단계를 빼는 것이 아니라 없음을 답하는 것이다(17-0-4).
+ */
+export type ReferenceMapping =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'fields'; readonly fields: readonly [IdFieldDeclaration, ...IdFieldDeclaration[]] }
+
+/** 참조할 ID가 없는 코너가 넘기는 값. */
+export const NO_ID_REFERENCES: ReferenceMapping = { kind: 'none' }
 
 /**
  * 17-0-4의 4~6단계에서 코너마다 달라지는 부분. 코너 3종 단계가 채운다 —
- * 이번에는 받는 자리와 순서만 있다. 전부 동기 순수 함수다.
+ * 이번에는 받는 자리와 순서만 있다. `isExplicitEmpty`만 함수이고, ID 해석·채우기는 선언이다.
  */
 export interface CornerResponseSpec<TLlm, TStored> {
   /** 3단계의 Zod 스키마(LLM 출력 스키마). `.strict()`를 쓰지 않는다 — 모르는 키는 Zod가 지운다. */
   readonly llmSchema: ZodType<TLlm>
   /** 4단계 — 명시적 빈 결과(`kind: 'none'` 등)인가. true면 `insufficient_input`. */
   readonly isExplicitEmpty: (llm: TLlm) => boolean
-  /** 5단계 — ID 해석(존재·그 커플의 것·기간 안). 실패 시 `schema_invalid`. */
-  readonly resolveReferences: (
-    llm: TLlm,
-    context: CornerContext,
-  ) => { readonly ok: true } | { readonly ok: false; readonly detail: string }
-  /** 6단계 — 원문 채우기. 실패 시 `schema_invalid`. */
-  readonly fill: (llm: TLlm, context: CornerContext) => CornerStepResult<unknown>
+  /**
+   * 5·6단계 — ID 해석과 원문 채우기의 **선언**(r43). 함수가 아니라 매핑이다. 존재·커플·기간 판정과
+   * 채우기는 골격이 하고, 실패 시 `schema_invalid`다. 참조할 ID가 없는 코너는 `NO_ID_REFERENCES`.
+   */
+  readonly references: ReferenceMapping
   /** 6단계 — 저장 스키마. 실패 시 `schema_invalid`. 통과해야 브랜드가 붙는다. */
   readonly storedSchema: ZodType<TStored>
+}
+
+interface FoundReference {
+  readonly declaration: IdFieldDeclaration
+  readonly record: ScopedRecord
+  /** ID 필드를 품은 객체(채우기 대상) */
+  readonly holder: Record<string, unknown>
+}
+
+const SEGMENT = /^[A-Za-z_][A-Za-z0-9_]*(\[\])?$/
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * 선언된 경로를 따라 ID 필드를 품은 객체를 모은다. 중간 값이 없으면(선택 필드) 그 갈래는 건너뛰고,
+ * 모양이 선언과 다르면(객체여야 하는데 아님, 배열이어야 하는데 아님) 실패다.
+ */
+function collectHolders(
+  root: unknown,
+  segments: readonly string[],
+  path: string,
+): { ok: true; holders: Record<string, unknown>[] } | { ok: false; detail: string } {
+  let level: unknown[] = [root]
+  for (const segment of segments.slice(0, -1)) {
+    const isArray = segment.endsWith('[]')
+    const key = isArray ? segment.slice(0, -2) : segment
+    const next: unknown[] = []
+    for (const node of level) {
+      if (!isPlainObject(node)) return { ok: false, detail: `ID 필드 경로가 출력 모양과 다르다: ${path}` }
+      const child = node[key]
+      if (child === undefined || child === null) continue
+      if (isArray) {
+        if (!Array.isArray(child)) return { ok: false, detail: `ID 필드 경로가 출력 모양과 다르다: ${path}` }
+        next.push(...child)
+      } else {
+        next.push(child)
+      }
+    }
+    level = next
+  }
+  const holders: Record<string, unknown>[] = []
+  for (const node of level) {
+    if (!isPlainObject(node)) return { ok: false, detail: `ID 필드 경로가 출력 모양과 다르다: ${path}` }
+    holders.push(node)
+  }
+  return { ok: true, holders }
+}
+
+/**
+ * 5단계 — 선언된 ID 필드를 전부 찾아 해석한다(r43). 존재·커플·기간 판정은 `resolveRecordReferences`
+ * (→ `isRecordInPeriod`) 하나다. 선언 자체가 틀렸으면(경로 문법) 프로그래밍 오류라 던진다.
+ */
+function resolveDeclaredReferences(
+  output: unknown,
+  mapping: ReferenceMapping,
+  records: readonly ScopedRecord[],
+  context: CornerContext,
+): { ok: true; found: readonly FoundReference[] } | { ok: false; detail: string } {
+  if (mapping.kind === 'none') return { ok: true, found: [] }
+  const found: FoundReference[] = []
+  for (const declaration of mapping.fields) {
+    const segments = declaration.path.split('.')
+    if (!segments.every((s) => SEGMENT.test(s)) || segments[segments.length - 1].endsWith('[]')) {
+      throw new Error(`ID 필드 경로 문법이 올바르지 않다: ${declaration.path}`)
+    }
+    const idKey = segments[segments.length - 1]
+    const collected = collectHolders(output, segments, declaration.path)
+    if (!collected.ok) return collected
+    const ofKind = records.filter((r) => r.kind === declaration.kind)
+    for (const holder of collected.holders) {
+      const id = holder[idKey]
+      if (id === undefined || id === null) continue
+      if (typeof id !== 'string') return { ok: false, detail: `ID 필드가 문자열이 아니다: ${declaration.path}` }
+      const resolved = resolveRecordReferences([id], ofKind, context)
+      if (!resolved.ok) return resolved
+      const record = ofKind.find((r) => r.id === id)
+      if (record === undefined) return { ok: false, detail: `존재하지 않는 ID: ${id}` }
+      found.push({ declaration, record, holder })
+    }
+  }
+  return { ok: true, found }
+}
+
+/** 6단계 — 해석을 통과한 레코드의 원문을 선언된 이름으로 옮겨 적는다(17-0-4-A). */
+function fillDeclaredReferences(
+  found: readonly FoundReference[],
+): { readonly ok: true } | { readonly ok: false; readonly detail: string } {
+  for (const { declaration, record, holder } of found) {
+    for (const [destKey, sourceField] of Object.entries(declaration.copy)) {
+      const value = record.source[sourceField]
+      if (value === undefined) {
+        return { ok: false, detail: `레코드 ${record.id}의 원문에 ${sourceField} 필드가 없다` }
+      }
+      holder[destKey] = value
+    }
+  }
+  return { ok: true }
 }
 
 /** 브랜드를 붙이는 유일한 곳 — 비공개(r40). 검증을 모두 마친 값만 여기로 온다. */
@@ -257,6 +391,7 @@ export function validateCornerResponse<TLlm, TStored>(
   rawText: string,
   spec: CornerResponseSpec<TLlm, TStored>,
   context: CornerContext,
+  records: readonly ScopedRecord[],
 ): CornerResponseResult<TStored> {
   // 1. JSON.parse
   let rawObject: unknown
@@ -288,18 +423,19 @@ export function validateCornerResponse<TLlm, TStored>(
     return { ok: false, reason: 'insufficient_input', detail: 'LLM이 명시적으로 빈 결과를 반환함' }
   }
 
-  // 5. ID 해석
-  const resolved = spec.resolveReferences(llm, context)
+  // 5. ID 해석 — 선언된 필드마다 존재·커플·기간(`isRecordInPeriod`)을 골격이 판정한다.
+  const working: unknown = JSON.parse(JSON.stringify(llm)) // 채우기 대상 복사본 — 파싱 결과는 건드리지 않는다.
+  const resolved = resolveDeclaredReferences(working, spec.references, records, context)
   if (!resolved.ok) {
     return { ok: false, reason: 'schema_invalid', detail: resolved.detail }
   }
 
-  // 6. 원문 채우기 → 저장 스키마 → 브랜드
-  const filled = spec.fill(llm, context)
+  // 6. 원문 채우기(골격) → 저장 스키마 → 브랜드
+  const filled = fillDeclaredReferences(resolved.found)
   if (!filled.ok) {
     return { ok: false, reason: 'schema_invalid', detail: filled.detail }
   }
-  const stored = spec.storedSchema.safeParse(filled.value)
+  const stored = spec.storedSchema.safeParse(working)
   if (!stored.success) {
     return { ok: false, reason: 'schema_invalid', detail: stored.error.message }
   }
@@ -315,8 +451,7 @@ export function validateCornerResponse<TLlm, TStored>(
  */
 export interface CornerResponseHooks<TPayload> {
   readonly isExplicitEmpty: CornerResponseSpec<TPayload, TPayload>['isExplicitEmpty']
-  readonly resolveReferences: CornerResponseSpec<TPayload, TPayload>['resolveReferences']
-  readonly fill: CornerResponseSpec<TPayload, TPayload>['fill']
+  readonly references: ReferenceMapping
   readonly storedSchema: ZodType<TPayload>
 }
 
@@ -394,8 +529,7 @@ export async function runCornerPipeline<TInput, TPayload>(
   const spec: CornerResponseSpec<TPayload, TPayload> = {
     llmSchema: schema,
     isExplicitEmpty: hooks.isExplicitEmpty,
-    resolveReferences: hooks.resolveReferences,
-    fill: hooks.fill,
+    references: hooks.references,
     storedSchema: hooks.storedSchema,
   }
 
@@ -413,7 +547,7 @@ export async function runCornerPipeline<TInput, TPayload>(
     }
 
     // ④ JSON.parse → FORBIDDEN_KEYS → Zod → 빈 결과 → ID 해석 → 채우기 → 저장 스키마 → 브랜드.
-    const validation = validateCornerResponse(callResult.text, spec, context)
+    const validation = validateCornerResponse(callResult.text, spec, context, scopedRecords(input))
     if (validation.ok) {
       // ⑤ ValidatedContent 반환 — 저장은 호출부가 saveCornerResult.ts로 한다.
       return { outcome: 'success', content: validation.content, coeffBundle, llmCallAttempts }
