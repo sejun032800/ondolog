@@ -1,5 +1,9 @@
 # 진행 상황
 
+2026-10-08 (메인 세션, `42`): `#14` 종결 정리 - HANDOFF "열린 항목"의 `#14` 행과 `#14` 섹션 7개(`40`·`38`·`36`·`35`·`34`·1부·`42`)를 기준 B 통과로 `archive/handoff-20261008.md`에 원본 순서·바이트 그대로 이동(LF 정규화 후 손실 없음 확인). 2부 2단계(`33`) 섹션은 판단 4(운영 경보·호 전체 중단을 호출자 몫으로 둠)의 원본이 다른 곳에 없어 남김. 게이트 tsc 0 / tsc(functions) 0 / jest 925·48. 미커밋
+
+2026-10-08 (corner-pipeline, `42`): `#14` 마무리 - 규칙 F 수집을 git 추적 전체(최상위 포함)로 넓힘(디렉터리 목록 삭제, 파일시스템 대체는 `node_modules/`·`.git/`만 제외), HTTP 2xx인데 텍스트 블록 없는 응답을 `schema_invalid`로(이전: `llmClient` 안에서 예산까지 돌고 `generation_failed`). 게이트 tsc 0 / tsc(functions) 0 / jest 925·48 (기준 921·48). 미커밋
+
 2026-10-08 (메인 세션, `41`): r46 문서 둘 - CORNER_CONTENT §0-2 다이어그램 블록을 MASTER §17-0-4·§17-0-5-A 포인터 한 줄로, 인수인계서 5-2 줄바꿈 행 끝에 "`git show`는 비교용으로만" 복원(행 수 그대로). 게이트 tsc 0 / tsc(functions) 0 / jest 921·48 (`40` 직후와 같음). 미커밋
 
 2026-10-08 (corner-pipeline, `40`): `#14` 후속 - 파생값을 저장 스키마 밖 필수 `derive` 단계로(코너 셋의 `transform` 제거), `periodLabel`은 `periodLabelOf(period, cadence)`로 맥락에서 제거, `llmClient` 대기는 직전 호출이 전송 실패일 때만, 규칙 F 시험(`fileNameRule`) 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 921·48 (기준 855·45). 판단 6건·고친 assertion은 HANDOFF `40` 절. 미커밋

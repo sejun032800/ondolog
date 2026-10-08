@@ -10,18 +10,14 @@ import * as path from 'path'
  * **디렉터리명은 보지 않는다** - Expo Router 라우트 그룹 `app/(tabs)`·`app/(modals)`는 괄호가 정당하고, 전체 경로를
  * 검사하면 규칙이 첫 실행에서 실패한다. 그 안의 파일(`index.tsx` 등)의 basename은 규칙을 지킨다.
  *
- * 수집(1부 설계 B-8): `git ls-files --cached --others --exclude-standard -z` 중 아래 범위 안. "커밋될 파일"과 같은
- * 집합이고, 아직 `git add` 전인 새 파일(위반이 처음 생기는 자리)도 잡힌다. `.gitignore`가 `node_modules/`·`.expo/`
- * 같은 비추적 경로를 이미 제외하므로 별도 제외 목록이 필요 없다. `-z`는 한글 경로가 따옴표로 이스케이프되는 것을
- * 피하려는 것이다. git을 쓸 수 없는 환경에서는 파일시스템 재귀로 되돌아간다(비추적 디렉터리는 이름으로 뺀다).
+ * 수집(r47): **git이 추적하는 모든 파일 - 최상위 포함.** `git ls-files --cached --others --exclude-standard -z`
+ * (추적 + 아직 `git add` 전인 새 파일, `.gitignore` 제외)이고 디렉터리 목록을 두지 않는다. `-z`는 한글 경로가
+ * 따옴표로 이스케이프되는 것을 피하려는 것이다. git을 쓸 수 없는 환경에서는 파일시스템을 돌되 `node_modules/`·`.git/`만 뺀다.
  *
  * 위치가 `__tests__/build/`인 이유: 저장소 전체 위생 검사라 `engine/`이 아니고, 외부 프로세스(git)를 부르기 때문이다.
  */
 
 const REPO_ROOT = path.join(__dirname, '..', '..')
-
-/** 수집 범위 - 이 디렉터리들 아래만. 루트 파일(`CLAUDE.md`·`package.json` 등)은 범위 밖이다. */
-const FILE_NAME_RULE_ROOTS: readonly string[] = ['docs', 'src', 'app', 'scripts', '__tests__', 'supabase', '.claude', 'assets']
 
 const ALLOWED_BASENAME = /^[A-Za-z0-9._-]+$/
 
@@ -37,29 +33,23 @@ function fileNameViolations(relPaths: readonly string[]): string[] {
   return relPaths.map(fileNameViolation).filter((v): v is string => v !== null)
 }
 
-function inScope(relPath: string): boolean {
-  return FILE_NAME_RULE_ROOTS.some((root) => relPath.startsWith(`${root}/`))
-}
-
-const UNTRACKED_DIRS = new Set(['node_modules', '.git', '.expo', '.norm-build'])
+const UNTRACKED_DIRS = new Set(['node_modules', '.git'])
 
 function collectByFileSystem(): string[] {
   const out: string[] = []
   const walk = (dirRel: string): void => {
     for (const entry of fs.readdirSync(path.join(REPO_ROOT, dirRel), { withFileTypes: true })) {
       if (UNTRACKED_DIRS.has(entry.name)) continue
-      const rel = `${dirRel}/${entry.name}`
+      const rel = dirRel === '' ? entry.name : `${dirRel}/${entry.name}`
       if (entry.isDirectory()) walk(rel)
       else out.push(rel)
     }
   }
-  for (const root of FILE_NAME_RULE_ROOTS) {
-    if (fs.existsSync(path.join(REPO_ROOT, root))) walk(root)
-  }
+  walk('')
   return out
 }
 
-/** 커밋될 파일 전부(추적 + 아직 추가 전인 새 파일, `.gitignore` 제외) 중 수집 범위 안. */
+/** 커밋될 파일 전부(추적 + 아직 추가 전인 새 파일, `.gitignore` 제외). 범위 필터 없음. */
 function collectRepositoryFiles(): string[] {
   const result = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
     cwd: REPO_ROOT,
@@ -67,10 +57,7 @@ function collectRepositoryFiles(): string[] {
     maxBuffer: 64 * 1024 * 1024,
   })
   if (result.error || result.status !== 0) return collectByFileSystem()
-  return result.stdout
-    .split('\0')
-    .filter((p) => p.length > 0)
-    .filter(inScope)
+  return result.stdout.split('\0').filter((p) => p.length > 0)
 }
 
 describe('규칙 F - 합성 입력 (위반)', () => {
@@ -110,15 +97,6 @@ describe('규칙 F - 합성 입력 (정상)', () => {
   it('디렉터리명은 보지 않는다 - 괄호·공백이 있는 디렉터리 안의 정상 파일은 통과한다', () => {
     expect(fileNameViolations(['app/(tabs)/index.tsx', 'docs/some dir/ok.md'])).toEqual([])
   })
-
-  it('수집 범위: 범위 밖의 루트 파일은 보지 않는다', () => {
-    expect(inScope('CLAUDE.md')).toBe(false)
-    expect(inScope('package.json')).toBe(false)
-    expect(inScope('docs/a.md')).toBe(true)
-    expect(inScope('.claude/state/PROGRESS.md')).toBe(true)
-    expect(inScope('assets/fonts/MaruBuri-Light.ttf')).toBe(true)
-    expect(inScope('node_modules/x/a.js')).toBe(false)
-  })
 })
 
 describe('규칙 F - 저장소 실제 파일', () => {
@@ -128,7 +106,16 @@ describe('규칙 F - 저장소 실제 파일', () => {
     expect(files.length).toBeGreaterThan(100)
     expect(files).toContain('docs/ONDOLOG_MASTER.md')
     expect(files.some((f) => f.startsWith('app/(tabs)/'))).toBe(true) // 라우트 그룹 안의 파일이 수집된다
-    expect(files.every(inScope)).toBe(true)
+  })
+
+  it('최상위 파일이 수집에 들어 있다 (r47)', () => {
+    expect(files).toContain('CLAUDE.md')
+    expect(files).toContain('package.json')
+    expect(files.some((f) => !f.includes('/'))).toBe(true)
+  })
+
+  it('node_modules·.git 아래는 수집되지 않는다', () => {
+    expect(files.some((f) => f.startsWith('node_modules/') || f.startsWith('.git/'))).toBe(false)
   })
 
   it('커밋되는 모든 파일의 이름이 규칙을 지킨다', () => {

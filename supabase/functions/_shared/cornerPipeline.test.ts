@@ -1600,3 +1600,52 @@ describe('r46 - 파이프라인이 schema_invalid로 다시 불러도 기다리�
     expect(sleepImpl.mock.calls.map((c) => c[0])).toEqual([500]) // 둘째 call()(재호출) 앞에는 없다
   })
 })
+
+describe('r47 - HTTP 2xx인데 텍스트 블록이 없는 응답은 schema_invalid다 (파이프라인 전체 -> 저장 함수)', () => {
+  const emptyContentResponse = (): Response =>
+    ({ ok: true, status: 200, text: async () => '', json: async () => ({ content: [] }) }) as unknown as Response
+  const params = (llmClient: LlmClient) => ({
+    input: {},
+    context: CONTEXT,
+    scopedRecords: NO_RECORDS,
+    preconditionCheck: () => true,
+    buildRequest: () => req('p'),
+    schema: PayloadSchema,
+    hooks: passHooks(PayloadSchema),
+    llmClient,
+  })
+
+  it('계속 텍스트가 없으면: 재시도 1회 뒤 저장 함수가 schema_invalid로 불린다 - 호출 2회, 대기 0회', async () => {
+    const fetchImpl = jest.fn(async () => emptyContentResponse())
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const llmClient = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+    const client = recordingCornersClient()
+
+    const result = await runAndPersist(params(llmClient), client)
+
+    expect(result).toMatchObject({ outcome: 'failure', reason: 'schema_invalid', llmCallAttempts: 2 })
+    expect(client.updates).toHaveLength(1)
+    expect(client.updates[0]).toMatchObject({ skip_reason: 'schema_invalid', generation_attempts: 2 })
+    expect(fetchImpl).toHaveBeenCalledTimes(2) // 예산을 쓴다
+    expect(sleepImpl).not.toHaveBeenCalled() // 대기는 없다
+  })
+
+  it('텍스트 없는 응답 뒤 재호출에서 텍스트가 오면 성공한다 (사유가 generation_failed로 굳지 않는다)', async () => {
+    const fetchImpl = jest
+      .fn<Promise<Response>, []>()
+      .mockResolvedValueOnce(emptyContentResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ content: [{ type: 'text', text: '{"title":"x"}' }] }),
+      } as unknown as Response)
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const llmClient = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    const result = await runCornerPipeline(params(llmClient))
+
+    expect(result).toMatchObject({ outcome: 'success', llmCallAttempts: 2 })
+    expect(sleepImpl).not.toHaveBeenCalled()
+  })
+})

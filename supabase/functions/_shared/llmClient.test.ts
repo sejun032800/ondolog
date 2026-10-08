@@ -329,15 +329,29 @@ describe('llmClient - 대기는 직전 호출이 전송 실패였을 때만 (MAS
     expect(sleepImpl).toHaveBeenCalledTimes(1)
   })
 
-  it('HTTP는 성공했으나 응답에 텍스트 블록이 없으면 전송 실패가 아니다 - 예산은 쓰되 기다리지 않는다', async () => {
+  it('HTTP는 성공했으나 응답에 텍스트 블록이 없으면 빈 텍스트로 돌려준다 - 예산 1회, 대기 없음, 안에서 돌지 않는다 (r47)', async () => {
     const fetchImpl = jest.fn(async () => jsonResponse({ content: [] }))
     const sleepImpl = jest.fn(async (_ms: number) => undefined)
     const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
 
     const result = await client.call(req('p'))
 
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.detail).toContain('text 블록')
+    expect(result).toEqual({ ok: true, text: '' }) // generation_failed가 아니다 - 파이프라인이 schema_invalid로 판정한다
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(sleepImpl).not.toHaveBeenCalled()
+  })
+
+  it('텍스트 없는 응답도 호출 예산을 쓴다 - 예산이 소진되면 네트워크 요청 없이 거부한다', async () => {
+    const fetchImpl = jest.fn(async () => jsonResponse({ content: [] }))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    for (let i = 0; i < CORNER_LLM_CALL_BUDGET; i += 1) {
+      expect(await client.call(req('p'))).toEqual({ ok: true, text: '' })
+    }
+    const exhausted = await client.call(req('p'))
+
+    expect(exhausted.ok).toBe(false)
     expect(fetchImpl).toHaveBeenCalledTimes(CORNER_LLM_CALL_BUDGET)
     expect(sleepImpl).not.toHaveBeenCalled()
   })

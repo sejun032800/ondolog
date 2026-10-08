@@ -30,7 +30,8 @@
  * 호출의 결과라 Zod를 몰라도 안다(층은 그대로 분리된다). 직전 호출이 HTTP로 성공했으면 파이프라인이
  * `schema_invalid`로 다시 부르더라도 기다리지 않는다. 전송 수준 실패는 둘이다 - `fetch`가 던졌거나(네트워크
  * 예외, 본문을 읽다 끊긴 경우 포함), HTTP 상태가 성공(2xx)이 아니다. HTTP 2xx인데 응답에 텍스트 블록이 없는
- * 경우는 전송이 성공한 것이므로 전송 실패가 아니다(예산은 쓰고, 기다리지 않는다). 연속된 전송 실패 횟수가
+ * 경우는 전송이 성공한 것이므로 전송 실패가 아니다(예산은 쓰고, 기다리지 않고, 빈 텍스트로 돌려줘 파이프라인이
+ * `schema_invalid`로 기록한다 - r47). 연속된 전송 실패 횟수가
  * 지수 백오프의 지수가 되고, 전송이 한 번 성공하면 0으로 돌아간다.
  *
  * ── 예산이 인자로 흘러가지 않는다 ─────────────────────────────────────
@@ -190,11 +191,10 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
 
       const json = (await response.json()) as { content?: Array<{ type?: string; text?: string }> }
       const text = json.content?.find((block) => block.type === 'text')?.text
-      if (typeof text !== 'string') {
-        // HTTP는 성공했다 - 전송 실패가 아니므로 다음 호출은 기다리지 않는다.
-        return { ok: false, detail: 'LLM 응답에 text 블록이 없음', transport: false }
-      }
-      return { ok: true, text }
+      // HTTP 2xx인데 텍스트 블록이 없으면 빈 문자열로 돌려준다 - 파싱할 것이 없는 응답이고, 파이프라인의
+      // 1단계(`JSON.parse`)가 실패해 `schema_invalid`가 된다(17-0-8, r47). 전송은 성공했으므로 대기는 없고,
+      // 이 호출은 예산 한 번을 쓴다. 재호출 여부는 파이프라인의 정책표가 정한다(여기서 안으로 돌지 않는다).
+      return { ok: true, text: typeof text === 'string' ? text : '' }
     } catch (err) {
       return { ok: false, detail: err instanceof Error ? err.message : String(err), transport: true }
     }
