@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-08 (메인 세션, `41`): r46 문서 둘 - CORNER_CONTENT §0-2 다이어그램 블록을 MASTER §17-0-4·§17-0-5-A 포인터 한 줄로, 인수인계서 5-2 줄바꿈 행 끝에 "`git show`는 비교용으로만" 복원(행 수 그대로). 게이트 tsc 0 / tsc(functions) 0 / jest 921·48 (`40` 직후와 같음). 미커밋
+
 2026-10-08 (corner-pipeline, `40`): `#14` 후속 - 파생값을 저장 스키마 밖 필수 `derive` 단계로(코너 셋의 `transform` 제거), `periodLabel`은 `periodLabelOf(period, cadence)`로 맥락에서 제거, `llmClient` 대기는 직전 호출이 전송 실패일 때만, 규칙 F 시험(`fileNameRule`) 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 921·48 (기준 855·45). 판단 6건·고친 assertion은 HANDOFF `40` 절. 미커밋
 
 2026-10-06 (corner-pipeline, `38`): `#14` 3단계 - 코너 3종(17-1 데이트 아카이브·17-4 다정한 말들·17-5 이달의 우리). `LlmRequest`(블록·`cacheBreakpoint`)·`llmClient.call(request)`가 캐시 표시를 `cache_control`로 옮김, 지면 제목·코너 이름 상수와 `^[가-힣 ]{1,7}$` 시험, 시간대 라벨 `timeOfDayLabel`(+09:00 고정, 시간대 5곳 별도 프로세스로 시험), 코너별 `findMissingReferencePaths`, Zod 카나리아(+공개 변환 교차 검증), 규칙 G 시험. 게이트 tsc 0 / tsc(functions) 0 / jest 855·45 (기준 630·35). 판단·고친 assertion은 HANDOFF `38` 절. 미커밋

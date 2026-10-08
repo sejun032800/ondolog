@@ -24,13 +24,7 @@
 
 LLM 출력을 그대로 `content`에 넣지 않는다. **Zod 파싱을 통과한 객체만** 저장한다.
 
-```
-LLM 출력(문자열)
-  → JSON.parse
-  → Zod schema.parse       ← 실패 시 재시도, 3회 실패 시 status='failed'
-  → 금지 키 검사(§0-4)     ← 위반 시 재시도
-  → corners.content 저장
-```
+검사 순서·실패 사유·재시도의 원본은 `docs/ONDOLOG_MASTER.md` §17-0-4(검사 순서)와 §17-0-5-A(재시도)다.
 
 배치 위치: `docs/ONDOLOG_MASTER.md` §17-0-0을 따른다 — 코너 생성은 Edge Function이며 코드는 `supabase/functions/` 아래에 있다.
 

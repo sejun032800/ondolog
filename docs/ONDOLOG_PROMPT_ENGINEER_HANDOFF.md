@@ -411,7 +411,7 @@ rule-auditor 에이전트로 Phase {N} 규칙 감사를 실행해주세요.
 | 폴더 이동 중 빈 `package.json`이 덮어씀 | 이동 전 백업, 이동 후 `npm pkg get` 확인 |
 | `.gitignore` 없이 `git add` → `node_modules` 커밋 | `git init` 직후 `.gitignore` 먼저 |
 | 폰트가 `.otf`인데 코드는 `.ttf` require | 자산 파일의 실제 확장자 확인 |
-| `git show`로 원본을 읽어 파일을 다시 씀 → CRLF가 LF로 바뀜 (`core.autocrlf=true`) | **줄바꿈의 기준은 저장소(index)의 LF다.** 작업 트리의 CRLF·LF는 `autocrlf`와 도구가 바꾸는 로컬 상태라 기준으로 쓰지 않는다. 손실 없음 검증은 줄바꿈을 정규화한 뒤 비교한다 — 바이트 단위 비교를 쓰되 비교 전에 양쪽을 LF로 맞춘다. "맨 LF 0개" 같은 작업 트리 줄바꿈 검사는 폐기한다 |
+| `git show`로 원본을 읽어 파일을 다시 씀 → CRLF가 LF로 바뀜 (`core.autocrlf=true`) | **줄바꿈의 기준은 저장소(index)의 LF다.** 작업 트리의 CRLF·LF는 `autocrlf`와 도구가 바꾸는 로컬 상태라 기준으로 쓰지 않는다. 손실 없음 검증은 줄바꿈을 정규화한 뒤 비교한다 — 바이트 단위 비교를 쓰되 비교 전에 양쪽을 LF로 맞춘다. "맨 LF 0개" 같은 작업 트리 줄바꿈 검사는 폐기한다. **`git show`는 비교용으로만 쓴다** — 커밋에서 읽어 파일을 다시 쓰면 작업 트리에만 있던 변경이 사라진다 |
 | 지시서에 "이번에 한해" 예외 문구 | **절대 규칙 8개는 지시서로 풀지 않는다.** 운영 규칙(저장소 밖 경로 금지 등)은 지시서에 대상과 범위를 명시해 한 번 풀 수 있다 |
 | 원격 SQL 실행 도구 | 원격 SQL 실행 도구: Supabase MCP execute_sql. 다문장 스크립트는 한 번의 호출로 실행되며, 중간에 에러가 나면 에러 메시지만 반환된다. |
 | `Get-ChildItem -Exclude node_modules`가 `node_modules`를 거르지 못함 (`-Exclude`는 파일 이름에만 걸림) | **저장소 파일 검색은 `git ls-files`로 한다.** 추적하는 파일만 보므로 빌드 산출물·임시 파일도 함께 걸러진다 |
