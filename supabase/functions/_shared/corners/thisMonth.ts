@@ -13,7 +13,7 @@
  * - 코너 이름·지면 제목: 고정 상수. LLM이 쓰지 않는다.
  * - 사진 근거: 사진 id 참조 -> 골격이 경로(`photoPath`)를 채운다. 데이트 근거: `type: 'date'`, 데이트 id 참조.
  * - `metric` 근거: MVP에서 뺀다(입력에 없다).
- * - `theme.signals[].count`: **LLM 출력에 없다.** 파이프라인이 그 신호가 참조한 **근거 ID 개수**(서로 다른
+ * - `theme.signals[].count`: **LLM 출력에 없다.** 파이프라인(`derive`, 17-0-8)이 그 신호가 참조한 **근거 ID 개수**(서로 다른
  *   근거의 수)로 계산한다. LLM이 쓴 수치는 검증할 방법이 없는 지어낸 값이다(17-0-4-A, r39).
  * - 소기사는 2~4편, 편수는 LLM이 정한다. 경계값을 두지 않는다. 2편을 만들 재료가 안 되면 `{ "kind": "none" }` -
  *   `insufficient_input`(17-0-5-D). 선행 검사는 기간 내 채팅·사진·데이트 전부 0건(호출 전).
@@ -30,9 +30,11 @@ import type {
   CornerContext,
   CornerModule,
   CornerResponseSpec,
+  DerivedValues,
   ReferenceMapping,
 } from '../cornerPipeline.ts'
 import type { LlmRequest, PromptBlock } from '../llmRequest.ts'
+import { periodLabelOf } from '../periodLabel.ts'
 import { CORNER_TITLES } from '../../../../src/types/corners/cornerTitles.ts'
 import {
   AttributionSchema,
@@ -111,7 +113,7 @@ export type ThisMonthLlmOutput = z.infer<typeof thisMonthLlmSchema>
 
 /**
  * ID 해석 선언(r43·r44). 근거 종류별 키마다 한 줄이다. 신호의 근거는 존재·소속·기간 판정만 받고(옮길 원문
- * 없음, 개수는 transform이 센다), 소기사의 근거는 원문·시각·경로를 옮겨 받는다.
+ * 없음, 개수는 파생값 단계(`derive`)가 센다), 소기사의 근거는 원문·시각·경로를 옮겨 받는다.
  */
 export const THIS_MONTH_REFERENCES: ReferenceMapping = {
   kind: 'fields',
@@ -130,7 +132,7 @@ export const THIS_MONTH_REFERENCES: ReferenceMapping = {
 }
 
 // ---------------------------------------------------------------------------
-// 원문을 채운 뒤의 모양 -> 저장 모양
+// 원문을 채운 뒤의 모양 -> 파생값 채우기(`derive`) -> 저장 모양
 // ---------------------------------------------------------------------------
 
 const FilledEvidenceSchema = z.discriminatedUnion('type', [
@@ -195,32 +197,41 @@ function toStoredEvidence(e: FilledEvidence): StoredEvidence {
   }
 }
 
-function storedSchemaFor(context: CornerContext) {
+/** 파생값 채우기(17-0-8) - 신호별 `count`·`seq`·헤더. 저장 스키마는 모양만 본다. */
+function deriveFor(context: CornerContext) {
   const titles = CORNER_TITLES.this_month
-  return FilledSchema.transform((filled) => ({
-    schemaVersion: CORNER_SCHEMA_VERSION,
-    header: { cornerName: titles.cornerName, title: titles.pageTitle, periodLabel: context.periodLabel },
-    payload: {
-      theme: {
-        headline: filled.theme.headline,
-        lead: filled.theme.lead,
-        polarity: filled.theme.polarity,
-        signals: filled.theme.signals.map((s) => ({
-          kind: s.kind,
-          value: s.value,
-          // count는 파이프라인이 센다 - 그 신호가 참조한 서로 다른 근거의 수(17-0-7).
-          count: new Set(s.evidence.map(evidenceKey)).size,
-        })),
+  return (value: unknown): DerivedValues => {
+    const parsed = FilledSchema.safeParse(value)
+    if (!parsed.success) return { ok: false, detail: parsed.error.message }
+    const filled = parsed.data
+    return {
+      ok: true,
+      value: {
+        schemaVersion: CORNER_SCHEMA_VERSION,
+        header: { cornerName: titles.cornerName, title: titles.pageTitle, periodLabel: periodLabelOf(context) },
+        payload: {
+          theme: {
+            headline: filled.theme.headline,
+            lead: filled.theme.lead,
+            polarity: filled.theme.polarity,
+            signals: filled.theme.signals.map((s) => ({
+              kind: s.kind,
+              value: s.value,
+              // count는 파이프라인이 센다 - 그 신호가 참조한 서로 다른 근거의 수(17-0-7).
+              count: new Set(s.evidence.map(evidenceKey)).size,
+            })),
+          },
+          articles: filled.articles.map((a, index) => ({
+            seq: index,
+            title: a.title,
+            body: a.body,
+            evidence: a.evidence.map(toStoredEvidence),
+          })),
+          closing: filled.closing,
+        },
       },
-      articles: filled.articles.map((a, index) => ({
-        seq: index,
-        title: a.title,
-        body: a.body,
-        evidence: a.evidence.map(toStoredEvidence),
-      })),
-      closing: filled.closing,
-    },
-  })).pipe(ThisMonthStoredSchema)
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -265,7 +276,7 @@ function buildRequest(input: ThisMonthInput, context: CornerContext): LlmRequest
   return {
     system: [COMMON_PRINCIPLES_BLOCK, CORNER_INSTRUCTION_BLOCK],
     user: [
-      { text: `기간: ${context.periodLabel}` },
+      { text: `기간: ${periodLabelOf(context)}` },
       { text: ['메시지(한 줄이 한 건, 시각 순):', ...inChronologicalOrder(input.messages).map(messageLine)].join('\n') },
       {
         text: [
@@ -290,7 +301,8 @@ function responseSpec(
     llmSchema: thisMonthLlmSchema,
     isExplicitEmpty: (llm) => llm.kind === 'none',
     references: THIS_MONTH_REFERENCES,
-    storedSchema: storedSchemaFor(context),
+    derive: deriveFor(context),
+    storedSchema: ThisMonthStoredSchema,
   }
 }
 

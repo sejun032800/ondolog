@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 import { z } from 'zod'
-import type { LlmClient, LlmCallResult } from './llmClient.ts'
+import { createLlmClient, type LlmClient, type LlmCallResult } from './llmClient.ts'
 import type { LlmRequest } from './llmRequest.ts'
 import { lookupCoeffBundle, type AppConfigQueryClient } from './coeffLookup.ts'
 import {
@@ -14,6 +14,7 @@ import {
   type CornerPipelineResult,
   type CornerResponseSpec,
   type CornerResponseHooks,
+  type DerivedValues,
   NO_ID_REFERENCES,
   type ReferenceMapping,
   type ScopedRecord,
@@ -51,7 +52,6 @@ const CONTEXT: CornerContext = {
   coupleId: 'couple-a',
   period: { start: PERIOD_START, end: PERIOD_END },
   cadence: 'monthly',
-  periodLabel: '2026년 10월',
 }
 
 /** 합성 요청 - user 블록 하나. 캐시 표시 없음. */
@@ -62,6 +62,12 @@ function req(text: string): LlmRequest {
 const IN_PERIOD = new Date('2026-10-15T03:00:00.000Z')
 
 /**
+ * 합성 파생값 채우기(테스트 전용 - 파이프라인에는 기본값이 없다, 17-0-8). 채울 파생값이 없다고 답하는
+ * 함수: 원문을 채운 값을 그대로 돌려준다.
+ */
+const PASS_THROUGH_DERIVE = (filled: unknown): DerivedValues => ({ ok: true, value: filled })
+
+/**
  * 합성 훅(테스트 전용 — 파이프라인에는 통과형 기본값이 없다, r42). 빈 결과 없음·ID 해석 통과·
  * 채우기 그대로·저장 스키마 = LLM 스키마. 코너가 "없다"고 답하는 함수를 넘기는 형태와 같다.
  */
@@ -69,6 +75,7 @@ function passHooks<T>(schema: z.ZodType<T>): CornerResponseHooks<T> {
   return {
     isExplicitEmpty: () => false,
     references: NO_ID_REFERENCES,
+    derive: PASS_THROUGH_DERIVE,
     storedSchema: schema,
   }
 }
@@ -703,6 +710,7 @@ function passThroughSpec<T>(schema: z.ZodType<T>): CornerResponseSpec<T, T> {
     llmSchema: schema,
     isExplicitEmpty: () => false,
     references: NO_ID_REFERENCES,
+    derive: PASS_THROUGH_DERIVE,
     storedSchema: schema,
   }
 }
@@ -871,6 +879,7 @@ describe('validateCornerResponse — 순서: JSON.parse → FORBIDDEN_KEYS(원�
           kind: 'fields',
           fields: [{ path: 'ref', kind: 'message', copy: { text: 'text', score: 'score' } }],
         },
+        derive: PASS_THROUGH_DERIVE,
         storedSchema: Stored,
       },
       CONTEXT,
@@ -931,14 +940,17 @@ describe('r42 — 검사 단계는 전부 필수다 (빠지면 컴파일 오류)
   }
   const hooks = passHooks(PayloadSchema)
 
-  it('빈 결과 판정·ID 해석 선언·저장 스키마·scopedRecords를 하나씩 빼면 각각 컴파일이 안 된다', () => {
+  it('빈 결과 판정·ID 해석 선언·파생값 채우기·저장 스키마·scopedRecords를 하나씩 빼면 각각 컴파일이 안 된다', () => {
     const typeOnly = (): void => {
+      // 각 줄은 **그 하나만** 뺀다 - 다른 것이 빠져서 오류가 나는 줄이 없어야 한다.
       // @ts-expect-error — 빈 결과 판정(isExplicitEmpty)이 빠졌다
-      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { references: hooks.references, storedSchema: hooks.storedSchema } })
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { references: hooks.references, derive: hooks.derive, storedSchema: hooks.storedSchema } })
       // @ts-expect-error — ID 해석 선언(references)이 빠졌다 — 참조할 ID가 없어도 NO_ID_REFERENCES로 "없다"를 답해야 한다
-      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, storedSchema: hooks.storedSchema } })
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, derive: hooks.derive, storedSchema: hooks.storedSchema } })
+      // @ts-expect-error — 파생값 채우기(derive)가 빠졌다 — 파생값이 없어도 "채울 것이 없다"고 답하는 함수를 넘겨야 한다(17-0-8)
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, references: hooks.references, storedSchema: hooks.storedSchema } })
       // @ts-expect-error — 저장 스키마(storedSchema)가 빠졌다
-      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, references: hooks.references } })
+      void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS, hooks: { isExplicitEmpty: hooks.isExplicitEmpty, references: hooks.references, derive: hooks.derive } })
       // @ts-expect-error — hooks 통째로 빠졌다
       void runCornerPipeline({ ...base, scopedRecords: NO_RECORDS })
       // @ts-expect-error — scopedRecords가 빠졌다
@@ -1037,7 +1049,13 @@ describe('r43 - 선언대로 찾고 채운다', () => {
     kind: 'fields',
     fields: [{ path: 'turns[].messageId', kind: 'message', copy: { text: 'text', speaker: 'speaker' } }],
   }
-  const turnsSpec = { llmSchema: TurnsSchema, isExplicitEmpty: () => false, references: TURNS_MAPPING, storedSchema: TurnsStored }
+  const turnsSpec = {
+    llmSchema: TurnsSchema,
+    isExplicitEmpty: () => false,
+    references: TURNS_MAPPING,
+    derive: PASS_THROUGH_DERIVE,
+    storedSchema: TurnsStored,
+  }
   const records = [
     messageRecord('m-1', { source: { text: '원문 하나', speaker: '민' } }),
     messageRecord('m-2', { source: { text: '원문 둘', speaker: '지' } }),
@@ -1255,8 +1273,6 @@ describe('r42 — 맥락 값 검증: 틀리면 LLM 0회·저장 0회·오류 전
     ['날짜가 아닌 기간 시작', { ...CONTEXT, period: { start: new Date('not a date'), end: PERIOD_END } }],
     ['날짜가 아닌 기간 끝', { ...CONTEXT, period: { start: PERIOD_START, end: new Date(NaN) } }],
     ['뒤집힌 기간(시작이 끝보다 늦음)', { ...CONTEXT, period: { start: PERIOD_END, end: PERIOD_START } }],
-    // 3단계: 봉투 header.periodLabel로 그대로 들어가는 값 - 비었으면 판정할 것이 아니라 만들 수 없다.
-    ['빈 기간 표기(periodLabel)', { ...CONTEXT, periodLabel: '  ' }],
   ]
 
   it.each(cases)('%s', async (_name, context) => {
@@ -1378,6 +1394,7 @@ describe('r44 - scopedRecords는 한 번만 부른다', () => {
       hooks: {
         isExplicitEmpty: () => false,
         references: { kind: 'fields', fields: [{ path: 'ref', kind: 'message', copy: { text: 'text' } }] },
+        derive: PASS_THROUGH_DERIVE,
         storedSchema: schema,
       },
       scopedRecords: () => { calls += 1; return calls === 1 ? [first] : [second] },
@@ -1445,3 +1462,141 @@ describe('r44 - path 존재 확인(findMissingReferencePaths)', () => {
   })
 })
 
+
+// ─────────────────────────────────────────────────────────────────────────
+// r46 - 파생값 채우기 단계 (저장 스키마 밖). 필수, 기본값 없음.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('r46 - 파생값 채우기 (17-0-8)', () => {
+  const LlmSchema = z.object({ ref: z.string() })
+  const Stored = z.object({ ref: z.string(), text: z.string(), length: z.number() })
+  const MAPPING: ReferenceMapping = { kind: 'fields', fields: [{ path: 'ref', kind: 'message', copy: { text: 'text' } }] }
+  const spec = (derive: CornerResponseSpec<{ ref: string }, z.infer<typeof Stored>>['derive']) => ({
+    llmSchema: LlmSchema,
+    isExplicitEmpty: () => false,
+    references: MAPPING,
+    derive,
+    storedSchema: Stored,
+  })
+  const records = [messageRecord('m-1', { source: { text: '원문' } })]
+
+  it('원문을 채운 값이 파생값 함수로 들어가고, 그 결과가 저장 스키마를 거쳐 저장 내용이 된다', () => {
+    const seen: unknown[] = []
+    const result = validateCornerResponse(
+      JSON.stringify({ ref: 'm-1' }),
+      spec((filled) => {
+        seen.push(JSON.parse(JSON.stringify(filled)))
+        const f = filled as { ref: string; text: string }
+        return { ok: true, value: { ...f, length: f.text.length } }
+      }),
+      CONTEXT,
+      records,
+    )
+    expect(seen).toEqual([{ ref: 'm-1', text: '원문' }]) // 채우기 뒤의 값
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.content).toEqual({ ref: 'm-1', text: '원문', length: 2 })
+  })
+
+  it('저장 스키마는 계산하지 않는다 - 파생값이 빠진 값은 저장 스키마에서 걸린다 (계산이 스키마에 숨어 있지 않다)', () => {
+    const result = validateCornerResponse(
+      JSON.stringify({ ref: 'm-1' }),
+      spec((filled) => ({ ok: true, value: filled })), // length를 채우지 않았다
+      CONTEXT,
+      records,
+    )
+    expect(result.ok === false && result.reason).toBe('schema_invalid')
+  })
+
+  it('파생값 함수가 실패를 돌려주면 schema_invalid이고 detail이 그대로 실린다', () => {
+    const result = validateCornerResponse(
+      JSON.stringify({ ref: 'm-1' }),
+      spec(() => ({ ok: false, detail: '기사가 되지 않은 데이트: d-9' })),
+      CONTEXT,
+      records,
+    )
+    expect(result).toEqual({ ok: false, reason: 'schema_invalid', detail: '기사가 되지 않은 데이트: d-9' })
+  })
+
+  it('앞 단계가 실패하면 파생값 함수는 불리지 않는다 (JSON·금지 키·Zod·빈 결과·ID 해석·채우기)', () => {
+    const derive = jest.fn((filled: unknown): DerivedValues => ({ ok: true, value: filled }))
+    const s = { ...spec(derive), isExplicitEmpty: (llm: { ref: string }) => llm.ref === 'none' }
+    validateCornerResponse('not json', s, CONTEXT, records)
+    validateCornerResponse(JSON.stringify({ ref: 'm-1', verdict: 'x' }), s, CONTEXT, records)
+    validateCornerResponse(JSON.stringify({ ref: 1 }), s, CONTEXT, records)
+    validateCornerResponse(JSON.stringify({ ref: 'none' }), s, CONTEXT, records)
+    validateCornerResponse(JSON.stringify({ ref: 'm-404' }), s, CONTEXT, records) // ID 해석
+    validateCornerResponse(JSON.stringify({ ref: 'm-1' }), s, CONTEXT, [messageRecord('m-1', { source: {} })]) // 채우기
+    expect(derive).not.toHaveBeenCalled()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// r46 - 대기는 직전 호출이 전송 실패였을 때만. 파이프라인 전체(진짜 llmClient)로 시험한다.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('r46 - 파이프라인이 schema_invalid로 다시 불러도 기다리지 않는다', () => {
+  const textResponse = (text: string): Response =>
+    ({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      json: async () => ({ content: [{ type: 'text', text }] }),
+    }) as unknown as Response
+  const failResponse = (status: number): Response =>
+    ({ ok: false, status, text: async () => '', json: async () => ({}) }) as unknown as Response
+  const params = (llmClient: LlmClient) => ({
+    input: {},
+    context: CONTEXT,
+    scopedRecords: NO_RECORDS,
+    preconditionCheck: () => true,
+    buildRequest: () => req('p'),
+    schema: PayloadSchema,
+    hooks: passHooks(PayloadSchema),
+    llmClient,
+  })
+
+  it('HTTP 성공 + schema_invalid -> 재호출: 호출 2회, 대기 0회', async () => {
+    const fetchImpl = jest
+      .fn<Promise<Response>, []>()
+      .mockResolvedValueOnce(textResponse('not json'))
+      .mockResolvedValueOnce(textResponse('{"title":"x"}'))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const llmClient = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    const result = await runCornerPipeline(params(llmClient))
+
+    expect(result).toMatchObject({ outcome: 'success', llmCallAttempts: 2 })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(sleepImpl).not.toHaveBeenCalled()
+  })
+
+  it('전송 실패 -> 같은 call() 안의 재시도는 기다린다 (llmClient 안, 지수 백오프)', async () => {
+    const fetchImpl = jest
+      .fn<Promise<Response>, []>()
+      .mockResolvedValueOnce(failResponse(503))
+      .mockResolvedValueOnce(textResponse('{"title":"x"}'))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const llmClient = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    const result = await runCornerPipeline(params(llmClient))
+
+    expect(result).toMatchObject({ outcome: 'success', llmCallAttempts: 1 }) // 파이프라인에게는 call() 한 번
+    expect(sleepImpl.mock.calls.map((c) => c[0])).toEqual([500])
+  })
+
+  it('전송 실패 후 회복 -> schema_invalid -> 재호출: 앞의 대기만 있고 재호출 앞에는 대기가 없다', async () => {
+    const fetchImpl = jest
+      .fn<Promise<Response>, []>()
+      .mockResolvedValueOnce(failResponse(500))
+      .mockResolvedValueOnce(textResponse('not json'))
+      .mockResolvedValueOnce(textResponse('{"title":"x"}'))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const llmClient = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    const result = await runCornerPipeline(params(llmClient))
+
+    expect(result).toMatchObject({ outcome: 'success', llmCallAttempts: 2 })
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(sleepImpl.mock.calls.map((c) => c[0])).toEqual([500]) // 둘째 call()(재호출) 앞에는 없다
+  })
+})

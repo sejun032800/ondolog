@@ -23,6 +23,54 @@
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 
+## `#14` 후속 - 파생값·표기·대기·규칙 F (2026-10-08, corner-pipeline, `40`) - 구현 완료, PM 확인할 판단 있음
+
+위임: `.claude/state/prompts/phase-7/40-corner-pipeline-followups.md` (MASTER §17-0-8 r46, §17-0-3 규칙 F, §17-0-5-A).
+게이트: tsc 0 / tsc(functions) 0 / jest **921 / 48** (기준 855 / 45, 감소 없음, 신규 67건 - 삭제 1건, 신규 파일 4개).
+`package.json`·`tsconfig.json`·`app.json`·`eas.json` 무변경, 의존성 추가 없음, 커밋·푸시 없음, 문서 편집 없음.
+
+### 만든 것 / 바꾼 것
+
+| 범위 | 내용 |
+|---|---|
+| 1 파생값 | `cornerPipeline.ts`: `DerivedValues`(`{ok:true,value}` / `{ok:false,detail}`), `CornerResponseSpec.derive`·`CornerResponseHooks.derive` **필수, 기본값·공용 통과 함수 없음**. 순서: ... ID 해석 -> 원문 채우기 -> **파생값 채우기** -> 저장 스키마(모양만) -> 브랜드. 실패는 `schema_invalid`. 코너 셋은 `storedSchemaFor`(`.transform().pipe()`)를 `deriveFor`로 바꾸고 `storedSchema`는 `src/types/corners`의 스키마를 그대로 넘긴다 |
+| 2 `periodLabel` | `_shared/periodLabel.ts`의 `periodLabelOf({period, cadence})`. `CornerContext.periodLabel` 제거, "빈 `periodLabel`이면 멈춤" 제거. 코너는 `derive`·`buildRequest` 안에서 부른다(`responseSpec` 생성 시점에는 부르지 않는다 - 맥락 값 검증이 먼저 오류를 내도록) |
+| 3 대기 | `llmClient.ts`: 연속 전송 실패 횟수를 인스턴스가 들고, **0보다 클 때만** `sleep(500 * 2^(n-1))`. HTTP 성공이면 0으로 되돌아간다. `llmClient`는 Zod를 모른다(층 분리 유지) |
+| 4 규칙 F | `__tests__/build/fileNameRule.test.ts` (1부 설계 B-8 그대로: `git ls-files --cached --others --exclude-standard -z`, 수집 범위 8개 디렉터리, basename만, git 불가 시 fs 대체) |
+| 계산 금지 시험 | `__tests__/types/corners/storedSchemaShapeOnly.test.ts`: `src/types/corners/`에 `transform`·`pipe`·`preprocess`·`default`·`prefault`·`catch`·`overwrite`·`codec`·`coerce` 없음, 코너 코드에 `transform`·`pipe` 없음 |
+
+### 증명 (테스트 -> 완료 기준)
+
+- **파생값 필수**: `// @ts-expect-error` 네 줄이 각각 **그 하나만** 뺀다(`derive` 줄 포함). 구현 전 tsc가 `derive` 누락으로 실제 실패했다.
+- **저장 스키마는 모양만**: 코너마다 "저장된 내용을 입력 없이 저장 스키마로 다시 검증해도 통과" - 17-1은 `storedSchema`가 `DateArchiveStoredSchema`와 **동일 객체**. 파생값 함수에 빠진 값을 넘기면 저장 스키마에서 걸린다(계산이 스키마에 숨지 않음). 앞 단계가 실패하면 `derive`가 불리지 않는다(여섯 경로).
+- **`periodLabel`을 받는 자리 없음**: `@ts-expect-error`로 `CornerContext`에 `periodLabel`을 넣으면 컴파일 오류.
+- **대기**: (a) HTTP 성공 뒤 재호출 3번 -> `sleep` 0회, (b) 503·500 뒤 성공 -> `[500, 1000]`, (c) 예외 -> `[500]`, (d) 전송 실패 뒤 회복하면 지수 초기화, (e) **진짜 `llmClient`를 단 `runCornerPipeline`**: `schema_invalid` 재호출 -> 호출 2회·대기 0회 / 전송 실패 -> 대기 `[500]` / 전송 실패 회복 후 `schema_invalid` -> 대기 `[500]`뿐. 변이 확인: 대기 조건을 `callsUsed > 1`(옛 동작)로 바꾸면 6건 실패(되돌림).
+- **규칙 F**: 위반 합성 8건·정상 합성 8건(`app/(tabs)/index.tsx` 포함)·디렉터리명 무시·수집 범위·저장소 실제 파일 통과. 변이 확인: `docs/zz tmp (1).md`(추가 전 새 파일)를 만들면 2건 실패(삭제).
+
+### PM이 확인할 판단
+
+1. **일간 기간 표기 형식은 문서에 없다.** 월간 `2026년 8월`은 CORNER_CONTENT §0-3 예시, 일간은 그 표기를 날짜 한 단위로 넓힌 `2026년 8월 22일`로 정했다(기존 픽스처 `DAILY_CONTEXT`의 값과 같다). 바꿀 때는 `periodLabel.ts` 한 곳. **MASTER §17-0-8에 일간 표기를 적어 달라.**
+2. **기준 시점은 기간의 마지막 순간(`end - 1ms`), 한국 시간 +09:00.** 17-5가 기간을 앞으로 넓혀도 그 호의 달은 끝 쪽이 정한다고 보았다(시작 기준이면 7월 15일 시작 기간이 "7월"이 된다). 길이 0인 기간은 시작. 이것도 문서에 없는 결정이다.
+3. **HTTP 2xx인데 응답에 텍스트 블록이 없는 경우는 전송 실패가 아니다** - 예산은 쓰되 기다리지 않는다(위임: "직전 호출이 HTTP로 성공했으면 기다리지 않는다"). 예외·비2xx·본문 읽기 중 끊김은 전송 실패. 다르게 보면 `llmClient.ts`의 `transport: false` 한 곳.
+4. `derive`의 입력은 `unknown`이고 코너가 `FilledSchema.safeParse`로 모양을 확인한다(골격이 코너별 채운 모양을 알 수 없어서). `FilledSchema`는 코너 안의 중간 모양이며 저장 스키마가 아니다. `.transform` 아니라 일반 함수라서 위 시험이 허용한다.
+5. 위임의 "`src/types/corners/`의 저장 스키마에 계산이 남지 않는다"는 파일 자체로는 **이미 참**이었다(`storedContent.ts`에 변환이 없었다). 계산은 코너 파일의 `storedSchemaFor`에 있었고, 그것이 파이프라인에 저장 스키마로 넘어갔다. 이번에 그 자리를 옮겼고, 시험은 두 곳 모두 본다.
+6. `r42`의 맥락 값 검증 표에서 빈 `periodLabel` 행을 **삭제**했다(받는 자리가 없어짐). 같은 모양의 보호는 `periodLabelOf`의 `RangeError`(날짜가 아닌 값·뒤집힌 기간)이며, 맥락 값 검증이 먼저 같은 기간을 `InvalidCornerContextError`로 막는다.
+
+### 고친 기존 assertion과 이유
+
+| 파일 | 변경 | 이유 |
+|---|---|---|
+| `cornerPipeline.test.ts` | `passHooks`·`passThroughSpec`·인라인 spec/hooks 5곳에 `derive: 통과 함수` 추가 | `derive` 필수 (기대값 무변경) |
+| `cornerPipeline.test.ts` | r42 컴파일 시험: 각 부분 hooks 객체에 `derive`를 포함시키고 `derive` 누락 줄 추가, 제목에 "파생값 채우기" | 한 줄이 **그 하나만** 빼도록 - `derive`가 없으면 모든 줄이 다른 이유로도 오류를 내 시험이 무뎌진다 |
+| `cornerPipeline.test.ts` | 맥락 값 검증 `it.each`에서 `'빈 기간 표기(periodLabel)'` 행 삭제 | 받는 자리가 없어짐 (판단 6) |
+| `cornerPipeline.test.ts`·`saveCornerResult.test.ts`·`cornerFixtures.ts` | `CONTEXT`·`MONTHLY_CONTEXT`·`DAILY_CONTEXT`의 `periodLabel` 제거 | 맥락 필드 제거 |
+| 코너 테스트 3개 | `{ ...MONTHLY_CONTEXT, periodLabel: '2026년 9월' }` -> 9월 기간의 맥락, `MONTHLY_CONTEXT.periodLabel` -> `periodLabelOf(MONTHLY_CONTEXT)` | 같은 의도(다른 기간에서 system 접두가 같다 / 캐시 블록에 기간 표기 없음), 기대값 무변경 |
+
+### 남은 것
+
+- 입력 조립·배치·미디어 복제·캐시 사용량 확인은 이번 범위 밖(발행 경로).
+- 상단 "열린 항목" 표의 `#14` 행(미실행)은 낡았다. 이 작업은 기록을 지우지 않는 조건이라 그대로 두었다.
+
 ## `#14` 3단계 - 코너 3종 (2026-10-06, corner-pipeline, `38`) - 구현 완료, PM 확인할 판단 있음
 
 위임: `.claude/state/prompts/phase-7/38-corner-pipeline-three-corners.md`.

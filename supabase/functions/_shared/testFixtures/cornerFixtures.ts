@@ -31,7 +31,6 @@ export const MONTHLY_CONTEXT: CornerContext = {
   coupleId: COUPLE_A,
   period: { start: AUG_START, end: AUG_END },
   cadence: 'monthly',
-  periodLabel: '2026년 8월',
 }
 
 /** 일간판 - 어제 하루. */
@@ -39,7 +38,6 @@ export const DAILY_CONTEXT: CornerContext = {
   coupleId: COUPLE_A,
   period: { start: new Date('2026-08-22T00:00:00+09:00'), end: new Date('2026-08-23T00:00:00+09:00') },
   cadence: 'daily',
-  periodLabel: '2026년 8월 22일',
 }
 
 /** `"2026-08-22T09:20:00"`(한국 시간) -> `"2026-08-22T09:20:00+09:00"`. */

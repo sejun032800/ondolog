@@ -1,4 +1,5 @@
 /// <reference types="jest" />
+import { periodLabelOf } from '../periodLabel.ts'
 import {
   CoupleMembershipError,
   findMissingReferencePaths,
@@ -6,6 +7,7 @@ import {
   runCornerModule,
 } from '../cornerPipeline.ts'
 import { findForbiddenKeys } from '../../../../src/engine/corners/forbiddenKeys.ts'
+import { sweetWordsStoredSchema } from '../../../../src/types/corners/storedContent.ts'
 import {
   CHAT_MESSAGES,
   COUPLE_B,
@@ -60,7 +62,7 @@ describe('17-4 요청 만들기', () => {
       expect(cacheable).not.toContain(m.source.text)
       expect(cacheable).not.toContain(`"id":"${m.id}"`)
     }
-    expect(cacheable).not.toContain(MONTHLY_CONTEXT.periodLabel)
+    expect(cacheable).not.toContain(periodLabelOf(MONTHLY_CONTEXT))
     const user = request.user.map((b) => b.text).join('\n')
     for (const m of CHAT_MESSAGES) expect(user).toContain(JSON.stringify(m.source.text))
   })
@@ -371,5 +373,37 @@ describe('17-4 골격 실행 (runCornerModule) - 호출 전·후 시점', () => 
       }),
     ).rejects.toBeInstanceOf(CoupleMembershipError)
     expect(llmClient.requests).toHaveLength(0)
+  })
+})
+
+describe('17-4 저장 스키마는 모양만 본다 (17-0-8)', () => {
+  it('저장된 내용은 입력과 무관하게 저장 스키마로 다시 검증된다 - 앱이 읽을 때와 같은 조건', () => {
+    const result = run(GOOD_OUTPUT)
+    if (!result.ok) throw new Error('정상 응답이 실패')
+    const withoutInput = sweetWordsModule.responseSpec({ warmthIndex: null, messages: [] }, MONTHLY_CONTEXT)
+    expect(withoutInput.storedSchema.safeParse(result.content).success).toBe(true)
+    expect(sweetWordsStoredSchema('monthly').safeParse(JSON.parse(JSON.stringify(result.content))).success).toBe(true)
+  })
+
+  it('대화의 턴 순서와 출처 표기는 파생값 단계가 만든다 - 저장 스키마는 순서를 고치지 않는다', () => {
+    const spec = sweetWordsModule.responseSpec(INPUT, MONTHLY_CONTEXT)
+    const att = (display: string, at: string) => ({ display, at, source: 'chat' as const })
+    const derived = spec.derive({
+      kind: 'excerpts',
+      main: [
+        {
+          context: 'c',
+          turns: [
+            { messageId: 'b', speaker: '서영', text: '둘째', at: '2026-08-22T09:21:00+09:00', attribution: att('둘째 표기', '2026-08-22T09:21:00+09:00') },
+            { messageId: 'a', speaker: '세준', text: '첫째', at: '2026-08-22T09:20:00+09:00', attribution: att('첫째 표기', '2026-08-22T09:20:00+09:00') },
+          ],
+        },
+      ],
+      sub: [],
+    })
+    if (!derived.ok) throw new Error(derived.detail)
+    const main = (derived.value as { payload: { main: Array<{ attribution: { display: string }; turns: Array<{ text: string }> }> } }).payload.main
+    expect(main[0].turns.map((t) => t.text)).toEqual(['첫째', '둘째'])
+    expect(main[0].attribution.display).toBe('첫째 표기')
   })
 })

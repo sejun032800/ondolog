@@ -18,11 +18,11 @@
  * - 빈 결과: 선행 검사는 기간 내 채팅 0건(호출 전), 호출 후는 `{ "kind": "none" }`(다정한 발화를 찾지 못함).
  *   빈 결과는 파싱 실패와 섞이지 않는다(17-0-5-D).
  *
- * ── 파이프라인이 채우는 것 (저장 스키마의 `transform` 안, 순수) ────────────
+ * ── 파이프라인이 채우는 것 (파생값 채우기 `derive`, 순수 - 저장 스키마 밖, 17-0-8) ──
  * - 대화 안 턴 순서: 시각 오름차순(같으면 LLM이 준 순서). 고르고 **배치**하는 일이다.
  * - 대화의 출처 표기(`attribution`): 그 대화 첫 턴 메시지의 표기. LLM이 정하지 않는다.
  * - 헤더·`warmthIndex`: 상수·입력.
- * 그 결과는 저장 스키마(`sweetWordsStoredSchema`)를 통과해야 한다.
+ * 그 결과는 저장 스키마(`sweetWordsStoredSchema`, 모양만 본다)를 통과해야 한다.
  */
 
 import { z } from 'zod'
@@ -30,9 +30,11 @@ import type {
   CornerContext,
   CornerModule,
   CornerResponseSpec,
+  DerivedValues,
   ReferenceMapping,
 } from '../cornerPipeline.ts'
 import type { LlmRequest, PromptBlock } from '../llmRequest.ts'
+import { periodLabelOf } from '../periodLabel.ts'
 import { CORNER_TITLES } from '../../../../src/types/corners/cornerTitles.ts'
 import {
   AttributionSchema,
@@ -100,7 +102,7 @@ export const SWEET_WORDS_REFERENCES: ReferenceMapping = {
 }
 
 // ---------------------------------------------------------------------------
-// 원문을 채운 뒤의 모양 -> 저장 모양
+// 원문을 채운 뒤의 모양 -> 파생값 채우기(`derive`) -> 저장 모양
 // ---------------------------------------------------------------------------
 
 const FilledMessageSchema = z.object({
@@ -121,9 +123,13 @@ const FilledSchema = z.object({
   sub: z.array(FilledMessageSchema),
 })
 
-function storedSchemaFor(input: SweetWordsInput, context: CornerContext) {
+/** 파생값 채우기(17-0-8) - 턴 순서·대화의 출처 표기·헤더·`warmthIndex`. 저장 스키마는 모양만 본다. */
+function deriveFor(input: SweetWordsInput, context: CornerContext) {
   const titles = CORNER_TITLES.sweet_words
-  return FilledSchema.transform((filled) => {
+  return (value: unknown): DerivedValues => {
+    const parsed = FilledSchema.safeParse(value)
+    if (!parsed.success) return { ok: false, detail: parsed.error.message }
+    const filled = parsed.data
     const main = filled.main.map((item) => {
       // 대화는 시각 순서로 배치한다(같은 시각이면 LLM이 준 순서 - 정렬은 안정적이다).
       const turns = [...item.turns].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
@@ -135,11 +141,14 @@ function storedSchemaFor(input: SweetWordsInput, context: CornerContext) {
     })
     const sub = filled.sub.map((m) => ({ attribution: m.attribution, speaker: m.speaker, text: m.text }))
     return {
-      schemaVersion: CORNER_SCHEMA_VERSION,
-      header: { cornerName: titles.cornerName, title: titles.pageTitle, periodLabel: context.periodLabel },
-      payload: { warmthIndex: input.warmthIndex, main, sub },
+      ok: true,
+      value: {
+        schemaVersion: CORNER_SCHEMA_VERSION,
+        header: { cornerName: titles.cornerName, title: titles.pageTitle, periodLabel: periodLabelOf(context) },
+        payload: { warmthIndex: input.warmthIndex, main, sub },
+      },
     }
-  }).pipe(sweetWordsStoredSchema(context.cadence))
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -182,7 +191,7 @@ function buildRequest(input: SweetWordsInput, context: CornerContext): LlmReques
     user: [
       {
         text: [
-          `기간: ${context.periodLabel}`,
+          `기간: ${periodLabelOf(context)}`,
           `주기: ${context.cadence === 'daily' ? '일간' : '월간'}`,
           `${mainRule} sub는 0~6개다.`,
         ].join('\n'),
@@ -204,7 +213,8 @@ function responseSpec(
     llmSchema: sweetWordsLlmSchema(context.cadence),
     isExplicitEmpty: (llm) => llm.kind === 'none',
     references: SWEET_WORDS_REFERENCES,
-    storedSchema: storedSchemaFor(input, context),
+    derive: deriveFor(input, context),
+    storedSchema: sweetWordsStoredSchema(context.cadence),
   }
 }
 

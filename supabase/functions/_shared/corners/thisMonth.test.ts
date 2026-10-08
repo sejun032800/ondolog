@@ -1,4 +1,5 @@
 /// <reference types="jest" />
+import { periodLabelOf } from '../periodLabel.ts'
 import {
   CoupleMembershipError,
   findMissingReferencePaths,
@@ -7,6 +8,7 @@ import {
   type CornerContext,
 } from '../cornerPipeline.ts'
 import { findForbiddenKeys } from '../../../../src/engine/corners/forbiddenKeys.ts'
+import { ThisMonthStoredSchema } from '../../../../src/types/corners/storedContent.ts'
 import {
   CHAT_MESSAGES,
   COUPLE_B,
@@ -87,12 +89,12 @@ describe('17-5 요청 만들기', () => {
     for (const m of CHAT_MESSAGES) expect(cacheable).not.toContain(m.source.text)
     for (const p of PHOTOS) expect(cacheable).not.toContain(p.source.path)
     expect(cacheable).not.toContain('홍대 CGV')
-    expect(cacheable).not.toContain(MONTHLY_CONTEXT.periodLabel)
+    expect(cacheable).not.toContain(periodLabelOf(MONTHLY_CONTEXT))
   })
 
   it('서로 다른 두 입력에서 캐시 표시까지의 접두가 같다', () => {
     const a = thisMonthModule.buildRequest(INPUT, MONTHLY_CONTEXT)
-    const b = thisMonthModule.buildRequest({ messages: [], photos: [PHOTOS[0]], dates: [] }, { ...MONTHLY_CONTEXT, periodLabel: '2026년 9월' })
+    const b = thisMonthModule.buildRequest({ messages: [], photos: [PHOTOS[0]], dates: [] }, { ...MONTHLY_CONTEXT, period: { start: new Date('2026-09-01T00:00:00+09:00'), end: new Date('2026-10-01T00:00:00+09:00') } })
     expect(b.system).toEqual(a.system)
     expect(b.user).not.toEqual(a.user)
   })
@@ -402,5 +404,45 @@ describe('17-5 골격 실행 (runCornerModule) - 호출 전·후 시점', () => 
     const forbidden = scriptedLlmClient([JSON.stringify({ ...GOOD_OUTPUT, verdict: 'x' }), JSON.stringify(GOOD_OUTPUT)])
     const bad = await runCornerModule(thisMonthModule, { input: INPUT, context: MONTHLY_CONTEXT, llmClient: forbidden })
     expect(bad).toMatchObject({ outcome: 'failure', reason: 'forbidden_content', llmCallAttempts: 1 })
+  })
+})
+
+describe('17-5 저장 스키마는 모양만 본다 (17-0-8)', () => {
+  it('저장 스키마는 계산을 품지 않은 src/types의 스키마 그대로다', () => {
+    expect(thisMonthModule.responseSpec(INPUT, MONTHLY_CONTEXT).storedSchema).toBe(ThisMonthStoredSchema)
+  })
+
+  it('저장된 내용은 입력 없이도 같은 스키마로 다시 검증된다 - 앱이 읽을 때와 같은 조건', () => {
+    const result = run(GOOD_OUTPUT)
+    if (!result.ok) throw new Error('정상 응답이 실패')
+    expect(ThisMonthStoredSchema.safeParse(JSON.parse(JSON.stringify(result.content))).success).toBe(true)
+  })
+
+  it('count는 파생값 단계가 센다 - 같은 근거를 두 번 가리키면 한 번으로 센다', () => {
+    const spec = thisMonthModule.responseSpec(INPUT, MONTHLY_CONTEXT)
+    const derived = spec.derive({
+      kind: 'theme',
+      theme: {
+        headline: 'h',
+        lead: 'l',
+        polarity: 'neutral',
+        signals: [
+          {
+            kind: 'place',
+            value: 'v',
+            evidence: [
+              { type: 'message', messageId: 'm' },
+              { type: 'message', messageId: 'm' },
+              { type: 'photo', photoId: 'm' },
+            ],
+          },
+        ],
+      },
+      articles: [],
+      closing: 'c',
+    })
+    if (!derived.ok) throw new Error(derived.detail)
+    const signals = (derived.value as { payload: { theme: { signals: Array<{ count: number }> } } }).payload.theme.signals
+    expect(signals[0].count).toBe(2) // message:m, photo:m - id가 같아도 종류가 다르면 다른 근거다
   })
 })

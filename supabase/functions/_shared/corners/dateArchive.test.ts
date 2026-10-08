@@ -6,6 +6,7 @@ import {
   runCornerModule,
 } from '../cornerPipeline.ts'
 import { findForbiddenKeys } from '../../../../src/engine/corners/forbiddenKeys.ts'
+import { DateArchiveStoredSchema } from '../../../../src/types/corners/storedContent.ts'
 import {
   COUPLE_B,
   DATE_RECALLED,
@@ -111,7 +112,7 @@ describe('17-1 요청 만들기', () => {
 
   it('서로 다른 두 입력에서 캐시 표시까지의 접두가 같다', () => {
     const a = dateArchiveModule.buildRequest(INPUT, MONTHLY_CONTEXT)
-    const b = dateArchiveModule.buildRequest({ dates: [DATE_THIS_2] }, { ...MONTHLY_CONTEXT, periodLabel: '2026년 9월' })
+    const b = dateArchiveModule.buildRequest({ dates: [DATE_THIS_2] }, { ...MONTHLY_CONTEXT, period: { start: new Date('2026-09-01T00:00:00+09:00'), end: new Date('2026-10-01T00:00:00+09:00') } })
     expect(b.system).toEqual(a.system)
     expect(b.user).not.toEqual(a.user)
   })
@@ -441,5 +442,26 @@ describe('17-1 골격 실행 (runCornerModule)', () => {
     const forbidden = scriptedLlmClient([JSON.stringify(withArticle('d-1', { verdict: 'x' })), JSON.stringify(GOOD_OUTPUT)])
     const bad = await runCornerModule(dateArchiveModule, { input: INPUT, context: MONTHLY_CONTEXT, llmClient: forbidden })
     expect(bad).toMatchObject({ outcome: 'failure', reason: 'forbidden_content', llmCallAttempts: 1 })
+  })
+})
+
+describe('17-1 저장 스키마는 모양만 본다 (17-0-8)', () => {
+  it('저장 스키마는 계산을 품지 않은 src/types의 스키마 그대로다', () => {
+    expect(dateArchiveModule.responseSpec(INPUT, MONTHLY_CONTEXT).storedSchema).toBe(DateArchiveStoredSchema)
+  })
+
+  it('저장된 내용은 입력 없이도 같은 스키마로 다시 검증된다 - 앱이 읽을 때와 같은 조건', () => {
+    const result = run(GOOD_OUTPUT)
+    if (!result.ok) throw new Error('정상 응답이 실패')
+    // 입력 레코드가 하나도 없다 - 계산이 스키마 안에 있었다면 "기사가 되지 않은 데이트" 따위로 깨졌을 자리.
+    expect(DateArchiveStoredSchema.safeParse(result.content).success).toBe(true)
+    expect(DateArchiveStoredSchema.safeParse(JSON.parse(JSON.stringify(result.content))).success).toBe(true)
+  })
+
+  it('파생값은 파생값 단계가 만든다 - 요약·지도·기사 순서가 입력에서 계산된다', () => {
+    const spec = dateArchiveModule.responseSpec(INPUT, MONTHLY_CONTEXT)
+    const direct = spec.derive({ kind: 'articles', featuredDateId: 'd-1', articles: [] })
+    expect(direct.ok).toBe(false) // 입력의 데이트가 기사가 되지 않았다 - 파생값 단계의 실패다
+    if (!direct.ok) expect(direct.detail).toContain('기사가 되지 않은 데이트')
   })
 })

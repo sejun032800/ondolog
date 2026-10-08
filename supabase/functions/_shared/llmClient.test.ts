@@ -270,3 +270,88 @@ describe('llmClient — 요청 모양과 프롬프트 캐싱 (#14 3단계, Part 
     expect(bodies[1].system?.[0].cache_control).toEqual({ type: 'ephemeral' })
   })
 })
+
+describe('llmClient - 대기는 직전 호출이 전송 실패였을 때만 (MASTER 17-0-8, r46)', () => {
+  const okBody = (text: string) => jsonResponse({ content: [{ type: 'text', text }] })
+
+  it('직전 호출이 HTTP로 성공했으면 다시 불러도 기다리지 않는다 (파이프라인의 schema_invalid 재호출)', async () => {
+    const fetchImpl = jest.fn(async () => okBody('{}'))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    await client.call(req('p'))
+    await client.call(req('p')) // 두 번째 호출 - 예전에는 여기서 500ms를 기다렸다
+    await client.call(req('p'))
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(sleepImpl).not.toHaveBeenCalled()
+  })
+
+  it('직전 호출이 전송 실패(HTTP 오류)였을 때만 기다린다 - 500ms, 다음은 1000ms (지수)', async () => {
+    const fetchImpl = jest
+      .fn<Promise<Response>, []>()
+      .mockResolvedValueOnce(jsonResponse({}, false, 503))
+      .mockResolvedValueOnce(jsonResponse({}, false, 500))
+      .mockResolvedValueOnce(okBody('recovered'))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    const result = await client.call(req('p'))
+
+    expect(result).toEqual({ ok: true, text: 'recovered' })
+    expect(sleepImpl.mock.calls.map((c) => c[0])).toEqual([500, 1000])
+  })
+
+  it('fetch가 던진 경우(네트워크 예외)도 전송 실패다 - 다음 시도 전에 기다린다', async () => {
+    const fetchImpl = jest
+      .fn<Promise<Response>, []>()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(okBody('ok'))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    expect((await client.call(req('p'))).ok).toBe(true)
+    expect(sleepImpl.mock.calls.map((c) => c[0])).toEqual([500])
+  })
+
+  it('전송 실패 뒤 성공하면 지수는 처음으로 돌아가고, 그 뒤의 재호출은 기다리지 않는다', async () => {
+    const fetchImpl = jest
+      .fn<Promise<Response>, []>()
+      .mockResolvedValueOnce(jsonResponse({}, false, 502))
+      .mockResolvedValueOnce(okBody('first'))
+      .mockResolvedValueOnce(okBody('second'))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    await client.call(req('p')) // 실패 -> 대기 500 -> 성공
+    expect(sleepImpl).toHaveBeenCalledTimes(1)
+    await client.call(req('p')) // 직전 호출이 성공이었다 - 기다리지 않는다
+    expect(sleepImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it('HTTP는 성공했으나 응답에 텍스트 블록이 없으면 전송 실패가 아니다 - 예산은 쓰되 기다리지 않는다', async () => {
+    const fetchImpl = jest.fn(async () => jsonResponse({ content: [] }))
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const client = createLlmClient({ apiKey: 'k', model: 'm', fetchImpl, sleepImpl })
+
+    const result = await client.call(req('p'))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.detail).toContain('text 블록')
+    expect(fetchImpl).toHaveBeenCalledTimes(CORNER_LLM_CALL_BUDGET)
+    expect(sleepImpl).not.toHaveBeenCalled()
+  })
+
+  it('llmClient는 Zod를 모른다 - 대기 여부는 자기 호출의 결과만으로 정해진다 (응답 내용이 무엇이든 같다)', async () => {
+    const sleepImpl = jest.fn(async (_ms: number) => undefined)
+    const client = createLlmClient({
+      apiKey: 'k',
+      model: 'm',
+      fetchImpl: async () => okBody('이건 JSON이 아니다'),
+      sleepImpl,
+    })
+    await client.call(req('p'))
+    await client.call(req('p'))
+    expect(sleepImpl).not.toHaveBeenCalled()
+  })
+})

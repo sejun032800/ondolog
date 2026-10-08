@@ -11,6 +11,8 @@
  * (r43 — ID 해석·원문 채우기는 코너가 넘기는 선언(`ReferenceMapping`)을 골격이 처리한다).
  * + .claude/state/prompts/phase-7/38-corner-pipeline-three-corners.md
  * (3단계 — 프롬프트는 `LlmRequest`(캐시 지점 표시), LLM 출력 타입과 저장 타입 분리, `CornerModule`).
+ * + .claude/state/prompts/phase-7/40-corner-pipeline-followups.md
+ * (r46 — 파생값은 저장 스키마가 아니라 별도 단계에서 계산한다, `periodLabel`은 기간에서 만든다).
  *
  * ── 이 파일이 만들지 않는 것 ──────────────────────────────────────────
  * 코너별 선행 검사 조건·프롬프트 생성 함수·Zod 스키마·4~6단계 훅(명시적 빈
@@ -26,7 +28,7 @@
  * ③ LLM 호출       → 실패 시 generation_failed
  * ④ `validateCornerResponse` (17-0-4의 순서 전체)
  *      JSON.parse → FORBIDDEN_KEYS(원본 객체, 중첩 재귀) → Zod → 명시적 빈 결과
- *      → ID 해석 → 원문 채우기 → 저장 스키마 → 브랜드
+ *      → ID 해석 → 원문 채우기 → 파생값 채우기 → 저장 스키마(모양만) → 브랜드
  * ⑤ ValidatedContent 반환 → 저장(호출부가 `saveCornerResult.ts`로)
  *
  * ── r40: `ValidatedContent`는 정식 경로로만 만들어진다 ──────────────────
@@ -87,10 +89,11 @@ export interface CornerContext {
   /**
    * 발행 주기(17-0-7 "일간·월간"). 코너가 스키마를 만들 때 쓴다(예: 17-4의 `main` 개수). 값은 호출부가
    * config(발행 주기)에서 가져온다 - 코너 코드가 정하지 않는다.
+   *
+   * 봉투의 기간 표기(`header.periodLabel`)는 여기에 없다. `period`와 `cadence`에서 `periodLabelOf`가
+   * 만든다(17-0-8) - 따로 받으면 기간과 어긋난 값이 들어올 수 있다.
    */
   readonly cadence: 'daily' | 'monthly'
-  /** 봉투 `header.periodLabel`에 그대로 들어가는 표기("2026년 8월"). 호출부가 만든다. 비어 있으면 멈춘다. */
-  readonly periodLabel: string
 }
 
 /**
@@ -184,9 +187,6 @@ function assertCornerContextValues(context: CornerContext): void {
   if (context.coupleId.length === 0) {
     throw new InvalidCornerContextError(context.coupleId, '커플 식별자가 빈 문자열')
   }
-  if (context.periodLabel.trim().length === 0) {
-    throw new InvalidCornerContextError(context.coupleId, '기간 표기(periodLabel)가 빈 문자열')
-  }
   const { start, end } = context.period
   if (!isValidDate(start) || !isValidDate(end)) {
     throw new InvalidCornerContextError(context.coupleId, '기간의 시작·끝이 날짜가 아님')
@@ -271,6 +271,15 @@ export type ReferenceMapping =
 export const NO_ID_REFERENCES: ReferenceMapping = { kind: 'none' }
 
 /**
+ * 파생값 채우기의 결과(17-0-8). 파생값은 입력에서 **계산하는** 값이다 - 근거 개수·기사 순서·지도처럼 LLM이
+ * 쓰지 않고 파이프라인이 만든다. 계산이 불가능하거나 입력과 맞지 않으면(예: 입력의 데이트가 기사가 되지
+ * 않았다) 실패이고, 골격이 `schema_invalid`로 기록한다.
+ */
+export type DerivedValues =
+  | { readonly ok: true; readonly value: unknown }
+  | { readonly ok: false; readonly detail: string }
+
+/**
  * 17-0-4의 4~6단계에서 코너마다 달라지는 부분. 코너 3종 단계가 채운다 —
  * 이번에는 받는 자리와 순서만 있다. `isExplicitEmpty`만 함수이고, ID 해석·채우기는 선언이다.
  */
@@ -284,7 +293,14 @@ export interface CornerResponseSpec<TLlm, TStored> {
    * 채우기는 골격이 하고, 실패 시 `schema_invalid`다. 참조할 ID가 없는 코너는 `NO_ID_REFERENCES`.
    */
   readonly references: ReferenceMapping
-  /** 6단계 — 저장 스키마. 실패 시 `schema_invalid`. 통과해야 브랜드가 붙는다. */
+  /**
+   * 6단계 — **파생값 채우기**(17-0-8). 원문을 채운 값을 받아 저장 모양의 값을 돌려준다. 근거 개수·기사
+   * 순서·지도·고정 문구처럼 입력에서 계산하는 값은 전부 여기서 만든다. **저장 스키마 안에서 계산하지 않는다**
+   * - 저장 스키마는 앱이 읽을 때도 쓰는데 앱에는 입력 레코드가 없다. 필수이고 기본값이 없다.
+   * 순수한 동기 함수다(규칙 G). 실패하면 `schema_invalid`.
+   */
+  readonly derive: (filled: unknown) => DerivedValues
+  /** 6단계 — 저장 스키마(**모양만** 본다). 실패 시 `schema_invalid`. 통과해야 브랜드가 붙는다. */
   readonly storedSchema: ZodType<TStored>
 }
 
@@ -479,7 +495,7 @@ function brandValidated<T>(value: T): ValidatedContent<T> {
  *   3. Zod 파싱(LLM 출력 스키마)                → `schema_invalid`
  *   4. 명시적 빈 결과                            → `insufficient_input`
  *   5. ID 해석                                  → `schema_invalid`
- *   6. 원문 채우기 → 저장 스키마 → 브랜드
+ *   6. 원문 채우기 → 파생값 채우기 → 저장 스키마(모양만) → 브랜드
  *
  * 2가 3보다 앞인 이유: Zod는 스키마에 없는 키를 지운다. LLM이 시키지 않은 판정을
  * 담으려고 스스로 만든 키는 Zod를 거치면 사라져 영원히 걸리지 않는다(r38). 그렇다고
@@ -529,12 +545,16 @@ export function validateCornerResponse<TLlm, TStored>(
     return { ok: false, reason: 'schema_invalid', detail: resolved.detail }
   }
 
-  // 6. 원문 채우기(골격) → 저장 스키마 → 브랜드
+  // 6. 원문 채우기(골격) → 파생값 채우기(코너가 넘긴 함수) → 저장 스키마(모양만) → 브랜드
   const filled = fillDeclaredReferences(resolved.found)
   if (!filled.ok) {
     return { ok: false, reason: 'schema_invalid', detail: filled.detail }
   }
-  const stored = spec.storedSchema.safeParse(working)
+  const derived = spec.derive(working)
+  if (!derived.ok) {
+    return { ok: false, reason: 'schema_invalid', detail: derived.detail }
+  }
+  const stored = spec.storedSchema.safeParse(derived.value)
   if (!stored.success) {
     return { ok: false, reason: 'schema_invalid', detail: stored.error.message }
   }
@@ -552,6 +572,8 @@ export function validateCornerResponse<TLlm, TStored>(
 export interface CornerResponseHooks<TLlm, TStored = TLlm> {
   readonly isExplicitEmpty: CornerResponseSpec<TLlm, TStored>['isExplicitEmpty']
   readonly references: ReferenceMapping
+  /** 파생값 채우기 - 필수, 기본값 없음(17-0-8). 파생값이 없는 코너도 "채울 것이 없다"고 답하는 함수를 넘긴다. */
+  readonly derive: CornerResponseSpec<TLlm, TStored>['derive']
   readonly storedSchema: ZodType<TStored>
 }
 
@@ -635,6 +657,7 @@ export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
     llmSchema: schema,
     isExplicitEmpty: hooks.isExplicitEmpty,
     references: hooks.references,
+    derive: hooks.derive,
     storedSchema: hooks.storedSchema,
   }
 
@@ -680,8 +703,9 @@ export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
  * | `responseSpec` | 응답 처리 - LLM 출력 스키마·빈 결과 판정·ID 선언·저장 스키마. 입력과 맥락으로 만든다 |
  *
  * `responseSpec`을 입력·맥락의 함수로 둔 이유: 저장 스키마가 주기(`cadence`)에 따라 달라지고, 파이프라인이
- * 계산하는 값(수치·고정 문구·순서)이 입력에서 오기 때문이다. 그 계산은 저장 스키마의 `transform` 안에서 하며,
- * 그 결과가 저장 스키마를 통과해야만 브랜드가 붙는다 - 판정은 여전히 골격(`validateCornerResponse`)의 일이다.
+ * 계산하는 값(수치·고정 문구·순서)이 입력에서 오기 때문이다. 그 계산은 `derive`(파생값 채우기)가 하고 저장
+ * 스키마는 모양만 본다(17-0-8) - 그 결과가 저장 스키마를 통과해야만 브랜드가 붙고, 판정은 여전히 골격
+ * (`validateCornerResponse`)의 일이다.
  */
 export interface CornerModule<TInput, TLlm, TStored> {
   /** 코너 이름 - 앱 화면·목차용(`cornerTitles.ts`의 상수). */
@@ -729,7 +753,12 @@ export function runCornerModule<TInput, TLlm, TStored>(
     preconditionCheck: corner.hasMaterial,
     buildRequest: (i) => corner.buildRequest(i, context),
     schema: spec.llmSchema,
-    hooks: { isExplicitEmpty: spec.isExplicitEmpty, references: spec.references, storedSchema: spec.storedSchema },
+    hooks: {
+      isExplicitEmpty: spec.isExplicitEmpty,
+      references: spec.references,
+      derive: spec.derive,
+      storedSchema: spec.storedSchema,
+    },
     llmClient: params.llmClient,
     lookupCoeffBundle: params.lookupCoeffBundle,
   })

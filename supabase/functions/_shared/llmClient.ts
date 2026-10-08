@@ -25,6 +25,14 @@
  * 안다. 검증 결과(`schema_invalid`·`forbidden_content`)에 따른 재호출
  * 결정은 파이프라인(`cornerPipeline.ts`)의 책임이다.
  *
+ * ── 대기는 직전 호출이 전송 실패였을 때만 (17-0-8, r46) ───────────────
+ * 이 모듈이 아는 것은 재호출의 이유가 아니라 **자기가 한 직전 호출이 전송 수준에서 실패했는가**다. 그건 자기
+ * 호출의 결과라 Zod를 몰라도 안다(층은 그대로 분리된다). 직전 호출이 HTTP로 성공했으면 파이프라인이
+ * `schema_invalid`로 다시 부르더라도 기다리지 않는다. 전송 수준 실패는 둘이다 - `fetch`가 던졌거나(네트워크
+ * 예외, 본문을 읽다 끊긴 경우 포함), HTTP 상태가 성공(2xx)이 아니다. HTTP 2xx인데 응답에 텍스트 블록이 없는
+ * 경우는 전송이 성공한 것이므로 전송 실패가 아니다(예산은 쓰고, 기다리지 않는다). 연속된 전송 실패 횟수가
+ * 지수 백오프의 지수가 되고, 전송이 한 번 성공하면 0으로 돌아간다.
+ *
  * ── 예산이 인자로 흘러가지 않는다 ─────────────────────────────────────
  * `createLlmClient()`가 반환하는 클라이언트 인스턴스 **안에** 예산
  * 카운터가 있다. 호출부는 코너 1건마다 `createLlmClient()`를 한 번
@@ -133,11 +141,16 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** 지수 백오프 지연(ms). 시도 1회차 실패 후 대기 없이 바로, 이후 배수로 증가. */
-function backoffDelayMs(attemptIndexZeroBased: number): number {
-  if (attemptIndexZeroBased <= 0) return 0
-  return 500 * 2 ** (attemptIndexZeroBased - 1)
+/** 지수 백오프 지연(ms) - 연속된 전송 실패가 1번이면 500, 2번이면 1000. 전송 실패가 없었으면 0(기다리지 않는다). */
+function backoffDelayMs(consecutiveTransportFailures: number): number {
+  if (consecutiveTransportFailures <= 0) return 0
+  return 500 * 2 ** (consecutiveTransportFailures - 1)
 }
+
+/** 시도 하나의 결과. `transport`: 실패가 전송 수준(예외·비성공 HTTP 상태)인가 - 대기 여부를 정한다. */
+type AttemptResult =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly detail: string; readonly transport: boolean }
 
 /**
  * 코너 1건에 묶이는 LLM 클라이언트를 만든다. 반환된 인스턴스가 호출
@@ -150,8 +163,10 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
   const maxTokens = config.maxTokens ?? 4096
 
   let callsUsed = 0
+  /** 자기 직전 호출 이후 연속된 전송 수준 실패 횟수. 직전 호출이 전송 실패가 아니면 0이다. */
+  let consecutiveTransportFailures = 0
 
-  async function attemptOnce(request: LlmRequest): Promise<{ ok: true; text: string } | { ok: false; detail: string }> {
+  async function attemptOnce(request: LlmRequest): Promise<AttemptResult> {
     try {
       const response = await fetchFn(LLM_ENDPOINT_URL, {
         method: 'POST',
@@ -170,17 +185,18 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
 
       if (!response.ok) {
         const bodyText = await response.text().catch(() => '')
-        return { ok: false, detail: `HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''}` }
+        return { ok: false, detail: `HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''}`, transport: true }
       }
 
       const json = (await response.json()) as { content?: Array<{ type?: string; text?: string }> }
       const text = json.content?.find((block) => block.type === 'text')?.text
       if (typeof text !== 'string') {
-        return { ok: false, detail: 'LLM 응답에 text 블록이 없음' }
+        // HTTP는 성공했다 - 전송 실패가 아니므로 다음 호출은 기다리지 않는다.
+        return { ok: false, detail: 'LLM 응답에 text 블록이 없음', transport: false }
       }
       return { ok: true, text }
     } catch (err) {
-      return { ok: false, detail: err instanceof Error ? err.message : String(err) }
+      return { ok: false, detail: err instanceof Error ? err.message : String(err), transport: true }
     }
   }
 
@@ -191,14 +207,16 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
       let lastDetail = '호출 예산 소진'
 
       while (callsUsed < CORNER_LLM_CALL_BUDGET) {
-        const attemptIndexZeroBased = callsUsed
         callsUsed += 1
 
-        if (attemptIndexZeroBased > 0) {
-          await sleepFn(backoffDelayMs(attemptIndexZeroBased))
+        // 직전 호출이 전송 실패였을 때만 기다린다. HTTP로 성공한 뒤의 재호출(파이프라인의
+        // `schema_invalid` 재시도)은 기다리지 않는다.
+        if (consecutiveTransportFailures > 0) {
+          await sleepFn(backoffDelayMs(consecutiveTransportFailures))
         }
 
         const result = await attemptOnce(request)
+        consecutiveTransportFailures = !result.ok && result.transport ? consecutiveTransportFailures + 1 : 0
         if (result.ok) {
           return { ok: true, text: result.text }
         }

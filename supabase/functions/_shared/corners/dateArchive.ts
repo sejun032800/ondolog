@@ -13,7 +13,7 @@
  * - 코너 이름·지면 제목: 고정 상수(`cornerTitles.ts`). LLM이 쓰지 않는다.
  * - 고정 질문 둘(평점형·회상형) 문구: **상수.** LLM이 쓰지 않는다. 문구는 CORNER_CONTENT §2-3 예시를 쓰고,
  *   바꿀 때는 디자인이 정한다. 답변은 저장하지 않는다(응답 필드가 없다).
- * - 지도 `pins`: 파이프라인이 정거장에서 만든다. `label` = 장소명, `order` = 방문 순(1부터).
+ * - 지도 `pins`: 파이프라인이 정거장에서 만든다(`derive`, 17-0-8 - 저장 스키마의 `transform`이 아니다). `label` = 장소명, `order` = 방문 순(1부터).
  *   `bounds`: 그 좌표의 최소·최대. **좌표가 없으면 지도 전체가 `null`이다.**
  * - 기사 순서: **이번 기간 데이트 날짜순 -> 재소환 데이트 날짜순.** 결정론. LLM이 정하지 않는다.
  * - 빈 결과: 선행 검사는 **조립된 데이트 0건**. 호출 후 빈 결과는 없다(데이트가 있으면 만든다) - 이 코너의
@@ -31,9 +31,11 @@ import type {
   CornerContext,
   CornerModule,
   CornerResponseSpec,
+  DerivedValues,
   ReferenceMapping,
 } from '../cornerPipeline.ts'
 import type { LlmRequest, PromptBlock } from '../llmRequest.ts'
+import { periodLabelOf } from '../periodLabel.ts'
 import { CORNER_TITLES } from '../../../../src/types/corners/cornerTitles.ts'
 import {
   CORNER_SCHEMA_VERSION,
@@ -101,7 +103,7 @@ export const DATE_ARCHIVE_REFERENCES: ReferenceMapping = {
 }
 
 // ---------------------------------------------------------------------------
-// 원문을 채운 뒤의 모양 -> 저장 모양
+// 원문을 채운 뒤의 모양 -> 파생값 채우기(`derive`) -> 저장 모양
 // ---------------------------------------------------------------------------
 
 const FilledStopSchema = z.object({
@@ -134,15 +136,19 @@ function compareDateOn(a: { dateOn: string; dateId: string }, b: { dateOn: strin
   return a.dateId < b.dateId ? -1 : a.dateId > b.dateId ? 1 : 0
 }
 
-function storedSchemaFor(input: DateArchiveInput, context: CornerContext) {
+/**
+ * 파생값 채우기(17-0-8) - 입력에서 계산하는 값(기사 순서·`featured`·`recalled`·요약·지도·고정 질문·헤더)을
+ * 전부 여기서 만든다. 저장 스키마는 이 결과의 모양만 본다.
+ */
+function deriveFor(input: DateArchiveInput, context: CornerContext) {
   const titles = CORNER_TITLES.date_archive
   const recalledById = new Map(input.dates.map((d) => [d.id, d.recalled === true] as const))
 
-  return FilledSchema.transform((filled, ctx) => {
-    const fail = (message: string) => {
-      ctx.issues.push({ code: 'custom', message, input: filled })
-      return z.NEVER
-    }
+  return (value: unknown): DerivedValues => {
+    const parsed = FilledSchema.safeParse(value)
+    if (!parsed.success) return { ok: false, detail: parsed.error.message }
+    const filled = parsed.data
+    const fail = (detail: string): DerivedValues => ({ ok: false, detail })
 
     // 입력의 모든 데이트가 정확히 한 번씩 기사가 되어야 한다.
     const seen = new Set<string>()
@@ -235,15 +241,18 @@ function storedSchemaFor(input: DateArchiveInput, context: CornerContext) {
           }
 
     return {
-      schemaVersion: CORNER_SCHEMA_VERSION,
-      header: { cornerName: titles.cornerName, title: titles.pageTitle, periodLabel: context.periodLabel },
-      payload: {
-        summary: { dateCount: thisPeriod.length, regionCount: regions.length, regions },
-        articles,
-        mapInfographic,
+      ok: true,
+      value: {
+        schemaVersion: CORNER_SCHEMA_VERSION,
+        header: { cornerName: titles.cornerName, title: titles.pageTitle, periodLabel: periodLabelOf(context) },
+        payload: {
+          summary: { dateCount: thisPeriod.length, regionCount: regions.length, regions },
+          articles,
+          mapInfographic,
+        },
       },
     }
-  }).pipe(DateArchiveStoredSchema)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +285,7 @@ function buildRequest(input: DateArchiveInput, context: CornerContext): LlmReque
   return {
     system: [COMMON_PRINCIPLES_BLOCK, CORNER_INSTRUCTION_BLOCK],
     user: [
-      { text: `기간: ${context.periodLabel}` },
+      { text: `기간: ${periodLabelOf(context)}` },
       { text: ['데이트(한 줄이 한 건, 날짜 순):', ...inChronologicalOrder(input.dates).map((d) => dateLine(d, true))].join('\n') },
     ],
   }
@@ -295,7 +304,8 @@ function responseSpec(
     // 호출 후 빈 결과는 없다 - 데이트가 있으면 만든다(17-0-5-D). "없다"고 답하는 단계를 명시한다.
     isExplicitEmpty: () => false,
     references: DATE_ARCHIVE_REFERENCES,
-    storedSchema: storedSchemaFor(input, context),
+    derive: deriveFor(input, context),
+    storedSchema: DateArchiveStoredSchema,
   }
 }
 
