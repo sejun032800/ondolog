@@ -166,6 +166,7 @@ describe('kstTime - 실행 환경의 시간대에 기대지 않는다 (MASTER §
     Date.parse('2024-02-29T08:30:00+09:00'),
     Date.parse('2026-08-31T10:00:00.250+09:00'),
     Date.parse('2026-03-01T00:00:00+09:00'),
+    Date.parse('2026-01-05T03:07:00+09:00'),
   ].sort((a, b) => a - b)
 
   const kstReports = ZONES.map((zone) => ({ zone, report: runKstInZone(zone.tz, code, kstEpochs) }))
@@ -197,6 +198,18 @@ describe('kstTime - 실행 환경의 시간대에 기대지 않는다 (MASTER §
         expect(Date.parse(iso)).toBe(kstEpochs[i])
       })
       expect(report.fromDateOn).toEqual(DATE_ON_VALUES.map((s) => new Date(`${s}T00:00:00+09:00`).toISOString()))
+    }
+  })
+
+  it('kstDisplayStamp: 월·일·시·분 두 자리, 앞에 "— "가 없다 (MASTER §17-0-9-F, r50) - 한 자리 값(1월 5일 03:07)으로 시험', () => {
+    const i = kstEpochs.indexOf(Date.parse('2026-01-05T03:07:00+09:00'))
+    expect(i).toBeGreaterThanOrEqual(0)
+    for (const { report } of kstReports) {
+      expect(report.stamps[i]).toBe('2026.01.05 03:07')
+      for (const stamp of report.stamps) {
+        expect(stamp).toMatch(/^\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}$/)
+        expect(stamp.startsWith('—')).toBe(false)
+      }
     }
   })
 

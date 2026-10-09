@@ -46,6 +46,18 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 
 발행 경로로 넘긴 것(범위 밖): `last_featured_at`·`feature_count` 갱신, 채팅 입력량 상한, 해제 유예 커플 발행 여부, 17-5 기간 넓히기, 17-1 선별 상한, 실제 `SupabaseClient`가 `InputAssemblyClient`를 구조적으로 만족하는지의 실물 확인(가짜 클라이언트로만 시험).
 
+## 입력 조립 후속 (`45`, 2026-10-09, corner-pipeline, r50 반영)
+
+원본은 MASTER §17-0-9 (r50). 위 `44-r2` 표의 해당 두 행("후보 4"·"잠긴 항목 건수의 범위")은 이 절이 대체한다. 멈춘 부분 없음.
+
+| # | 항목 | 변경 전 | 변경 후 |
+|---|---|---|---|
+| 1 | 후보 4 (C-4) | 크기(width/height) 없는 사진도 "사진 1장 이상"으로 셌다 | D·F에서 빠지지 않고 남는 사진만 센다(`inputAssembly.ts` 후보 판정 루프에서 크기 null 사진 건너뜀). 이 판정에서 거른 사진은 `photosWithoutSize`에 세지 않는다(후보 판정의 일부). 시험 추가: 크기 없는 사진만 있는 과거 데이트는 후보가 아니다, 크기 있는 사진이 하나라도 있으면 후보다. 잠긴 사진만 있는 과거 데이트 시험은 그대로 통과 |
+| 2 | `kstDisplayStamp` (F 출처 표기) | 코드 확인 결과 이미 `"2026.08.22 09:20"` 형식이고 `— `가 없었다 | **코드 무변경.** 시험만 추가: 1월 5일 03:07 KST에 `"2026.01.05 03:07"`, 모든 표기가 `^\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}$`이고 `—`로 시작하지 않음(시간대 5곳 자식 프로세스) |
+| 3 | 잠긴 건수 범위 (D 마지막 문단) | 확인 결과 이미 이번 기간 조회(기간 안 촬영 사진 + 이번 기간 데이트에 묶인 항목)만 센다. 재소환 후보 조회는 `countLocked=false` | **코드 무변경.** 시험만 추가: 재소환 후보의 잠긴 사진(`lock-old`)은 세지 않아 기존 데이터에서 3, 과거 데이트만 있는 경우 0 |
+
+고친 기댓값 없음(기존 assertion 무수정, 시험 추가만). 바꾼 파일: `supabase/functions/_shared/inputAssembly.ts`(1), `_shared/inputAssembly.test.ts`(1·3), `__tests__/functions/timeOfDayLabelTimezone.test.ts`의 `kstTime` describe(2; 한 자리 시각 순간 하나를 `kstEpochs`에 더하고 it 하나 추가). `kstTime.ts` 무변경.
+
 ## node_modules 백업 (2026-09-12, main session)
 
 node_modules 백업: ..\ondolog-node_modules-20260910.zip (219548890 bytes, 2026-09-10)

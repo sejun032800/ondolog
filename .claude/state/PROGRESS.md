@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-09 (corner-pipeline, `45`): 입력 조립 후속(r50) - 후보 4가 크기 없는 사진을 세지 않게 한 줄 수정(`inputAssembly.ts`), `kstDisplayStamp`(`— ` 없음·두 자리)와 잠긴 건수 범위(이번 기간만)는 확인 결과 이미 r50과 같아 코드 무변경·시험만 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 986·49 (기준 983·49). 미커밋
+
 2026-10-09 (corner-pipeline, `44-r2`): 입력 조립 - `_shared/inputAssembly.ts`(기간 내 조회 -> 17-1 재소환, 커플 분리는 조회 단계 + 결과 재확인 `CoupleMembershipError`, 잠긴 항목 제외, 사유별 제외 건수 반환)와 `_shared/kstTime.ts`(시각 변환, 시간대 5곳 시험에 추가). `cornerCommon.ts` 계약 원본 주석·`attribution.source` `chat` 좁힘·`DateSource.dateLevel?` 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 983·49 (기준 925·48). 판단 14건은 HANDOFF `44-r2` 절. 미커밋
 
 2026-10-09 (메인 세션, `43`): HANDOFF 정리 - 끝의 `---` 한 줄 삭제, `#14` 2부 2단계(`33`) 섹션을 기준 B 통과(판단 4 원본 MASTER r48 §17-0-4-B·ROADMAP r7)로 `archive/handoff-20261009.md`에 원본 순서·바이트 그대로 이동(LF 정규화 후 손실 없음 확인). 레지스트리 섹션은 이미 `archive/handoff-20260928.md:152`에 있어 대상 아님. 머리말에 기록 규칙 한 줄 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 925·48, worker 경고 없음. 미커밋

@@ -421,12 +421,15 @@ export async function assembleCornerInput(
       .filter((d) => isRecordInPeriod({ occurredAt: d.occurredAt, recalled: true }, period))
       .filter((d) => d.lastFeaturedAt === null || d.lastFeaturedAt.getTime() < gapLimit.getTime())
 
-    // 후보 4: 열람 가능한 사진이 1장 이상. 잠긴 사진은 이미 조회에서 빠져 있다(D).
+    // 후보 4: 실릴 수 있는 사진이 1장 이상 (r50). 잠긴 사진은 이미 조회에서 빠져 있고(D), 크기 없는 사진은
+    // 여기서 세지 않는다(F) - 후보로 통과한 뒤 싣는 단계에서 0장이 되면 이 조건의 취지가 깨진다.
+    // 이 판정에서 거른 사진은 제외 건수에 세지 않는다(후보 판정의 일부).
     const candidateContent = await loadDateContent(gapOk.map((d) => d.id), false)
     const stopDate = new Map(candidateContent.stops.map((s) => [String(s.id), reqStr(s, 'date_id', 'date_stops')]))
     const datesWithPhoto = new Set<string>()
     for (const e of candidateContent.entries) {
       if (e.entry_type !== 'photo') continue
+      if (optNum(e, 'width', 'data_entries') === null || optNum(e, 'height', 'data_entries') === null) continue
       const owner = ownerDateId(e, stopDate)
       if (owner !== null) datesWithPhoto.add(owner)
     }

@@ -599,6 +599,25 @@ describe('재소환 (C)', () => {
       expect(r.dates.map((d) => d.id)).toEqual(['stop-photo'])
       expect(r.dates[0].source.stops[0].photos.map((p) => p.path)).toEqual(['p/ph-stop.jpg'])
     })
+
+    it('4. (r50) 크기 없는 사진만 있는 과거 데이트는 후보가 아니다 - 크기 있는 사진이 하나라도 있으면 후보다', async () => {
+      const data = tables({
+        dates: [
+          dateRow('size-less-only', '2026-05-01'),
+          dateRow('one-height-null', '2026-05-02'),
+          dateRow('mixed', '2026-05-03'),
+        ],
+        data_entries: [
+          entryRow('ph-nosize', { date_id: 'size-less-only', width: null, height: null }),
+          entryRow('ph-noheight', { date_id: 'one-height-null', height: null }),
+          entryRow('ph-mixed-a', { date_id: 'mixed', width: null, height: null }),
+          entryRow('ph-mixed-b', { date_id: 'mixed' }),
+        ],
+      })
+      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+      expect(r.dates.map((d) => d.id)).toEqual(['mixed'])
+      expect(r.dates[0].source.dateLevel?.photos.map((p) => p.path)).toEqual(['p/ph-mixed-b.jpg'])
+    })
   })
 
   it('재소환 데이트는 정거장·사진·유저 기록을 이번 기간 데이트와 같은 모양으로 싣는다', async () => {
@@ -678,6 +697,20 @@ describe('잠긴 데이터 (D)', () => {
     const recalled = r.dates.filter((d) => d.recalled === true)
     expect(recalled.map((d) => d.id)).toEqual(['old-open'])
     expect(JSON.stringify(recalled)).not.toContain('lock-old')
+  })
+
+  it('잠긴 건수는 이번 기간 조회 범위만 센다 - 재소환 후보 판정 중에 본 잠긴 사진(lock-old)은 세지 않는다', async () => {
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    // 이번 기간 잠금 3건(lock-range·lock-stop·lock-note). 과거 데이트의 lock-old는 더하지 않는다(4가 아니다).
+    expect(r.exclusions.lockedEntries).toBe(3)
+    // 과거 데이트만 있고 이번 기간에 잠긴 항목이 없으면 0이다.
+    const pastOnly = tables({
+      dates: [dateRow('old-locked', '2026-05-01')],
+      data_entries: [entryRow('lock-old', { date_id: 'old-locked', captured_at: '2026-05-01T10:00:00+09:00', access_locked: true })],
+    })
+    const r2 = await assembleCornerInput(fakeClient(pastOnly), MONTHLY_CONTEXT)
+    expect(r2.dates).toEqual([])
+    expect(r2.exclusions.lockedEntries).toBe(0)
   })
 
   it('유료 커플: is_entry_visible이 참이므로 잠금 표시가 있어도 열람 가능 - 잠금 건수 0', async () => {
