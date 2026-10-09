@@ -8,9 +8,11 @@
  * 캐시 지점은 `cacheBreakpoint`로 표시만 하고, 그것을 전송 형식으로 옮기는 것은 `llmClient.ts`뿐이다.
  *
  * ── 입력 레코드 ─────────────────────────────────────────────────────────
- * 아래 레코드 모양은 **입력 조립(별도 작업, 17-0-5-E)이 채워 넘길 계약의 초안**이다. `#14`는 픽스처로 시험한다.
+ * 아래 레코드 모양은 **입력 조립 계약 원본 (MASTER §17-0-9)**이다. 입력 조립(`../inputAssembly.ts`)이 이 타입을 채워
+ * 넘기고, 채우는 규칙(조회·기간·재소환·잠긴 데이터·시각 변환·필드 채우기)은 §17-0-9가 정한다. 이 파일이 모양의
+ * 원본이므로 입력 조립은 레코드 모양을 다른 곳에 다시 정의하지 않는다.
  * 문서가 정한 것은 "레코드가 ID·시각·재소환 표시·커플을 싣는다"(17-0-4-B)와 "계산이 필요한 원문 값은 입력 조립이
- * `source`에 미리 싣는다"(17-0-4)뿐이다. `source`의 필드 이름은 이 코너들이 `copy` 선언으로 가리키는 이름이다.
+ * `source`에 미리 싣는다"(17-0-4)이다. `source`의 필드 이름은 이 코너들이 `copy` 선언으로 가리키는 이름이다.
  * 표기 문자열(`attribution.display`)은 입력 조립이 시간대 라벨 함수(`timeOfDayLabel`)로 만들어 싣는다.
  */
 
@@ -30,8 +32,11 @@ export type ChatMessageSource = {
   readonly text: string
   /** 메시지 시각, ISO8601(+09:00 표기). */
   readonly at: string
-  /** 입력 조립이 `timeOfDayLabel`로 만든 출처 표기. */
-  readonly attribution: Attribution
+  /**
+   * 입력 조립이 `timeOfDayLabel`로 만든 출처 표기. `Attribution.source`는 레코드 종류와 1:1이다(§17-0-9-F) -
+   * 메시지 레코드의 표기는 항상 `'chat'`이다. 사진·데이트 레코드는 `attribution`을 싣지 않는다.
+   */
+  readonly attribution: Attribution & { readonly source: 'chat' }
 }
 
 export interface ChatMessageRecord extends ScopedRecord {
@@ -72,6 +77,15 @@ export type DateSource = {
   /** 17-1 "그때 그 시절" 재소환 사유. 재소환이 아니면 null. */
   readonly recallReason: 'anniversary' | 'sparse_month' | 'never_featured' | null
   readonly stops: readonly DateStopSource[]
+  /**
+   * 정거장에 속하지 않고 데이트에만 묶인 사진·유저 기록(§17-0-9-F "`date_stop_id` 우선, null이면 `date_id`로 데이트
+   * 단위에 붙인다"). 입력 조립은 항상 채운다. 선택 필드인 것은 이 필드가 생기기 전의 코너 코드·시험이 그대로
+   * 컴파일되게 하려는 것뿐이다. 코너가 이 값을 지면에 쓸지는 코너 기획의 몫이다.
+   */
+  readonly dateLevel?: {
+    readonly photos: readonly PhotoRef[]
+    readonly userNotes: readonly UserNote[]
+  }
 }
 
 export interface DateRecord extends ScopedRecord {

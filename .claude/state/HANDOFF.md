@@ -23,6 +23,29 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 
+## 입력 조립 (`44-r2`, 2026-10-09, corner-pipeline) - 열린 판단 있음
+
+원본은 MASTER §17-0-9. 만든 것: `supabase/functions/_shared/inputAssembly.ts`(`assembleCornerInput(client, context)` -> `{messages, photos, dates, records, exclusions}`), `_shared/kstTime.ts`(시각 변환 모듈 하나, import 없음), 시험 `_shared/inputAssembly.test.ts`·`_shared/testFixtures/inputAssemblyFake.ts`. 시간대 시험(`__tests__/functions/timeOfDayLabelTimezone.test.ts`)에 `kstTime` 케이스를 더했다(기존 케이스 무변경). 바꾼 타입(`corners/cornerCommon.ts`): 머리 주석 교체, `ChatMessageSource.attribution`을 `Attribution & { source: 'chat' }`로 좁힘, `DateSource.dateLevel?` 추가(선택). 멈춘 부분은 없다. 아래는 §17-0-9가 정하지 않아 고른 것이다.
+
+| 판단 | 고른 것 | 근거 / 확인할 것 |
+|---|---|---|
+| 데이트 단위(`date_id`만 있는) 사진·유저 기록의 자리 | `DateSource.dateLevel?: {photos, userNotes}` 신설(선택 필드) | F "데이트 단위에 붙인다"인데 타입에 자리가 없었다. 코너(17-1)가 이 값을 지면에 쓸지는 기획 몫 |
+| `Attribution.source` 1:1 | 메시지 레코드만 `attribution`을 싣고 값은 `'chat'`. 사진·데이트는 `attribution`이 없다 | `'feed'`·`'story'`에 대응하는 레코드 종류가 없다. 값 대응이 필요하면 PM 확인 |
+| 유료 커플의 `access_locked=true` 행 | 열람 가능으로 본다(`is_entry_visible`과 같은 결과) | A-3 "같은 결과"와 D "잠긴 항목은 넣지 않는다"가 이 칸에서만 갈린다. D는 유료 전환 시 잠금이 풀린다고 전제 |
+| `profiles.deleted_at` | 걸지 않는다 | A-2 "컬럼이 있으면 모두"와 F "탈퇴 유예 중에도 그대로 쓴다"가 충돌 - 구체적인 F를 따름. `profiles`엔 `couple_id`도 없어 `id`로만 읽음 |
+| "기간을 N년 앞으로 옮긴 구간" | 과거 방향(`[start-N년, end-N년)`), N은 포함하는 가장 작은 N, 말일 보정(2월 29일 -> 28일) | C-1 "기간 시작 이전"과 한 방향. 일자 보정 규칙은 문서에 없다 |
+| 6개월 / `last_featured_at` 비교 | `kstShiftMonths(기간 시작, -6)`, 엄격 `<`(경계 시각은 부적격), 일자가 없으면 말일 | 위와 같음 |
+| 후보 4 "열람 가능한 사진" | 크기(width/height) 없는 사진도 센다 | 문자 그대로. 그 사진만 있는 과거 데이트는 후보가 되지만 지면엔 사진 0장 - 엄격히 하려면 PM 결정 |
+| 날짜 컬럼 상한 | `lt`에 `kstDateExclusiveUpperBound(end)` (끝이 자정이면 그 날짜, 아니면 다음 날짜) | B "기간보다 좁지 않다". 끝이 자정이 아닌 기간을 시험으로 고정 |
+| 잠긴 항목 건수의 범위 | 이번 기간 범위(기간 안 촬영 사진 + 이번 기간 데이트에 묶인 항목)만 센다. 재소환 후보의 잠긴 항목은 세지 않는다 | F가 범위를 정하지 않았다. 보조 쿼리(`access_locked=true`)는 세기만 하고 A-3의 보수다 |
+| 시각 없는 독립 사진 건수 | 기간과 무관하게 전체 건수 | 시각이 없어 기간에 귀속할 수 없다 |
+| 재소환 데이트의 사진 | `PhotoRecord`로 따로 내지 않고 정거장(`PhotoRef`)에만 싣는다 | 기간 이전이라 `recalled:false` 사진 레코드는 골격의 기간 단언에 걸린다 |
+| `kstDisplayStamp`(`"2026.08.22 09:20"`) | `kstTime.ts`에 함수 추가 | 출처 표기 형식은 CORNER_CONTENT §2 예시. E 표에 없지만 "형식 변환 함수" 범위로 봄 |
+| 페이지네이션·`in` 쪼개기 | 1000행 단위 `range`, `in` 목록 100개씩 | PostgREST 행 상한·URL 길이. 값은 구현 선택 |
+| `last_featured_at` 필터 | 쿼리가 아니라 코드에서 거른다(과거 데이트 전체를 읽음) | `or` 필터를 클라이언트 타입에 넣지 않으려는 것. 데이트 수는 채팅보다 작다 |
+
+발행 경로로 넘긴 것(범위 밖): `last_featured_at`·`feature_count` 갱신, 채팅 입력량 상한, 해제 유예 커플 발행 여부, 17-5 기간 넓히기, 17-1 선별 상한, 실제 `SupabaseClient`가 `InputAssemblyClient`를 구조적으로 만족하는지의 실물 확인(가짜 클라이언트로만 시험).
+
 ## node_modules 백업 (2026-09-12, main session)
 
 node_modules 백업: ..\ondolog-node_modules-20260910.zip (219548890 bytes, 2026-09-10)
