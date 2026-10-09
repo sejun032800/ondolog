@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-09 (corner-pipeline, `46`): 발행 경로 설계 보고 - 코드·마이그레이션·docs 변경 없음, DB·외부 API 접속 없음. 흐름 P0~P8·발행 성공 정의·ROADMAP 11항목 매핑·마이그레이션·사람 작업·질문 Q1~Q17·문서 어긋남 D1~D7은 HANDOFF `46` 절. 17-4 첫 턴 표기 확인: 고른다(`sweetWords.ts` `deriveFor`, 시험 `sweetWords.test.ts` 163행·388행). 게이트 미실행(코드 무변경). 미커밋
+
 2026-10-09 (corner-pipeline, `45`): 입력 조립 후속(r50) - 후보 4가 크기 없는 사진을 세지 않게 한 줄 수정(`inputAssembly.ts`), `kstDisplayStamp`(`— ` 없음·두 자리)와 잠긴 건수 범위(이번 기간만)는 확인 결과 이미 r50과 같아 코드 무변경·시험만 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 986·49 (기준 983·49). 미커밋
 
 2026-10-09 (corner-pipeline, `44-r2`): 입력 조립 - `_shared/inputAssembly.ts`(기간 내 조회 -> 17-1 재소환, 커플 분리는 조회 단계 + 결과 재확인 `CoupleMembershipError`, 잠긴 항목 제외, 사유별 제외 건수 반환)와 `_shared/kstTime.ts`(시각 변환, 시간대 5곳 시험에 추가). `cornerCommon.ts` 계약 원본 주석·`attribution.source` `chat` 좁힘·`DateSource.dateLevel?` 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 983·49 (기준 925·48). 판단 14건은 HANDOFF `44-r2` 절. 미커밋
