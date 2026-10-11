@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-11 (db-architect, `47b`): 022 실증 스크립트 3종 작성 - `scripts/db/verify_022_publish_theme_trigger.sql`(수정, 진짜 함수를 임시 테이블에·실제 couples 읽기) · `verify_022_publish_logic_copy.sql`(pg_temp 사본, 논리 확인) · `verify_022_privileges_and_settings.sql`(읽기 전용). **작성만, 원격 미실행.** 코드 무변경이라 게이트 미실행. 상세·열린 판단은 HANDOFF `47b` 절. 미커밋
+
 2026-10-11 (db-architect, `47`): 발행 경로 마이그레이션 `022_publish_path.sql` 작성(SCHEMA §9-D 1~8 그대로, 015 `magazine_storage_insert` 삭제, UPDATE·DELETE 정책은 저장소에 없음) + 테마 트리거 실증 SQL `scripts/db/verify_022_publish_theme_trigger.sql`. **원격 미적용·미실행**(적용 전 관문·적용·실증은 사람). 코드 무변경이라 게이트 미실행. 상세·`fn_publish_issue` 실증 제안은 HANDOFF `47` 절. 미커밋
 
 2026-10-09 (corner-pipeline, `46`): 발행 경로 설계 보고 - 코드·마이그레이션·docs 변경 없음, DB·외부 API 접속 없음. 흐름 P0~P8·발행 성공 정의·ROADMAP 11항목 매핑·마이그레이션·사람 작업·질문 Q1~Q17·문서 어긋남 D1~D7은 HANDOFF `46` 절. 17-4 첫 턴 표기 확인: 고른다(`sweetWords.ts` `deriveFor`, 시험 `sweetWords.test.ts` 163행·388행). 게이트 미실행(코드 무변경). 미커밋

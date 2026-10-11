@@ -24,6 +24,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 | 발행 경로 설계 | 보고 완료(`46`), 승인 대기. 질문 Q1~Q17·문서 어긋남 D1~D7 | 이 파일 "발행 경로 설계 보고 (`46`)" 절 |
 | 발행 경로 마이그레이션 `022_publish_path.sql` | 작성 완료(`47`), **원격 미적용**. 적용 전 관문 쿼리·적용·실증은 사람 | 이 파일 "발행 경로 마이그레이션 (`47`)" 절 |
+| 022 실증 스크립트 3종 (`scripts/db/verify_022_*.sql`) | 작성 완료(`47b`), **미실행**. 실행은 메인 세션이 적용 확인 뒤 | 이 파일 "022 실증 스크립트 (`47b`)" 절 |
 
 ## 발행 경로 마이그레이션 (`47`, 2026-10-11, db-architect) - 작성만, 원격 미적용
 
@@ -69,6 +70,21 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 - 추천: A + B를 적용 직후, C는 발행 Edge Function 통합 시험 때.
 
 **사람이 할 일(순서)**: 관문 쿼리 2개 -> `022` 적용 -> `verify_022_publish_theme_trigger.sql` 실행 -> B -> 정책 확인 쿼리 -> `src/types/database.ts` 재생성(이번 작업에서는 손대지 않음).
+
+## 022 실증 스크립트 (`47b`, 2026-10-11, db-architect) - 작성만, 실행 안 함
+
+근거는 SCHEMA §9-D-9(r53) 표뿐. 원격 접속·실행 없음(저장소 파일만 읽고 씀). 커밋 없음. 실행은 메인 세션이 사람의 적용 확인 뒤에. `47` 절 4·5번(치환 방식 제안)은 이 절이 대체한다.
+
+| 파일 (`scripts/db/`) | §9-D-9 행 | 확인 항목 |
+|---|---|---|
+| `verify_022_publish_theme_trigger.sql` (기존 파일 수정) | 테마 복사 트리거 | 진짜 `fn_issues_theme_on_publish`·`fn_issues_theme_immutable`을 `like public.issues` 임시 테이블에 건다. 원격 `couples` 실제 행에서 `couple_id`·`magazine_theme`를 읽는다. (a) 초안 행 theme가 커플 값과 다름(입력 상태) (b) `published_at` 채움 -> theme = 커플 값 (c) 발행된 행 theme 변경 -> 예외, 메시지에 그 issue id. 원격 `couples` 0행이면 `DEFERRED`(48- C)만 출력. 함수 없으면 `STOPPED` |
+| `verify_022_publish_logic_copy.sql` (신규) | `fn_publish_issue` 논리 A | `replace(pg_get_functiondef(...), 'public.', 'pg_temp.')` 한 번으로 사본 생성(치환 명령은 파일 머리에 명시). 임시 `issues`·`couples`·`corners`·`dates`·`ops_alerts`. P1 첫 발행(번호 1, `is_trial` true, ready->published, skipped 유지, `date_archive` 날짜만 `feature_count`+1), P2 두 번째(번호 2, `is_trial` false, 누적), P3 유형별 번호, P4 다른 커플 독립·남의 날짜 불변, E1~E5 예외(이미 발행·없는 호·비활성 커플·열린 경보·ready 코너 없음), E4 경보 해소 뒤 발행(번호 3). 사본 치환 자체 점검 2행. 결과에 "논리 확인이며 실제 함수의 증명이 아니다" |
+| `verify_022_privileges_and_settings.sql` (신규) | 권한·설정 B | 읽기 전용 SELECT 하나. anon·authenticated 실행 불가, service_role 가능, `prosecdef=false`, `proconfig`의 `search_path=public`, `magazine` 버킷 정책이 `magazine_storage_select`(SELECT) 하나뿐이고 쓰기 정책 0 |
+
+**열린 판단 (PM)**
+- 사본의 원본: 지시는 "022 본문에서"인데 SQL은 파일을 읽을 수 없어 **원격에 적용된 함수 정의(`pg_get_functiondef`)**를 치환한다. 022를 그대로 적용했다면 같은 본문이다. 파일 본문을 직접 박아 넣는 방식을 원하면 말해 달라(022 수정 시 어긋날 위험이 있어 택하지 않았다).
+- 사본에는 §9-D-4 테마 트리거를 걸지 않았다(범위: 분기·번호·`is_trial`·`feature_count`). `corners`·`issues`는 `including constraints`로 CHECK를 복사하고 FK·UNIQUE는 복사하지 않는다.
+- 세 스크립트 모두 한 번에 실행하는 것을 전제로 했고 **실행해 보지 못했다.** 첫 실행에서 구문·타입 문제가 나올 수 있다.
 
 ## 입력 조립 (`44-r2`, 2026-10-09, corner-pipeline) - 열린 판단 있음
 
