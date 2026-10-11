@@ -25,6 +25,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 발행 경로 설계 | 보고 완료(`46`), 승인 대기. 질문 Q1~Q17·문서 어긋남 D1~D7 | 이 파일 "발행 경로 설계 보고 (`46`)" 절 |
 | 발행 경로 마이그레이션 `022_publish_path.sql` | 작성 완료(`47`), **원격 미적용**. 적용 전 관문 쿼리·적용·실증은 사람 | 이 파일 "발행 경로 마이그레이션 (`47`)" 절 |
 | 022 실증 스크립트 3종 (`scripts/db/verify_022_*.sql`) | 작성 완료(`47b`), **미실행**. 실행은 메인 세션이 적용 확인 뒤 | 이 파일 "022 실증 스크립트 (`47b`)" 절 |
+| 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
 
 ## 발행 경로 마이그레이션 (`47`, 2026-10-11, db-architect) - 작성만, 원격 미적용
 
@@ -85,6 +86,63 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 - 사본의 원본: 지시는 "022 본문에서"인데 SQL은 파일을 읽을 수 없어 **원격에 적용된 함수 정의(`pg_get_functiondef`)**를 치환한다. 022를 그대로 적용했다면 같은 본문이다. 파일 본문을 직접 박아 넣는 방식을 원하면 말해 달라(022 수정 시 어긋날 위험이 있어 택하지 않았다).
 - 사본에는 §9-D-4 테마 트리거를 걸지 않았다(범위: 분기·번호·`is_trial`·`feature_count`). `corners`·`issues`는 `including constraints`로 CHECK를 복사하고 FK·UNIQUE는 복사하지 않는다.
 - 세 스크립트 모두 한 번에 실행하는 것을 전제로 했고 **실행해 보지 못했다.** 첫 실행에서 구문·타입 문제가 나올 수 있다.
+
+## 022 적용·실증 결과 (`47b` 실행, 2026-10-11, 메인 세션)
+
+022는 `npx supabase db push`로 원격(`ondolog`)에 적용했다. 적용 전 `migration list`에서 001~021은 Local·Remote 일치, 022는 Local에만 있었고, `--dry-run`은 `022_publish_path.sql` 하나만 보였다. 적용 후 022도 양쪽에 있다. 실행 전 읽기 전용으로 `fn_publish_issue`·`fn_issue_progress`·`fn_issues_theme_on_publish`·`corner_batches`·`ops_alerts`가 있는 것을 확인했다. 실행 순서는 B -> 트리거 -> A, 도구는 Supabase MCP `execute_sql`. 첫 실행에서 오류는 없었다. 실행 뒤 원격 `issues`·`corners`·`couples`·`dates`·`ops_alerts`는 모두 0행이어서 원격에 쓴 것이 없다.
+
+**A 스크립트 수정 (SCHEMA §9-D-9 r54)**: 치환을 둘로 늘렸다 — ① `public.`→`pg_temp.` ② `SET search_path TO 'public'`→`'pg_temp'`. ②의 원문은 원격 `pg_get_functiondef` 출력에서 읽어 맞췄다. 확인 행은 "남은 `public.` 수"를 빼고 (가)·(나)로 바꿨다. 둘 중 하나라도 실패하면 사본을 실행하지 않고 `STOPPED`를 남긴다. 사본의 원본은 적용된 정의(`pg_get_functiondef`)다.
+
+**B — 권한·설정 (`verify_022_privileges_and_settings.sql`)**
+
+| # | 확인 | 기대 | 실제 | 판정 |
+|---|---|---|---|---|
+| 1 | `fn_publish_issue` 존재 | 1개 | 1개 | OK |
+| 2 | anon 실행 권한 | false | false | OK |
+| 3 | authenticated 실행 권한 | false | false | OK |
+| 4 | service_role 실행 권한 | true | true | OK |
+| 5 | prosecdef (security invoker) | false | false | OK |
+| 6 | proconfig 의 search_path | `search_path=public` 포함 | `search_path=public` | OK |
+| 7 | magazine 버킷 정책 목록 | `magazine_storage_select` (SELECT) 하나 | `magazine_storage_select (SELECT)` | OK |
+| 8 | magazine 버킷 쓰기 정책 수 | 0 | 0 | OK |
+
+`fn_issue_progress` 권한은 §9-D-9 B에 없는 항목이라 확인하지 않았다.
+
+**테마 복사 트리거 (`verify_022_publish_theme_trigger.sql`)**: 원격 `couples`가 0행이어서 `DEFERRED`로 끝났다(실증하지 않음). `48-` C에서 확인한다 — 열린 항목에 있다.
+
+**A — `fn_publish_issue` 논리 (`verify_022_publish_logic_copy.sql`)** — 논리 확인이며 실제 함수의 증명이 아니다
+
+| # | 확인 | 기대 | 판정 |
+|---|---|---|---|
+| 1 | 사본 (가) 다섯 테이블 모두 `pg_temp.` | 빠진 테이블 없음 | OK |
+| 2 | 사본 (나) proconfig | `search_path=pg_temp` | OK |
+| 3 | P1 첫 발행 호출 | no exception | OK |
+| 4 | P1 번호·is_trial | `issue_number=1 is_trial=true published=true` | OK |
+| 5 | P1 코너 상태 | ready->published 2, skipped 유지 1 | OK |
+| 6 | P1 feature_count (date_archive 코너의 날짜만) | `da1=1+ts da2=1+ts da3=0` | OK |
+| 7 | P2 번호 증가·is_trial 해제 | `issue_number=2 is_trial=false` | OK |
+| 8 | P2 feature_count 누적 | `da1=2 da2=1` | OK |
+| 9 | P3 유형별 번호 | `issue_number=1 is_trial=false` | OK |
+| 10 | P4 다른 커플 첫 발행 | `issue_number=1 is_trial=true` | OK |
+| 11 | P4 날짜는 같은 커플 것만 | `db1=1 da3=0` | OK |
+| 12 | E1 이미 발행됨 | `issue … already published` | OK |
+| 13 | E2 없는 호 | `issue … not found` | OK |
+| 14 | E3 커플이 active 아님 | `couple … is not active` | OK |
+| 15 | E4 미해소 경보 | `issue … has an open alert` / published_at null | OK |
+| 16 | E5 ready 코너 없음 | `issue … has no ready corner` | OK |
+| 17 | E4 경보 해소 뒤 발행 | `issue_number=3 is_trial=false` | OK |
+| 18 | 주의 | 논리 확인이며 실제 함수의 증명이 아니다 | NOTE |
+
+실제 함수·FK·RLS·동시 발행 잠금은 `48-` C에서 증명한다.
+
+**타입 재생성 (SCHEMA §9-D-10 r55)**
+- 명령: `npx supabase gen types typescript --linked > src/types/database.ts` (PowerShell)
+- 근거: `.claude/state/prompts/phase-7/23-main-session-dispatch-theme.md:221`, `.claude/state/archive/progress-20260928.md:186`. 출력도 기존 파일과 같은 UTF-8 BOM + CRLF였다.
+- 먼저 scratchpad에 생성해 판정한 뒤 같은 명령으로 실제 경로에 썼다.
+- diff 요약: +108 / −3
+  - 바뀐 줄은 `issues.issue_number` 세 곳뿐: Row `number`→`number | null`, Insert `number`→`?: number | null`, Update `?: number`→`?: number | null` (§9-D-10의 허용 예외)
+  - 추가: 테이블 `corner_batches`·`ops_alerts`(FK 포함), `corners.batch_id`·`llm_usage`(Row·Insert·Update)와 FK `corners_batch_id_fkey`, 함수 `fn_issue_progress`·`fn_publish_issue`
+- 게이트: tsc 0 / functions tsc 0 / jest 986 · 49. 이 변경으로 생긴 tsc 오류는 없다.
 
 ## 입력 조립 (`44-r2`, 2026-10-09, corner-pipeline) - 열린 판단 있음
 

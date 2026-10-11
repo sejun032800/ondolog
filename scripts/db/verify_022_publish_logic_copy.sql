@@ -8,12 +8,14 @@
 -- #  security invoker 의미, 동시 발행 잠금은 증명하지 못한다 -> 48- C.          #
 -- ############################################################################
 --
--- 사본 만드는 법 (손으로 고치지 않는다, 기계적 치환 한 번뿐):
---   pg_get_functiondef('public.fn_publish_issue'::regproc) 의 문자열에서
---   replace(def, 'public.', 'pg_temp.')  -- 이 한 줄이 치환 명령 전부다
---   (sed 로 쓰면 s/public\./pg_temp./g). 아래 do 블록의 v_def 한 줄이 그것이다.
---   원본은 022 본문이 원격에 적용된 결과(함수 정의)다. 치환 뒤 'public.' 가 하나도 남지 않았는지,
---   사본이 pg_temp 테이블을 가리키는지 첫 두 행에서 확인한다.
+-- 사본 만드는 법 (손으로 고치지 않는다, 기계적 치환 둘뿐 — SCHEMA §9-D-9 r54):
+--   원본: pg_get_functiondef('public.fn_publish_issue'::regproc) — 원격에 적용된 정의 그대로
+--   ① replace(def, 'public.', 'pg_temp.')
+--   ② replace(def, 'SET search_path TO ''public''', 'SET search_path TO ''pg_temp''')
+--   아래 do 블록의 v_def 두 줄이 그것이다. ②가 안전장치다 — 접두사 없는 이름이 있어도 실제 public 에 쓰지 않는다.
+--   확인 두 행(실패하면 사본을 실행하지 않고 멈춘다):
+--     (가) 사본 본문에 issues·couples·ops_alerts·corners·dates 다섯이 모두 pg_temp. 로 나오는가
+--     (나) 사본의 proconfig 가 search_path=pg_temp 인가
 --   사본에는 §9-D-4 테마 트리거를 걸지 않는다(테마는 verify_022_publish_theme_trigger.sql 담당).
 --
 -- 쓰기: pg_temp 의 임시 테이블·임시 함수뿐이다. 원격 실제 테이블은 건드리지 않는다
@@ -76,6 +78,8 @@ declare
   v_x     uuid := gen_random_uuid();  -- 없는 id
   v_res   text;
   v_s     text;
+  v_ok    boolean;
+  v_cfg   boolean;
 begin
   if to_regproc('public.fn_publish_issue') is null then
     insert into t_report (check_name, expected, actual, verdict)
@@ -84,16 +88,32 @@ begin
     return;
   end if;
 
-  -- ── 사본 생성: 기계적 치환 한 줄 ──────────────────────────────
-  v_def := replace(pg_get_functiondef('public.fn_publish_issue'::regproc), 'public.', 'pg_temp.');
+  -- ── 사본 생성: 기계적 치환 둘 ─────────────────────────────────
+  v_def := replace(pg_get_functiondef('public.fn_publish_issue'::regproc), 'public.', 'pg_temp.');          -- ①
+  v_def := replace(v_def, 'SET search_path TO ''public''', 'SET search_path TO ''pg_temp''');              -- ②
   execute v_def;
 
-  perform pg_temp.rec('사본: 치환 뒤 남은 public.', '0',
-    (length(v_def) - length(replace(v_def, 'public.', '')))::text,
-    position('public.' in v_def) = 0);
-  perform pg_temp.rec('사본: pg_temp 테이블을 가리킴', 'pg_temp.issues 포함',
-    case when position('pg_temp.issues' in v_def) > 0 then '포함' else '없음' end,
-    position('pg_temp.issues' in v_def) > 0);
+  -- (가) 다섯 테이블이 모두 pg_temp. 로 나오는가
+  select coalesce(string_agg(t, ',' order by t), '')
+    into v_s
+    from unnest(array['issues','couples','ops_alerts','corners','dates']) t
+   where position('pg_temp.' || t in v_def) = 0;
+  perform pg_temp.rec('사본 (가): 다섯 테이블 모두 pg_temp.', '빠진 테이블 없음',
+    case when v_s = '' then '빠진 테이블 없음' else '빠짐: ' || v_s end, v_s = '');
+  v_ok := (v_s = '');
+
+  -- (나) 사본의 proconfig 가 search_path=pg_temp 인가
+  select coalesce(array_to_string(proconfig, ', '), '(없음)'),
+         coalesce('search_path=pg_temp' = any(proconfig), false)
+    into v_s, v_cfg
+    from pg_proc where oid = 'pg_temp.fn_publish_issue(uuid)'::regprocedure;
+  perform pg_temp.rec('사본 (나): proconfig', 'search_path=pg_temp', v_s, v_cfg);
+
+  if not (v_ok and v_cfg) then
+    insert into t_report (check_name, expected, actual, verdict)
+    values ('사본 실행', '(가)·(나) 통과 뒤 실행', '확인 실패 - 사본을 실행하지 않고 멈춘다', 'STOPPED');
+    return;
+  end if;
 
   -- ── 픽스처(임시 테이블에만) ───────────────────────────────────
   insert into pg_temp.couples (id, user_a_id, invite_code, status) values

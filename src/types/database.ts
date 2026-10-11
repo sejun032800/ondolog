@@ -60,8 +60,36 @@ export type Database = {
         }
         Relationships: []
       }
+      corner_batches: {
+        Row: {
+          ended_at: string | null
+          id: string
+          provider_batch_id: string
+          request_count: number
+          status: string
+          submitted_at: string
+        }
+        Insert: {
+          ended_at?: string | null
+          id?: string
+          provider_batch_id: string
+          request_count: number
+          status?: string
+          submitted_at?: string
+        }
+        Update: {
+          ended_at?: string | null
+          id?: string
+          provider_batch_id?: string
+          request_count?: number
+          status?: string
+          submitted_at?: string
+        }
+        Relationships: []
+      }
       corners: {
         Row: {
+          batch_id: string | null
           content: Json
           corner_type: Database["public"]["Enums"]["corner_type"]
           couple_id: string
@@ -71,6 +99,7 @@ export type Database = {
           id: string
           issue_id: string | null
           last_error: string | null
+          llm_usage: Json | null
           period_end: string
           period_start: string
           seq: number | null
@@ -82,6 +111,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          batch_id?: string | null
           content?: Json
           corner_type: Database["public"]["Enums"]["corner_type"]
           couple_id: string
@@ -91,6 +121,7 @@ export type Database = {
           id?: string
           issue_id?: string | null
           last_error?: string | null
+          llm_usage?: Json | null
           period_end: string
           period_start: string
           seq?: number | null
@@ -102,6 +133,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          batch_id?: string | null
           content?: Json
           corner_type?: Database["public"]["Enums"]["corner_type"]
           couple_id?: string
@@ -111,6 +143,7 @@ export type Database = {
           id?: string
           issue_id?: string | null
           last_error?: string | null
+          llm_usage?: Json | null
           period_end?: string
           period_start?: string
           seq?: number | null
@@ -122,6 +155,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "corners_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "corner_batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "corners_couple_id_fkey"
             columns: ["couple_id"]
@@ -621,7 +661,7 @@ export type Database = {
           created_at: string
           id: string
           is_trial: boolean
-          issue_number: number
+          issue_number: number | null
           issue_type: Database["public"]["Enums"]["issue_type"]
           page_count: number | null
           pdf_digital_path: string | null
@@ -640,7 +680,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_trial?: boolean
-          issue_number: number
+          issue_number?: number | null
           issue_type: Database["public"]["Enums"]["issue_type"]
           page_count?: number | null
           pdf_digital_path?: string | null
@@ -659,7 +699,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_trial?: boolean
-          issue_number?: number
+          issue_number?: number | null
           issue_type?: Database["public"]["Enums"]["issue_type"]
           page_count?: number | null
           pdf_digital_path?: string | null
@@ -818,6 +858,58 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_alerts: {
+        Row: {
+          couple_id: string | null
+          created_at: string
+          detail: Json
+          id: string
+          issue_id: string | null
+          kind: string
+          resolved_at: string | null
+        }
+        Insert: {
+          couple_id?: string | null
+          created_at?: string
+          detail?: Json
+          id?: string
+          issue_id?: string | null
+          kind: string
+          resolved_at?: string | null
+        }
+        Update: {
+          couple_id?: string | null
+          created_at?: string
+          detail?: Json
+          id?: string
+          issue_id?: string | null
+          kind?: string
+          resolved_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_alerts_couple_id_fkey"
+            columns: ["couple_id"]
+            isOneToOne: false
+            referencedRelation: "couples"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_alerts_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_alerts_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues_public"
             referencedColumns: ["id"]
           },
         ]
@@ -1296,6 +1388,19 @@ export type Database = {
         Returns: undefined
       }
       expire_stories: { Args: never; Returns: number }
+      fn_issue_progress: {
+        Args: never
+        Returns: {
+          corner_type: Database["public"]["Enums"]["corner_type"]
+          issue_id: string
+          issue_type: Database["public"]["Enums"]["issue_type"]
+          period_end: string
+          period_start: string
+          skip_reason: string
+          status: Database["public"]["Enums"]["corner_status"]
+        }[]
+      }
+      fn_publish_issue: { Args: { p_issue_id: string }; Returns: undefined }
       is_couple_member: { Args: { p_couple_id: string }; Returns: boolean }
       is_entry_visible: {
         Args: { p_access_locked: boolean; p_couple_id: string }

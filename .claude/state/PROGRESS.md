@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-11 (메인 세션, `47b` 실행): 022 원격 적용(`db push`, migration list에서 022 Local·Remote 일치). 실증 B 8행·A 17행 모두 통과, 테마 트리거는 원격 couples 0행이라 `DEFERRED` -> `48-` C로 미룸. A 스크립트를 §9-D-9 r54대로 수정(치환 둘·확인 행 (가)(나)). `src/types/database.ts` 재생성(§9-D-10, 변경은 `issues.issue_number` Row·Insert·Update 세 곳뿐, 나머지 추가). 게이트 0 / 0 / 986 · 49. 상세는 HANDOFF "022 적용·실증 결과 (`47b` 실행)" 절. 미커밋
+
 2026-10-11 (db-architect, `47b`): 022 실증 스크립트 3종 작성 - `scripts/db/verify_022_publish_theme_trigger.sql`(수정, 진짜 함수를 임시 테이블에·실제 couples 읽기) · `verify_022_publish_logic_copy.sql`(pg_temp 사본, 논리 확인) · `verify_022_privileges_and_settings.sql`(읽기 전용). **작성만, 원격 미실행.** 코드 무변경이라 게이트 미실행. 상세·열린 판단은 HANDOFF `47b` 절. 미커밋
 
 2026-10-11 (db-architect, `47`): 발행 경로 마이그레이션 `022_publish_path.sql` 작성(SCHEMA §9-D 1~8 그대로, 015 `magazine_storage_insert` 삭제, UPDATE·DELETE 정책은 저장소에 없음) + 테마 트리거 실증 SQL `scripts/db/verify_022_publish_theme_trigger.sql`. **원격 미적용·미실행**(적용 전 관문·적용·실증은 사람). 코드 무변경이라 게이트 미실행. 상세·`fn_publish_issue` 실증 제안은 HANDOFF `47` 절. 미커밋
