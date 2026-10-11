@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-11 (db-architect, `47`): 발행 경로 마이그레이션 `022_publish_path.sql` 작성(SCHEMA §9-D 1~8 그대로, 015 `magazine_storage_insert` 삭제, UPDATE·DELETE 정책은 저장소에 없음) + 테마 트리거 실증 SQL `scripts/db/verify_022_publish_theme_trigger.sql`. **원격 미적용·미실행**(적용 전 관문·적용·실증은 사람). 코드 무변경이라 게이트 미실행. 상세·`fn_publish_issue` 실증 제안은 HANDOFF `47` 절. 미커밋
+
 2026-10-09 (corner-pipeline, `46`): 발행 경로 설계 보고 - 코드·마이그레이션·docs 변경 없음, DB·외부 API 접속 없음. 흐름 P0~P8·발행 성공 정의·ROADMAP 11항목 매핑·마이그레이션·사람 작업·질문 Q1~Q17·문서 어긋남 D1~D7은 HANDOFF `46` 절. 17-4 첫 턴 표기 확인: 고른다(`sweetWords.ts` `deriveFor`, 시험 `sweetWords.test.ts` 163행·388행). 게이트 미실행(코드 무변경). 미커밋
 
 2026-10-09 (corner-pipeline, `45`): 입력 조립 후속(r50) - 후보 4가 크기 없는 사진을 세지 않게 한 줄 수정(`inputAssembly.ts`), `kstDisplayStamp`(`— ` 없음·두 자리)와 잠긴 건수 범위(이번 기간만)는 확인 결과 이미 r50과 같아 코드 무변경·시험만 추가. 게이트 tsc 0 / tsc(functions) 0 / jest 986·49 (기준 983·49). 미커밋

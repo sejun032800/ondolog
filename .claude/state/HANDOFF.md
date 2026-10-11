@@ -23,6 +23,52 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 루트 `include`가 `docs/`의 `.ts`까지 먹음 | 알려진 제약 | `tsconfig.json`의 `include` |
 | `TYPE_AFFINITY_ENGINE_VERSION` 도입 + 산출 시 기록 | 미구현 | `docs/ONDOLOG_MASTER.md` §10-7-5 |
 | 발행 경로 설계 | 보고 완료(`46`), 승인 대기. 질문 Q1~Q17·문서 어긋남 D1~D7 | 이 파일 "발행 경로 설계 보고 (`46`)" 절 |
+| 발행 경로 마이그레이션 `022_publish_path.sql` | 작성 완료(`47`), **원격 미적용**. 적용 전 관문 쿼리·적용·실증은 사람 | 이 파일 "발행 경로 마이그레이션 (`47`)" 절 |
+
+## 발행 경로 마이그레이션 (`47`, 2026-10-11, db-architect) - 작성만, 원격 미적용
+
+근거는 SCHEMA §9-D(9-D-1~8)뿐. 원격 DB 접속·DDL·DML 없음(저장소 안 파일만 읽음). 커밋 없음.
+
+**산출물**: `supabase/migrations/022_publish_path.sql`(001~021 다음 번호), `scripts/db/verify_022_publish_theme_trigger.sql`(실증 SQL, 021 때의 `scripts/db/verify_021_theme_trigger.sql` 옆).
+
+**1. §9-D가 참조하는 기존 객체 - 전부 있음, 이름·타입 일치 (멈춤 조건 해당 없음)**
+
+| 객체 | 위치 |
+|---|---|
+| `issues.issue_number integer not null check (>0)` · `is_trial boolean` · `published_at timestamptz` · `period_start date` · `couple_id` | 009 |
+| `issues.theme text not null default 'basic'` · `couples.magazine_theme text` | 021 |
+| 기존 `unique (couple_id, issue_type, issue_number)` (이름 없는 인라인, 자동 명명) | 009 |
+| `couples.status couple_status` (값 `active` 있음) | 005 · 002 |
+| `corners.source_date_ids uuid[]` · `skip_reason text` · `generation_attempts smallint not null default 0` · `status corner_status` · `corner_type` (값 `date_archive` 있음) · `issue_id` | 009 · 002 |
+| enum `issue_type` · `corner_type` · `corner_status` (값 `ready`·`published` 있음) | 002 |
+| `dates.last_featured_at timestamptz` · `feature_count integer not null default 0` | 006 |
+| `public.is_couple_member(uuid) returns boolean` | 011 |
+| `public.fn_issues_theme_immutable()` · `tg_issues_theme_immutable` | 021 |
+| 새로 만드는 이름(`corner_batches`·`ops_alerts`·`uq_issues_period`·`chk_*`·`fn_publish_issue`·`fn_issue_progress`·`fn_issues_theme_on_publish`·`batch_id`·`llm_usage`)과 겹치는 기존 정의 | 없음 (migrations·`src/types` grep) |
+
+**2. `magazine` 버킷 정책 (015)**
+
+- 73행 `magazine_storage_select` (SELECT, authenticated): `bucket_id = 'magazine' and public.is_couple_member(((storage.foldername(name))[1])::uuid)` - **유지**.
+- 80행 `magazine_storage_insert` (INSERT, authenticated): `with check ( bucket_id = 'magazine' and public.is_couple_member(((storage.foldername(name))[1])::uuid) )` - **022에서 `drop policy if exists`로 삭제** (§9-D-8).
+- UPDATE·DELETE 정책: **저장소 어디에도 없음**(015 이후 019도 avatars만). 지운 것 없음. 단 원격이 저장소와 같은지는 확인 못 했다 - 적용 후 `select policyname, cmd from pg_policies where schemaname='storage' and tablename='objects' and policyname like 'magazine%'`로 SELECT 하나만 남는지 본다.
+
+**순서를 바꾼 곳**: 없음. §9-D-1~8 순서 그대로(`ops_alerts`가 `fn_publish_issue`보다 먼저). 더한 객체·제약·인덱스·권한 없음. `drop policy`에 `if exists`만 붙임(원격에 이미 없어도 적용이 실패하지 않게).
+
+**알려둘 것**
+- `corner_batches`·`ops_alerts`는 RLS만 켜고 정책이 없다. §9-D-2·5가 정한 대로 service_role 전용이며, 절대 규칙 5의 "정책 함께 작성"은 deny-by-default로 충족한다(`magazine-print`·`avatars` 선례).
+- `fn_publish_issue`는 §9-D-6대로 `security invoker`. HANDOFF `46` 절의 "security definer" 권고와 다르다 - SCHEMA가 원본이라 SCHEMA대로 썼다. service_role이 부르므로 RLS를 우회해 동작한다.
+- 적용 전 관문 두 쿼리(§9-D 머리)는 파일에 없다. 적용 직전에 사람이 돌린다(둘 다 0).
+
+**4. 테마 트리거 실증 SQL** - `scripts/db/verify_022_publish_theme_trigger.sql`. 실행은 적용 후 사람이.
+함수가 `public.couples`를 스키마 한정으로 읽어서 임시 테이블로는 못 가리킨다. 그래서 `pg_get_functiondef`로 **실제 함수 정의를 읽어 `public.couples`만 `pg_temp.t_couples`로 치환**해 임시 함수로 만들고(로직은 원본 그대로), `t_issues`에 immutable 트리거(실제 함수)와 함께 이름 순서대로 건다. 보는 것: (a) 초안 행에 `published_at`을 채우면 `theme` = 그 커플의 `magazine_theme`(`lovely`), 초안으로 남긴 행은 `basic` (b) 발행된 행의 `theme` 변경은 예외(id `...0002`). **이 SQL은 실행해 보지 못했다** - 특히 `pg_temp` 함수를 임시 테이블 트리거에 거는 부분이 첫 실행에서 막힐 수 있다. 막히면 대안: 원격 `public.couples`에 행이 하나라도 있으면 그 `id`를 `couple_id`로 써서 실제 함수를 그대로 건다(읽기만 하므로 `couples`는 바뀌지 않는다).
+
+**5. `fn_publish_issue` 실증 방법 제안 (실행하지 않음)** - 사람이 정한다.
+- **A (권장, 원격 `auth.users` 불필요)**: 4와 같은 치환을 확장. `create temp table t_issues (like public.issues including all)`(CHECK·UNIQUE 포함 복사, FK·트리거는 안 따라옴)와 `t_couples`·`t_corners`·`t_dates`·`t_ops_alerts`를 만들고, `pg_get_functiondef`로 읽은 함수 문자열에서 `public.`을 `pg_temp.`로, `set search_path = public`을 `set search_path = pg_temp, public`으로 치환해 임시 함수 생성. 두 테마 트리거도 `t_issues`에 건다. 한 파일, 세션 종료 시 사라짐. 사례: (1) 정상 발행 - 번호 1, `is_trial` true, 코너 `ready`->`published`, `date_archive` 코너의 `source_date_ids`에 든 데이트만 `feature_count`+1·`last_featured_at` 갱신, `theme` 복사 (2) 같은 커플 두 번째 호 - 번호 2, `is_trial` false (3) 다른 `issue_type`은 번호 따로 (4) 예외 4종: 이미 발행됨 / 열린 경보 / `ready` 코너 없음 / 커플이 `active` 아님 / 없는 id (5) 경보 `resolved_at`이 있으면 통과. 못 보는 것: 진짜 FK, 진짜 RLS·권한, 행 잠금의 동시성.
+- **B (권한만, 읽기 전용)**: 적용 후 `select has_function_privilege('anon'|'authenticated'|'service_role', 'public.fn_publish_issue(uuid)', 'execute')` -> false·false·true, `fn_issue_progress`는 anon false, authenticated true. `pg_proc.prosecdef`(발행 false, 진행 true)·`proconfig`(`search_path=public`).
+- **C (가장 충실, 원격 밖)**: 로컬 `supabase start`(Docker) 또는 Supabase 브랜치에 001~022를 적용하고 실제 `auth.users`부터 픽스처를 넣어 동시 발행(두 세션)까지 본다. 원격 운영 DB는 건드리지 않지만 도구 준비가 필요하다.
+- 추천: A + B를 적용 직후, C는 발행 Edge Function 통합 시험 때.
+
+**사람이 할 일(순서)**: 관문 쿼리 2개 -> `022` 적용 -> `verify_022_publish_theme_trigger.sql` 실행 -> B -> 정책 확인 쿼리 -> `src/types/database.ts` 재생성(이번 작업에서는 손대지 않음).
 
 ## 입력 조립 (`44-r2`, 2026-10-09, corner-pipeline) - 열린 판단 있음
 
