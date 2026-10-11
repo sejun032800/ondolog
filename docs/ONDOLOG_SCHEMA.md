@@ -1287,7 +1287,10 @@ create trigger tg_issues_theme_immutable
 `issues.theme`는 과거 호의 재현성을 지키는 값이다. 규칙이 코드에만 있으면 운영자의 수동
 UPDATE 하나로 깨진다.
 
-**발행 전(`published_at is null`)에는 바뀔 수 있다.** 제작 현황에서 테마를 고르는 것이 그 구간이다.
+**발행 전(`published_at is null`)에는 바뀔 수 있다.** ~~제작 현황에서 테마를 고르는 것이 그 구간이다.~~
+**(r52 정정, D4)** 유저가 고른 테마는 **`couples.magazine_theme` 한 곳에만** 저장한다. 제작 현황의
+선택도 그 컬럼에 쓴다. 초안의 `issues.theme`는 의미가 없고, 발행 순간 §9-C-7 트리거가 채운다.
+두 곳에 저장하면 발행 트리거가 초안 값을 덮어써 유저가 고른 값과 결과가 갈린다.
 
 ### 9-C-4. `issues_public` 뷰 재생성
 
@@ -1357,6 +1360,8 @@ SQL 실행기가 문장마다 자동 커밋하면 픽스처가 원격에 남는�
 
 ### 9-C-7. 미적용 — 발행 시 테마 복사 (Phase 7 발행 묶음)
 
+> **전체 DDL은 §9-D-4가 원본이다 (r52).** 아래는 결정의 근거로 남긴다.
+
 **`published_at`이 null에서 값으로 바뀌는 UPDATE에서 `theme`를 `couples.magazine_theme`로 채운다.
 DB 트리거로 둔다.**
 
@@ -1388,6 +1393,253 @@ end if;
 **Phase 9 완료 기준에 넣는다.** `magazine_theme` 컬럼에 대한 직접 UPDATE를 회수하고, 구독 자격을
 확인하는 `security definer` 함수로만 쓰게 한다. **Phase 9 완료 전에는 공개 배포하지 않는다** — 이
 구멍이 열린 채 출시되면 유료 기능이 무료가 된다.
+
+---
+
+## 9-D. 발행 경로 (미적용 — Phase 7 발행 묶음, MASTER §17-0-10)
+
+**한 마이그레이션으로 묶는다.** 번호는 예약하지 않으며 만들 때의 다음 번호를 쓴다. `db-architect`가
+이 절만 근거로 작성하고, 적용은 사람이 확인한 뒤에 한다.
+
+**적용 전 확인 (기록이 아니라 관문).** 아래 CHECK를 걸기 전에 위반 행이 0인지 본다.
+
+```sql
+select count(*) from public.corners
+ where skip_reason is not null
+   and skip_reason not in ('insufficient_input','generation_failed','schema_invalid','forbidden_content');
+-- 0 이어야 한다
+select count(*) from public.corners where generation_attempts not between 0 and 3;
+-- 0 이어야 한다
+```
+
+### 9-D-1. `issues` — 번호는 발행할 때, 초안은 기간당 하나
+
+```sql
+alter table public.issues alter column issue_number drop not null;
+
+alter table public.issues add constraint chk_issue_number_published
+  check (published_at is null or issue_number is not null);
+
+alter table public.issues add constraint uq_issues_period
+  unique (couple_id, issue_type, period_start);
+```
+
+**초안에는 번호가 없다.** 확인하지 않은 초안이 서재 번호에 구멍을 만들지 않게 한다. 기존
+`unique (couple_id, issue_type, issue_number)`는 null을 여럿 허용하므로 그대로 둔다.
+**`uq_issues_period`가 P0의 멱등성을 보장한다** — 스케줄이 두 번 돌아도 같은 기간 초안은 하나다.
+
+### 9-D-2. 배치 추적 · 사용량
+
+```sql
+create table public.corner_batches (
+  id                 uuid primary key default gen_random_uuid(),
+  provider_batch_id  text not null unique,
+  status             text not null default 'in_progress'
+                       check (status in ('in_progress', 'ended')),
+  request_count      integer not null check (request_count > 0),
+  submitted_at       timestamptz not null default now(),
+  ended_at           timestamptz
+);
+
+alter table public.corner_batches enable row level security;   -- 정책 없음 = service_role 전용
+
+alter table public.corners
+  add column batch_id  uuid references public.corner_batches(id) on delete set null,
+  add column llm_usage jsonb;
+
+create index idx_corners_batch on public.corners (batch_id) where batch_id is not null;
+
+comment on column public.corners.llm_usage is
+  '마지막 요청의 사용량(입력·출력·캐시 읽기·캐시 쓰기 토큰). 캐시 적중 실측과 usage_over 경보의 근거.';
+```
+
+**배치 요청의 `custom_id`는 `corners.id`다.** 결과는 요청 순서를 보장하지 않으므로 이 값으로만
+짝짓는다. 제출에 실패한 배치는 행을 만들지 않는다(`provider_batch_id`가 없으므로).
+
+### 9-D-3. `corners` — 실패 사유 CHECK, 요청 상한
+
+```sql
+alter table public.corners add constraint chk_corner_skip_reason
+  check (skip_reason is null or skip_reason in
+    ('insufficient_input', 'generation_failed', 'schema_invalid', 'forbidden_content'));
+
+alter table public.corners add constraint chk_corner_attempts
+  check (generation_attempts between 0 and 3);
+
+comment on column public.corners.skip_reason is
+  '실패 사유 4값(MASTER 17-0-5). insufficient_input이면 status=skipped, 나머지는 failed.';
+comment on column public.corners.generation_attempts is
+  '이 코너에 보낸 LLM 요청 수(누적, 라운드 포함). 상한 3은 제출 단계의 조건부 UPDATE와 이 CHECK가 강제한다.';
+```
+
+**제출 단계의 조건부 갱신** (예산의 단일 지점, MASTER §17-0-10-C):
+
+```sql
+update public.corners
+   set generation_attempts = generation_attempts + 1, status = 'generating'
+ where id = any($1) and generation_attempts < 3
+returning id;
+-- 돌려받은 id만 배치에 넣는다
+```
+
+### 9-D-4. 발행 시 테마 복사 트리거 (§9-C-7의 전체 DDL)
+
+```sql
+create or replace function public.fn_issues_theme_on_publish()
+returns trigger language plpgsql as $$
+begin
+  if old.published_at is null and new.published_at is not null then
+    new.theme := (select magazine_theme from public.couples where id = new.couple_id);
+  end if;
+  return new;
+end;
+$$;
+
+create trigger tg_issues_theme_on_publish
+  before update on public.issues
+  for each row execute function public.fn_issues_theme_on_publish();
+```
+
+**불변 트리거와 충돌하지 않는다.** `tg_issues_theme_immutable`은 `old.published_at is not null`만
+막는다. 발행 전이 행에서 `old.published_at`은 null이므로 통과하고, 이 트리거가 값을 채운다. 같은
+시점의 BEFORE 트리거는 이름 순으로 돌고(`immutable` → `on_publish`), 순서가 바뀌어도 결과는 같다.
+
+**실증은 §9-C-6과 같은 방식(임시 테이블)으로 한다.** 초안 행의 `published_at`을 채우면 `theme`가
+그 커플의 `magazine_theme`가 되는지, 발행된 행의 `theme`를 바꾸면 예외인지 둘 다 본다.
+
+### 9-D-5. 운영 경보
+
+```sql
+create table public.ops_alerts (
+  id           uuid primary key default gen_random_uuid(),
+  kind         text not null check (kind in ('couple_membership', 'usage_over')),
+  couple_id    uuid references public.couples(id) on delete cascade,
+  issue_id     uuid references public.issues(id)  on delete cascade,
+  detail       jsonb not null default '{}'::jsonb,
+  created_at   timestamptz not null default now(),
+  resolved_at  timestamptz
+);
+
+create index idx_ops_alerts_open on public.ops_alerts (issue_id) where resolved_at is null;
+
+alter table public.ops_alerts enable row level security;   -- 정책 없음 = service_role 전용
+
+comment on column public.ops_alerts.detail is
+  'ID만 담는다. 채팅 원문·이름·사진 경로를 넣지 않는다.';
+```
+
+### 9-D-6. 발행 확정 함수
+
+```sql
+create or replace function public.fn_publish_issue(p_issue_id uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_issue  public.issues%rowtype;
+  v_next   integer;
+  v_trial  boolean;
+begin
+  select * into v_issue from public.issues where id = p_issue_id for update;
+  if not found then
+    raise exception 'issue % not found', p_issue_id;
+  end if;
+
+  -- 같은 커플의 동시 발행이 같은 번호를 받지 않게 커플 행을 잠근다
+  perform 1 from public.couples
+   where id = v_issue.couple_id and status = 'active' for update;
+  if not found then
+    raise exception 'couple % is not active', v_issue.couple_id;
+  end if;
+
+  if v_issue.published_at is not null then
+    raise exception 'issue % already published', p_issue_id;
+  end if;
+  if exists (select 1 from public.ops_alerts
+              where issue_id = p_issue_id and resolved_at is null) then
+    raise exception 'issue % has an open alert', p_issue_id;
+  end if;
+  if not exists (select 1 from public.corners
+                  where issue_id = p_issue_id and status = 'ready') then
+    raise exception 'issue % has no ready corner', p_issue_id;
+  end if;
+
+  select coalesce(max(issue_number), 0) + 1 into v_next
+    from public.issues
+   where couple_id = v_issue.couple_id and issue_type = v_issue.issue_type
+     and published_at is not null;
+
+  select not exists (select 1 from public.issues
+                      where couple_id = v_issue.couple_id and published_at is not null)
+    into v_trial;
+
+  update public.corners set status = 'published'
+   where issue_id = p_issue_id and status = 'ready';
+
+  update public.dates d
+     set last_featured_at = now(), feature_count = d.feature_count + 1
+   where d.couple_id = v_issue.couple_id
+     and d.id in (select unnest(c.source_date_ids) from public.corners c
+                   where c.issue_id = p_issue_id
+                     and c.corner_type = 'date_archive'
+                     and c.status = 'published');
+
+  update public.issues
+     set issue_number = v_next, is_trial = v_trial, published_at = now()
+   where id = p_issue_id;           -- §9-D-4 트리거가 theme를 채운다
+end;
+$$;
+
+revoke all on function public.fn_publish_issue(uuid) from public, anon, authenticated;
+```
+
+**`now()`는 트랜잭션 시작 시각이라 한 호 안의 모든 쓰기가 같은 시각을 갖는다.** `last_featured_at`과
+`published_at`이 같아진다(MASTER §17-0-10-E).
+
+**클라이언트가 직접 부르지 못한다.** 미디어 복제(Storage 작업)가 먼저 끝나야 하므로 발행 Edge
+Function만 service_role로 부른다. 실증은 픽스처가 필요하므로 db-architect가 방법을 제안하고
+(§9-C-6처럼 원격 `auth.users`를 건드리지 않는 방식) 사람이 정한다.
+
+### 9-D-7. 초안 진행 상황 RPC
+
+```sql
+create or replace function public.fn_issue_progress()
+returns table (
+  issue_id     uuid,
+  issue_type   issue_type,
+  period_start date,
+  period_end   date,
+  corner_type  corner_type,
+  status       corner_status,
+  skip_reason  text
+)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select i.id, i.issue_type, i.period_start, i.period_end,
+         c.corner_type, c.status, c.skip_reason
+    from public.issues i
+    join public.corners c on c.issue_id = i.id
+   where i.published_at is null
+     and public.is_couple_member(i.couple_id);
+$$;
+
+revoke all on function public.fn_issue_progress() from public, anon;
+grant execute on function public.fn_issue_progress() to authenticated;
+```
+
+**`content`를 돌려주지 않는다.** `corners_select`(published만)는 그대로 둔다.
+
+### 9-D-8. `magazine` 버킷 — 클라이언트 쓰기 없음
+
+**`magazine` 버킷은 동결 산출물이다(MASTER 8-3).** 클라이언트에는 SELECT(커플 구성원)만 두고
+INSERT·UPDATE·DELETE 정책을 두지 않는다. 쓰기는 발행 Edge Function(service_role)만 한다.
+**015에 `magazine`의 구성원 INSERT 정책이 있으면 이 마이그레이션에서 지운다** — 있으면 유저가 발행물
+경로에 파일을 올리거나 덮어쓸 수 있다. db-architect가 015를 읽어 확인한다.
 
 ---
 
@@ -1953,6 +2205,9 @@ supabase/migrations/
 │
 ├── 021_app_ui_theme.sql                -- magazine_theme · issues.theme · dates.sky_color (§9-C)
 │                                       --   issues_public 뷰 재생성, pdf_profiles.scale 제거
+├── (다음 번호)_publish_path.sql        -- 발행 경로 (§9-D, 미적용): issues 번호·유일성,
+│                                       --   corner_batches, skip_reason CHECK, 테마 복사 트리거,
+│                                       --   ops_alerts, fn_publish_issue, fn_issue_progress
 │
 │   ── Phase 2 확장 (미착수) ──
 └── (번호 미정)_phase2_corners.sql     -- interview_*, guest_* (§9-B)
