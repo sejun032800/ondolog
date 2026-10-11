@@ -1396,7 +1396,7 @@ end if;
 
 ---
 
-## 9-D. 발행 경로 (미적용 — Phase 7 발행 묶음, MASTER §17-0-10)
+## 9-D. 발행 경로 (마이그레이션 022, 2026-10-11 원격 적용 — MASTER §17-0-10)
 
 **한 마이그레이션으로 묶는다.** 번호는 예약하지 않으며 만들 때의 다음 번호를 쓴다. `db-architect`가
 이 절만 근거로 작성하고, 적용은 사람이 확인한 뒤에 한다.
@@ -1652,7 +1652,7 @@ INSERT·UPDATE·DELETE 정책을 두지 않는다. 쓰기는 발행 Edge Functio
 | 위 — 원격 `couples`가 0행일 때 | `48-` | C로 미룬다. **임시 `couples`를 만들어 함수 사본을 거는 방식은 쓰지 않는다** — 사본을 시험하는 것은 실제 함수의 증명이 아니다 | — |
 | `fn_publish_issue` 논리 | 적용 직후 | A: 임시 테이블 + `pg_temp` 사본. **사본은 원격에 적용된 정의(`pg_get_functiondef`)에서 기계적 치환으로만 만든다** (r54 정정 — 022 파일보다 실제로 걸린 함수에 가깝다). 치환은 둘: ① `public.`→`pg_temp.` ② `SET search_path`의 `public`→`pg_temp`. **②가 안전장치다** — 사본은 쓰기를 하므로, 접두사 없는 이름이 하나라도 있으면 실제 `public` 테이블에 쓴다. 치환 명령을 스크립트에 남기고, 손으로 고친 사본은 금지 | 분기·번호·`is_trial`·`feature_count` 논리. **실제 함수의 증명은 아니다** |
 | 권한·설정 | 적용 직후 | B: `has_function_privilege`(anon·authenticated 불가, service_role 가능), `pg_proc.prosecdef = false`, `proconfig`의 `search_path`, `magazine` 버킷 정책이 SELECT 하나만 남았는지 | 022가 의도대로 걸렸음 |
-| 전체 | **`48-` 완료 기준** | C: 로컬 `supabase start` 또는 브랜치에 전체 픽스처. FK·RLS·동시 발행 잠금(같은 커플 두 호 동시 발행 → 번호 1·2) 포함 | 실제 함수의 증명 |
+| 전체 | **`48-` 완료 기준** | C: **로컬 `supabase start`**(r56 확정 — 브랜치는 쓰지 않는다)에 전체 픽스처. 이번에 미룬 테마 트리거 실증(원격 `couples` 0행)도 여기서 한다. FK·RLS·동시 발행 잠금(같은 커플 두 호 동시 발행 → 번호 1·2) 포함 | 실제 함수의 증명 |
 
 **발행 Edge Function을 유저에게 여는 것은 C 통과 뒤다.**
 
@@ -2239,7 +2239,7 @@ supabase/migrations/
 │
 ├── 021_app_ui_theme.sql                -- magazine_theme · issues.theme · dates.sky_color (§9-C)
 │                                       --   issues_public 뷰 재생성, pdf_profiles.scale 제거
-├── (다음 번호)_publish_path.sql        -- 발행 경로 (§9-D, 미적용): issues 번호·유일성,
+├── 022_publish_path.sql                -- 발행 경로 (§9-D, 적용됨): issues 번호·유일성,
 │                                       --   corner_batches, skip_reason CHECK, 테마 복사 트리거,
 │                                       --   ops_alerts, fn_publish_issue, fn_issue_progress
 │

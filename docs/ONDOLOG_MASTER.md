@@ -8,7 +8,7 @@
 ## 개정 마커
 
 ```
-DOC_REVISION: 2026-10-11-r55
+DOC_REVISION: 2026-10-11-r56
 ```
 
 **이 블록 하나로 저장소 반영 여부를 확인한다.** 위임 전 사전 점검에서
@@ -35,6 +35,7 @@ Select-String -Path docs/ONDOLOG_MASTER.md -Pattern 'DOC_REVISION: <PM이 알려
 |---|---|
 | **17-0** | **코너 생성 파이프라인 규격 신설 — 층 구분·실패 사유·발행 바닥선 (r15). r16: 규칙 D 재정의, 브랜드 생성 함수 배치 계약 추가** |
 | **Part 9-7-3** | **결제와 발행을 한 버튼에 묶지 않는다. 발행 전 확인 단계 필수 (r29)** |
+| **17-0-10** | **r56: 022 원격 적용·실증(B·A) 완료. C는 로컬 `supabase start`** |
 | **17-0-10** | **r55: 타입 재생성 예외를 `issue_number`의 Row·Insert·Update로 정정. 생성 명령은 기존 것 그대로** |
 | **17-0-10** | **r54: A 사본은 적용된 정의에서, search_path도 pg_temp로. 타입 재생성의 허용 변경은 `issue_number` null 하나** |
 | **17-0-10** | **r53: `fn_publish_issue`는 security invoker(P의 핵심은 한 트랜잭션이지 권한 모드가 아님). 실증 방식 확정** |
