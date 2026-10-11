@@ -1603,21 +1603,6 @@ Function만 service_role로 부른다.
 
 **`security invoker`가 맞다 (r53 확정).** 근거는 MASTER §17-0-10-E. definer로 바꾸지 않는다.
 
-### 9-D-9. 실증 방식 (r53 확정)
-
-**원격에는 픽스처를 쓰지 않는다.** 원격 실제 행은 **읽기만** 한다.
-
-| 대상 | 시점 | 방식 | 증명하는 것 |
-|---|---|---|---|
-| 테마 복사 트리거 | 적용 직후 | **진짜 `public.fn_issues_theme_on_publish`**를 `like public.issues` 임시 테이블에 건다(§9-C-6과 같음). `couple_id`는 **원격 `couples` 실제 행의 id를 읽어서** 쓴다. 초안 행의 `theme`를 그 커플의 `magazine_theme`와 **다른 값**으로 먼저 넣고 `published_at`을 채운다 → 커플 값으로 바뀌어야 한다. 이어 발행된 행의 `theme` 변경 → 예외 | 실제 함수가 실제 커플 값을 복사함 |
-| 위 — 원격 `couples`가 0행일 때 | `48-` | C로 미룬다. **임시 `couples`를 만들어 함수 사본을 거는 방식은 쓰지 않는다** — 사본을 시험하는 것은 실제 함수의 증명이 아니다 | — |
-| `fn_publish_issue` 논리 | 적용 직후 | A: 임시 테이블 + `pg_temp` 사본. **사본은 022 본문에서 `public.`→`pg_temp.` 기계적 치환으로만 만들고 치환 명령을 스크립트에 남긴다**(손으로 고친 사본 금지) | 분기·번호·`is_trial`·`feature_count` 논리. **실제 함수의 증명은 아니다** |
-| 권한·설정 | 적용 직후 | B: `has_function_privilege`(anon·authenticated 불가, service_role 가능), `pg_proc.prosecdef = false`, `proconfig`의 `search_path`, `magazine` 버킷 정책이 SELECT 하나만 남았는지 | 022가 의도대로 걸렸음 |
-| 전체 | **`48-` 완료 기준** | C: 로컬 `supabase start` 또는 브랜치에 전체 픽스처. FK·RLS·동시 발행 잠금(같은 커플 두 호 동시 발행 → 번호 1·2) 포함 | 실제 함수의 증명 |
-
-**발행 Edge Function을 유저에게 여는 것은 C 통과 뒤다.**
-
-
 ### 9-D-7. 초안 진행 상황 RPC
 
 ```sql
@@ -1656,6 +1641,39 @@ grant execute on function public.fn_issue_progress() to authenticated;
 INSERT·UPDATE·DELETE 정책을 두지 않는다. 쓰기는 발행 Edge Function(service_role)만 한다.
 **015에 `magazine`의 구성원 INSERT 정책이 있으면 이 마이그레이션에서 지운다** — 있으면 유저가 발행물
 경로에 파일을 올리거나 덮어쓸 수 있다. db-architect가 015를 읽어 확인한다.
+
+### 9-D-9. 실증 방식 (r53 확정)
+
+**원격에는 픽스처를 쓰지 않는다.** 원격 실제 행은 **읽기만** 한다.
+
+| 대상 | 시점 | 방식 | 증명하는 것 |
+|---|---|---|---|
+| 테마 복사 트리거 | 적용 직후 | **진짜 `public.fn_issues_theme_on_publish`**를 `like public.issues` 임시 테이블에 건다(§9-C-6과 같음). `couple_id`는 **원격 `couples` 실제 행의 id를 읽어서** 쓴다. 초안 행의 `theme`를 그 커플의 `magazine_theme`와 **다른 값**으로 먼저 넣고 `published_at`을 채운다 → 커플 값으로 바뀌어야 한다. 이어 발행된 행의 `theme` 변경 → 예외 | 실제 함수가 실제 커플 값을 복사함 |
+| 위 — 원격 `couples`가 0행일 때 | `48-` | C로 미룬다. **임시 `couples`를 만들어 함수 사본을 거는 방식은 쓰지 않는다** — 사본을 시험하는 것은 실제 함수의 증명이 아니다 | — |
+| `fn_publish_issue` 논리 | 적용 직후 | A: 임시 테이블 + `pg_temp` 사본. **사본은 원격에 적용된 정의(`pg_get_functiondef`)에서 기계적 치환으로만 만든다** (r54 정정 — 022 파일보다 실제로 걸린 함수에 가깝다). 치환은 둘: ① `public.`→`pg_temp.` ② `SET search_path`의 `public`→`pg_temp`. **②가 안전장치다** — 사본은 쓰기를 하므로, 접두사 없는 이름이 하나라도 있으면 실제 `public` 테이블에 쓴다. 치환 명령을 스크립트에 남기고, 손으로 고친 사본은 금지 | 분기·번호·`is_trial`·`feature_count` 논리. **실제 함수의 증명은 아니다** |
+| 권한·설정 | 적용 직후 | B: `has_function_privilege`(anon·authenticated 불가, service_role 가능), `pg_proc.prosecdef = false`, `proconfig`의 `search_path`, `magazine` 버킷 정책이 SELECT 하나만 남았는지 | 022가 의도대로 걸렸음 |
+| 전체 | **`48-` 완료 기준** | C: 로컬 `supabase start` 또는 브랜치에 전체 픽스처. FK·RLS·동시 발행 잠금(같은 커플 두 호 동시 발행 → 번호 1·2) 포함 | 실제 함수의 증명 |
+
+**발행 Edge Function을 유저에게 여는 것은 C 통과 뒤다.**
+
+**A의 확인 행 (r54).** "치환 뒤 남은 `public.` 수"는 치환으로 만들었으니 항상 0이라 아무것도 증명하지
+않는다. 대신 둘을 본다: 사본 본문에 **5개 테이블(`issues`·`couples`·`ops_alerts`·`corners`·`dates`)이
+모두 `pg_temp.`로** 나오는가, 사본의 `proconfig`가 **`search_path=pg_temp`**인가. 둘 중 하나라도
+아니면 사본을 실행하지 않고 멈춘다.
+
+### 9-D-10. 타입 재생성 기준 (r54)
+
+022 적용 뒤 `src/types/database.ts`를 다시 만든다. **diff는 추가만 허용하며, 예외는 한 컬럼이다** —
+**`issues.issue_number`의 `Row`·`Insert`·`Update` 세 곳**(r55 정정). NOT NULL을 지우면 생성 타입은
+Row에서 `number | null`, Insert에서 필수 → 선택 + null 허용, Update에서 null 추가로 셋이 함께 바뀐다.
+§9-D-1에서 의도한 한 가지 변경의 세 표면이다. r54는 Row만 적어 반드시 멈추는 규칙이었다.
+이 밖에 기존 타입이 하나라도 바뀌면 멈추고 보고한다.
+
+**생성 명령은 기존 `database.ts`를 만들 때 쓴 명령을 그대로 쓴다.** 찾지 못하면 재생성하지 않고
+보고한다 — 플래그가 다르면 diff 전체가 달라져 위 판정을 할 수 없다. 이 변경 때문에 기존 코드에서 tsc 오류가 나면
+**고치지 않고 위치를 보고한다** — 고치는 것은 `48-`의 범위다.
+
+
 
 ---
 
