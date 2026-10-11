@@ -1599,8 +1599,24 @@ revoke all on function public.fn_publish_issue(uuid) from public, anon, authenti
 `published_at`이 같아진다(MASTER §17-0-10-E).
 
 **클라이언트가 직접 부르지 못한다.** 미디어 복제(Storage 작업)가 먼저 끝나야 하므로 발행 Edge
-Function만 service_role로 부른다. 실증은 픽스처가 필요하므로 db-architect가 방법을 제안하고
-(§9-C-6처럼 원격 `auth.users`를 건드리지 않는 방식) 사람이 정한다.
+Function만 service_role로 부른다.
+
+**`security invoker`가 맞다 (r53 확정).** 근거는 MASTER §17-0-10-E. definer로 바꾸지 않는다.
+
+### 9-D-9. 실증 방식 (r53 확정)
+
+**원격에는 픽스처를 쓰지 않는다.** 원격 실제 행은 **읽기만** 한다.
+
+| 대상 | 시점 | 방식 | 증명하는 것 |
+|---|---|---|---|
+| 테마 복사 트리거 | 적용 직후 | **진짜 `public.fn_issues_theme_on_publish`**를 `like public.issues` 임시 테이블에 건다(§9-C-6과 같음). `couple_id`는 **원격 `couples` 실제 행의 id를 읽어서** 쓴다. 초안 행의 `theme`를 그 커플의 `magazine_theme`와 **다른 값**으로 먼저 넣고 `published_at`을 채운다 → 커플 값으로 바뀌어야 한다. 이어 발행된 행의 `theme` 변경 → 예외 | 실제 함수가 실제 커플 값을 복사함 |
+| 위 — 원격 `couples`가 0행일 때 | `48-` | C로 미룬다. **임시 `couples`를 만들어 함수 사본을 거는 방식은 쓰지 않는다** — 사본을 시험하는 것은 실제 함수의 증명이 아니다 | — |
+| `fn_publish_issue` 논리 | 적용 직후 | A: 임시 테이블 + `pg_temp` 사본. **사본은 022 본문에서 `public.`→`pg_temp.` 기계적 치환으로만 만들고 치환 명령을 스크립트에 남긴다**(손으로 고친 사본 금지) | 분기·번호·`is_trial`·`feature_count` 논리. **실제 함수의 증명은 아니다** |
+| 권한·설정 | 적용 직후 | B: `has_function_privilege`(anon·authenticated 불가, service_role 가능), `pg_proc.prosecdef = false`, `proconfig`의 `search_path`, `magazine` 버킷 정책이 SELECT 하나만 남았는지 | 022가 의도대로 걸렸음 |
+| 전체 | **`48-` 완료 기준** | C: 로컬 `supabase start` 또는 브랜치에 전체 픽스처. FK·RLS·동시 발행 잠금(같은 커플 두 호 동시 발행 → 번호 1·2) 포함 | 실제 함수의 증명 |
+
+**발행 Edge Function을 유저에게 여는 것은 C 통과 뒤다.**
+
 
 ### 9-D-7. 초안 진행 상황 RPC
 
