@@ -16,22 +16,24 @@
 
 ```powershell
 git status --porcelain
-Select-String -Path docs/ONDOLOG_MASTER.md  -Pattern 'DOC_REVISION: 2026-10-19-r57'
-Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-10-19-r14'
+Select-String -Path docs/ONDOLOG_MASTER.md  -Pattern 'DOC_REVISION: 2026-10-19-r58'
+Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-10-19-r15'
 Select-String -Path package.json -Pattern '"test-renderer"'
 git ls-files .claude/state/prompts/phase-7 | Select-String -Pattern '50-corner-pipeline-m1-quality-harness'
 deno --version
-[bool]$env:ANTHROPIC_API_KEY
+[bool]$env:ONDOLOG_LLM_API_KEY
 ```
 
 | 명령 | 기대 출력 |
 |---|---|
 | `git status --porcelain` | 빈 출력 |
-| MASTER r57 / ROADMAP r14 | 각 한 줄 |
+| MASTER r58 / ROADMAP r15 | 각 한 줄 |
 | `test-renderer` | 한 줄 — `49-`가 커밋됐다 |
 | 위임 파일 | 한 줄 |
 | `deno --version` | 버전 출력 (사람 작업 M1-1) |
-| `[bool]$env:ANTHROPIC_API_KEY` | `True` (사람 작업 M1-1). **키 값 자체는 출력하지 않습니다** |
+| `[bool]$env:ONDOLOG_LLM_API_KEY` | `True` (사람 작업 M1-1). **키 값 자체는 출력하지 않습니다** |
+
+**비밀값 이름은 `ONDOLOG_LLM_API_KEY`입니다 (MASTER r58 §17-0-10-H).** `ANTHROPIC_API_KEY`는 쓰지 않습니다 — 그 이름이 있으면 Claude Code가 구독 로그인 대신 그 키로 인증합니다.
 
 **기준선**
 
@@ -75,13 +77,13 @@ git diff --stat -- supabase/functions/_shared src docs supabase/migrations packa
 **API 키 누출 확인** — 출력이 비어 있어야 합니다. 키 값은 화면에 내지 않습니다.
 
 ```powershell
-Get-ChildItem scripts/ops, supabase/functions/deno.json -Recurse -File | Select-String -SimpleMatch -Pattern $env:ANTHROPIC_API_KEY
+Get-ChildItem scripts/ops, supabase/functions/deno.json -Recurse -File | Select-String -SimpleMatch -Pattern $env:ONDOLOG_LLM_API_KEY
 Get-ChildItem scripts/ops, supabase/functions/deno.json -Recurse -File | Select-String -Pattern 'sk-ant-'
 ```
 
 | 확인 | 기대 |
 |---|---|
-| `deno.json` | zod 4.4.3. 다른 항목도 `package-lock.json` 버전과 같은가 |
+| `deno.json` | zod `4.6.7`(supabase-js를 넣었다면 `2.118.0`), **범위 기호 없음**. 다른 항목도 `package-lock.json`에 실제로 설치된 버전과 같은가 |
 | 데이터셋 | 보통·다정·다툼·대화 거의 없는 날이 모두 있는가. 데이트 3~4건(정거장·사진 메타·메모 있음/없음), 재소환 후보 1건 |
 | 실행 | 2모델 × 3코너 × 3회. 실행마다 원문·검증 결과·content·사용량·지연이 저장됐는가 |
 | `review.md` | 지면 문장과 원문이 나란히 있는가. 끝에 3-7 판단 기준 체크리스트가 있고 판정 칸이 비어 있는가 |

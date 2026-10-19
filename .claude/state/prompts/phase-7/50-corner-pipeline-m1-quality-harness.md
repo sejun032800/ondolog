@@ -3,14 +3,14 @@
 > 대상: `corner-pipeline`
 > 보관 경로: `.claude/state/prompts/phase-7/50-corner-pipeline-m1-quality-harness.md`
 > 작성: 프롬프트 엔지니어 세션 / 2026-10-19
-> 기준선: MASTER r57 · ROADMAP r14 · jest 986 · 49
+> 기준선: MASTER r58 · ROADMAP r15 · jest 986 · 49
 
 ---
 
 ## 목표 (PM)
 
 **코너 3종(17-1 데이트 아카이브 · 17-4 다정한 말들 · 17-5 이달의 우리)의 실제 모델 출력을 Proteur가 읽고 판정할
-자료를 만든다.** 코너 코드·프롬프트는 고치지 않는다. (ROADMAP r14 §3 M1)
+자료를 만든다.** 코너 코드·프롬프트는 고치지 않는다. (ROADMAP r15 §3 M1)
 
 **이번 결과물은 판정 자료 `scripts/ops/out/review.md` 하나다.** 완료 보고에 그 경로를 붙인다.
 
@@ -19,8 +19,9 @@
 ### 1. import map — 1회 허가 (결정 R13-9)
 
 `supabase/functions/deno.json`을 작성한다.
-- **zod는 `package-lock.json`의 버전 4.4.3에 맞춘다**
-- 그 밖에 필요한 항목도 `package-lock.json`에 있는 버전에 맞추고, 항목과 버전을 보고한다
+- **버전은 `package-lock.json`에서 실제로 설치된 값을 범위 기호 없이** 적는다 (MASTER r58 §17-0-10-H).
+  zod **4.6.7** (`npm:zod@4.6.7`), supabase-js를 넣는다면 **2.118.0**
+- 그 밖에 필요한 항목도 같은 규칙으로 적고, 항목과 버전을 보고한다
 
 ### 2. 합성 데이터셋 — `scripts/ops/fixtures/m1-month/`
 
@@ -33,7 +34,8 @@
 
 - 데이터셋 → 입력 레코드 → `runCornerModule`(**기존 골격 그대로**) → `llmClient` 동기 호출
 - **모델은 실행 인자로 받는다.** `app_config`는 `tbd` 그대로 둔다
-- **API 키는 환경변수에서만 읽고, 어디에도 쓰지 않는다** — 파일·로그·산출물·보고 어디에도
+- **API 키는 환경변수 `ONDOLOG_LLM_API_KEY`(MASTER r58 §17-0-10-H)에서만 읽고, 어디에도 쓰지 않는다** —
+  파일·로그·산출물·보고 어디에도. `ANTHROPIC_API_KEY`라는 이름은 쓰지 않는다
 - 실행마다 저장: **원문 응답, 검증 결과(실패 사유 포함 — 떨어진 출력도 판정 자료), 저장 content, 사용량(입력·출력·캐시
   읽기·캐시 쓰기 토큰), 지연**
 - 산출 위치 `scripts/ops/out/` — **`.gitignore`에 이 경로 한 줄 추가를 허가한다**
