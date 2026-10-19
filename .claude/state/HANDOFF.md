@@ -26,6 +26,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 발행 경로 마이그레이션 `022_publish_path.sql` | 작성 완료(`47`), **원격 미적용**. 적용 전 관문 쿼리·적용·실증은 사람 | 이 파일 "발행 경로 마이그레이션 (`47`)" 절 |
 | 022 실증 스크립트 3종 (`scripts/db/verify_022_*.sql`) | 작성 완료(`47b`), **미실행**. 실행은 메인 세션이 적용 확인 뒤 | 이 파일 "022 실증 스크립트 (`47b`)" 절 |
 | 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
+| lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 
 ## 발행 경로 마이그레이션 (`47`, 2026-10-11, db-architect) - 작성만, 원격 미적용
 

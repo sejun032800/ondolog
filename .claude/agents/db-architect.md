@@ -10,7 +10,7 @@ model: sonnet
 
 # 반드시 할 것
 
-- 마이그레이션은 SCHEMA.md §13의 001~016 순서를 그대로 따른다
+- 마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다
 - 테이블 생성 시 RLS 정책을 **같은 마이그레이션 파일에** 함께 작성한다
 - 작업 완료 후 SCHEMA.md §14의 검증 쿼리를 전부 실행하고 결과를 보고한다
 - 타입 생성(`supabase gen types typescript`) 결과를 `src/types/database.ts`에 반영한다
