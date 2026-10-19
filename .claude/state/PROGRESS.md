@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-19 (메인 세션, `50r2`): 루트 `tsconfig.json` exclude에 `scripts/ops` 한 항목(1회 허가, R16-3). 하네스에 `stop_reason=max_tokens` 잘림 기록 추가 - 잘린 뒤 재호출을 하네스 래퍼가 막음, 골격 무변경(R16-4, HANDOFF). 데이터셋 그대로. 게이트 0 / 0 / 986 · 49. 실제 API 호출 없음. 미커밋
+
 2026-10-19 (corner-pipeline, `50`): M1 하네스 작성(`supabase/functions/deno.json`, `scripts/ops/fixtures/m1-month/`, `scripts/ops/m1QualityRun.ts`, `.gitignore` 한 줄), 입력 조립 dry 통과(채팅 302·사진 11·데이트 3). **실행은 공급자가 `credit balance is too low`(HTTP 400)로 거부해 0회 - 크레딧 충전 뒤 재개.** 골격·코너 코드 무변경. 게이트 미실행. 미커밋
 
 2026-10-19 (메인 세션, `49`): M0 환경 재현 - package.json 세 곳(@react-native/jest-preset 0.86.2·test-renderer 1.2.0 추가, @react-native-kakao/map 제거) 후 node_modules·lock 삭제, `npm install --legacy-peer-deps` 성공. 게이트 0 / 0 / 986 · 49(기준선과 같음). lock 재생성으로 expo 57.0.17→57.0.30·react-native 0.86.2→0.86.3 등 바뀌고 react-native-worklets 빠짐(HANDOFF 열린 항목). 정의 동기화: CLAUDE.md 발행 주기 줄, db-architect.md 마이그레이션 순서, ui-builder.md 중복 Phase 6 제거·Phase 10 한 줄. 미커밋

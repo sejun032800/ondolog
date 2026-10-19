@@ -33,6 +33,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 - 내부 결정: 재료는 DB 행 모양(`dataset.ts`)으로 두고 기존 `assembleCornerInput` + 테스트용 `fakeClient`(`testFixtures/inputAssemblyFake.ts`, 하네스가 import)로 레코드를 만든다. 전송 계측은 `createLlmClient`의 `fetchImpl` 주입점, 시도별 검증은 `processCornerResponse`를 한 번 더 호출 - 골격 무변경.
 - 재소환 규칙(건수 = max(0, 3 - 이번 기간 데이트 수)) 때문에 이번 기간 데이트는 2건, 재소환 1건(+사진 없어 탈락하는 과거 1건)이다.
 - 실행 명령은 `m1QualityRun.ts` 머리 주석. `--no-lock` 사용(deno.lock을 만들지 않는다). 막힌 이유: 공급자 크레딧 부족.
+- 출력 잘림(`50r2`, R16-4): `stop_reason=max_tokens`이면 하네스 래퍼 클라이언트가 이후 호출(골격의 `schema_invalid` 1회 재시도)을 네트워크 없이 `generation_failed`로 거부하고, 실행 기록에 `truncated: true`, review·summary에 잘림 표시. `maxTokens` 4096 그대로, 골격 무변경. 이 경우 기록의 `failureReason`은 `generation_failed`, `llmCallAttempts`는 2(실제 전송 1회 - `httpCalls` 기준).
 
 ## 발행 경로 마이그레이션 (`47`, 2026-10-11, db-architect) - 작성만, 원격 미적용
 

@@ -102,6 +102,8 @@ interface RunRecord {
   readonly failureReason: string | null
   readonly failureDetail: string | null
   readonly llmCallAttempts: number
+  /** 응답이 `stop_reason=max_tokens`로 잘렸는가. 잘린 뒤의 재호출은 하네스가 막는다(ROADMAP R16-4). */
+  readonly truncated: boolean
   /** 저장 content(성공 시). */
   readonly content: unknown
   readonly usageTotal: Usage
@@ -249,9 +251,16 @@ async function run(flags: Map<string, string>): Promise<void> {
 
       const base: LlmClient = createLlmClient({ apiKey: key, model, maxTokens, fetchImpl: instrumentedFetch })
       // 호출마다 같은 검증 함수(`processCornerResponse`)를 한 번 더 돌려 시도별 검증 결과를 남긴다(순수 함수).
+      // 잘린 응답(`stop_reason=max_tokens`)은 재시도하지 않고 판정 자료로 남긴다(R16-4) - 골격의 `schema_invalid`
+      // 재호출은 이 주입점에서 네트워크 없이 거부한다(골격은 그대로).
+      let truncated = false
       const client: LlmClient = {
         async call(request) {
+          if (truncated) {
+            return { ok: false, reason: 'generation_failed', detail: 'max_tokens 잘림 - 하네스가 재시도하지 않음' }
+          }
           const result = await base.call(request)
+          if (result.ok && httpCalls.at(-1)?.stopReason === 'max_tokens') truncated = true
           if (result.ok) {
             const v = processCornerResponse(module, result.text, inp, CONTEXT)
             attempts.push({
@@ -298,13 +307,14 @@ async function run(flags: Map<string, string>): Promise<void> {
         failureReason: pipeline.outcome === 'failure' ? pipeline.reason : null,
         failureDetail: pipeline.outcome === 'failure' ? redact(pipeline.detail) : null,
         llmCallAttempts: pipeline.llmCallAttempts,
-        content: pipeline.outcome === 'success' ? pipeline.content : null,
+        truncated,
+        content:pipeline.outcome === 'success' ? pipeline.content : null,
         usageTotal,
       }
       const file = `${RUNS_DIR}/${safeName(model)}__${cornerKey}__${tag}__r${r}.json`
       await Deno.writeTextFile(file, redact(JSON.stringify(record, null, 2)))
       console.log(
-        `[${model}] ${cornerKey} #${r}: ${record.outcome}${record.failureReason ? ' (' + record.failureReason + ')' : ''} ` +
+        `[${model}] ${cornerKey} #${r}: ${record.outcome}${record.failureReason ? ' (' + record.failureReason + ')' : ''}${truncated ? ' [max_tokens 잘림]' : ''} ` +
           `calls=${httpCalls.length} in=${usageTotal.input} cw=${usageTotal.cacheWrite} cr=${usageTotal.cacheRead} out=${usageTotal.output} ${totalLatencyMs}ms`,
       )
     }
@@ -406,6 +416,7 @@ async function review(): Promise<void> {
           `토큰 입력 ${rec.usageTotal.input} · 출력 ${rec.usageTotal.output} · 캐시읽기 ${rec.usageTotal.cacheRead} · 캐시쓰기 ${rec.usageTotal.cacheWrite}`,
       )
       out.push(`- 원자료: \`scripts/ops/out/runs/${safeName(rec.model)}__${rec.corner}__${rec.tag}__r${rec.run}.json\``)
+      if (rec.truncated) out.push(`- **출력 잘림: \`stop_reason=max_tokens\` (max_tokens ${rec.maxTokens}), 재시도하지 않음** - 아래 시도 원문이 잘린 출력이다`)
       if (rec.outcome === 'failure') out.push(`- 실패 상세: ${cell(rec.failureDetail ?? '')}`)
       out.push('')
       for (const a of rec.attempts) {
@@ -461,7 +472,7 @@ async function review(): Promise<void> {
   for (const r of records) {
     const c = cost(r.model, r.usageTotal)
     sum.push(
-      `| ${r.model} | ${r.corner} | ${r.run} | ${r.outcome === 'success' ? '성공' : '실패: ' + r.failureReason} | ${r.llmCallAttempts} | ${r.usageTotal.input} | ${r.usageTotal.output} | ${r.usageTotal.cacheRead} | ${r.usageTotal.cacheWrite} | ${r.totalLatencyMs} | ${c ? c.sync.toFixed(4) : '-'} |`,
+      `| ${r.model} | ${r.corner} | ${r.run} | ${r.outcome === 'success' ? '성공' : '실패: ' + r.failureReason}${r.truncated ? ' (max_tokens 잘림)' : ''} | ${r.llmCallAttempts} | ${r.usageTotal.input} | ${r.usageTotal.output} | ${r.usageTotal.cacheRead} | ${r.usageTotal.cacheWrite} | ${r.totalLatencyMs} | ${c ? c.sync.toFixed(4) : '-'} |`,
     )
   }
   await Deno.writeTextFile(`${OUT_DIR}/summary.md`, sum.join('\n'))
