@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-19 (corner-pipeline, `50`): M1 하네스 작성(`supabase/functions/deno.json`, `scripts/ops/fixtures/m1-month/`, `scripts/ops/m1QualityRun.ts`, `.gitignore` 한 줄), 입력 조립 dry 통과(채팅 302·사진 11·데이트 3). **실행은 공급자가 `credit balance is too low`(HTTP 400)로 거부해 0회 - 크레딧 충전 뒤 재개.** 골격·코너 코드 무변경. 게이트 미실행. 미커밋
+
 2026-10-19 (메인 세션, `49`): M0 환경 재현 - package.json 세 곳(@react-native/jest-preset 0.86.2·test-renderer 1.2.0 추가, @react-native-kakao/map 제거) 후 node_modules·lock 삭제, `npm install --legacy-peer-deps` 성공. 게이트 0 / 0 / 986 · 49(기준선과 같음). lock 재생성으로 expo 57.0.17→57.0.30·react-native 0.86.2→0.86.3 등 바뀌고 react-native-worklets 빠짐(HANDOFF 열린 항목). 정의 동기화: CLAUDE.md 발행 주기 줄, db-architect.md 마이그레이션 순서, ui-builder.md 중복 Phase 6 제거·Phase 10 한 줄. 미커밋
 
 2026-10-11 (메인 세션, `47b` 실행): 022 원격 적용(`db push`, migration list에서 022 Local·Remote 일치). 실증 B 8행·A 17행 모두 통과, 테마 트리거는 원격 couples 0행이라 `DEFERRED` -> `48-` C로 미룸. A 스크립트를 §9-D-9 r54대로 수정(치환 둘·확인 행 (가)(나)). `src/types/database.ts` 재생성(§9-D-10, 변경은 `issues.issue_number` Row·Insert·Update 세 곳뿐, 나머지 추가). 게이트 0 / 0 / 986 · 49. 상세는 HANDOFF "022 적용·실증 결과 (`47b` 실행)" 절. 미커밋

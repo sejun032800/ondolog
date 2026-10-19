@@ -40,3 +40,4 @@ supabase/.branches/
 
 # local scratch
 .claude/state/SCRATCH.md
+scripts/ops/out/

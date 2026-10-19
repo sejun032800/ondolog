@@ -28,6 +28,12 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 
+## M1 품질 하네스 (`50`, 2026-10-19, corner-pipeline) - 작성 완료, 실행 대기
+
+- 내부 결정: 재료는 DB 행 모양(`dataset.ts`)으로 두고 기존 `assembleCornerInput` + 테스트용 `fakeClient`(`testFixtures/inputAssemblyFake.ts`, 하네스가 import)로 레코드를 만든다. 전송 계측은 `createLlmClient`의 `fetchImpl` 주입점, 시도별 검증은 `processCornerResponse`를 한 번 더 호출 - 골격 무변경.
+- 재소환 규칙(건수 = max(0, 3 - 이번 기간 데이트 수)) 때문에 이번 기간 데이트는 2건, 재소환 1건(+사진 없어 탈락하는 과거 1건)이다.
+- 실행 명령은 `m1QualityRun.ts` 머리 주석. `--no-lock` 사용(deno.lock을 만들지 않는다). 막힌 이유: 공급자 크레딧 부족.
+
 ## 발행 경로 마이그레이션 (`47`, 2026-10-11, db-architect) - 작성만, 원격 미적용
 
 근거는 SCHEMA §9-D(9-D-1~8)뿐. 원격 DB 접속·DDL·DML 없음(저장소 안 파일만 읽음). 커밋 없음.
