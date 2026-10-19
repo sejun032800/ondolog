@@ -1642,9 +1642,14 @@ INSERT·UPDATE·DELETE 정책을 두지 않는다. 쓰기는 발행 Edge Functio
 **015에 `magazine`의 구성원 INSERT 정책이 있으면 이 마이그레이션에서 지운다** — 있으면 유저가 발행물
 경로에 파일을 올리거나 덮어쓸 수 있다. db-architect가 015를 읽어 확인한다.
 
-### 9-D-9. 실증 방식 (r53 확정)
+### 9-D-9. 실증 방식 (r53 확정 → ROADMAP r13 개정)
 
-**원격에는 픽스처를 쓰지 않는다.** 원격 실제 행은 **읽기만** 한다.
+> **ROADMAP r13 결정 R13-7로 개정됐다.** 원격 프로젝트 `ondolog`는 **개발용**이다. 시험 계정·시험 데이터를
+> 쓸 수 있고, 이름에 `test`를 넣는다. 운영 프로젝트는 출시 준비(M4)에 새로 만든다. 아래 표의 A·B는 적용 직후에 이미
+> 끝났다(`47b-`). **"전체(C)"와 미룬 테마 트리거 실증은 로컬 `supabase start` 대신 원격 개발 프로젝트에서
+> 실제 발행으로 확인한다**(ROADMAP M2-e). 표는 이력으로 남긴다.
+
+~~**원격에는 픽스처를 쓰지 않는다.** 원격 실제 행은 **읽기만** 한다.~~ (r13 폐기 — 개발 프로젝트에 한해)
 
 | 대상 | 시점 | 방식 | 증명하는 것 |
 |---|---|---|---|
@@ -1654,7 +1659,7 @@ INSERT·UPDATE·DELETE 정책을 두지 않는다. 쓰기는 발행 Edge Functio
 | 권한·설정 | 적용 직후 | B: `has_function_privilege`(anon·authenticated 불가, service_role 가능), `pg_proc.prosecdef = false`, `proconfig`의 `search_path`, `magazine` 버킷 정책이 SELECT 하나만 남았는지 | 022가 의도대로 걸렸음 |
 | 전체 | **`48-` 완료 기준** | C: **로컬 `supabase start`**(r56 확정 — 브랜치는 쓰지 않는다)에 전체 픽스처. 이번에 미룬 테마 트리거 실증(원격 `couples` 0행)도 여기서 한다. FK·RLS·동시 발행 잠금(같은 커플 두 호 동시 발행 → 번호 1·2) 포함 | 실제 함수의 증명 |
 
-**발행 Edge Function을 유저에게 여는 것은 C 통과 뒤다.**
+**발행 Edge Function을 유저에게 여는 것은 C 통과 뒤다.** (r13: C = ROADMAP M2-e. 동시 발행 잠금 확인 포함)
 
 **A의 확인 행 (r54).** "치환 뒤 남은 `public.` 수"는 치환으로 만들었으니 항상 0이라 아무것도 증명하지
 않는다. 대신 둘을 본다: 사본 본문에 **5개 테이블(`issues`·`couples`·`ops_alerts`·`corners`·`dates`)이
@@ -2169,7 +2174,11 @@ select cron.schedule('execute-dissolutions', '0 5 * * *', $$
 $$);
 ```
 
-> 연애 온도 산출, 스탯 계산, 코너 생성, PDF 렌더링은 LLM·Playwright가 필요하므로 pg_cron이 아니라 **Edge Function 스케줄러**로 실행한다.
+> 연애 온도 산출, 스탯 계산, 코너 생성은 LLM·엔진 코드가 필요하므로 pg_cron SQL이 아니라 **Edge Function**으로 실행하고, 스케줄은 pg_cron + pg_net이 그 함수를 부른다.
+>
+> **PDF 렌더링은 Edge Function에서 돌릴 수 없다 (ROADMAP r13 R13-5 정정).** Edge Function 안에서는 Chromium을 띄울 수 없다.
+> 렌더링은 M2·M3에서 운영자 PC(Python Playwright), M4부터 자체 컨테이너 워커에서 실행한다. 커플의 원문·사진이 제3자로 가므로
+> 원격 브라우저 서비스는 쓰지 않는다.
 
 ---
 
