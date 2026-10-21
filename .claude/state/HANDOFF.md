@@ -28,6 +28,13 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 
+## M1b 프롬프트 고도화 (`52`, 2026-10-19, corner-pipeline) - 오프라인, 실행 안 함
+
+- 내부 결정: 입력 상한·사전 선별 후보는 `scripts/ops/m1InputCandidates.ts`(신규, 하네스 전용)에 두고 `m1QualityRun.ts dry --cap <none|all|cap-a|cap-b|cap-c> --select <none|all|sel-a|sel-b|sel-c|sel-d>`로만 부른다. `run`·`inputAssembly.ts`·코너 코드에는 연결하지 않았다. 결과는 `scripts/ops/out/candidates.md`(gitignore).
+- 내부 결정: 모든 코너가 공유하는 `COMMON_PRINCIPLES_BLOCK`(`cornerCommon.ts`)도 system 블록이라 고쳤다. 허용 범위 해석이 필요하면 PM이 확인.
+- 추정 토큰은 글자 종류별 가중치 합(하한/중간/상한 세 벌). 측정값이 아니다. M1c 응답의 `usage`로 보정.
+- 열린 판단(PM): 후보 하나로 정하기(M1c 전) / 3-7 표는 "두 분 정말 다정하셨네요"를 허용하나 17-4·17-5는 같은 부류를 금지 - 코너 문서를 따랐다 / 17-5 소기사 예("예산 갈등과 화해")와 톤 정책 충돌 - 다툼 소재는 소기사·근거에서도 뺐다 / `dateLine`이 `dateLevel`(정거장에 안 묶인 사진·유저 기록)을 프롬프트에 싣지 않는다(입력 형식이라 이번 범위 밖).
+
 ## M1 품질 하네스 (`50`, 2026-10-19, corner-pipeline) - 작성 완료, 실행 대기
 
 - 내부 결정: 재료는 DB 행 모양(`dataset.ts`)으로 두고 기존 `assembleCornerInput` + 테스트용 `fakeClient`(`testFixtures/inputAssemblyFake.ts`, 하네스가 import)로 레코드를 만든다. 전송 계측은 `createLlmClient`의 `fetchImpl` 주입점, 시도별 검증은 `processCornerResponse`를 한 번 더 호출 - 골격 무변경.

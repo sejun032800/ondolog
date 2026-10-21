@@ -34,6 +34,14 @@ import { dateArchiveModule } from '../../supabase/functions/_shared/corners/date
 import { sweetWordsModule } from '../../supabase/functions/_shared/corners/sweetWords.ts'
 import { thisMonthModule } from '../../supabase/functions/_shared/corners/thisMonth.ts'
 import { COUPLE_ID, PERIOD, buildTables } from './fixtures/m1-month/dataset.ts'
+import {
+  CAP_CANDIDATES,
+  SELECT_CANDIDATES,
+  estimateTokens,
+  findCandidate,
+  statsOf,
+  type Candidate,
+} from './m1InputCandidates.ts'
 
 // ---------------------------------------------------------------------------
 // 상수
@@ -170,7 +178,11 @@ function requestText(req: LlmRequest): string {
 // dry: 입력 조립만
 // ---------------------------------------------------------------------------
 
-async function dry(): Promise<void> {
+async function dry(flags: Map<string, string>): Promise<void> {
+  if (flags.has('cap') || flags.has('select')) {
+    await dryCandidates(flags)
+    return
+  }
   const assembled = await assemble()
   const table = corners()
   console.log(`messages=${assembled.messages.length} photos=${assembled.photos.length} dates=${assembled.dates.length}`)
@@ -187,6 +199,74 @@ async function dry(): Promise<void> {
     await Deno.writeTextFile(`${OUT_DIR}/request-${key}.txt`, text)
     console.log(`${key}: hasMaterial=${module.hasMaterial(inp)} requestChars=${text.length}`)
   }
+}
+
+// ---------------------------------------------------------------------------
+// dry --cap / --select: M1b 입력 전처리 후보 측정 (네트워크 없음, 운영 경로에 넣지 않음)
+// ---------------------------------------------------------------------------
+
+/** `--cap`·`--select` 값 -> 후보 목록. 생략/none = 없음, all = 없음 + 전부, 그 밖 = 그 후보 하나. */
+function candidateOptions(list: readonly Candidate[], flag: string | undefined): (Candidate | null)[] {
+  if (flag === undefined || flag === 'none') return [null]
+  if (flag === 'all') return [null, ...list]
+  return [findCandidate(list, flag)]
+}
+
+async function dryCandidates(flags: Map<string, string>): Promise<void> {
+  const assembled = await assemble()
+  const table = corners()
+  const caps = candidateOptions(CAP_CANDIDATES, flags.get('cap'))
+  const selects = candidateOptions(SELECT_CANDIDATES, flags.get('select'))
+  const mid = (t: string) => estimateTokens(t, 'mid')
+  const range = (t: string) => `${mid(t)} (${estimateTokens(t, 'low')}~${estimateTokens(t, 'high')})`
+  const userPart = (req: LlmRequest) => req.user.map((b) => b.text).join('\n\n')
+
+  const out: string[] = ['# M1b 입력 전처리 후보 dry 측정 (자동 생성)', '']
+  out.push('글자 수 = 요청 전체(system + user) 문자열 길이. 추정 토큰 = 중간값 (하한~상한), API 호출 없이 글자 종류별 가중치로 계산.', '')
+  out.push('| 선별 | 상한 | 남은 메시지 | 코너 | 글자 수 | 추정 토큰 | 그중 user |', '|---|---|---|---|---|---|---|')
+  const detail: string[] = []
+
+  // 데이트 아카이브는 채팅을 받지 않는다 - 기준 한 줄만.
+  {
+    const req = table.date_archive.module.buildRequest(table.date_archive.input(assembled), CONTEXT)
+    const text = requestText(req)
+    out.push(`| 없음 | 없음 | - | date_archive | ${text.length} | ${range(text)} | ${mid(userPart(req))} |`)
+  }
+
+  for (const sel of selects) {
+    for (const cap of caps) {
+      const afterSelect = sel === null ? [...assembled.messages] : sel.apply(assembled.messages)
+      const kept = cap === null ? afterSelect : cap.apply(afterSelect)
+      const stats = statsOf(assembled.messages, kept)
+      const swapped: AssembledInput = { ...assembled, messages: kept }
+      const label = [sel?.id ?? '없음', cap?.id ?? '없음']
+      for (const key of ['sweet_words', 'this_month'] as const) {
+        const { module, input } = table[key]
+        const inp = input(swapped)
+        if (!module.hasMaterial(inp)) {
+          out.push(`| ${label[0]} | ${label[1]} | ${kept.length}/${stats.total} | ${key} | 재료 없음 | - | - |`)
+          continue
+        }
+        const req = module.buildRequest(inp, CONTEXT)
+        const text = requestText(req)
+        out.push(`| ${label[0]} | ${label[1]} | ${kept.length}/${stats.total} | ${key} | ${text.length} | ${range(text)} | ${mid(userPart(req))} |`)
+      }
+      if (sel !== null || cap !== null) {
+        detail.push(`### 선별 ${label[0]} + 상한 ${label[1]}`)
+        if (sel !== null) detail.push(`- 선별 규칙: ${sel.rule}`)
+        if (cap !== null) detail.push(`- 상한 규칙: ${cap.rule}`)
+        detail.push(`- 남은 메시지 ${kept.length}/${stats.total}`)
+        detail.push(`- 다정한 구간(손 라벨) 남은 메시지 ${stats.warmKept}/${stats.warmTotal}: ` + stats.warmByLandmark.map((w) => `${w.label} ${w.kept}/${w.total}`).join(', '))
+        detail.push(`- 다툰 날(09-16·09-17) 남은 메시지 ${stats.argumentKept}/${stats.argumentTotal}`)
+        detail.push(`- 대화가 거의 없는 날(09-08·09-09·09-10·09-23·09-24) 남은 메시지 ${stats.quietKept}/${stats.quietTotal}`)
+        detail.push(`- 메시지가 하나도 안 남은 날: ${stats.emptiedDays.length === 0 ? '없음' : stats.emptiedDays.join(', ')}`, '')
+      }
+    }
+  }
+  out.push('', ...detail)
+  await Deno.mkdir(OUT_DIR, { recursive: true })
+  await Deno.writeTextFile(`${OUT_DIR}/candidates.md`, out.join('\n'))
+  console.log(out.join('\n'))
 }
 
 // ---------------------------------------------------------------------------
@@ -482,7 +562,7 @@ async function review(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const { cmd, flags } = parseArgs(Deno.args)
-if (cmd === 'dry') await dry()
+if (cmd === 'dry') await dry(flags)
 else if (cmd === 'run') await run(flags)
 else if (cmd === 'review') await review()
 else throw new Error('사용: dry | run --model <id> | review')

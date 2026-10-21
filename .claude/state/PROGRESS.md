@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-19 (corner-pipeline, `52`): M1b 프롬프트 고도화(오프라인) - 코너 3종 system 지시·좋은/나쁜 예·선별 기준 다듬음(`cornerCommon.ts` 공통 블록 포함, 스키마·검증·ID 선언 무변경), 하네스에 `dry --cap/--select` 후보 측정 추가(`scripts/ops/m1InputCandidates.ts` 신규, 운영 경로 무연결, 토큰은 로컬 추정). 시험 기댓값 수정 없음. 게이트 0 / 0 / 986 · 49. 실제 API 호출 없음. 미커밋
+
 2026-10-19 (메인 세션, `50r2`): 루트 `tsconfig.json` exclude에 `scripts/ops` 한 항목(1회 허가, R16-3). 하네스에 `stop_reason=max_tokens` 잘림 기록 추가 - 잘린 뒤 재호출을 하네스 래퍼가 막음, 골격 무변경(R16-4, HANDOFF). 데이터셋 그대로. 게이트 0 / 0 / 986 · 49. 실제 API 호출 없음. 미커밋
 
 2026-10-19 (corner-pipeline, `50`): M1 하네스 작성(`supabase/functions/deno.json`, `scripts/ops/fixtures/m1-month/`, `scripts/ops/m1QualityRun.ts`, `.gitignore` 한 줄), 입력 조립 dry 통과(채팅 302·사진 11·데이트 3). **실행은 공급자가 `credit balance is too low`(HTTP 400)로 거부해 0회 - 크레딧 충전 뒤 재개.** 골격·코너 코드 무변경. 게이트 미실행. 미커밋
