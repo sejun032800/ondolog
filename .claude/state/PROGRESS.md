@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-21 (corner-pipeline, `52r3`): sel-a 좁힘(MASTER r61 F-2) - `inputPrefilter.ts` 판정을 "본문이 비었거나 공백뿐"만으로(자음만·이모티콘·한 글자·링크 판정 삭제), 시험 입력 `inputAssembly.test.ts` 321·335행 `'안녕 A'`·`'안녕 B'` -> `'A'`·`'B'` 복원, sel-a 시험 새 기준으로, 하네스 sel-a 규칙 문구 한 줄. dry: 뺀 건수 7 -> 0, 추정 토큰(중간값) 2,571 / 13,629 / 14,787. 게이트 0 / 0 / 1030 · 52. 실제 API 호출 없음. 미커밋
+
 2026-10-21 (corner-pipeline, `52r2`): M1b 마무리(오프라인) - 17-4 문구 복원, sel-a 운영 경로 연결(`inputPrefilter.ts`, 제외 건수 `trivialMessages`), 안전 정지(추정 입력 토큰 > 40,000이면 LLM 0회, 실패 사유 4값 밖 `outcome: 'halted'`, 하네스 `run`도 거침), 17-1 user 블록에 dateLevel, 재소환 featured 자격을 `derive`에서 코드로 강제. 시험 기댓값 1곳 수정(`inputAssembly.test.ts` 201행, 필드 추가)·입력 2곳. 게이트 0 / 0 / 1028 · 52. 실제 API 호출 없음. 미커밋
 
 2026-10-19 (corner-pipeline, `52`): M1b 프롬프트 고도화(오프라인) - 코너 3종 system 지시·좋은/나쁜 예·선별 기준 다듬음(`cornerCommon.ts` 공통 블록 포함, 스키마·검증·ID 선언 무변경), 하네스에 `dry --cap/--select` 후보 측정 추가(`scripts/ops/m1InputCandidates.ts` 신규, 운영 경로 무연결, 토큰은 로컬 추정). 시험 기댓값 수정 없음. 게이트 0 / 0 / 986 · 49. 실제 API 호출 없음. 미커밋

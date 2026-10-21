@@ -28,6 +28,13 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 
+## sel-a 좁힘 (`52r3`, 2026-10-21, corner-pipeline) - 오프라인, 실행 안 함
+
+- 내부 결정(겹침): `null` 본문은 `messagesWithoutBody`, 본문이 있는데 공백뿐이면 `trivialMessages`로 따로 센다. `null`은 판정 함수에 도달하기 전에 `continue`하므로 이중으로 세지 않는다. 합치지 않았다(필드·건수 의미 유지).
+- 열린 판단: 빈 문자열 `''` 본문은 입력 조립 `reqStr`가 `length === 0`을 무결성 오류로 던진다(`52r2` 이전부터). 즉 운영 경로에서 `''`는 sel-a에 닿지 않고 조립이 실패한다. 위임 범위 밖이라 고치지 않았다. `''`를 "본문 없음"으로 세려면 `inputAssembly.ts`의 `body` 읽기 한 곳을 바꿔야 한다 - 결정 필요.
+- 링크뿐인 본문도 이제 남는다(판정이 공백뿐으로만 좁아짐).
+- 하네스 `m1InputCandidates.ts` 138행 sel-a `rule` 문구를 새 기준으로 고침(판정 함수는 같은 것을 씀).
+
 ## M1b 마무리 (`52r2`, 2026-10-21, corner-pipeline) - 오프라인, 실행 안 함
 
 - 내부 결정: sel-a 판정은 `_shared/inputPrefilter.ts`(`isTrivialMessageText`)에 두고 `inputAssembly.ts`가 메시지 레코드를 만들 때(본문 있음·이번 기간 안) 부른다. 하네스 sel-a도 같은 함수를 쓴다(규칙 중복 방지). 뺀 건수는 `InputExclusions.trivialMessages`(신규 필드), `messagesWithoutBody`와 겹치지 않는다.

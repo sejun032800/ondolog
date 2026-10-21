@@ -5,30 +5,32 @@ import { COUPLE_A, MONTHLY_CONTEXT } from './testFixtures/cornerFixtures.ts'
 import { fakeClient } from './testFixtures/inputAssemblyFake.ts'
 
 /**
- * 입력 전처리 - 의미 없는 조각 제거 (MASTER §17-0-9-F-2, r59 / 위임 52r2-).
+ * 입력 전처리 - 본문 없는 조각 제거 (MASTER §17-0-9-F-2, r61 좁힘 / 위임 52r3-).
  * 규칙은 이것 하나뿐이고(다툼 어휘·다정 단서·건수 절단은 쓰지 않는다), 뺀 것은 세어서 반환한다.
  */
 
-describe('isTrivialMessageText - 의미 없는 조각', () => {
-  it.each([
-    [''],
-    ['   '],
-    ['ㅋ'],
-    ['ㅋㅋㅋㅋ'],
-    ['ㅠㅠ'],
-    ['ㅇㅇ'],
-    ['...'],
-    ['?'],
-    ['💛'],
-    ['ㅋㅋ!!'],
-    ['https://example.com/a?b=1'],
-    ['  http://example.com  '],
-    ['응'],
-  ])('%j 는 뺀다', (text) => {
+describe('isTrivialMessageText - 본문이 비었거나 공백뿐인 메시지만 뺀다 (r61)', () => {
+  it.each([[''], ['   '], ['\n'], ['\n\n'], ['\t \n  \r\n'], ['\u00a0\u3000']])('%j 는 뺀다', (text) => {
     expect(isTrivialMessageText(text)).toBe(true)
   })
 
-  it.each([['응응'], ['오늘 비 온대'], ['보고 싶다'], ['ㅋㅋ 웃겨'], ['링크 봐 https://example.com'], ['A1']])('%j 는 남긴다', (text) => {
+  it.each([
+    ['ㅋㅋㅋ'],
+    ['❤️'],
+    ['응?'],
+    ['콜 🍺'],
+    ['ㅋ'],
+    ['ㅠㅠ'],
+    ['응'],
+    ['?'],
+    ['...'],
+    ['💛'],
+    ['https://example.com/a?b=1'],
+    ['응응'],
+    ['오늘 비 온대'],
+    ['ㅋㅋ 웃겨'],
+    ['  ㅋ  '],
+  ])('%j 는 남긴다', (text) => {
     expect(isTrivialMessageText(text)).toBe(false)
   })
 
@@ -51,27 +53,31 @@ describe('입력 조립의 사유별 제외 건수 (F-2)', () => {
     ...over,
   })
 
-  it('의미 없는 조각은 레코드에서 빠지고 trivialMessages로 센다 - 본문 없는 메시지와 겹치지 않는다', async () => {
+  it('본문이 비었거나 공백뿐인 메시지는 레코드에서 빠지고 trivialMessages로 센다 - 본문 없는 메시지와 겹치지 않는다', async () => {
     const data = {
       couples: [{ id: COUPLE_A, subscription_tier: 'free' }],
       profiles: [{ id: 'u1', display_name: '세준' }],
       messages: [
         row('m-null', T('09:00'), null),
-        row('m-k', T('09:01'), 'ㅋㅋㅋ'),
-        row('m-dot', T('09:02'), '...'),
-        row('m-link', T('09:03'), 'https://example.com/x'),
-        row('m-ok', T('09:04'), '오늘 비 온대'),
-        row('m-out', '2026-07-31T09:00:00+09:00', 'ㅋ'),
+        row('m-space', T('09:02'), '   '),
+        row('m-nl', T('09:03'), '\n\n'),
+        row('m-k', T('09:04'), 'ㅋㅋㅋ'),
+        row('m-heart', T('09:05'), '❤️'),
+        row('m-q', T('09:06'), '응?'),
+        row('m-call', T('09:07'), '콜 🍺'),
+        row('m-ok', T('09:08'), '오늘 비 온대'),
+        row('m-out', '2026-07-31T09:00:00+09:00', '   '),
       ],
       dates: [],
       date_stops: [],
       data_entries: [],
     }
     const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
-    expect(r.messages.map((m) => m.id)).toEqual(['m-ok'])
+    expect(r.messages.map((m) => m.id)).toEqual(['m-k', 'm-heart', 'm-q', 'm-call', 'm-ok'])
     expect(r.exclusions.messagesWithoutBody).toBe(1)
-    // 이번 기간 안의 것만 센다 - 기간 밖의 'ㅋ'(m-out)은 세지 않는다.
-    expect(r.exclusions.trivialMessages).toBe(3)
+    // 이번 기간 안의 것만 센다 - 기간 밖의 공백뿐인 본문(m-out)은 세지 않는다.
+    // 빈 문자열('') 본문은 입력 조립의 reqStr이 무결성 오류로 던진다(52r2 이전부터, 이번 범위 밖) - 여기서는 공백·줄바꿈뿐인 둘만 센다.
+    expect(r.exclusions.trivialMessages).toBe(2)
   })
 
   it('남긴 메시지의 원문은 그대로다(요약·교정 없음)', async () => {

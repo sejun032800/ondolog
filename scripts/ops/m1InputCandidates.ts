@@ -135,7 +135,7 @@ export const QUIET_DAY_MAX = 2
 export const SELECT_CANDIDATES: readonly Candidate[] = [
   {
     id: 'sel-a',
-    rule: '의미 없는 메시지 제거: 기호를 뺀 본문이 한 글자 이하이거나, ㅋ·ㅠ 같은 자모뿐이거나, 링크뿐인 메시지',
+    rule: '본문 없는 메시지 제거: 본문이 비었거나 공백(줄바꿈 포함)뿐인 메시지만 뺀다. 자음만·이모티콘 단독·한 음절 답·링크뿐인 것은 남긴다',
     apply: (messages) => byTime(messages).filter((m) => !isTrivial(m.source.text)),
   },
   {
