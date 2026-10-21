@@ -2,9 +2,11 @@
  * M1b 입력 전처리 후보 - 채팅 입력량 상한 후보와 규칙 기반 사전 선별 후보, 그리고 API 없는 토큰 추정.
  * 위임: .claude/state/prompts/phase-7/52-corner-pipeline-m1b-prompt-refinement.md
  *
- * 이 파일은 **하네스 전용**이다. 입력 조립(`inputAssembly.ts`)·코너 코드·운영 경로 어디에서도 부르지 않는다.
- * PM이 M1c 전에 후보를 하나로 정하기 전까지, 후보는 `m1QualityRun.ts dry`의 `--cap`·`--select` 옵션으로만 쓴다.
- * 실제 호출(`run`)에는 연결하지 않았다.
+ * 이 파일은 **하네스 전용**이다. 입력 조립(`inputAssembly.ts`)·코너 코드·운영 경로 어디에서도 부르지 않는다
+ * (운영 경로는 `scripts/ops/`를 import하지 않는다). `52r2-`(MASTER r59 F-2)로 운영 경로에 들어간 것은 sel-a의
+ * 판정 함수(`_shared/inputPrefilter.ts`)와 토큰 추정(`_shared/tokenEstimate.ts`)뿐이고, 이 파일이 그것을 가져다 쓴다.
+ * cap-*·sel-b~d는 dry 전용으로 그대로다. 입력 조립이 이미 sel-a를 적용하므로 `--select none`의 기준선은 sel-a 적용 후다.
+ * 후보는 `m1QualityRun.ts dry`의 `--cap`·`--select` 옵션으로만 쓴다. 실제 호출(`run`)에는 연결하지 않았다.
  *
  * 주의 - 후보 규칙은 이 합성 데이터셋(`fixtures/m1-month/`)을 보면서 썼다. 같은 데이터셋으로 잰 수치는
  * "후보가 어떻게 동작하는가"를 보이는 것이지 일반 데이터에서의 정확도가 아니다.
@@ -13,47 +15,14 @@
  */
 
 import type { ChatMessageRecord } from '../../supabase/functions/_shared/corners/cornerCommon.ts'
+import { isTrivialMessageText } from '../../supabase/functions/_shared/inputPrefilter.ts'
 
 // ---------------------------------------------------------------------------
-// 토큰 추정 - API를 부르지 않는다.
+// 토큰 추정 - API를 부르지 않는다. 운영 경로의 안전 정지(`52r2-`)가 같은 추정을 쓰므로 원본은
+// `supabase/functions/_shared/tokenEstimate.ts`이고, 여기서는 다시 내보낼 뿐이다.
 // ---------------------------------------------------------------------------
 
-/**
- * 글자 종류별 가중치의 합으로 토큰 수를 추정한다. 공급자 토크나이저가 아니므로 **측정값이 아니다.**
- * 하한·중간·상한 세 벌을 같이 낸다 - 한글이 토큰당 몇 글자로 묶이는지를 모르기 때문이다.
- * 실제 토큰 수는 M1c에서 응답의 `usage`로 확인한다.
- */
-export interface TokenWeights {
-  readonly hangul: number // 완성형 한글 음절
-  readonly jamo: number // ㅋ ㅎ ㅠ 같은 자모 단독
-  readonly alnum: number // ASCII 영문·숫자
-  readonly space: number // 공백·개행
-  readonly punct: number // ASCII 구두점·JSON 기호
-  readonly other: number // 이모지·한자·기타
-}
-
-export const TOKEN_WEIGHTS = {
-  low: { hangul: 0.6, jamo: 0.5, alnum: 0.2, space: 0.15, punct: 0.35, other: 1.0 },
-  mid: { hangul: 1.0, jamo: 1.0, alnum: 0.25, space: 0.25, punct: 0.5, other: 2.0 },
-  high: { hangul: 1.5, jamo: 1.5, alnum: 0.35, space: 0.35, punct: 0.8, other: 3.0 },
-} as const satisfies Record<string, TokenWeights>
-
-export type TokenBand = keyof typeof TOKEN_WEIGHTS
-
-export function estimateTokens(text: string, band: TokenBand): number {
-  const w = TOKEN_WEIGHTS[band]
-  let sum = 0
-  for (const ch of text) {
-    const c = ch.codePointAt(0)!
-    if (c >= 0xac00 && c <= 0xd7a3) sum += w.hangul
-    else if ((c >= 0x3131 && c <= 0x318e) || (c >= 0x1100 && c <= 0x11ff)) sum += w.jamo
-    else if ((c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) sum += w.alnum
-    else if (c === 0x20 || c === 0x0a || c === 0x0d || c === 0x09) sum += w.space
-    else if (c < 0x80) sum += w.punct
-    else sum += w.other
-  }
-  return Math.ceil(sum)
-}
+export { TOKEN_WEIGHTS, estimateTokens, type TokenBand, type TokenWeights } from '../../supabase/functions/_shared/tokenEstimate.ts'
 
 // ---------------------------------------------------------------------------
 // 후보 공통
@@ -151,18 +120,8 @@ export const CAP_CANDIDATES: readonly Candidate[] = [
 // 규칙 기반 사전 선별 후보 (--select) - LLM 없이 글자 규칙만
 // ---------------------------------------------------------------------------
 
-/** 공백·구두점·기호·이모지를 지운 본문. */
-function core(text: string): string {
-  return text.replace(/[\s\p{P}\p{S}]/gu, '')
-}
-
-function isTrivial(text: string): boolean {
-  const c = core(text)
-  if (c.length <= 1) return true // 한 글자, 또는 기호·이모지뿐("...", "💛")
-  if (/^[ㄱ-ㅎㅏ-ㅣ]+$/u.test(c)) return true // ㅋㅋㅋ, ㅠㅠ 같은 자모뿐
-  if (/^https?:\/\/\S+$/u.test(text.trim())) return true // 링크뿐
-  return false
-}
+// sel-a의 판정 함수는 운영 경로(`inputAssembly.ts`)가 쓰는 것과 같은 함수다(`52r2-`, F-2) - 두 곳의 규칙이 어긋나지 않게 한다.
+const isTrivial = isTrivialMessageText
 
 /** 갈등 어휘 - 고정 목록. 하루에 이 말이 든 메시지가 `FRICTION_MIN_MESSAGES`건 이상이면 그 날을 뺀다. */
 export const FRICTION_LEXICON = ['서운', '화났', '화내', '속상', '따지', '짜증', '읽씹', '일부러', '세게', '싸우', '싸웠'] as const

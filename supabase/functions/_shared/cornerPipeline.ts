@@ -24,6 +24,8 @@
  * ⓪ 소속 단언      → 맥락 값이 틀렸거나 입력 레코드가 맥락의 커플·기간 밖이면
  *                     `CoupleMembershipError`로 멈춘다(실패 사유 기록 없음, 삼키지 않음)
  * ① 선행 검사      → 미달이면 insufficient_input, LLM 호출하지 않음
+ * ①-b 안전 정지    → 보낼 입력 전체의 추정 토큰이 40,000을 넘으면(§17-0-9-F-2, r59) LLM 호출하지 않고
+ *                     `outcome: 'halted'`(`CornerPipelineHalt`)를 돌려준다. 실패 사유 4값이 아니다
  * ② 계수 조회      → CoeffBundle (코너가 계수를 쓰지 않으면 생략)
  * ③ LLM 호출       → 실패 시 generation_failed
  * ④ `validateCornerResponse` (17-0-4의 순서 전체)
@@ -67,6 +69,11 @@ import type { SkipReason } from '../../../src/engine/corners/pipelineContracts.t
 import { SKIP_REASON_RETRY_POLICY } from '../../../src/engine/corners/pipelineContracts.ts'
 import type { LlmClient } from './llmClient.ts'
 import type { LlmRequest } from './llmRequest.ts'
+import {
+  INPUT_TOKEN_STOP_BAND,
+  INPUT_TOKEN_STOP_LIMIT,
+  estimateRequestTokens,
+} from './tokenEstimate.ts'
 
 /**
  * 코너 맥락의 기간 — `[start, end)`, 끝 배타(17-0-7 공통 "기간 경계"). 17-5처럼 재료가
@@ -621,7 +628,30 @@ export interface CornerPipelineFailure {
   readonly llmCallAttempts: number
 }
 
-export type CornerPipelineResult<TStored> = CornerPipelineSuccess<TStored> | CornerPipelineFailure
+/**
+ * 생성 전 안전 정지 (MASTER §17-0-9-F-2, r59) - 코너 하나의 **추정 입력 토큰이 상한을 넘어서** LLM을 부르지 않았다.
+ *
+ * **실패가 아니다.** `reason`이 없고 실패 사유 4값(`SkipReason`) 중 어느 것으로도 기록하지 않는다 - 어느 값으로 볼지는
+ * 제품 사실이고 아직 정해지지 않았다(예: `insufficient_input`의 유저 문구는 "이번 달 기록이 적어서"다). 17-0-4-B의
+ * 호출 전 소속 단언("그 코너: 실패 사유를 기록하지 않는다")과 같은 층이다. 호출자는 `outcome === 'halted'`를 보고
+ * 운영자에게 알린다(`ops_alerts` 쓰기는 발행 경로의 일이다). 코너 행에 사유를 쓰지 않는다.
+ */
+export interface CornerPipelineHalt {
+  readonly outcome: 'halted'
+  /** 정지 종류. 지금은 하나뿐이다. */
+  readonly haltedFor: 'input_token_limit'
+  /** 어느 코너인가. `runCornerModule`이 채운다 - `runCornerPipeline`은 코너를 모르므로 직접 부르면 없다. */
+  readonly cornerName?: string
+  /** 추정 입력 토큰(`INPUT_TOKEN_STOP_BAND` 구간) - 측정값이 아니다. */
+  readonly estimatedInputTokens: number
+  /** 이 정지의 상한. 추정값이 이 값을 **넘으면** 정지한다. */
+  readonly limit: number
+  readonly detail: string
+  /** 항상 0 - 호출 전에 멈춘다. 성공·실패 결과와 같은 이름으로 읽을 수 있게 둔다. */
+  readonly llmCallAttempts: 0
+}
+
+export type CornerPipelineResult<TStored> = CornerPipelineSuccess<TStored> | CornerPipelineFailure | CornerPipelineHalt
 
 /**
  * 코너 생성 파이프라인 골격을 한 코너 1건에 대해 실행한다. 코너별
@@ -648,10 +678,24 @@ export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
     return { outcome: 'failure', reason: 'insufficient_input', detail: '선행 검사 미달', llmCallAttempts: 0 }
   }
 
+  // ①-b 안전 정지(§17-0-9-F-2) — 보낼 입력 전체(system·user 블록)의 추정 토큰이 상한을 넘으면 LLM을 부르지 않는다.
+  // 선행 검사 다음이다: 재료가 없으면 사유는 `insufficient_input`이고, 재료가 있는데 너무 많을 때만 멈춘다.
+  // 결과는 실패 사유 4값 밖이다(`CornerPipelineHalt`).
+  const request = buildRequest(input)
+  const estimatedInputTokens = estimateRequestTokens(request, INPUT_TOKEN_STOP_BAND)
+  if (estimatedInputTokens > INPUT_TOKEN_STOP_LIMIT) {
+    return {
+      outcome: 'halted',
+      haltedFor: 'input_token_limit',
+      estimatedInputTokens,
+      limit: INPUT_TOKEN_STOP_LIMIT,
+      detail: `추정 입력 토큰 ${estimatedInputTokens}이(가) 상한 ${INPUT_TOKEN_STOP_LIMIT}을 넘어 생성하지 않음`,
+      llmCallAttempts: 0,
+    }
+  }
+
   // ② 계수 조회 — 코너가 계수를 쓰지 않으면 생략(coeffLookup.ts docblock 참조).
   const coeffBundle = lookupCoeffBundle ? await lookupCoeffBundle() : undefined
-
-  const request = buildRequest(input)
 
   const spec: CornerResponseSpec<TLlm, TStored> = {
     llmSchema: schema,
@@ -746,7 +790,7 @@ export function runCornerModule<TInput, TLlm, TStored>(
 ): Promise<CornerPipelineResult<TStored>> {
   const { input, context } = params
   const spec = corner.responseSpec(input, context)
-  return runCornerPipeline<TInput, TLlm, TStored>({
+  const result = runCornerPipeline<TInput, TLlm, TStored>({
     input,
     context,
     scopedRecords: corner.scopedRecords,
@@ -762,4 +806,6 @@ export function runCornerModule<TInput, TLlm, TStored>(
     llmClient: params.llmClient,
     lookupCoeffBundle: params.lookupCoeffBundle,
   })
+  // 안전 정지에는 어느 코너인지를 붙인다(운영자에게 알릴 때 쓴다).
+  return result.then((r) => (r.outcome === 'halted' ? { ...r, cornerName: corner.cornerName } : r))
 }

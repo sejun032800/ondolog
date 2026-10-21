@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-21 (corner-pipeline, `52r2`): M1b 마무리(오프라인) - 17-4 문구 복원, sel-a 운영 경로 연결(`inputPrefilter.ts`, 제외 건수 `trivialMessages`), 안전 정지(추정 입력 토큰 > 40,000이면 LLM 0회, 실패 사유 4값 밖 `outcome: 'halted'`, 하네스 `run`도 거침), 17-1 user 블록에 dateLevel, 재소환 featured 자격을 `derive`에서 코드로 강제. 시험 기댓값 1곳 수정(`inputAssembly.test.ts` 201행, 필드 추가)·입력 2곳. 게이트 0 / 0 / 1028 · 52. 실제 API 호출 없음. 미커밋
+
 2026-10-19 (corner-pipeline, `52`): M1b 프롬프트 고도화(오프라인) - 코너 3종 system 지시·좋은/나쁜 예·선별 기준 다듬음(`cornerCommon.ts` 공통 블록 포함, 스키마·검증·ID 선언 무변경), 하네스에 `dry --cap/--select` 후보 측정 추가(`scripts/ops/m1InputCandidates.ts` 신규, 운영 경로 무연결, 토큰은 로컬 추정). 시험 기댓값 수정 없음. 게이트 0 / 0 / 986 · 49. 실제 API 호출 없음. 미커밋
 
 2026-10-19 (메인 세션, `50r2`): 루트 `tsconfig.json` exclude에 `scripts/ops` 한 항목(1회 허가, R16-3). 하네스에 `stop_reason=max_tokens` 잘림 기록 추가 - 잘린 뒤 재호출을 하네스 래퍼가 막음, 골격 무변경(R16-4, HANDOFF). 데이터셋 그대로. 게이트 0 / 0 / 986 · 49. 실제 API 호출 없음. 미커밋

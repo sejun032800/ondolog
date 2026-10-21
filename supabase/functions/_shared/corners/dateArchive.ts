@@ -160,6 +160,13 @@ function deriveFor(input: DateArchiveInput, context: CornerContext) {
       if (!seen.has(d.id)) return fail(`기사가 되지 않은 데이트: ${d.id}`)
     }
 
+    // 대표 화보 자격(17-0-7 표, r59): 이번 기간 데이트가 1건 이상이면 재소환 데이트는 대표 화보가 될 수 없다. 0건일 때만
+    // 재소환에서 고른다. 결정론 규칙이라 프롬프트 지시에만 맡기지 않고 여기서 막는다. **다른 데이트로 바꿔 끼우지
+    // 않는다** - 무엇으로 바꿀지는 제품 사실이다. 어긋난 선택은 이 단계의 다른 실패와 같이 `schema_invalid`가 된다.
+    if (input.dates.some((d) => d.recalled !== true) && recalledById.get(filled.featuredDateId) === true) {
+      return fail(`이번 기간 데이트가 있는데 재소환 데이트가 대표 화보로 선택됐다: ${filled.featuredDateId}`)
+    }
+
     // 기사 순서: 이번 기간 데이트 날짜순 -> 재소환 데이트 날짜순(17-0-7). LLM이 정하지 않는다.
     const ordered = [...filled.articles].sort((a, b) => {
       const ra = recalledById.get(a.dateId) === true ? 1 : 0
@@ -266,7 +273,8 @@ const CORNER_INSTRUCTION_BLOCK: PromptBlock = {
     '',
     '하루의 데이트 하나가 한 편의 기사다. 입력의 데이트마다 정확히 한 편씩 쓴다. 빠뜨리거나 겹치지 않는다.',
     '유저가 남긴 글·그림(userNotes)이 있는 구간의 주인공은 유저의 기록이다. 그 구간에는 캡션을 쓰지 않고, 유저의 글을 다시 풀어 쓰거나 평하지도 않는다.',
-    '입력에 있는 사실은 날짜, 지역, 구간의 순서·시각·장소명, 구간별 사진 장수, 유저 기록의 유무와 글 내용이 전부다. 사진 속 모습, 음식, 날씨, 분위기, 두 사람의 기분은 입력에 없으므로 쓰지 않는다.',
+    '입력에 있는 사실은 날짜, 지역, 구간의 순서·시각·장소명, 구간별 사진 장수, 유저 기록의 유무와 글 내용, 그리고 데이트 단위의 사진 장수와 유저 기록(dateLevel)이 전부다. 사진 속 모습, 음식, 날씨, 분위기, 두 사람의 기분은 입력에 없으므로 쓰지 않는다.',
+    'dateLevel은 구간에 속하지 않고 그 데이트 하루에 묶인 사진 장수와 유저 기록이다. 읽기 전용 맥락이다. 제목과 맞춤 질문을 만들 때 읽을 수는 있지만, 구간 번호가 없으므로 캡션의 대상으로 삼지 않고, 출력에 옮겨 적거나 요약하거나 평하지 않는다. dateLevel에 유저 기록이 있어도 구간의 캡션 규칙은 구간의 userNotes만 따른다.',
     '',
     '쓰는 것',
     '- title: 그날의 장면이나 동선을 입력의 장소·시각 순서에 맞게 담는다. 20자 이내. 평가·감상·수식("완벽한", "행복한")을 붙이지 않고, 한 사람을 주어로 삼지 않는다.',
@@ -277,7 +285,7 @@ const CORNER_INSTRUCTION_BLOCK: PromptBlock = {
     '- tailoredQuestion: 두 사람이 잡지를 함께 보며 이야기할 질문 하나(text)와, 입력의 어떤 사실에서 나온 질문인지(basis, 한 문장). 그날 데이터에서 이어지는, 다음에 함께 해볼 일을 가볍게 묻는 형태로 쓴다.',
     '  좋은 예: text "다음에 롯데월드 갈 때 교복 데이트 해볼 의향은?", basis "롯데월드를 방문한 구간이 있어서".',
     '  점수를 묻는 질문과 가장 기억에 남는 것을 묻는 질문은 고정 질문으로 이미 들어가므로 쓰지 않는다. 그날을 평가하는 질문, 한쪽의 행동을 짚는 질문, 원인을 묻는 질문, 입력에 없는 사실을 전제한 질문도 쓰지 않는다. 나쁜 예: "오늘은 왜 일찍 헤어졌을까요?"(원인 지목).',
-    '- featuredDateId: 메인 화보로 삼을 데이트 하나의 id. 입력에서 확인되는 신호를 이 순서로 본다. 구간 사진 장수의 합이 큰 날, 유저 기록(글·그림)이 남은 구간이 많은 날, 첫 구간부터 마지막 구간까지 시각 폭이 넓은 날. 신호가 모자라도 반드시 하나를 고른다.',
+    '- featuredDateId: 메인 화보로 삼을 데이트 하나의 id. 입력에 recalled가 false인 데이트가 하나라도 있으면 그중에서만 고른다. recalled가 true인 데이트는 recalled가 false인 데이트가 하나도 없을 때만 고를 수 있다. 고를 수 있는 데이트 안에서, 입력에서 확인되는 신호를 이 순서로 본다. 구간 사진 장수의 합이 큰 날, 유저 기록(글·그림)이 남은 구간이 많은 날, 첫 구간부터 마지막 구간까지 시각 폭이 넓은 날. 신호가 모자라도 반드시 하나를 고른다.',
     '- 날짜, 지역, 장소, 사진, 유저 기록은 출력의 키로 쓰지 않는다. 파이프라인이 id로 채운다. 데이트는 id로만 가리킨다. 제목과 캡션 문장 안에서 입력에 있는 장소명을 말하는 것은 괜찮다.',
     '- 입력의 recalled가 true인 데이트는 "그때 그 시절"로 다시 소환한 지난 데이트다. 같은 방식으로 쓰고, 오래된 일이라는 이유로 "추억", "그때" 같은 말을 더하지 않는다.',
     '',
@@ -292,7 +300,7 @@ function buildRequest(input: DateArchiveInput, context: CornerContext): LlmReque
     system: [COMMON_PRINCIPLES_BLOCK, CORNER_INSTRUCTION_BLOCK],
     user: [
       { text: `기간: ${periodLabelOf(context)}` },
-      { text: ['데이트(한 줄이 한 건, 날짜 순):', ...inChronologicalOrder(input.dates).map((d) => dateLine(d, true))].join('\n') },
+      { text: ['데이트(한 줄이 한 건, 날짜 순):', ...inChronologicalOrder(input.dates).map((d) => dateLine(d, true, true))].join('\n') },
     ],
   }
 }

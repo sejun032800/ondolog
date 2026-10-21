@@ -28,6 +28,16 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 
+## M1b 마무리 (`52r2`, 2026-10-21, corner-pipeline) - 오프라인, 실행 안 함
+
+- 내부 결정: sel-a 판정은 `_shared/inputPrefilter.ts`(`isTrivialMessageText`)에 두고 `inputAssembly.ts`가 메시지 레코드를 만들 때(본문 있음·이번 기간 안) 부른다. 하네스 sel-a도 같은 함수를 쓴다(규칙 중복 방지). 뺀 건수는 `InputExclusions.trivialMessages`(신규 필드), `messagesWithoutBody`와 겹치지 않는다.
+- 내부 결정: 토큰 추정은 `scripts/ops/`에서 `_shared/tokenEstimate.ts`로 옮겼다(운영 경로가 `scripts/ops/`를 import할 수 없어서). 하네스 `m1InputCandidates.ts`는 거기서 다시 내보낸다. 안전 정지의 비교 구간은 중간값(`INPUT_TOKEN_STOP_BAND = 'mid'`), 상한은 상수 `INPUT_TOKEN_STOP_LIMIT = 40_000`(`app_config` 아님, 임시 - 최종 값은 M3 실데이터·M1c).
+- 내부 결정: 안전 정지 결과는 `CornerPipelineResult`의 세 번째 변형 `CornerPipelineHalt`(`outcome: 'halted'`, `haltedFor: 'input_token_limit'`, `estimatedInputTokens`, `limit`, `detail`, `cornerName?`, `llmCallAttempts: 0`)이고 `reason` 필드가 없다. 위치는 `runCornerPipeline`의 선행 검사 직후·계수 조회 앞(`buildRequest`가 이 자리로 당겨졌다). `cornerName`은 `runCornerModule`이 붙인다. 4값 유니온·Zod 스키마·`SKIP_REASON_RETRY_POLICY`는 손대지 않았다. 호출자(발행 경로)는 `'failure'`만 `saveCornerFailure`에 넘기고 `'halted'`는 코너 행에 사유를 쓰지 않고 운영자에게 알려야 한다(`ops_alerts`는 발행 경로 몫, 이번에 안 넣음).
+- 내부 결정: 대표 화보 자격은 코드로 강제했다 - `dateArchive.ts` `deriveFor`(파생값 채우기, 기존 단계)에서 "이번 기간 데이트가 있는데 featured가 재소환"이면 실패시킨다. 실패 사유는 같은 단계의 다른 의미 위반과 같은 `schema_invalid`(최대 1회 재시도, 17-0-5-A). 다른 데이트로 바꿔 끼우지 않는다. 프롬프트의 featured 문구도 같은 규칙으로 맞췄다.
+- 내부 결정: `dateLine(record, includeRecalled, includeDateLevel = false)` - 17-1만 `true`. dateLevel은 데이트 줄에 `"dateLevel":{"photoCount":N,"userNotes":[...]}`(구간과 같은 모양, 사진 경로·작성자 ID 없음)로 실린다. 저장 쪽 `copy` 선언에 없어 출력에 새지 않는다. dateLevel 사진은 참조 가능 목록에 원래 없었고(17-1 입력은 데이트만 참조) 더하지 않았다.
+- 시험 기댓값 수정: `inputAssembly.test.ts` 201행 `exclusions` 기대에 `trivialMessages: 0` 추가(필드 신설). 입력 수정: 같은 파일 320·334행 본문 `'A'`·`'B'`를 `'안녕 A'`·`'안녕 B'`로(한 글자라 sel-a가 빼서 커플 분리 시험의 의도가 사라짐). 기대값은 그대로.
+- 열린 판단(PM): sel-a(52 원안 그대로)가 `50-` 데이터셋에서 `콜 🍺`·`응`·`응?`(기호 뺀 본문이 한 글자)도 뺀다 - 짧아도 실제 답인 말이다. 규칙을 좁힐지(예: 한 글자 한글 답 보존) 결정 필요 / 안전 정지의 비교 구간(중간값)과 40,000이 한글 토큰 실제와 맞는지는 M1c `usage`로 확인 / 어긋난 featured가 재시도에서도 반복되면 코너가 `schema_invalid`로 끝난다 - 이 경우를 다른 데이트로 대체할지는 제품 사실.
+
 ## M1b 프롬프트 고도화 (`52`, 2026-10-19, corner-pipeline) - 오프라인, 실행 안 함
 
 - 내부 결정: 입력 상한·사전 선별 후보는 `scripts/ops/m1InputCandidates.ts`(신규, 하네스 전용)에 두고 `m1QualityRun.ts dry --cap <none|all|cap-a|cap-b|cap-c> --select <none|all|sel-a|sel-b|sel-c|sel-d>`로만 부른다. `run`·`inputAssembly.ts`·코너 코드에는 연결하지 않았다. 결과는 `scripts/ops/out/candidates.md`(gitignore).

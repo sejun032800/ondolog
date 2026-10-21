@@ -200,6 +200,7 @@ describe('필드 채우기와 사유별 제외 건수 (F)', () => {
     expect(r.dates[0].source.stops[0].photos).toEqual([])
     expect(r.exclusions).toEqual({
       messagesWithoutBody: 1,
+      trivialMessages: 0,
       standalonePhotosWithoutTime: 1,
       photosWithoutSize: 2,
       lockedEntries: 0,
@@ -317,7 +318,7 @@ describe('커플 분리 (A)', () => {
 
   it('다른 커플의 행이 같이 있어도 결과에는 없다 (필터가 걸린 정상 클라이언트)', async () => {
     const mixed = tables({
-      messages: [message('m-a', '2026-08-22T09:20:00+09:00', 'A'), message('m-b', '2026-08-22T09:20:00+09:00', 'B', { couple_id: COUPLE_B })],
+      messages: [message('m-a', '2026-08-22T09:20:00+09:00', '안녕 A'), message('m-b', '2026-08-22T09:20:00+09:00', '안녕 B', { couple_id: COUPLE_B })],
       dates: [dateRow('d-a', AUG_DAY('19')), dateRow('d-b', AUG_DAY('19'), { couple_id: COUPLE_B })],
       data_entries: [
         entryRow('e-a', { captured_at: '2026-08-10T10:00:00+09:00' }),
@@ -331,7 +332,7 @@ describe('커플 분리 (A)', () => {
 
   describe('결과 재확인 - 오염된 클라이언트(couple_id 필터를 무시)가 두 커플의 행을 섞어 돌려줘도 CoupleMembershipError', () => {
     const cases: ReadonlyArray<[string, Record<string, AssemblyRow[]>, string]> = [
-      ['messages', tables({ messages: [message('m-a', '2026-08-22T09:20:00+09:00', 'A'), message('m-b', '2026-08-22T09:20:00+09:00', 'B', { couple_id: COUPLE_B })] }), 'm-b'],
+      ['messages', tables({ messages: [message('m-a', '2026-08-22T09:20:00+09:00', '안녕 A'), message('m-b', '2026-08-22T09:20:00+09:00', '안녕 B', { couple_id: COUPLE_B })] }), 'm-b'],
       ['dates', tables({ dates: [dateRow('d-a', AUG_DAY('19')), dateRow('d-b', AUG_DAY('20'), { couple_id: COUPLE_B })] }), 'd-b'],
       [
         'date_stops',

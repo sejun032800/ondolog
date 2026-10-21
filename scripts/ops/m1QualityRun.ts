@@ -28,6 +28,7 @@ import {
   type CornerContext,
   type CornerModule,
 } from '../../supabase/functions/_shared/cornerPipeline.ts'
+import { INPUT_TOKEN_STOP_BAND, INPUT_TOKEN_STOP_LIMIT, estimateRequestTokens } from '../../supabase/functions/_shared/tokenEstimate.ts'
 import { createLlmClient, type LlmClient } from '../../supabase/functions/_shared/llmClient.ts'
 import type { LlmRequest } from '../../supabase/functions/_shared/llmRequest.ts'
 import { dateArchiveModule } from '../../supabase/functions/_shared/corners/dateArchive.ts'
@@ -106,7 +107,8 @@ interface RunRecord {
   readonly totalLatencyMs: number
   readonly httpCalls: HttpCall[]
   readonly attempts: AttemptRecord[]
-  readonly outcome: 'success' | 'failure'
+  /** `halted` = 생성 전 안전 정지(추정 입력 토큰 > 40,000, `52r2-`). 실패 사유 4값이 아니다. 이때 LLM 호출은 0회다. */
+  readonly outcome: 'success' | 'failure' | 'halted'
   readonly failureReason: string | null
   readonly failureDetail: string | null
   readonly llmCallAttempts: number
@@ -197,7 +199,12 @@ async function dry(flags: Map<string, string>): Promise<void> {
     const req = module.buildRequest(inp, CONTEXT)
     const text = requestText(req)
     await Deno.writeTextFile(`${OUT_DIR}/request-${key}.txt`, text)
-    console.log(`${key}: hasMaterial=${module.hasMaterial(inp)} requestChars=${text.length}`)
+    // 안전 정지(52r2-): 운영 경로와 같은 추정·상한. `run`은 골격을 거치므로 같은 정지를 받는다.
+    const tokens = estimateRequestTokens(req, INPUT_TOKEN_STOP_BAND)
+    const band = `${estimateRequestTokens(req, 'low')}~${estimateRequestTokens(req, 'high')}`
+    console.log(
+      `${key}: hasMaterial=${module.hasMaterial(inp)} requestChars=${text.length} estTokens(${INPUT_TOKEN_STOP_BAND})=${tokens} (${band}) limit=${INPUT_TOKEN_STOP_LIMIT} ${tokens > INPUT_TOKEN_STOP_LIMIT ? 'HALT' : 'ok'}`,
+    )
   }
 }
 
@@ -385,7 +392,7 @@ async function run(flags: Map<string, string>): Promise<void> {
         attempts,
         outcome: pipeline.outcome,
         failureReason: pipeline.outcome === 'failure' ? pipeline.reason : null,
-        failureDetail: pipeline.outcome === 'failure' ? redact(pipeline.detail) : null,
+        failureDetail: pipeline.outcome === 'success' ? null : redact(pipeline.detail),
         llmCallAttempts: pipeline.llmCallAttempts,
         truncated,
         content:pipeline.outcome === 'success' ? pipeline.content : null,
@@ -394,7 +401,7 @@ async function run(flags: Map<string, string>): Promise<void> {
       const file = `${RUNS_DIR}/${safeName(model)}__${cornerKey}__${tag}__r${r}.json`
       await Deno.writeTextFile(file, redact(JSON.stringify(record, null, 2)))
       console.log(
-        `[${model}] ${cornerKey} #${r}: ${record.outcome}${record.failureReason ? ' (' + record.failureReason + ')' : ''}${truncated ? ' [max_tokens 잘림]' : ''} ` +
+        `[${model}] ${cornerKey} #${r}: ${record.outcome}${record.failureReason ? ' (' + record.failureReason + ')' : ''}${record.outcome === 'halted' ? ' (' + record.failureDetail + ')' : ''}${truncated ? ' [max_tokens 잘림]' : ''} ` +
           `calls=${httpCalls.length} in=${usageTotal.input} cw=${usageTotal.cacheWrite} cr=${usageTotal.cacheRead} out=${usageTotal.output} ${totalLatencyMs}ms`,
       )
     }
@@ -492,12 +499,12 @@ async function review(): Promise<void> {
     for (const rec of records.filter((r) => r.corner === corner)) {
       out.push(`### ${rec.model} / 회차 ${rec.run}${rec.tag === 'default' ? '' : ' / ' + rec.tag}`, '')
       out.push(
-        `- 결과: **${rec.outcome === 'success' ? '성공' : '실패 (' + rec.failureReason + ')'}** / LLM 호출 ${rec.llmCallAttempts}회 / ${rec.totalLatencyMs}ms / ` +
+        `- 결과: **${rec.outcome === 'success' ? '성공' : rec.outcome === 'halted' ? '안전 정지 (호출 없음)' : '실패 (' + rec.failureReason + ')'}** / LLM 호출 ${rec.llmCallAttempts}회 / ${rec.totalLatencyMs}ms / ` +
           `토큰 입력 ${rec.usageTotal.input} · 출력 ${rec.usageTotal.output} · 캐시읽기 ${rec.usageTotal.cacheRead} · 캐시쓰기 ${rec.usageTotal.cacheWrite}`,
       )
       out.push(`- 원자료: \`scripts/ops/out/runs/${safeName(rec.model)}__${rec.corner}__${rec.tag}__r${rec.run}.json\``)
       if (rec.truncated) out.push(`- **출력 잘림: \`stop_reason=max_tokens\` (max_tokens ${rec.maxTokens}), 재시도하지 않음** - 아래 시도 원문이 잘린 출력이다`)
-      if (rec.outcome === 'failure') out.push(`- 실패 상세: ${cell(rec.failureDetail ?? '')}`)
+      if (rec.outcome !== 'success') out.push(`- ${rec.outcome === 'halted' ? '정지 사유' : '실패 상세'}: ${cell(rec.failureDetail ?? '')}`)
       out.push('')
       for (const a of rec.attempts) {
         if (a.validation.ok) continue
@@ -552,7 +559,7 @@ async function review(): Promise<void> {
   for (const r of records) {
     const c = cost(r.model, r.usageTotal)
     sum.push(
-      `| ${r.model} | ${r.corner} | ${r.run} | ${r.outcome === 'success' ? '성공' : '실패: ' + r.failureReason}${r.truncated ? ' (max_tokens 잘림)' : ''} | ${r.llmCallAttempts} | ${r.usageTotal.input} | ${r.usageTotal.output} | ${r.usageTotal.cacheRead} | ${r.usageTotal.cacheWrite} | ${r.totalLatencyMs} | ${c ? c.sync.toFixed(4) : '-'} |`,
+      `| ${r.model} | ${r.corner} | ${r.run} | ${r.outcome === 'success' ? '성공' : r.outcome === 'halted' ? '안전 정지' : '실패: ' + r.failureReason}${r.truncated ? ' (max_tokens 잘림)' : ''} | ${r.llmCallAttempts} | ${r.usageTotal.input} | ${r.usageTotal.output} | ${r.usageTotal.cacheRead} | ${r.usageTotal.cacheWrite} | ${r.totalLatencyMs} | ${c ? c.sync.toFixed(4) : '-'} |`,
     )
   }
   await Deno.writeTextFile(`${OUT_DIR}/summary.md`, sum.join('\n'))

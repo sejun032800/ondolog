@@ -26,7 +26,8 @@
  *   세기만 한다(F "사유별 제외 건수").
  *
  * ── 하지 않는 것 (G, 발행 경로의 일) ──────────────────────────────────────
- * `last_featured_at`·`feature_count`는 읽기만 한다. 채팅 입력량 상한, 17-1 선별 상한(이번 기간 데이트는 전부
+ * 의미 없는 조각 제거(F-2, r59)는 메시지 레코드를 만들 때 한다(`inputPrefilter.ts`) - 규칙 기반 전처리는 이것뿐이다.
+ * `last_featured_at`·`feature_count`는 읽기만 한다. 채팅 입력량 상한(코너당 추정 토큰 안전 정지는 골격의 일), 17-1 선별 상한(이번 기간 데이트는 전부
  * 넘긴다), 17-5 기간 넓히기(받은 `context.period`만 조회한다)도 하지 않는다.
  */
 
@@ -43,6 +44,7 @@ import type {
   PhotoRecord,
 } from './corners/cornerCommon.ts'
 import type { PhotoRef, UserNote } from '../../../src/types/corners/storedContent.ts'
+import { isTrivialMessageText } from './inputPrefilter.ts'
 import { timeOfDayLabel } from './timeOfDayLabel.ts'
 import {
   kstClockHHmm,
@@ -91,6 +93,11 @@ export interface InputAssemblyClient {
 export interface InputExclusions {
   /** 본문이 없는 미디어 메시지(`body is null`). 이번 기간 조회 범위 안. */
   readonly messagesWithoutBody: number
+  /**
+   * 의미 없는 조각이라 뺀 메시지(§17-0-9-F-2, `inputPrefilter.ts`). **본문이 있는 메시지 중 이번 기간 안의 것**만
+   * 센다 - `messagesWithoutBody`와 겹치지 않는다(본문이 없으면 앞 사유로 세고, 이 판정까지 오지 않는다).
+   */
+  readonly trivialMessages: number
   /** `captured_at`이 null이고 데이트에 묶이지 않은 사진(E). 시각이 없어 기간을 알 수 없으므로 기간과 무관하게 센다. */
   readonly standalonePhotosWithoutTime: number
   /** `width`·`height` 중 하나라도 null인 사진(F). 이번 기간 입력(이번 기간 데이트·재소환 포함)에서 빠진 것. */
@@ -478,6 +485,7 @@ export async function assembleCornerInput(
 
   // 채팅
   let messagesWithoutBody = 0
+  let trivialMessages = 0
   const messages: ChatMessageRecord[] = []
   for (const row of messageRows) {
     if (row.body === null || row.body === undefined) {
@@ -486,6 +494,11 @@ export async function assembleCornerInput(
     }
     const sentAt = reqDate(row, 'sent_at', 'messages')
     if (!isRecordInPeriod({ occurredAt: sentAt, recalled: false }, period)) continue
+    const text = reqStr(row, 'body', 'messages')
+    if (isTrivialMessageText(text)) {
+      trivialMessages += 1
+      continue
+    }
     const at = kstIsoString(sentAt)
     messages.push({
       id: reqStr(row, 'id', 'messages'),
@@ -495,7 +508,7 @@ export async function assembleCornerInput(
       recalled: false,
       source: {
         speaker: nameOf(reqStr(row, 'sender_id', 'messages')),
-        text: reqStr(row, 'body', 'messages'),
+        text,
         at,
         attribution: {
           display: `${kstDisplayStamp(sentAt)}, ${timeOfDayLabel(sentAt)} 대화 중`,
@@ -546,6 +559,7 @@ export async function assembleCornerInput(
 
   const exclusions: InputExclusions = {
     messagesWithoutBody,
+    trivialMessages,
     standalonePhotosWithoutTime: untimedStandalone.length,
     photosWithoutSize: sizeLessPhotoIds.size,
     lockedEntries: lockedIds.size,

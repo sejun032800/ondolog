@@ -143,8 +143,14 @@ export function inChronologicalOrder<T extends ScopedRecord>(records: readonly T
 /**
  * 데이트를 프롬프트에 싣는 줄. 유저 기록(`userNotes`)은 있으면 그 구간에 AI가 쓰지 않는다는 신호이고, 내용은
  * 제목·질문을 만드는 맥락으로만 쓴다. `includeRecalled`: 17-1만 재소환 표시를 싣는다.
+ *
+ * `includeDateLevel`: 17-1만 데이트 단위 사진·유저 기록(`DateSource.dateLevel`)을 읽기 전용 맥락으로 싣는다
+ * (§17-0-9-F-2, r59). 정거장에 속하지 않고 데이트 하루에 묶인 것이라 `stops` 밖 `dateLevel` 키에 둔다. 모양은 구간과
+ * 같다(`photoCount`, `userNotes` = 메모는 `{type,text}`, 그림은 `{type}`). 출력에 쓰이는 값이 아니다 - 저장 스키마에
+ * 옮겨 적는 선언(`copy`)에 없고, 지면에 인용하는 방식은 M1c 뒤에 정한다. 17-5는 싣지 않는다(프롬프트가 바뀌지 않는다).
  */
-export function dateLine(record: DateRecord, includeRecalled: boolean): string {
+export function dateLine(record: DateRecord, includeRecalled: boolean, includeDateLevel = false): string {
+  const dateLevel = record.source.dateLevel
   return jsonLine({
     id: record.id,
     dateOn: record.source.dateOn,
@@ -157,5 +163,13 @@ export function dateLine(record: DateRecord, includeRecalled: boolean): string {
       photoCount: s.photos.length,
       userNotes: s.userNotes.map((n) => (n.type === 'memo' ? { type: n.type, text: n.text } : { type: n.type })),
     })),
+    ...(includeDateLevel && dateLevel !== undefined
+      ? {
+          dateLevel: {
+            photoCount: dateLevel.photos.length,
+            userNotes: dateLevel.userNotes.map((n) => (n.type === 'memo' ? { type: n.type, text: n.text } : { type: n.type })),
+          },
+        }
+      : {}),
   })
 }

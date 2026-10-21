@@ -159,7 +159,8 @@ async function runAndPersist<TInput, TPayload extends object>(
       coeffBundle: result.coeffBundle,
       generationAttempts: result.llmCallAttempts,
     })
-  } else {
+  } else if (result.outcome === 'failure') {
+    // 'halted'(안전 정지, 52r2-)는 실패 사유 4값이 아니라서 코너 행에 사유를 쓰지 않는다.
     await saveCornerFailure(client, {
       cornerId: 'corner-1',
       engineVersion: 'pipeline-v1',
