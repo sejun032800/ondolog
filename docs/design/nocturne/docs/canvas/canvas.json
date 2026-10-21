@@ -1,0 +1,950 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-21T00:05:00+09:00"
+ },
+ "title": "온도록 앱 UI — Nocturne",
+ "launch": {
+  "view": "canvas"
+ },
+ "pages": [
+  {
+   "id": "v5",
+   "name": "v5 — 적용본 (에디토리얼 믹스 + 반짝이는 하늘)"
+  },
+  {
+   "id": "current",
+   "name": "현재 — Nocturne v4"
+  },
+  {
+   "id": "layout",
+   "name": "배치 후보 — Nocturne 유지"
+  },
+  {
+   "id": "candidates",
+   "name": "(보류) 테마 변경 후보"
+  }
+ ],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1200,
+   "h": 900,
+   "title": "Nocturne — 무드와 원칙"
+  },
+  "Tokens.dc.html": {
+   "x": 1280,
+   "y": 0,
+   "w": 1200,
+   "h": 1500,
+   "title": "토큰 — 색 · 활자 · 빛 · 형태"
+  },
+  "Components.dc.html": {
+   "x": 2560,
+   "y": 0,
+   "w": 1200,
+   "h": 1500,
+   "title": "컴포넌트"
+  },
+  "Build.dc.html": {
+   "x": 3840,
+   "y": 0,
+   "w": 1200,
+   "h": 1500,
+   "title": "구현 매핑 — RN 0.86 / Expo 57"
+  },
+  "A01-Splash.dc.html": {
+   "x": 0,
+   "y": 1900,
+   "w": 390,
+   "h": 844,
+   "title": "A01 스플래시",
+   "radius": 44
+  },
+  "A11-Login.dc.html": {
+   "x": 470,
+   "y": 1900,
+   "w": 390,
+   "h": 844,
+   "title": "A11 로그인 수단",
+   "radius": 44
+  },
+  "B01-Main.dc.html": {
+   "x": 940,
+   "y": 1900,
+   "w": 390,
+   "h": 844,
+   "title": "B01 메인 — 연결",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "B02-Main-Pull.dc.html": {
+   "x": 1410,
+   "y": 1900,
+   "w": 390,
+   "h": 844,
+   "title": "B02 끌어내리는 중",
+   "radius": 44
+  },
+  "B05-Main-Solo.dc.html": {
+   "x": 1880,
+   "y": 1900,
+   "w": 390,
+   "h": 844,
+   "title": "B05 메인 — 미연결",
+   "radius": 44
+  },
+  "C01-Sky.dc.html": {
+   "x": 2350,
+   "y": 1900,
+   "w": 390,
+   "h": 844,
+   "title": "C01 우리의 하늘",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "C03-Meteor-Words.dc.html": {
+   "x": 2820,
+   "y": 1900,
+   "w": 390,
+   "h": 844,
+   "title": "C03 떨어진 말",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "C04-Star-Day.dc.html": {
+   "x": 3290,
+   "y": 1900,
+   "w": 390,
+   "h": 844,
+   "title": "C04 별 — 그날",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "F01-Chat.dc.html": {
+   "x": 0,
+   "y": 3170,
+   "w": 390,
+   "h": 844,
+   "title": "F01 채팅",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "E01-Feed.dc.html": {
+   "x": 470,
+   "y": 3170,
+   "w": 390,
+   "h": 844,
+   "title": "E01 피드",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "E03-Date-Detail.dc.html": {
+   "x": 940,
+   "y": 3170,
+   "w": 390,
+   "h": 844,
+   "title": "E03 데이트 상세",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "E11-Date-Write.dc.html": {
+   "x": 1410,
+   "y": 3170,
+   "w": 390,
+   "h": 844,
+   "title": "E11 데이트 기록 쓰기",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "D01-Library.dc.html": {
+   "x": 0,
+   "y": 4440,
+   "w": 390,
+   "h": 844,
+   "title": "D01 매거진 서재",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "D02-Progress.dc.html": {
+   "x": 470,
+   "y": 4440,
+   "w": 390,
+   "h": 844,
+   "title": "D02 제작 현황",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "D10-Front-Matter.dc.html": {
+   "x": 940,
+   "y": 4440,
+   "w": 390,
+   "h": 844,
+   "title": "D10 속표지 — 밤에서 종이로",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "D11-Viewer.dc.html": {
+   "x": 1410,
+   "y": 4440,
+   "w": 390,
+   "h": 844,
+   "title": "D11 뷰어",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "H01-Settings.dc.html": {
+   "x": 1880,
+   "y": 4440,
+   "w": 390,
+   "h": 844,
+   "title": "H01 설정",
+   "radius": 44,
+   "is_interactive": true
+  },
+  "Index.dc.html": {
+   "x": 5400,
+   "y": 0,
+   "w": 1800,
+   "h": 1600,
+   "title": "화면 목록 — 109화면"
+  },
+  "Objects-1.dc.html": {
+   "x": 7280,
+   "y": 0,
+   "w": 1600,
+   "h": 3400,
+   "title": "오브젝트 1 — 기반 · 활자 · 동작 · 입력"
+  },
+  "Objects-2.dc.html": {
+   "x": 8960,
+   "y": 0,
+   "w": 1600,
+   "h": 3400,
+   "title": "오브젝트 2 — 표시 · 카드 · 목록 · 피드백"
+  },
+  "Objects-3.dc.html": {
+   "x": 10640,
+   "y": 0,
+   "w": 1600,
+   "h": 4000,
+   "title": "오브젝트 3 — 도메인 오브젝트"
+  },
+  "S-A1-Onboarding.dc.html": {
+   "x": 0,
+   "y": 6300,
+   "w": 2310,
+   "h": 1004,
+   "title": "A02–A06 시작 · 기본정보 · MBTI"
+  },
+  "S-A2-Onboarding.dc.html": {
+   "x": 2390,
+   "y": 6300,
+   "w": 2760,
+   "h": 1004,
+   "title": "A07–A13 5문항 · 결과 · 동의"
+  },
+  "S-A3-Onboarding.dc.html": {
+   "x": 0,
+   "y": 7424,
+   "w": 2310,
+   "h": 1004,
+   "title": "A14–A18 상세 결과 · 초대"
+  },
+  "S-A4-Onboarding.dc.html": {
+   "x": 2390,
+   "y": 7424,
+   "w": 2310,
+   "h": 1004,
+   "title": "A19–A20 · B03 · B04 · B06"
+  },
+  "S-C-Sky.dc.html": {
+   "x": 0,
+   "y": 8768,
+   "w": 1860,
+   "h": 1004,
+   "title": "C02 · C05–C07 하늘"
+  },
+  "S-E1-Feed.dc.html": {
+   "x": 1940,
+   "y": 8768,
+   "w": 2310,
+   "h": 1004,
+   "title": "E02 · E04–E07 지도 · 자동 정리 동의"
+  },
+  "S-E2-Feed.dc.html": {
+   "x": 0,
+   "y": 9892,
+   "w": 2310,
+   "h": 1004,
+   "title": "E08–E10 · E12–E13 스캔 · 업로드 · 잠금"
+  },
+  "S-E3-Feed.dc.html": {
+   "x": 2390,
+   "y": 9892,
+   "w": 1410,
+   "h": 1004,
+   "title": "E14–E16 감정 기록 · 장소 · 해시태그"
+  },
+  "S-F-Chat.dc.html": {
+   "x": 0,
+   "y": 11236,
+   "w": 2310,
+   "h": 1004,
+   "title": "F02–F06 채팅"
+  },
+  "S-D1-Magazine.dc.html": {
+   "x": 2390,
+   "y": 11236,
+   "w": 2310,
+   "h": 1004,
+   "title": "D03–D07 제작 현황 · 테마"
+  },
+  "S-D2-Magazine.dc.html": {
+   "x": 0,
+   "y": 12360,
+   "w": 2310,
+   "h": 1004,
+   "title": "D08–D09 · D12–D14 발행 · 목차 · 서재"
+  },
+  "S-D3-Magazine.dc.html": {
+   "x": 2390,
+   "y": 12360,
+   "w": 1860,
+   "h": 1004,
+   "title": "D15–D16 · G01–G02"
+  },
+  "S-G1-Corners.dc.html": {
+   "x": 0,
+   "y": 13704,
+   "w": 1860,
+   "h": 1004,
+   "title": "G03–G06 인터뷰 · 셋로그"
+  },
+  "S-G2-Corners.dc.html": {
+   "x": 1940,
+   "y": 13704,
+   "w": 2310,
+   "h": 1004,
+   "title": "G07–G11 특별 게스트"
+  },
+  "S-H1-Settings.dc.html": {
+   "x": 0,
+   "y": 15048,
+   "w": 2310,
+   "h": 1004,
+   "title": "H02–H06 설정 · 계정 · 성격 프로필"
+  },
+  "S-H2-Settings.dc.html": {
+   "x": 2390,
+   "y": 15048,
+   "w": 2310,
+   "h": 1004,
+   "title": "H07–H11 사진 · 구독 · 알림"
+  },
+  "S-H3-Settings.dc.html": {
+   "x": 0,
+   "y": 16172,
+   "w": 2310,
+   "h": 1004,
+   "title": "H12–H16 동의 · 해제 · 만료 · 탈퇴"
+  },
+  "S-H4-Settings.dc.html": {
+   "x": 2390,
+   "y": 16172,
+   "w": 2310,
+   "h": 1004,
+   "title": "H17–H19 · I01–I02"
+  },
+  "S-I-States.dc.html": {
+   "x": 0,
+   "y": 17516,
+   "w": 2760,
+   "h": 1004,
+   "title": "I03–I08 공통 상태"
+  },
+  "V-Overview.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1800,
+   "h": 1100,
+   "title": "후보 비교 — 무엇을 고를 것인가",
+   "page": "candidates"
+  },
+  "V-Common.dc.html": {
+   "x": 1880,
+   "y": 0,
+   "w": 1800,
+   "h": 1100,
+   "title": "공통 개선 — 어느 후보든 넣을 직관성",
+   "page": "candidates"
+  },
+  "V-A-Dusk.dc.html": {
+   "x": 0,
+   "y": 1400,
+   "w": 2480,
+   "h": 1004,
+   "title": "후보 A — 노을",
+   "page": "candidates"
+  },
+  "V-B-Letter.dc.html": {
+   "x": 0,
+   "y": 2704,
+   "w": 2480,
+   "h": 1004,
+   "title": "후보 B — 편지지",
+   "page": "candidates"
+  },
+  "V-C-Aura.dc.html": {
+   "x": 0,
+   "y": 4008,
+   "w": 2480,
+   "h": 1004,
+   "title": "후보 C — 오라",
+   "page": "candidates"
+  },
+  "L1-Editorial.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 2480,
+   "h": 1004,
+   "title": "배치 1 — 에디토리얼",
+   "page": "layout"
+  },
+  "L2-Collage.dc.html": {
+   "x": 0,
+   "y": 1304,
+   "w": 2480,
+   "h": 1004,
+   "title": "배치 2 — 콜라주",
+   "page": "layout"
+  },
+  "L3-Poster.dc.html": {
+   "x": 0,
+   "y": 2608,
+   "w": 2480,
+   "h": 1004,
+   "title": "배치 3 — 포스터",
+   "page": "layout"
+  },
+  "M1-Editorial-Mix.dc.html": {
+   "x": 0,
+   "y": -1704,
+   "w": 2480,
+   "h": 1004,
+   "title": "믹스 — 에디토리얼 × 지금",
+   "page": "layout"
+  },
+  "X1-Motion-Main.dc.html": {
+   "x": 0,
+   "y": -3184,
+   "w": 2480,
+   "h": 1180,
+   "title": "모션 — 메인 밤하늘 · 유성",
+   "page": "layout",
+   "is_interactive": true
+  },
+  "Y1-Our-Sky.dc.html": {
+   "x": 0,
+   "y": -4664,
+   "w": 2480,
+   "h": 1004,
+   "title": "우리의 하늘 — 반짝이는 별",
+   "page": "layout",
+   "is_interactive": true
+  },
+  "N-B-Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 2760,
+   "h": 1004,
+   "title": "메인 — 6가지 상태",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-C-Sky.dc.html": {
+   "x": 0,
+   "y": 1164,
+   "w": 3210,
+   "h": 1004,
+   "title": "우리의 하늘 — 7화면",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-T-Tabs.dc.html": {
+   "x": 0,
+   "y": 2328,
+   "w": 1410,
+   "h": 1004,
+   "title": "탭 첫 화면 — 피드 · 매거진 · 채팅",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-A01-Splash.dc.html": {
+   "x": 0,
+   "y": 3492,
+   "w": 390,
+   "h": 844,
+   "title": "A01 스플래시",
+   "page": "v5",
+   "is_interactive": true,
+   "radius": 44
+  },
+  "N-A11-Login.dc.html": {
+   "x": 0,
+   "y": 4496,
+   "w": 390,
+   "h": 844,
+   "title": "A11 로그인 수단",
+   "page": "v5",
+   "is_interactive": true,
+   "radius": 44
+  },
+  "N-D02-Progress.dc.html": {
+   "x": 0,
+   "y": 5500,
+   "w": 390,
+   "h": 844,
+   "title": "D02 제작 현황",
+   "page": "v5",
+   "is_interactive": true,
+   "radius": 44
+  },
+  "N-D10-Front-Matter.dc.html": {
+   "x": 0,
+   "y": 6504,
+   "w": 390,
+   "h": 844,
+   "title": "D10 속표지 — 밤에서 종이로",
+   "page": "v5",
+   "is_interactive": true,
+   "radius": 44
+  },
+  "N-D11-Viewer.dc.html": {
+   "x": 0,
+   "y": 7508,
+   "w": 390,
+   "h": 844,
+   "title": "D11 뷰어",
+   "page": "v5",
+   "is_interactive": true,
+   "radius": 44
+  },
+  "N-E03-Date-Detail.dc.html": {
+   "x": 0,
+   "y": 8512,
+   "w": 390,
+   "h": 844,
+   "title": "E03 데이트 상세",
+   "page": "v5",
+   "is_interactive": true,
+   "radius": 44
+  },
+  "N-E11-Date-Write.dc.html": {
+   "x": 0,
+   "y": 9516,
+   "w": 390,
+   "h": 844,
+   "title": "E11 데이트 기록 쓰기",
+   "page": "v5",
+   "is_interactive": true,
+   "radius": 44
+  },
+  "N-H01-Settings.dc.html": {
+   "x": 0,
+   "y": 10520,
+   "w": 390,
+   "h": 844,
+   "title": "H01 설정",
+   "page": "v5",
+   "is_interactive": true,
+   "radius": 44
+  },
+  "N-S-A1-Onboarding.dc.html": {
+   "x": 0,
+   "y": 11524,
+   "w": 2310,
+   "h": 1004,
+   "title": "A02–A06 시작 · 기본정보 · MBTI · A02–A06",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-A2-Onboarding.dc.html": {
+   "x": 0,
+   "y": 12688,
+   "w": 2760,
+   "h": 1004,
+   "title": "A07–A13 5문항 · 결과 · 동의 · A07–A13",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-A3-Onboarding.dc.html": {
+   "x": 0,
+   "y": 13852,
+   "w": 2310,
+   "h": 1004,
+   "title": "A14–A18 상세 결과 · 초대 · A14–A18",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-A4-Onboarding.dc.html": {
+   "x": 0,
+   "y": 15016,
+   "w": 960,
+   "h": 1004,
+   "title": "A19–A20 · B03 · B04 · B06 · A19–A20",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-E1-Feed.dc.html": {
+   "x": 0,
+   "y": 16180,
+   "w": 2310,
+   "h": 1004,
+   "title": "E02 · E04–E07 지도 · 자동 정리 동의 · E02–E07",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-E2-Feed.dc.html": {
+   "x": 0,
+   "y": 17344,
+   "w": 2310,
+   "h": 1004,
+   "title": "E08–E10 · E12–E13 스캔 · 업로드 · 잠금 · E08–E13",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-E3-Feed.dc.html": {
+   "x": 0,
+   "y": 18508,
+   "w": 1410,
+   "h": 1004,
+   "title": "E14–E16 감정 기록 · 장소 · 해시태그 · E14–E16",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-F-Chat.dc.html": {
+   "x": 0,
+   "y": 19672,
+   "w": 2310,
+   "h": 1004,
+   "title": "F02–F06 채팅 · F02–F06",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-D1-Magazine.dc.html": {
+   "x": 0,
+   "y": 20836,
+   "w": 2310,
+   "h": 1004,
+   "title": "D03–D07 제작 현황 · 테마 · D03–D07",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-D2-Magazine.dc.html": {
+   "x": 0,
+   "y": 22000,
+   "w": 2310,
+   "h": 1004,
+   "title": "D08–D09 · D12–D14 발행 · 목차 · 서재 · D08–D14",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-D3-Magazine.dc.html": {
+   "x": 0,
+   "y": 23164,
+   "w": 1860,
+   "h": 1004,
+   "title": "D15–D16 · G01–G02 · D15–G02",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-G1-Corners.dc.html": {
+   "x": 0,
+   "y": 24328,
+   "w": 1860,
+   "h": 1004,
+   "title": "G03–G06 인터뷰 · 셋로그 · G03–G06",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-G2-Corners.dc.html": {
+   "x": 0,
+   "y": 25492,
+   "w": 2310,
+   "h": 1004,
+   "title": "G07–G11 특별 게스트 · G07–G11",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-H1-Settings.dc.html": {
+   "x": 0,
+   "y": 26656,
+   "w": 2310,
+   "h": 1004,
+   "title": "H02–H06 설정 · 계정 · 성격 프로필 · H02–H06",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-H2-Settings.dc.html": {
+   "x": 0,
+   "y": 27820,
+   "w": 2310,
+   "h": 1004,
+   "title": "H07–H11 사진 · 구독 · 알림 · H07–H11",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-H3-Settings.dc.html": {
+   "x": 0,
+   "y": 28984,
+   "w": 2310,
+   "h": 1004,
+   "title": "H12–H16 동의 · 해제 · 만료 · 탈퇴 · H12–H16",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-H4-Settings.dc.html": {
+   "x": 0,
+   "y": 30148,
+   "w": 2310,
+   "h": 1004,
+   "title": "H17–H19 · I01–I02 · H17–I02",
+   "page": "v5",
+   "is_interactive": true
+  },
+  "N-S-I-States.dc.html": {
+   "x": 0,
+   "y": 31312,
+   "w": 2760,
+   "h": 1004,
+   "title": "I03–I08 공통 상태 · I03–I08",
+   "page": "v5",
+   "is_interactive": true
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Tokens.dc.html",
+  "Components.dc.html",
+  "Build.dc.html",
+  "A01-Splash.dc.html",
+  "A11-Login.dc.html",
+  "B01-Main.dc.html",
+  "B02-Main-Pull.dc.html",
+  "B05-Main-Solo.dc.html",
+  "C01-Sky.dc.html",
+  "C03-Meteor-Words.dc.html",
+  "C04-Star-Day.dc.html",
+  "F01-Chat.dc.html",
+  "E01-Feed.dc.html",
+  "E03-Date-Detail.dc.html",
+  "E11-Date-Write.dc.html",
+  "D01-Library.dc.html",
+  "D02-Progress.dc.html",
+  "D10-Front-Matter.dc.html",
+  "D11-Viewer.dc.html",
+  "H01-Settings.dc.html",
+  "Index.dc.html",
+  "Objects-1.dc.html",
+  "Objects-2.dc.html",
+  "Objects-3.dc.html",
+  "S-A1-Onboarding.dc.html",
+  "S-A2-Onboarding.dc.html",
+  "S-A3-Onboarding.dc.html",
+  "S-A4-Onboarding.dc.html",
+  "S-C-Sky.dc.html",
+  "S-E1-Feed.dc.html",
+  "S-E2-Feed.dc.html",
+  "S-E3-Feed.dc.html",
+  "S-F-Chat.dc.html",
+  "S-D1-Magazine.dc.html",
+  "S-D2-Magazine.dc.html",
+  "S-D3-Magazine.dc.html",
+  "S-G1-Corners.dc.html",
+  "S-G2-Corners.dc.html",
+  "S-H1-Settings.dc.html",
+  "S-H2-Settings.dc.html",
+  "S-H3-Settings.dc.html",
+  "S-H4-Settings.dc.html",
+  "S-I-States.dc.html",
+  "V-Overview.dc.html",
+  "V-Common.dc.html",
+  "V-A-Dusk.dc.html",
+  "V-B-Letter.dc.html",
+  "V-C-Aura.dc.html",
+  "L1-Editorial.dc.html",
+  "L2-Collage.dc.html",
+  "L3-Poster.dc.html",
+  "M1-Editorial-Mix.dc.html",
+  "X1-Motion-Main.dc.html",
+  "Y1-Our-Sky.dc.html",
+  "N-B-Main.dc.html",
+  "N-C-Sky.dc.html",
+  "N-T-Tabs.dc.html",
+  "N-A01-Splash.dc.html",
+  "N-A11-Login.dc.html",
+  "N-D02-Progress.dc.html",
+  "N-D10-Front-Matter.dc.html",
+  "N-D11-Viewer.dc.html",
+  "N-E03-Date-Detail.dc.html",
+  "N-E11-Date-Write.dc.html",
+  "N-H01-Settings.dc.html",
+  "N-S-A1-Onboarding.dc.html",
+  "N-S-A2-Onboarding.dc.html",
+  "N-S-A3-Onboarding.dc.html",
+  "N-S-A4-Onboarding.dc.html",
+  "N-S-E1-Feed.dc.html",
+  "N-S-E2-Feed.dc.html",
+  "N-S-E3-Feed.dc.html",
+  "N-S-F-Chat.dc.html",
+  "N-S-D1-Magazine.dc.html",
+  "N-S-D2-Magazine.dc.html",
+  "N-S-D3-Magazine.dc.html",
+  "N-S-G1-Corners.dc.html",
+  "N-S-G2-Corners.dc.html",
+  "N-S-H1-Settings.dc.html",
+  "N-S-H2-Settings.dc.html",
+  "N-S-H3-Settings.dc.html",
+  "N-S-H4-Settings.dc.html",
+  "N-S-I-States.dc.html"
+ ],
+ "notes": {
+  "t_system": {
+   "x": 0,
+   "y": -300,
+   "text": "시스템",
+   "kind": "title1",
+   "maxW": 5040
+  },
+  "t_obj": {
+   "x": 5400,
+   "y": -300,
+   "text": "화면 목록 · 오브젝트 목록",
+   "kind": "title1",
+   "maxW": 6840
+  },
+  "t_main": {
+   "x": 0,
+   "y": 1640,
+   "text": "핵심 화면 — 처음 · 메인 · 우리의 하늘",
+   "kind": "title1",
+   "maxW": 3680
+  },
+  "t_record": {
+   "x": 0,
+   "y": 2910,
+   "text": "핵심 화면 — 채팅 · 피드",
+   "kind": "title1",
+   "maxW": 1800
+  },
+  "t_mag": {
+   "x": 0,
+   "y": 4180,
+   "text": "핵심 화면 — 매거진 · 설정",
+   "kind": "title1",
+   "maxW": 2270
+  },
+  "t_s_a": {
+   "x": 0,
+   "y": 6040,
+   "text": "전체 화면 — 온보딩",
+   "kind": "title1",
+   "maxW": 5150
+  },
+  "t_s_e": {
+   "x": 0,
+   "y": 8508,
+   "text": "전체 화면 — 메인 상태 · 하늘 · 피드",
+   "kind": "title1",
+   "maxW": 4250
+  },
+  "t_s_d": {
+   "x": 0,
+   "y": 10976,
+   "text": "전체 화면 — 채팅 · 매거진",
+   "kind": "title1",
+   "maxW": 4700
+  },
+  "t_s_g": {
+   "x": 0,
+   "y": 13444,
+   "text": "전체 화면 — 참여형 코너",
+   "kind": "title1",
+   "maxW": 4250
+  },
+  "t_s_h": {
+   "x": 0,
+   "y": 14788,
+   "text": "전체 화면 — 설정",
+   "kind": "title1",
+   "maxW": 4700
+  },
+  "t_s_i": {
+   "x": 0,
+   "y": 17256,
+   "text": "전체 화면 — 공통 상태",
+   "kind": "title1",
+   "maxW": 2760
+  },
+  "t_v_top": {
+   "x": 0,
+   "y": -300,
+   "text": "고도화 후보 — 확정 전 비교용",
+   "kind": "title1",
+   "maxW": 3680,
+   "page": "candidates"
+  },
+  "t_v_a": {
+   "x": 0,
+   "y": 1140,
+   "text": "세 갈래 — 같은 네 화면으로 비교",
+   "kind": "title1",
+   "maxW": 2480,
+   "page": "candidates"
+  },
+  "t_l_top": {
+   "x": 0,
+   "y": -300,
+   "text": "배치 후보 — 테마(색·서체·하늘)는 그대로, 글씨·버튼·사진의 자리만 바꾼 세 갈래",
+   "kind": "title1",
+   "maxW": 2480,
+   "page": "layout"
+  },
+  "t_l_mix": {
+   "x": 0,
+   "y": -2004,
+   "text": "믹스 — 지금 화면 × 에디토리얼",
+   "kind": "title1",
+   "maxW": 2480,
+   "page": "layout"
+  },
+  "t_l_motion": {
+   "x": 0,
+   "y": -3484,
+   "text": "모션 — 유성이 지나가는 밤 (믹스안 메인 기준)",
+   "kind": "title1",
+   "maxW": 2480,
+   "page": "layout"
+  },
+  "t_l_sky": {
+   "x": 0,
+   "y": -4964,
+   "text": "우리의 하늘 — 메인을 끌어내리면 펼쳐지는 밤하늘",
+   "kind": "title1",
+   "maxW": 2480,
+   "page": "layout"
+  },
+  "t_v5": {
+   "x": 0,
+   "y": -300,
+   "text": "v5 적용본 — 109화면",
+   "kind": "title1",
+   "maxW": 4000,
+   "page": "v5"
+  }
+ },
+ "designSystems": []
+}

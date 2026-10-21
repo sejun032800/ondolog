@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Nocturne — 무드와 원칙</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:'Pretendard';font-weight:400;src:url(/_blob/dc4276bddfe7e1f5b7ffe6b71066dbcc) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:500;src:url(/_blob/a07e84361b7478dfb56205ac89000d7c) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:600;src:url(/_blob/b02b332f1f355064afa890bbfbacb246) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:700;src:url(/_blob/bdfdcc7448429963aafbdd21eb0054fd) format('woff2')}
+@font-face{font-family:'MaruBuri';font-weight:300;src:url(/_blob/540996461c585eab6a8cd3e38a728bc4) format('woff2')}
+@font-face{font-family:'MaruBuri';font-weight:400;src:url(/_blob/2157bf749f5a88f5c28e922a1315366d) format('woff2')}
+body{margin:0}
+.sky{background-image:url(/_blob/36e3f387eca8f7fb8113758239db980c);background-size:540px 2770px;background-repeat:no-repeat}
+.grain{background-image:url(/_blob/6cb13d1063c93f0badc73b9dd3ee335d);background-size:128px 128px}
+</style>
+</helmet>
+<div style="width: 1200px; height: 900px; box-sizing: border-box; display: flex; background: #0A0814; color: #F3EFF7; font-family: Pretendard, sans-serif; overflow: hidden">
+  <div class="sky" style="position: relative; width: 540px; height: 900px; flex-shrink: 0; background-position: 0 -1870px">
+    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,8,20,0.2) 0%, rgba(10,8,20,0) 40%, rgba(10,8,20,0.55) 100%)"></div>
+    <div class="grain" style="position: absolute; inset: 0; opacity: 0.6"></div>
+    <div style="position: absolute; left: 56px; top: 64px; display: flex; flex-direction: column; gap: 10px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">ONDOLOG APP UI · v4</div>
+      <div style="font-size: 64px; font-weight: 400; letter-spacing: -0.04em; line-height: 1">Nocturne</div>
+      <div style="font-size: 15px; line-height: 24px; color: #C9C1DA; width: 340px; margin-top: 8px">더 깊은 밤, 더 적은 빛.<br>두 사람의 사진과 말이 가장 밝게 보이도록 앱은 한 발 물러섭니다.</div>
+    </div>
+    <div style="position: absolute; left: 56px; top: 380px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.26em; color: #9C93B4">OUR TEMPERATURE</div>
+      <div style="display: flex; align-items: flex-start; color: #F4B9C8; text-shadow: 0 0 28px rgba(244,185,200,0.45)">
+        <span style="font-size: 96px; font-weight: 400; letter-spacing: -0.05em; line-height: 0.95">38</span>
+        <span style="font-size: 40px; font-weight: 400; letter-spacing: -0.03em; line-height: 1.1; margin-top: 4px">.2°</span>
+      </div>
+    </div>
+  </div>
+  <div style="flex: 1; box-sizing: border-box; padding: 64px 64px 56px; display: flex; flex-direction: column; gap: 36px">
+    <div style="display: flex; flex-direction: column; gap: 22px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">네 가지 원칙</div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 32px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 13px; font-weight: 500; color: #F4B9C8">01</div>
+          <div style="font-size: 18px; font-weight: 600; line-height: 26px">밤은 더 깊게, 빛은 더 적게</div>
+          <div style="font-size: 13.5px; line-height: 22px; color: #C9C1DA">화면의 대부분은 어둠입니다. 빛나는 것은 온도록이 계산한 값과 하늘의 별뿐입니다.</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 13px; font-weight: 500; color: #F4B9C8">02</div>
+          <div style="font-size: 18px; font-weight: 600; line-height: 26px">사진이 색을 가져간다</div>
+          <div style="font-size: 13.5px; line-height: 22px; color: #C9C1DA">UI의 채도를 낮췄습니다. 노을·야경 사진보다 UI가 화려하면 주인공이 바뀝니다.</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 13px; font-weight: 500; color: #F4B9C8">03</div>
+          <div style="font-size: 18px; font-weight: 600; line-height: 26px">두 사람의 말만 세리프</div>
+          <div style="font-family: MaruBuri, serif; font-size: 16px; line-height: 27px; color: #C9C1DA">“여기 케이크 진짜 맛있었어”</div>
+          <div style="font-size: 13.5px; line-height: 22px; color: #C9C1DA">MaruBuri는 원문 인용 전용입니다. 앱의 나머지는 모두 Pretendard.</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 13px; font-weight: 500; color: #F4B9C8">04</div>
+          <div style="font-size: 18px; font-weight: 600; line-height: 26px">하나의 하늘</div>
+          <div style="font-size: 13.5px; line-height: 22px; color: #C9C1DA">메인·하늘·지난 하늘은 같은 이미지의 다른 높이입니다. 끌어내리기는 고개를 드는 동작입니다.</div>
+        </div>
+      </div>
+    </div>
+    <div style="height: 1px; background: rgba(243,239,247,0.10)"></div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">v3.7 아우라에서 바뀐 것</div>
+      <div style="display: flex; flex-direction: column; font-size: 13.5px; line-height: 20px">
+        <div style="display: flex; padding: 9px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><span style="width: 150px; color: #9C93B4">배경</span><span style="flex: 1; color: #C9C1DA">#16103A 보라 → <span style="color: #F3EFF7">#0A0814 잉크</span>. 하늘 채도 −48%</span></div>
+        <div style="display: flex; padding: 9px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><span style="width: 150px; color: #9C93B4">온도 숫자</span><span style="flex: 1; color: #C9C1DA">Black 72 그라디언트 → <span style="color: #F3EFF7">Regular 92 단색 + 발광</span></span></div>
+        <div style="display: flex; padding: 9px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><span style="width: 150px; color: #9C93B4">주 버튼</span><span style="flex: 1; color: #C9C1DA">아우라 그라디언트 → <span style="color: #F3EFF7">달빛 흰색 솔리드</span></span></div>
+        <div style="display: flex; padding: 9px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><span style="width: 150px; color: #9C93B4">카드</span><span style="flex: 1; color: #C9C1DA">불투명 보라 면 → <span style="color: #F3EFF7">반투명 유리 + 머리카락 선</span>, 라운드 24</span></div>
+        <div style="display: flex; padding: 9px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><span style="width: 150px; color: #9C93B4">액센트</span><span style="flex: 1; color: #C9C1DA">4색 유지, 채도만 낮춤. <span style="color: #E7D9C3">문라이트 샴페인</span> 신설 — 발행의 순간 전용</span></div>
+        <div style="display: flex; padding: 9px 0"><span style="width: 150px; color: #9C93B4">질감</span><span style="flex: 1; color: #C9C1DA">필름 그레인 7% — 디지털 평면감을 지웁니다</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

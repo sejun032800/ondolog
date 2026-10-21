@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>D15–D16 · G01–G02</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:'Pretendard';font-weight:400;src:url(/_blob/dc4276bddfe7e1f5b7ffe6b71066dbcc) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:500;src:url(/_blob/a07e84361b7478dfb56205ac89000d7c) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:600;src:url(/_blob/b02b332f1f355064afa890bbfbacb246) format('woff2')}
+@font-face{font-family:'MaruBuri';font-weight:300;src:url(/_blob/540996461c585eab6a8cd3e38a728bc4) format('woff2')}
+@font-face{font-family:'MaruBuri';font-weight:400;src:url(/_blob/2157bf749f5a88f5c28e922a1315366d) format('woff2')}
+body{margin:0}
+button,input,textarea{font-family:inherit}
+.bd{box-sizing:border-box;padding:60px;display:flex;gap:60px;background:#05040A;font-family:Pretendard,sans-serif;color:#F3EFF7}
+.cl{display:flex;flex-direction:column;gap:16px;width:390px;flex-shrink:0}
+.lb{font-size:15px;font-weight:500;color:#9C93B4;height:24px;white-space:nowrap}
+.lb b{color:#F3EFF7;font-weight:600;margin-right:10px}
+.ph{width:390px;height:844px;position:relative;overflow:hidden;background:#0A0814;border-radius:44px;box-shadow:0 0 0 1px rgba(243,239,247,.10)}
+.gr{position:absolute;inset:0;opacity:.7;pointer-events:none;background-image:url(/_blob/6cb13d1063c93f0badc73b9dd3ee335d);background-size:128px 128px}
+.sky{background-image:url(/_blob/36e3f387eca8f7fb8113758239db980c);background-size:390px 2000px;background-repeat:no-repeat;background-color:#0A0814}
+.bk{position:absolute;left:12px;top:56px;height:44px;padding:0 12px;display:flex;align-items:center;gap:8px;color:#C9C1DA;font-size:14px;text-decoration:none}
+.tb{position:absolute;left:12px;right:12px;top:56px;height:48px;display:flex;align-items:center;justify-content:space-between}
+.tb a{min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#C9C1DA;font-size:16px;text-decoration:none}
+.tb span{font-size:16px;font-weight:600}
+.ct{position:absolute;left:20px;right:20px;top:112px;display:flex;flex-direction:column;gap:14px}
+.k{font-size:10.5px;font-weight:600;letter-spacing:.26em;color:#9C93B4}
+.sb{margin:0;font-size:13.5px;line-height:21px;color:#C9C1DA}
+.cp{margin:0;font-size:12px;line-height:17px;color:#9C93B4}
+.ft{position:absolute;left:20px;right:20px;bottom:40px;display:flex;flex-direction:column;gap:10px}
+.bt{display:flex;align-items:center;justify-content:center;height:54px;border:0;border-radius:18px;background:#F3EFF7;color:#0A0814;font-size:15.5px;font-weight:600;text-decoration:none;width:100%;box-sizing:border-box}
+.bg{display:flex;align-items:center;justify-content:center;height:50px;border-radius:16px;background:rgba(243,239,247,.06);border:1px solid rgba(243,239,247,.14);color:#F3EFF7;font-size:14.5px;font-weight:500;text-decoration:none;flex:1;box-sizing:border-box}
+.lk{font-size:13.5px;font-weight:500;color:#A9B6EC;text-decoration:none}
+.seg{display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(243,239,247,.06)}
+.seg button{flex:1;height:34px;border:0;border-radius:999px;background:transparent;color:#9C93B4;font-size:12.5px;font-weight:500}
+.seg button.on{background:#F3EFF7;color:#0A0814;font-weight:600}
+.gp{border-radius:22px;background:#14111F;padding:0 18px}
+.qr{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:1px solid rgba(243,239,247,.07);text-decoration:none;color:#F3EFF7}
+.qr:last-child{border-bottom:0}
+.qr b{font-size:12px;font-weight:600;color:#9C93B4;width:22px;padding-top:2px}
+.qr div{flex:1;display:flex;flex-direction:column;gap:4px}
+.qr div span:first-child{font-size:15px;line-height:22px}
+.ch{display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:999px;font-size:12px;font-weight:500;background:rgba(243,239,247,.08);color:#F3EFF7;white-space:nowrap;flex-shrink:0}
+.ch.o{background:transparent;border:1px solid rgba(243,239,247,.16);color:#C9C1DA}
+.fl{font-size:12px;font-weight:500;color:#9C93B4}
+.ta{box-sizing:border-box;width:100%;resize:none;border-radius:18px;background:#14111F;border:1px solid rgba(243,239,247,.08);padding:16px 18px;color:#C9C1DA;font-family:MaruBuri,serif;font-size:16.5px;line-height:28px;outline:none}
+.nv{position:absolute;left:16px;right:16px;bottom:24px;height:64px;border-radius:22px;background:rgba(10,8,20,.92);border:1px solid rgba(243,239,247,.08);display:flex;align-items:center;justify-content:space-around;padding:0 8px;box-sizing:border-box}
+.nv a{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;color:#9C93B4;font-size:11px;font-weight:500;min-width:48px}
+.nv a i{width:4px;height:4px;border-radius:999px}
+.nv a.on{color:#F3EFF7;font-weight:600}.nv a.on i{background:#B9A2F0;box-shadow:0 0 8px 2px rgba(185,162,240,.7)}
+.p-dusk{background-image:url(/_blob/fe361d34eb1c37833b56cc148c31c730);background-size:cover;background-position:center}
+.p-river{background-image:url(/_blob/ed38fbcf1812f8b38ddb1e7e0469d5da);background-size:cover;background-position:center}
+.p-sea{background-image:url(/_blob/7caab17b1aa50ebbeff8bd19835eb880);background-size:cover;background-position:center}
+
+.v5neb{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;background:radial-gradient(60% 34% at 72% 30%,rgba(185,162,240,.18),rgba(185,162,240,0) 70%),radial-gradient(50% 30% at 18% 58%,rgba(244,185,200,.10),rgba(244,185,200,0) 70%),radial-gradient(55% 30% at 80% 82%,rgba(169,182,236,.10),rgba(169,182,236,0) 70%)}
+.v5tw{position:absolute;border-radius:999px;background:#FFF;pointer-events:none;animation:v5tw 4s ease-in-out infinite both}
+@keyframes v5tw{0%,100%{opacity:.2;transform:scale(.6)}50%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion: reduce){.v5tw{animation:none}}
+</style>
+</helmet>
+<div class="bd" style="width: 1860px; height: 1004px">
+
+  <div class="cl">
+    <div class="lb"><b>D15</b>공유 카드 만들기</div>
+    <div class="ph">
+      <div class="gr"></div>
+      <div class="tb"><a href="#" aria-label="닫기">✕</a><span>공유 카드</span><a></a></div>
+      <div class="ct">
+        <div class="seg"><button type="button">표지</button><button type="button" class="on">다정한 말</button><button type="button">함께한 하루</button></div>
+        <div style="align-self: center; width: 250px; height: 444px; border-radius: 14px; background: #F1ECE4; color: #2A2530; box-sizing: border-box; padding: 26px 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 24px 60px rgba(0,0,0,0.6)">
+          <div style="display: flex; justify-content: space-between; font-size: 7.5px; font-weight: 600; letter-spacing: 0.24em; color: #6B6370"><span>SWEET WORDS</span><span>VOL.02</span></div>
+          <div style="height: 1px; background: #2A2530"></div>
+          <div style="font-family: MaruBuri, serif; font-weight: 300; font-size: 24px; line-height: 36px; margin-top: 30px">“기다릴게.<br>천천히 와도 돼”</div>
+          <span style="font-size: 9.5px; color: #6B6370">서영 · 9월 18일 밤</span>
+          <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: baseline"><span style="font-family: MaruBuri, serif; font-size: 11px; letter-spacing: 0.3em">ONDOLOG</span><span style="font-size: 8px; color: #6B6370">9월호</span></div>
+        </div>
+        <p class="cp" style="text-align: center">두 사람 이름과 원문은 고칠 수 없어요</p>
+      </div>
+      <div class="ft" style="flex-direction: row"><button type="button" class="bg">저장</button><button type="button" class="bt" style="flex: 1; height: 50px; border-radius: 16px; font-size: 14.5px">공유하기</button></div>
+    </div>
+  </div>
+
+  <div class="cl">
+    <div class="lb"><b>D16</b>매거진 — 미연결</div>
+    <div class="ph">
+      <div class="gr"></div>
+      <div style="position: absolute; left: 24px; top: 58px; font-size: 24px; font-weight: 600; letter-spacing: -0.02em">매거진</div>
+      <div style="position: absolute; left: 0; right: 0; top: 160px; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center">
+        <div style="width: 150px; height: 212px; border-radius: 4px; background: #1C1829; border: 1px solid rgba(243,239,247,0.10); box-sizing: border-box"></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: 20px; font-weight: 600">두 사람의 첫 호가 들어갈 자리</span><p class="sb">연인과 연결하면 첫 호를 만들기 시작해요</p></div>
+      </div>
+      <div style="position: absolute; left: 20px; right: 20px; bottom: 104px"><button type="button" class="bt">연인 초대하기</button></div>
+      <nav class="nv" aria-label="탭"><a href="#"><i></i>메인</a><a href="#"><i></i>채팅</a><a href="#"><i></i>피드</a><a href="#" class="on"><i></i>매거진</a><a href="#"><i></i>설정</a></nav>
+    </div>
+  </div>
+
+  <div class="cl">
+    <div class="lb"><b>G01</b>인터뷰 — 이번 주 질문</div>
+    <div class="ph">
+      <div class="gr"></div>
+      <a href="#" class="bk"><span style="font-size: 16px">←</span>제작 현황</a>
+      <div class="ct" style="top: 112px">
+        <div style="margin: 0 4px; display: flex; flex-direction: column; gap: 6px"><span class="k">INTERVIEW · 10월 3주차</span><span style="font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 34px">우리 사이 인터뷰</span><p class="sb">같은 질문에 각자 답하고, 상대의 답을 짐작해요. 둘 다 끝내면 서로의 답이 열려요.</p></div>
+        <div class="gp">
+          <a href="#" class="qr"><b>Q1</b><div><span>상대가 가장 좋아하는 계절은?</span></div><span class="ch">답함</span></a>
+          <a href="#" class="qr"><b>Q2</b><div><span>상대가 요즘 가장 신경 쓰는 일은?</span></div><span class="ch o">남음</span></a>
+          <a href="#" class="qr"><b>Q3</b><div><span>우리가 처음 만났을 때 상대의 첫인상은?</span></div><span class="ch o">남음</span></a>
+          <a href="#" class="qr"><b>Q4</b><div><span>그날 카페에서 상대가 뭘 시켰는지 기억나?</span><span class="cp">10.15 성수 카페 기록에서 나온 질문이에요</span></div><span class="ch o">남음</span></a>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin: 4px 4px 0"><div class="p-dusk" style="width: 26px; height: 26px; border-radius: 999px"></div><span class="cp" style="color: #C9C1DA">서영은 아직 시작하지 않았어요</span></div>
+      </div>
+      <div class="ft"><button type="button" class="bt">이어서 답하기</button></div>
+    </div>
+  </div>
+
+  <div class="cl">
+    <div class="lb"><b>G02</b>인터뷰 — 답하기</div>
+    <div class="ph">
+      <div class="gr"></div>
+      <div class="tb"><a href="#" aria-label="뒤로">←</a><span>2 / 4</span><a></a></div>
+      <div class="ct" style="top: 120px; gap: 18px">
+        <div style="margin: 0 4px; display: flex; flex-direction: column; gap: 8px"><span class="k">Q2</span><span style="font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 33px">상대가 요즘 가장<br>신경 쓰는 일은?</span></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><label class="fl" for="g2a" style="margin-left: 4px">나의 답 — 내 이야기로</label><textarea id="g2a" class="ta" rows="3">이직 준비. 포트폴리오 정리하느라 요즘 늦게 자</textarea></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><label class="fl" for="g2b" style="margin-left: 4px">서영은 뭐라고 답했을까?</label><textarea id="g2b" class="ta" rows="3" placeholder="짐작해서 써주세요"></textarea></div>
+        <p class="cp" style="margin: 0 4px">맞혔는지 틀렸는지는 따로 표시하지 않아요</p>
+      </div>
+      <div class="ft"><button type="button" class="bt">다음 질문</button></div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1860,"height":1004}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

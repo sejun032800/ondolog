@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>토큰 — 색 · 활자 · 빛 · 형태</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:'Pretendard';font-weight:400;src:url(/_blob/dc4276bddfe7e1f5b7ffe6b71066dbcc) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:500;src:url(/_blob/a07e84361b7478dfb56205ac89000d7c) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:600;src:url(/_blob/b02b332f1f355064afa890bbfbacb246) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:700;src:url(/_blob/bdfdcc7448429963aafbdd21eb0054fd) format('woff2')}
+@font-face{font-family:'MaruBuri';font-weight:300;src:url(/_blob/540996461c585eab6a8cd3e38a728bc4) format('woff2')}
+@font-face{font-family:'MaruBuri';font-weight:400;src:url(/_blob/2157bf749f5a88f5c28e922a1315366d) format('woff2')}
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1200px; height: 1500px; box-sizing: border-box; padding: 56px 64px; background: #0A0814; color: #F3EFF7; font-family: Pretendard, sans-serif; display: flex; flex-direction: column; gap: 40px">
+
+  <div style="display: flex; flex-direction: column; gap: 18px">
+    <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">COLOR · 바탕</div>
+    <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 72px; border-radius: 16px; background: #0A0814; border: 1px solid rgba(243,239,247,0.14)"></div><div style="font-size: 13px; font-weight: 600">ink</div><div style="font-size: 12px; color: #9C93B4">#0A0814 · 기본 바탕</div></div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 72px; border-radius: 16px; background: #14111F"></div><div style="font-size: 13px; font-weight: 600">inkRaise</div><div style="font-size: 12px; color: #9C93B4">#14111F · 면</div></div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 72px; border-radius: 16px; background: #1C1829"></div><div style="font-size: 13px; font-weight: 600">inkRaise2</div><div style="font-size: 12px; color: #9C93B4">#1C1829 · 눌림·선택</div></div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 72px; border-radius: 16px; background: rgba(20,17,31,0.62); border: 1px solid rgba(243,239,247,0.10)"></div><div style="font-size: 13px; font-weight: 600">glass</div><div style="font-size: 12px; color: #9C93B4">rgba(20,17,31,.62) · 하늘 위 면</div></div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 72px; border-radius: 16px; background: #0A0814; display: flex; align-items: center; padding: 0 14px"><div style="flex: 1; height: 1px; background: rgba(243,239,247,0.10)"></div></div><div style="font-size: 13px; font-weight: 600">hairline</div><div style="font-size: 12px; color: #9C93B4">rgba(243,239,247,.10)</div></div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 72px; border-radius: 16px; background: rgba(10,8,20,0.55)"></div><div style="font-size: 13px; font-weight: 600">veil</div><div style="font-size: 12px; color: #9C93B4">rgba(10,8,20,.55) · 하늘 장막</div></div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+    <div style="display: flex; flex-direction: column; gap: 18px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">COLOR · 활자 <span style="letter-spacing: 0.04em; font-weight: 500">— 대비는 ink 기준 실측</span></div>
+      <div style="display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 28px; height: 28px; border-radius: 999px; background: #F3EFF7"></div><div style="width: 92px; font-size: 13px; font-weight: 600">text</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#F3EFF7</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">17.5</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">제목·본문</div></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 28px; height: 28px; border-radius: 999px; background: #C9C1DA"></div><div style="width: 92px; font-size: 13px; font-weight: 600">textSub</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#C9C1DA</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">11.5</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">보조 설명 · 원문 인용</div></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 28px; height: 28px; border-radius: 999px; background: #9C93B4"></div><div style="width: 92px; font-size: 13px; font-weight: 600">textMute</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#9C93B4</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">6.9</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">캡션·메타·키커</div></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0"><div style="width: 28px; height: 28px; border-radius: 999px; background: #6E6688"></div><div style="width: 92px; font-size: 13px; font-weight: 600">textFaint</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#6E6688</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">3.7</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">선·비활성 전용. 글자 금지</div></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 18px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">COLOR · 빛 <span style="letter-spacing: 0.04em; font-weight: 500">— 아우라 4색 채도 낮춤 + 문라이트</span></div>
+      <div style="display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 28px; height: 28px; border-radius: 999px; background: #F4B9C8; box-shadow: 0 0 18px rgba(244,185,200,0.5)"></div><div style="width: 92px; font-size: 13px; font-weight: 600">rose</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#F4B9C8</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">11.9</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">온도록이 계산한 값 — 가장 밝게</div></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 28px; height: 28px; border-radius: 999px; background: #E3A0C8"></div><div style="width: 92px; font-size: 13px; font-weight: 600">orchid</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#E3A0C8</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">9.6</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">두 사람 · 관계 · 기념일</div></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 28px; height: 28px; border-radius: 999px; background: #B9A2F0; box-shadow: 0 0 18px rgba(185,162,240,0.55)"></div><div style="width: 92px; font-size: 13px; font-weight: 600">lilac</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#B9A2F0</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">9.0</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">별·하늘 · 활성 표시. 12pt 이하 글자 금지</div></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 28px; height: 28px; border-radius: 999px; background: #A9B6EC"></div><div style="width: 92px; font-size: 13px; font-weight: 600">mist</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#A9B6EC</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">10.0</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">정보 · 링크</div></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0"><div style="width: 28px; height: 28px; border-radius: 999px; background: #E7D9C3"></div><div style="width: 92px; font-size: 13px; font-weight: 600">moon</div><div style="width: 78px; font-size: 12px; color: #9C93B4">#E7D9C3</div><div style="width: 48px; font-size: 12px; color: #C9C1DA">14.3</div><div style="flex: 1; font-size: 12.5px; color: #C9C1DA">발행된 호 · Vol 번호 · 종이로 넘어가는 순간만</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 18px">
+    <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">TYPE <span style="letter-spacing: 0.04em; font-weight: 500">— 웨이트는 fontFamily로만 구분 · 자간은 pt로 환산해 표기</span></div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 48px">
+      <div style="display: flex; flex-direction: column">
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 10px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 86px; font-size: 12px; color: #9C93B4">hero</div><div style="flex: 1; font-size: 56px; font-weight: 400; letter-spacing: -0.05em; line-height: 1; color: #F4B9C8; text-shadow: 0 0 28px rgba(244,185,200,0.45)">38<span style="font-size: 24px">.2°</span></div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">Regular 92/88<br>−4.6pt · 소수 42%</div></div>
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 86px; font-size: 12px; color: #9C93B4">display</div><div style="flex: 1; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">10월호 제작 중</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">SemiBold 28/36<br>−0.6pt</div></div>
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 86px; font-size: 12px; color: #9C93B4">title</div><div style="flex: 1; font-size: 18px; font-weight: 600">스파이더맨과 케이크 사이</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">SemiBold 18/26</div></div>
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 86px; font-size: 12px; color: #9C93B4">body</div><div style="flex: 1; font-size: 15px; line-height: 24px">사진과 메모가 모이면 이번 호에 실려요.</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">Regular 15/24</div></div>
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0"><div style="width: 86px; font-size: 12px; color: #9C93B4">sub</div><div style="flex: 1; font-size: 13.5px; line-height: 21px; color: #C9C1DA">대화 412 · 사진 18 · 데이트 3</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">Regular 13.5/21</div></div>
+      </div>
+      <div style="display: flex; flex-direction: column">
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 86px; font-size: 12px; color: #9C93B4">caption</div><div style="flex: 1; font-size: 12px; font-weight: 500; color: #9C93B4">2026.10.03 · 연남동</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">Medium 12/17</div></div>
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 86px; font-size: 12px; color: #9C93B4">kicker</div><div style="flex: 1; font-size: 10.5px; font-weight: 600; letter-spacing: 0.26em; color: #9C93B4">OUR TEMPERATURE</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">SemiBold 10.5/14<br>+2.7pt · 영문 대문자만</div></div>
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 86px; font-size: 12px; color: #9C93B4">quote</div><div style="flex: 1; font-family: MaruBuri, serif; font-size: 17px; line-height: 30px; color: #C9C1DA">“오늘 비 온대. 우산 챙겼어?”</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">MaruBuri 17/30</div></div>
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(243,239,247,0.07)"><div style="width: 86px; font-size: 12px; color: #9C93B4">quoteLg</div><div style="flex: 1; font-family: MaruBuri, serif; font-weight: 300; font-size: 23px; line-height: 36px; color: #F3EFF7">기다릴게</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">MaruBuri Light 23/36<br>유성 카드 전용</div></div>
+        <div style="display: flex; align-items: baseline; gap: 16px; padding: 12px 0"><div style="width: 86px; font-size: 12px; color: #9C93B4">tab</div><div style="flex: 1; font-size: 11px; font-weight: 500; letter-spacing: 0.04em">메인 · 채팅 · 피드 · 매거진 · 설정</div><div style="font-size: 11.5px; color: #9C93B4; text-align: right">Medium 11/14 · 텍스트 탭</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px">
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">LIGHT · 발광</div>
+      <div style="display: flex; flex-direction: column; gap: 12px; font-size: 12.5px; color: #C9C1DA; line-height: 19px">
+        <div style="display: flex; gap: 12px; align-items: center"><div style="width: 44px; height: 44px; border-radius: 999px; background: #14111F; box-shadow: 0 0 28px rgba(244,185,200,0.45)"></div><div><span style="color: #F3EFF7; font-weight: 600">numeral</span> · 0 0 28 rose .45<br>온도·수치 글자에만</div></div>
+        <div style="display: flex; gap: 12px; align-items: center"><div style="width: 44px; height: 44px; border-radius: 999px; background: #14111F; display: flex; align-items: center; justify-content: center"><div style="width: 6px; height: 6px; border-radius: 999px; background: #FFFFFF; box-shadow: 0 0 10px 3px rgba(185,162,240,0.7)"></div></div><div><span style="color: #F3EFF7; font-weight: 600">star</span> · 0 0 10 +3 lilac .7<br>데이트 별 후광</div></div>
+        <div style="display: flex; gap: 12px; align-items: center"><div style="width: 44px; height: 44px; border-radius: 14px; background: #14111F; box-shadow: 0 12px 40px rgba(0,0,0,0.55)"></div><div><span style="color: #F3EFF7; font-weight: 600">lift</span> · 0 12 40 #000 .55<br>시트·떠 있는 카드만</div></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">SHAPE · 형태</div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; font-size: 12.5px; line-height: 19px">
+        <span style="color: #9C93B4">카드</span><span>24</span>
+        <span style="color: #9C93B4">시트</span><span>28 (위 두 모서리)</span>
+        <span style="color: #9C93B4">버튼</span><span>18 · 높이 54</span>
+        <span style="color: #9C93B4">사진</span><span>18</span>
+        <span style="color: #9C93B4">칩·입력창</span><span>999</span>
+        <span style="color: #9C93B4">화면 여백</span><span>24</span>
+        <span style="color: #9C93B4">섹션 간격</span><span>40</span>
+        <span style="color: #9C93B4">최소 터치</span><span>48 × 48</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">INK · 잉크 위계</div>
+      <div style="display: flex; flex-direction: column; gap: 12px; font-size: 12.5px; line-height: 19px">
+        <div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #F4B9C8; text-shadow: 0 0 16px rgba(244,185,200,0.5); font-size: 15px; font-weight: 500">metric — 38.2°</span><span style="color: #9C93B4">온도록이 계산한 값. rose + 발광</span></div>
+        <div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #F3EFF7; font-size: 15px">narrative — 두 사람은 연남동에 갔다</span><span style="color: #9C93B4">온도록이 쓴 문장. text 산세리프</span></div>
+        <div style="display: flex; flex-direction: column; gap: 2px"><span style="color: #C9C1DA; font-family: MaruBuri, serif; font-size: 16px">verbatim — “기다릴게”</span><span style="color: #9C93B4">두 사람의 말 그대로. textSub 세리프</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 16px">
+    <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: #9C93B4">MOTION · 움직임</div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; font-size: 12.5px; line-height: 19px">
+      <div style="padding: 16px; border-radius: 18px; background: #14111F; display: flex; flex-direction: column; gap: 4px"><span style="font-weight: 600">숨</span><span style="color: #C9C1DA">배경 별 명멸 9–12초 · 투명도 .35↔.75</span></div>
+      <div style="padding: 16px; border-radius: 18px; background: #14111F; display: flex; flex-direction: column; gap: 4px"><span style="font-weight: 600">떠오름</span><span style="color: #C9C1DA">화면 진입 8px 위로 + 페이드 · 260ms · ease-out</span></div>
+      <div style="padding: 16px; border-radius: 18px; background: #14111F; display: flex; flex-direction: column; gap: 4px"><span style="font-weight: 600">촉감</span><span style="color: #C9C1DA">누름 scale .98 · 120ms / 시트 스프링 damping 18</span></div>
+      <div style="padding: 16px; border-radius: 18px; background: #14111F; display: flex; flex-direction: column; gap: 4px"><span style="font-weight: 600">정지 — 금지</span><span style="color: #C9C1DA">온도 카운트업 · 진행률 채움 · 스피너</span></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

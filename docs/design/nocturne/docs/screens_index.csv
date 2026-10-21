@@ -1,0 +1,110 @@
+id,file,screen,board
+A01,screens/A01.jpg,스플래시,N-A01-Splash
+A02,screens/A02.jpg,시작,N-S-A1-Onboarding
+A03,screens/A03.jpg,기본정보,N-S-A1-Onboarding
+A04,screens/A04.jpg,MBTI — 알아요 / 몰라요,N-S-A1-Onboarding
+A05,screens/A05.jpg,MBTI 네 글자 고르기,N-S-A1-Onboarding
+A06,screens/A06.jpg,MBTI 간이 질문 4문항,N-S-A1-Onboarding
+A07,screens/A07.jpg,연애유형 5문항,N-S-A2-Onboarding
+A08,screens/A08.jpg,간략 결과 — 공유용,N-S-A2-Onboarding
+A09,screens/A09.jpg,공유 카드 이미지 · 1080×1920,N-S-A2-Onboarding
+A10,screens/A10.jpg,약관 동의,N-S-A2-Onboarding
+A11,screens/A11.jpg,로그인 수단,N-A11-Login
+A12,screens/A12.jpg,약관 전문 보기,N-S-A2-Onboarding
+A13,screens/A13.jpg,만 14세 미만 안내,N-S-A2-Onboarding
+A14,screens/A14.jpg,상세 결과 ① 라벨 · 빅5 · 스턴버그,N-S-A3-Onboarding
+A15,screens/A15.jpg,상세 결과 ② 애니어그램 · 궁합,N-S-A3-Onboarding
+A16,screens/A16.jpg,결과와 달라요 — 코어 고르기,N-S-A3-Onboarding
+A17,screens/A17.jpg,연인 초대,N-S-A3-Onboarding
+A18,screens/A18.jpg,초대 코드 입력,N-S-A3-Onboarding
+A19,screens/A19.jpg,사귄 날짜 + 커플 닉네임,N-S-A4-Onboarding
+A20,screens/A20.jpg,상대가 정한 날짜 확인,N-S-A4-Onboarding
+B01,screens/B01.jpg,메인 — 연결,N-B-Main
+B02,screens/B02.jpg,끌어내리는 중,N-B-Main
+B03,screens/B03.jpg,메인 — 아직 잴 기록 없음,N-B-Main
+B04,screens/B04.jpg,메인 — 기념일 당일,N-B-Main
+B05,screens/B05.jpg,메인 — 미연결,N-B-Main
+B06,screens/B06.jpg,메인 — 새 호 도착,N-B-Main
+C01,screens/C01.jpg,우리의 하늘,N-C-Sky
+C02,screens/C02.jpg,지난 하늘,N-C-Sky
+C03,screens/C03.jpg,떨어진 말,N-C-Sky
+C04,screens/C04.jpg,별 — 그날,N-C-Sky
+C05,screens/C05.jpg,그날의 사진,N-C-Sky
+C06,screens/C06.jpg,빈 하늘,N-C-Sky
+C07,screens/C07.jpg,기념일 별,N-C-Sky
+E01,screens/E01.jpg,피드,N-T-Tabs
+E02,screens/E02.jpg,지도형,N-S-E1-Feed
+E03,screens/E03.jpg,데이트 상세,N-E03-Date-Detail
+E04,screens/E04.jpg,자동 정리 안내,N-S-E1-Feed
+E05,screens/E05.jpg,생체정보 동의,N-S-E1-Feed
+E06,screens/E06.jpg,사진 접근 안내,N-S-E1-Feed
+E07,screens/E07.jpg,대표사진 등록,N-S-E1-Feed
+E08,screens/E08.jpg,사진 찾는 중,N-S-E2-Feed
+E09,screens/E09.jpg,찾은 사진 확인 · 빠진 사진,N-S-E2-Feed
+E10,screens/E10.jpg,사진 직접 추가,N-S-E2-Feed
+E11,screens/E11.jpg,데이트 기록 쓰기,N-E11-Date-Write
+E12,screens/E12.jpg,3개월 이전 기록 — Free,N-S-E2-Feed
+E13,screens/E13.jpg,피드 — 혼자 기록,N-S-E2-Feed
+E14,screens/E14.jpg,사진 위 감정 기록 · 그리기,N-S-E3-Feed
+E15,screens/E15.jpg,장소 고치기,N-S-E3-Feed
+E16,screens/E16.jpg,해시태그,N-S-E3-Feed
+F01,screens/F01.jpg,채팅,N-T-Tabs
+F02,screens/F02.jpg,미연결 진입 — 초대,N-S-F-Chat
+F03,screens/F03.jpg,스토리 보기,N-S-F-Chat
+F04,screens/F04.jpg,첨부,N-S-F-Chat
+F05,screens/F05.jpg,보내는 중 · 다시 보내기,N-S-F-Chat
+F06,screens/F06.jpg,사진 크게 보기,N-S-F-Chat
+D01,screens/D01.jpg,매거진 서재,N-T-Tabs
+D02,screens/D02.jpg,제작 현황,N-D02-Progress
+D03,screens/D03.jpg,제작 현황 — 참여 코너 포함,N-S-D1-Magazine
+D04,screens/D04.jpg,제작 현황 — 테마 만료 예고,N-S-D1-Magazine
+D05,screens/D05.jpg,발행물 테마,N-S-D1-Magazine
+D06,screens/D06.jpg,테마 — 구독 테마,N-S-D1-Magazine
+D07,screens/D07.jpg,이번 호 빠진 지면 표시,N-S-D1-Magazine
+D08,screens/D08.jpg,발행 확인,N-S-D2-Magazine
+D09,screens/D09.jpg,발행 완료,N-S-D2-Magazine
+D10,screens/D10.jpg,속표지 — 밤에서 종이로,N-D10-Front-Matter
+D11,screens/D11.jpg,뷰어,N-D11-Viewer
+D12,screens/D12.jpg,목차,N-S-D2-Magazine
+D13,screens/D13.jpg,서재 — 정렬 · 검색,N-S-D2-Magazine
+D14,screens/D14.jpg,서재 — 첫 호 시작,N-S-D2-Magazine
+D15,screens/D15.jpg,공유 카드 만들기,N-S-D3-Magazine
+D16,screens/D16.jpg,매거진 — 미연결,N-S-D3-Magazine
+G01,screens/G01.jpg,인터뷰 — 이번 주 질문,N-S-D3-Magazine
+G02,screens/G02.jpg,인터뷰 — 답하기,N-S-D3-Magazine
+G03,screens/G03.jpg,인터뷰 — 상대 기다림,N-S-G1-Corners
+G04,screens/G04.jpg,인터뷰 — 서로의 답,N-S-G1-Corners
+G05,screens/G05.jpg,셋로그 — 오늘 기록,N-S-G1-Corners
+G06,screens/G06.jpg,셋로그 — 이번 주,N-S-G1-Corners
+G07,screens/G07.jpg,특별 게스트 — 질문 정하기,N-S-G2-Corners
+G08,screens/G08.jpg,특별 게스트 — 링크 관리,N-S-G2-Corners
+G09,screens/G09.jpg,받은 답변 · 싣기,N-S-G2-Corners
+G10,screens/G10.jpg,게스트 웹 — 답변 쓰기,N-S-G2-Corners
+G11,screens/G11.jpg,게스트 웹 — 보냈어요,N-S-G2-Corners
+H01,screens/H01.jpg,설정,N-H01-Settings
+H02,screens/H02.jpg,설정 — 아래,N-S-H1-Settings
+H03,screens/H03.jpg,프로필,N-S-H1-Settings
+H04,screens/H04.jpg,커플,N-S-H1-Settings
+H05,screens/H05.jpg,성격 프로필,N-S-H1-Settings
+H06,screens/H06.jpg,재검사 확인 — 1회,N-S-H1-Settings
+H07,screens/H07.jpg,사진 & 데이터,N-S-H2-Settings
+H08,screens/H08.jpg,구독,N-S-H2-Settings
+H09,screens/H09.jpg,구독 관리,N-S-H2-Settings
+H10,screens/H10.jpg,알림,N-S-H2-Settings
+H11,screens/H11.jpg,개인정보 & 약관,N-S-H2-Settings
+H12,screens/H12.jpg,생체정보 동의 관리,N-S-H3-Settings
+H13,screens/H13.jpg,동의 철회 확인,N-S-H3-Settings
+H14,screens/H14.jpg,연결 해제 — 7일 유예 중,N-S-H3-Settings
+H15,screens/H15.jpg,구독 만료 안내,N-S-H3-Settings
+H16,screens/H16.jpg,회원 탈퇴,N-S-H3-Settings
+H17,screens/H17.jpg,데이터 내려받기 · 삭제,N-S-H4-Settings
+H18,screens/H18.jpg,매거진 — 빠진 지면 기본값,N-S-H4-Settings
+H19,screens/H19.jpg,앱 정보 · 문의,N-S-H4-Settings
+I01,screens/I01.jpg,커플 게이트,N-S-H4-Settings
+I02,screens/I02.jpg,연결 끊김,N-S-H4-Settings
+I03,screens/I03.jpg,불러오는 중,N-S-I-States
+I04,screens/I04.jpg,빈 상태,N-S-I-States
+I05,screens/I05.jpg,되돌릴 수 없는 확인,N-S-I-States
+I06,screens/I06.jpg,토스트,N-S-I-States
+I07,screens/I07.jpg,알림 미리보기,N-S-I-States
+I08,screens/I08.jpg,알림 권한 안내,N-S-I-States
