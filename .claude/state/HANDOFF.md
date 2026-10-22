@@ -29,6 +29,27 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 | UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
 
+## 운영자 경로 (`54`, 2026-10-22, corner-pipeline) - 샘플 출력 모드, 원격 개발 DB 실증 완료
+
+내부 결정(항목당 한 줄):
+
+- 명령 이름: 생성 `scripts/ops/generateIssueCli.ts`, 발행 `scripts/ops/publishIssueCli.ts`(로직은 `generateIssue.ts`·`publishIssue.ts`·`mediaCopy.ts`), 시험 데이터 `seedTestData.ts run`, M2-e 실증 `verifyPublishPath.ts snapshot|exceptions|concurrent|theme`. 모두 Deno, 저장소 루트에서 실행.
+- 샘플 출력 방식: 고정 파일이 아니라 **그 실행의 입력에서 만드는 생성기**(`sampleOutputs.ts`). `SampleLlmClient`(`LlmClient` 구현, 네트워크 없음)가 응답 자리에 들어가고 검증기·골격·코너는 그대로다. 저장 행은 `engine_version = 'sample-output-v1'`, `generation_attempts = 0`(LLM에 요청을 보내지 않았다).
+- 실제 호출 경로: 만들지 않았다. 실행 인수에 모드 선택이 없다(모르는 인수는 멈춘다). **어긋남 보고: 지시서·MASTER §17-0-10-H가 말하는 "모델 `tbd`이면 생성이 돌지 않는 기존 fail-closed"는 코드에 없다** - 모델을 읽는 코드가 없고(`llmClient.createLlmClient`는 호출부가 넘긴 `model` 문자열을 그대로 쓴다) `app_config.llm_provider`의 `tbd`는 시드 값(010)뿐이다. 이번 작업은 그 값을 읽지도 쓰지도 않았고, 검사를 지우지도 더하지도 않았다. M1c에서 실제 호출 경로를 열 때 그 검사를 함께 만들어야 한다(지금은 "열려 있지 않다"가 안전장치다).
+- 시험 표시 판정 열: `couples.nickname`(대소문자 무시 `test`). 생성·발행 명령 둘 다 거부한다. 계정 이메일 `test-m2b-*@example.com`, `profiles.display_name` `test-*`.
+- 개발 프로젝트 확인 방식: `ONDOLOG_SUPABASE_URL`의 ref가 `supabase/.temp/linked-project.json`의 `ref`와 같고 그 `name`이 `ondolog`여야 클라이언트를 만든다. 파일이 없으면 멈춘다(fail closed). 새 환경에서는 `supabase link` 뒤에 쓴다.
+- 권한: `--allow-env`는 두 이름만, `--allow-net`은 프로젝트 호스트 하나, `--allow-read`는 `linked-project.json` 하나, `--allow-write=scripts/ops/out`. LLM 호스트는 허용되지 않는다. npm 모듈은 `npm:@supabase/supabase-js@2.118.0`(lock과 같은 해석 버전)을 `supabaseOps.ts`에서만 직접 쓴다 - `deno.json`은 건드리지 않았다.
+- 경로 함수: `_shared/mediaPath.ts` 하나(`magazineMediaPath`·`parseMagazineMediaPath`). `assembleCornerInput(client, context, issueId)`의 세 번째 인자가 필수가 됐다(호출 54곳·하네스 1곳 갱신). `PhotoRef.path`·`PhotoRecord.source.path`가 목적지 경로다. 복제 목록은 content의 경로에서 항목 ID를 읽어 `data_entries.storage_path`를 다시 읽고, 같은 함수로 다시 계산해 대조한다(다르면 던진다, content는 고치지 않는다).
+- **열린 판단 - 썸네일·그림 경로**: MASTER §17-0-10-D는 사진 경로만 정한다. `PhotoRef.thumbPath`(입력 조립이 `thumb_path`를 그대로 싣는다)와 그림 유저 기록의 `path`(`drawing_path`)는 `entries` 버킷 원본 경로 그대로이고 복제하지 않는다. 발행물이 원본 버킷을 가리키므로 조판(`55-`)·뷰어(U3) 전에 정해야 한다.
+- P7 복제는 사진 경로만(`date_archive`의 `stops[].photos[].path`, `this_month`의 `photoPath`). `dateLevel` 사진은 저장 스키마에 없어 복제 대상이 아니다. 원본이 지워졌으면(항목 삭제·객체 없음) 복제하지 않고 그 코너를 `pending` + `last_error = 'source_media_missing'`로 되돌리고 발행 명령은 "다시 준비 중"으로 거부한다.
+- 존재 확인: supabase-js `storage.exists()`가 없는 객체에 400을 오류로 돌려줬다(실측) - 폴더 `list` + 이름 일치로 확인한다.
+- `source_date_ids`: 저장 함수가 쓰지 않아 17-1 코너 저장 직후 운영 경로가 저장된 content의 `articles[].dateId`로 채운다(이번 기간·재소환 모두, `fn_publish_issue`가 읽는다). 다른 코너는 비워 둔다.
+- 안전 정지 경보: `usage_over`, `detail = { stage: 'input_halt', cornerType, estimatedInputTokens, limit }`. 같은 호에 열린 경보가 있으면 생성 명령도 돌지 않는다(반복 방지). 소속 위반(`CoupleMembershipError`)은 `couple_membership` 경보(`detail`에 위반 레코드 ID)를 남기고 던진다.
+- 샘플 코너가 재료 0이면 골격의 선행 검사가 호출 전에 `skipped(insufficient_input)`로 멈춘다. 샘플 17-5는 근거가 둘보다 적으면 `{"kind":"none"}`을 낸다.
+- 시험 데이터: `seedTestData.ts`가 커플 A(생성 시험, 초안으로 남김)·B(생성->발행, `magazine_theme='neon'`)·C(해제 유예)·F(예외·동시 발행 호 넷). 목록은 `scripts/ops/out/seed-m2b.json`(gitignore) - **지우지 않는다.** F의 열린 경보 `usage_over`는 시험용으로 열어 둔 채다. 커플 A의 초안 호는 `55-` 조판 시험에 쓸 수 있다(발행은 조판 뒤).
+- 테스트 위치: `scripts/ops/operatorPath.test.ts`(메모리 저장소 `opsMemoryStore.ts`, 27건), `supabase/functions/_shared/mediaPath.test.ts`(5건), `inputPrefilter.test.ts`에 R20-1 1건. `scripts/ops`는 두 tsc 모두에서 제외라 이 파일들의 타입은 게이트가 아니라 `deno check --config supabase/functions/deno.json scripts/ops/*.ts`로 확인했다.
+- 변경한 설정 파일: 없음(package.json·app.json·eas.json·tsconfig.json·deno.json 무변경). `deno check`가 만든 `supabase/functions/deno.lock`은 지웠다.
+
 ## UI 기반 U0 (`53`, 2026-10-21, ui-builder) - 화면 교체 없음, 실기기 미확인
 
 내부 결정(항목당 한 줄):

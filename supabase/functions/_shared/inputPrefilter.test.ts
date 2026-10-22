@@ -3,6 +3,9 @@ import { assembleCornerInput } from './inputAssembly.ts'
 import { isTrivialMessageText } from './inputPrefilter.ts'
 import { COUPLE_A, MONTHLY_CONTEXT } from './testFixtures/cornerFixtures.ts'
 import { fakeClient } from './testFixtures/inputAssemblyFake.ts'
+/** 시험용 호 ID - 사진의 목적지 경로가 싣는다(§17-0-10-D). */
+const TEST_ISSUE_ID = 'issue-test'
+
 
 /**
  * 입력 전처리 - 본문 없는 조각 제거 (MASTER §17-0-9-F-2, r61 좁힘 / 위임 52r3-).
@@ -72,12 +75,34 @@ describe('입력 조립의 사유별 제외 건수 (F-2)', () => {
       date_stops: [],
       data_entries: [],
     }
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.messages.map((m) => m.id)).toEqual(['m-k', 'm-heart', 'm-q', 'm-call', 'm-ok'])
     expect(r.exclusions.messagesWithoutBody).toBe(1)
     // 이번 기간 안의 것만 센다 - 기간 밖의 공백뿐인 본문(m-out)은 세지 않는다.
-    // 빈 문자열('') 본문은 입력 조립의 reqStr이 무결성 오류로 던진다(52r2 이전부터, 이번 범위 밖) - 여기서는 공백·줄바꿈뿐인 둘만 센다.
+    // 빈 문자열('')은 아래 R20-1 시험이 따로 본다 - 여기서는 공백·줄바꿈뿐인 둘만 센다.
     expect(r.exclusions.trivialMessages).toBe(2)
+  })
+
+  // R20-1 - 빈 문자열 본문은 공백뿐인 본문과 같이 빼고 센다. 입력 조립 전체를 실패시키지 않는다.
+  it("빈 문자열('') 본문 하나가 섞여도 입력 조립이 성공하고 trivialMessages가 1 늘어난다", async () => {
+    const base = [row('m-a', T('09:00'), '오늘 비 온대'), row('m-b', T('09:01'), '우산 챙겨')]
+    const tablesWith = (messages: ReturnType<typeof row>[]) => ({
+      couples: [{ id: COUPLE_A, subscription_tier: 'free' }],
+      profiles: [{ id: 'u1', display_name: '세준' }],
+      messages,
+      dates: [],
+      date_stops: [],
+      data_entries: [],
+    })
+    const without = await assembleCornerInput(fakeClient(tablesWith(base)), MONTHLY_CONTEXT, TEST_ISSUE_ID)
+    const withEmpty = await assembleCornerInput(
+      fakeClient(tablesWith([...base, row('m-empty', T('09:02'), '')])),
+      MONTHLY_CONTEXT,
+      TEST_ISSUE_ID,
+    )
+    expect(withEmpty.exclusions.trivialMessages).toBe(without.exclusions.trivialMessages + 1)
+    expect(withEmpty.messages.map((m) => m.id)).toEqual(['m-a', 'm-b'])
+    expect(withEmpty.exclusions.messagesWithoutBody).toBe(0)
   })
 
   it('남긴 메시지의 원문은 그대로다(요약·교정 없음)', async () => {
@@ -90,7 +115,7 @@ describe('입력 조립의 사유별 제외 건수 (F-2)', () => {
       date_stops: [],
       data_entries: [],
     }
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.messages[0].source.text).toBe(body)
     expect(r.exclusions.trivialMessages).toBe(0)
   })

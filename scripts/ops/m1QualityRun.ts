@@ -164,7 +164,8 @@ function corners(): Record<CornerKey, { module: CornerModule<any, any, any>; inp
 }
 
 async function assemble(): Promise<AssembledInput> {
-  return await assembleCornerInput(fakeClient(buildTables()), CONTEXT)
+  // 호 ID는 합성 값이다 - 사진 경로가 목적지 경로(§17-0-10-D) 모양을 갖게 하려는 것뿐이고 DB에 쓰지 않는다(`54-`).
+  return await assembleCornerInput(fakeClient(buildTables()), CONTEXT, 'issue-m1')
 }
 
 function requestText(req: LlmRequest): string {

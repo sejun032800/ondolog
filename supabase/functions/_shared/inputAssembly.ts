@@ -25,6 +25,13 @@
  * - 잠긴 항목 건수를 세는 보조 쿼리(`access_locked = true`)는 (3)의 보수(complement)다. 입력에 들어가는 행이 아니라
  *   세기만 한다(F "사유별 제외 건수").
  *
+ * ── 사진 경로는 처음부터 목적지 경로다 (§17-0-10-D, r52) ───────────────────────────
+ * `PhotoRef.path`·`PhotoRecord.source.path`는 원본 `storage_path`가 아니라 `magazine` 버킷의 목적지 경로
+ * `{couple_id}/{issue_id}/{entry_id}.{ext}`다. 경로를 만드는 함수는 `mediaPath.ts` 하나이고 발행의 미디어 복제(P7)가
+ * 같은 함수를 부른다. 그래서 `issueId`가 필수 인자다 - 검증이 끝난 content를 나중에 고치지 않는다. 원본 경로는
+ * 입력 레코드에 싣지 않는다(복제 목록은 항목 ID로 `data_entries.storage_path`를 다시 읽어 만든다).
+ * 썸네일(`thumbPath`)·그림(`drawing_path`)은 이 규칙의 대상이 아니다(문서는 사진 경로만 정한다).
+ *
  * ── 하지 않는 것 (G, 발행 경로의 일) ──────────────────────────────────────
  * 의미 없는 조각 제거(F-2, r59)는 메시지 레코드를 만들 때 한다(`inputPrefilter.ts`) - 규칙 기반 전처리는 이것뿐이다.
  * `last_featured_at`·`feature_count`는 읽기만 한다. 채팅 입력량 상한(코너당 추정 토큰 안전 정지는 골격의 일), 17-1 선별 상한(이번 기간 데이트는 전부
@@ -45,6 +52,7 @@ import type {
 } from './corners/cornerCommon.ts'
 import type { PhotoRef, UserNote } from '../../../src/types/corners/storedContent.ts'
 import { isTrivialMessageText } from './inputPrefilter.ts'
+import { magazineMediaPath } from './mediaPath.ts'
 import { timeOfDayLabel } from './timeOfDayLabel.ts'
 import {
   kstClockHHmm,
@@ -287,9 +295,19 @@ type RecallReason = 'anniversary' | 'never_featured' | 'sparse_month'
 export async function assembleCornerInput(
   client: InputAssemblyClient,
   context: CornerContext,
+  /** 이 입력이 채울 호(`issues.id`). 사진의 목적지 경로가 이 값을 싣는다. 호출부가 P0의 초안 행에서 넘긴다. */
+  issueId: string,
 ): Promise<AssembledInput> {
   assertContext(context)
   const { coupleId, period } = context
+  /** 사진 항목의 목적지 경로 - 경로 함수는 `mediaPath.ts` 하나다. */
+  const photoPathOf = (entry: AssemblyRow): string =>
+    magazineMediaPath({
+      coupleId,
+      issueId,
+      entryId: reqStr(entry, 'id', 'data_entries'),
+      sourcePath: reqStr(entry, 'storage_path', 'data_entries'),
+    })
 
   // ── 열람 가능 판정의 입력: 커플의 구독 등급 (is_entry_visible) ──────────────
   const coupleRows = await fetchAll('couples', () =>
@@ -494,7 +512,10 @@ export async function assembleCornerInput(
     }
     const sentAt = reqDate(row, 'sent_at', 'messages')
     if (!isRecordInPeriod({ occurredAt: sentAt, recalled: false }, period)) continue
-    const text = reqStr(row, 'body', 'messages')
+    // 본문 읽기 - 빈 문자열('')도 읽는다(R20-1). `reqStr`은 빈 문자열을 무결성 오류로 던져 한 레코드가 호 전체를
+    // 막았다. 빈 본문은 공백뿐인 본문과 같이 뺀다(§17-0-9-F-2) - 아래 판정이 센다.
+    const text = row.body
+    if (typeof text !== 'string') throw integrity('messages', String(row.id), 'body가 문자열이 아니다')
     if (isTrivialMessageText(text)) {
       trivialMessages += 1
       continue
@@ -521,8 +542,8 @@ export async function assembleCornerInput(
 
   // 데이트
   const dates: DateRecord[] = [
-    ...periodDates.map((d) => buildDateRecord(d, null, false, periodContent, nameOf, sizeLessPhotoIds, coupleId)),
-    ...recalled.map((r) => buildDateRecord(r.date, r.reason, true, recallContent, nameOf, sizeLessPhotoIds, coupleId)),
+    ...periodDates.map((d) => buildDateRecord(d, null, false, periodContent, nameOf, sizeLessPhotoIds, coupleId, photoPathOf)),
+    ...recalled.map((r) => buildDateRecord(r.date, r.reason, true, recallContent, nameOf, sizeLessPhotoIds, coupleId, photoPathOf)),
   ]
 
   // 사진 - 기간 안 촬영분 + 이번 기간 데이트에 묶인 사진. 판정은 isRecordInPeriod.
@@ -552,7 +573,7 @@ export async function assembleCornerInput(
       kind: 'photo',
       occurredAt,
       recalled: false,
-      source: { path: reqStr(e, 'storage_path', 'data_entries'), at: kstIsoString(occurredAt) },
+      source: { path: photoPathOf(e), at: kstIsoString(occurredAt) },
     })
   }
   photos.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime() || compare(a.id, b.id))
@@ -639,6 +660,7 @@ function buildDateRecord(
   nameOf: (id: string) => string,
   sizeLessPhotoIds: Set<string>,
   coupleId: string,
+  photoPathOf: (entry: AssemblyRow) => string,
 ): DateRecord {
   const dateStops = content.stops
     .filter((s) => s.date_id === date.id)
@@ -674,7 +696,7 @@ function buildDateRecord(
       const capturedAt = captured === null ? null : reqDate(e, 'captured_at', 'data_entries')
       refs.push({
         ref: {
-          path: reqStr(e, 'storage_path', 'data_entries'),
+          path: photoPathOf(e),
           ...(thumb !== null ? { thumbPath: thumb } : {}),
           width,
           height,

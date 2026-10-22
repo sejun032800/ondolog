@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-22 (corner-pipeline, `54`): M2-b 운영자 경로(샘플 출력 모드) + M2-e 실증 - `scripts/ops/`에 생성·발행 명령 둘(`generateIssueCli.ts`·`publishIssueCli.ts`)과 시험 데이터 `seedTestData.ts`·실증 `verifyPublishPath.ts`, `_shared/mediaPath.ts`(목적지 경로 함수 하나, 입력 조립이 `issueId`를 받아 처음부터 싣는다), R20-1(빈 본문 `''` 제외·계수)·R20-2(안전 정지 -> `pending` + `usage_over` 경보). 원격 개발 DB에서 정상 발행·예외 5종·동시 발행(번호 1·2)·테마 불변 확인. 실제 API 호출 0회. 게이트 0 / 0 / 1092 · 55 (기준 1059 · 53). 시험 기댓값 수정: `inputAssembly.test.ts` 사진 경로 7곳(원본 -> 목적지 경로). 미커밋
+
 2026-10-21 (ui-builder, `53`): UI 기반 U0(Nocturne v5) - `src/theme/nocturne.ts`(색 18·빛 3·활자 10단·형태·모션·`ink()`), `useFonts`에 Pretendard-Medium·Bold, 공통 컴포넌트 `src/components/nocturne/`(SkyBackground·GlowNumeral·GlassCard·ProgressRule·버튼·칩 4종·Segmented·Toggle·ListGroup·나가기 머리 2종·QuoteText·Skeleton·DateCard·TabBar), `(tabs)/_layout.tsx` 탭 바 교체, 개발 전용 확인 화면 `app/dev-components.tsx`(출시 번들 제외 확인). 의존성 `react-native-svg` 15.15.4·`react-native-worklets` 0.10.1(`--legacy-peer-deps`), babel 설정·deno.json 변경 없음. 화면 교체 없음, 실기기·화면 녹화 미수행. 게이트 0 / 0 / 1059 · 53. 미커밋
 
 2026-10-21 (corner-pipeline, `52r3`): sel-a 좁힘(MASTER r61 F-2) - `inputPrefilter.ts` 판정을 "본문이 비었거나 공백뿐"만으로(자음만·이모티콘·한 글자·링크 판정 삭제), 시험 입력 `inputAssembly.test.ts` 321·335행 `'안녕 A'`·`'안녕 B'` -> `'A'`·`'B'` 복원, sel-a 시험 새 기준으로, 하네스 sel-a 규칙 문구 한 줄. dry: 뺀 건수 7 -> 0, 추정 토큰(중간값) 2,571 / 13,629 / 14,787. 게이트 0 / 0 / 1030 · 52. 실제 API 호출 없음. 미커밋

@@ -11,6 +11,11 @@ import { assembleCornerInput, type AssemblyRow } from './inputAssembly.ts'
 import { fakeClient, type LoggedQuery } from './testFixtures/inputAssemblyFake.ts'
 import { AUG_END, AUG_START, COUPLE_A, COUPLE_B, MONTHLY_CONTEXT } from './testFixtures/cornerFixtures.ts'
 
+/** 시험용 호 ID - 사진의 목적지 경로가 싣는다(§17-0-10-D). */
+const TEST_ISSUE_ID = 'issue-test'
+/** 사진의 목적지 경로(§17-0-10-D) - 시험 행의 원본 경로는 `p/{id}.jpg`다. */
+const dest = (id: string): string => `${COUPLE_A}/${TEST_ISSUE_ID}/${id}.jpg`
+
 // ---------------------------------------------------------------------------
 // 데이터 도우미
 // ---------------------------------------------------------------------------
@@ -101,7 +106,7 @@ describe('조회와 레코드 - 채팅·사진·데이트', () => {
   })
 
   it('채팅: 원문 그대로, 화자 이름은 프로필, 시각·표기는 KST, recalled false', async () => {
-    const { messages } = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const { messages } = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(messages.map((m) => m.id)).toEqual(['m-1', 'm-2'])
     const [m1, m2] = messages
     expect(m1.kind).toBe('message')
@@ -120,16 +125,16 @@ describe('조회와 레코드 - 채팅·사진·데이트', () => {
   })
 
   it('사진: 기간 안 촬영분과 데이트에 묶인 사진이 각각 레코드가 된다(기간 밖 촬영은 레코드가 아니다)', async () => {
-    const { photos } = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const { photos } = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(photos.map((p) => p.id)).toEqual(['e-standalone', 'e-photo'])
     const standalone = photos[0]
     expect(standalone.kind).toBe('photo')
     expect(standalone.recalled).toBe(false)
-    expect(standalone.source).toEqual({ path: 'p/e-standalone.jpg', at: '2026-08-10T10:00:00+09:00' })
+    expect(standalone.source).toEqual({ path: dest('e-standalone'), at: '2026-08-10T10:00:00+09:00' })
   })
 
   it('데이트: 날짜는 KST 00:00, 정거장 시각 "14:20", 사진·유저 기록은 정거장에, 데이트에만 묶인 것은 dateLevel에', async () => {
-    const { dates } = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const { dates } = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(dates).toHaveLength(1)
     const d = dates[0]
     expect(d.kind).toBe('date')
@@ -145,7 +150,7 @@ describe('조회와 레코드 - 채팅·사진·데이트', () => {
         lat: 37.56,
         lng: 126.92,
         photos: [
-          { path: 'p/e-photo.jpg', thumbPath: 't/e.jpg', width: 100, height: 80, capturedAt: '2026-08-19T14:25:00+09:00' },
+          { path: dest('e-photo'), thumbPath: 't/e.jpg', width: 100, height: 80, capturedAt: '2026-08-19T14:25:00+09:00' },
         ],
         userNotes: [{ authorId: 'u2', authorName: '서영', type: 'memo', text: '여기 좋았다' }],
       },
@@ -157,14 +162,14 @@ describe('조회와 레코드 - 채팅·사진·데이트', () => {
   })
 
   it('records는 messages·photos·dates를 이은 것이고, 모든 레코드의 기간 판정은 isRecordInPeriod와 같다', async () => {
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.records).toHaveLength(r.messages.length + r.photos.length + r.dates.length)
     for (const rec of r.records) expect(isRecordInPeriod(rec, MONTHLY_CONTEXT.period)).toBe(true)
   })
 
   it('프로필 행이 없는 화자는 무결성 오류로 던진다', async () => {
     const broken = tables({ messages: [message('m-1', '2026-08-22T09:20:00+09:00', '안녕', { sender_id: 'ghost' })] })
-    await expect(assembleCornerInput(fakeClient(broken), MONTHLY_CONTEXT)).rejects.toThrow(/profiles/)
+    await expect(assembleCornerInput(fakeClient(broken), MONTHLY_CONTEXT, TEST_ISSUE_ID)).rejects.toThrow(/profiles/)
   })
 
   it('삭제된 행(deleted_at)은 빠진다', async () => {
@@ -172,7 +177,7 @@ describe('조회와 레코드 - 채팅·사진·데이트', () => {
       messages: [message('m-x', '2026-08-22T09:20:00+09:00', '삭제됨', { deleted_at: '2026-08-23T00:00:00+09:00' })],
       dates: [dateRow('d-x', AUG_DAY('19'), { deleted_at: '2026-08-23T00:00:00+09:00' })],
     })
-    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.records).toEqual([])
   })
 })
@@ -194,7 +199,7 @@ describe('필드 채우기와 사유별 제외 건수 (F)', () => {
         entryRow('e-ok', { captured_at: '2026-08-11T10:00:00+09:00' }),
       ],
     })
-    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.messages.map((m) => m.id)).toEqual(['m-2'])
     expect(r.photos.map((p) => p.id)).toEqual(['e-ok'])
     expect(r.dates[0].source.stops[0].photos).toEqual([])
@@ -217,7 +222,7 @@ describe('필드 채우기와 사유별 제외 건수 (F)', () => {
         entryRow('e-loose', { created_at: '2026-08-15T00:00:00+09:00' }),
       ],
     })
-    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     const byId = new Map(r.photos.map((p) => [p.id, p]))
     expect([...byId.keys()].sort()).toEqual(['e-by-date', 'e-by-stop'])
     expect(byId.get('e-by-stop')?.occurredAt.getTime()).toBe(Date.parse('2026-08-19T00:00:00+09:00'))
@@ -235,9 +240,9 @@ describe('필드 채우기와 사유별 제외 건수 (F)', () => {
         entryRow('date-only', { date_id: 'd-1', captured_at: '2026-08-19T15:00:00+09:00' }),
       ],
     })
-    const [date] = (await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT)).dates
-    expect(date.source.stops[0].photos.map((p) => p.path)).toEqual(['p/both.jpg'])
-    expect(date.source.dateLevel?.photos.map((p) => p.path)).toEqual(['p/date-only.jpg'])
+    const [date] = (await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT, TEST_ISSUE_ID)).dates
+    expect(date.source.stops[0].photos.map((p) => p.path)).toEqual([dest('both')])
+    expect(date.source.dateLevel?.photos.map((p) => p.path)).toEqual([dest('date-only')])
   })
 
   it('정거장은 seq 순, 같은 정거장의 사진은 촬영 시각 순(시각 없는 것은 뒤)', async () => {
@@ -253,9 +258,9 @@ describe('필드 채우기와 사유별 제외 건수 (F)', () => {
         entryRow('p-early', { date_stop_id: 's-1', captured_at: '2026-08-19T14:30:00+09:00' }),
       ],
     })
-    const [date] = (await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT)).dates
+    const [date] = (await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT, TEST_ISSUE_ID)).dates
     expect(date.source.stops.map((s) => s.seq)).toEqual([0, 1])
-    expect(date.source.stops[0].photos.map((p) => p.path)).toEqual(['p/p-early.jpg', 'p/p-late.jpg', 'p/p-null.jpg'])
+    expect(date.source.stops[0].photos.map((p) => p.path)).toEqual([dest('p-early'), dest('p-late'), dest('p-null')])
   })
 })
 
@@ -277,7 +282,7 @@ describe('커플 분리 (A)', () => {
 
   it('모든 쿼리가 couple_id = 맥락 커플을 건다 (profiles는 couple_id 컬럼이 없어 id로만, couples는 id)', async () => {
     const client = fakeClient(full)
-    await assembleCornerInput(client, MONTHLY_CONTEXT)
+    await assembleCornerInput(client, MONTHLY_CONTEXT, TEST_ISSUE_ID)
     for (const q of client.log) {
       if (q.table === 'couples') expect(hasFilter(q, 'eq', 'id', COUPLE_A)).toBe(true)
       else if (q.table === 'profiles') expect(hasFilter(q, 'in', 'id')).toBe(true)
@@ -290,7 +295,7 @@ describe('커플 분리 (A)', () => {
 
   it('deleted_at 컬럼이 있는 테이블(messages·dates·data_entries)은 모두 deleted_at is null을 건다', async () => {
     const client = fakeClient(full)
-    await assembleCornerInput(client, MONTHLY_CONTEXT)
+    await assembleCornerInput(client, MONTHLY_CONTEXT, TEST_ISSUE_ID)
     for (const q of client.log.filter((l) => ['messages', 'dates', 'data_entries'].includes(l.table))) {
       expect(hasFilter(q, 'is', 'deleted_at', null)).toBe(true)
     }
@@ -298,7 +303,7 @@ describe('커플 분리 (A)', () => {
 
   it('data_entries: 무료 커플은 access_locked = false를 건다(is_entry_visible과 같은 결과). 잠금 건수 보조 쿼리만 true', async () => {
     const client = fakeClient(full)
-    await assembleCornerInput(client, MONTHLY_CONTEXT)
+    await assembleCornerInput(client, MONTHLY_CONTEXT, TEST_ISSUE_ID)
     const entryQueries = client.log.filter((l) => l.table === 'data_entries')
     expect(entryQueries.length).toBeGreaterThan(0)
     const counting = entryQueries.filter((q) => hasFilter(q, 'eq', 'access_locked', true))
@@ -310,7 +315,7 @@ describe('커플 분리 (A)', () => {
 
   it('data_entries: 유료 커플은 열람 가능 판정이 전부 통과이므로 access_locked 필터가 없다', async () => {
     const client = fakeClient({ ...full, couples: [{ id: COUPLE_A, subscription_tier: 'paid' }] })
-    await assembleCornerInput(client, MONTHLY_CONTEXT)
+    await assembleCornerInput(client, MONTHLY_CONTEXT, TEST_ISSUE_ID)
     for (const q of client.log.filter((l) => l.table === 'data_entries')) {
       expect(q.filters.some((f) => f.column === 'access_locked')).toBe(false)
     }
@@ -325,7 +330,7 @@ describe('커플 분리 (A)', () => {
         entryRow('e-b', { captured_at: '2026-08-10T10:00:00+09:00', couple_id: COUPLE_B }),
       ],
     })
-    const r = await assembleCornerInput(fakeClient(mixed), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(mixed), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.records.map((x) => x.id).sort()).toEqual(['d-a', 'e-a', 'm-a'])
     expect(r.records.every((x) => x.coupleId === COUPLE_A)).toBe(true)
   })
@@ -350,7 +355,7 @@ describe('커플 분리 (A)', () => {
     ]
     it.each(cases)('%s', async (_table, data, offendingId) => {
       const client = fakeClient(data, { leakAcrossCouples: true })
-      const error = await assembleCornerInput(client, MONTHLY_CONTEXT).catch((e: unknown) => e)
+      const error = await assembleCornerInput(client, MONTHLY_CONTEXT, TEST_ISSUE_ID).catch((e: unknown) => e)
       expect(error).toBeInstanceOf(CoupleMembershipError)
       expect((error as CoupleMembershipError).expectedCoupleId).toBe(COUPLE_A)
       expect((error as CoupleMembershipError).offendingRecordIds).toContain(offendingId)
@@ -358,7 +363,7 @@ describe('커플 분리 (A)', () => {
 
     it('재소환 후보 조회(과거 데이트)에서도 마찬가지다', async () => {
       const data = tables({ dates: [dateRow('d-old-b', '2025-08-10', { couple_id: COUPLE_B })] })
-      const error = await assembleCornerInput(fakeClient(data, { leakAcrossCouples: true }), MONTHLY_CONTEXT).catch((e: unknown) => e)
+      const error = await assembleCornerInput(fakeClient(data, { leakAcrossCouples: true }), MONTHLY_CONTEXT, TEST_ISSUE_ID).catch((e: unknown) => e)
       expect(error).toBeInstanceOf(CoupleMembershipError)
     })
   })
@@ -384,7 +389,7 @@ describe('기간 경계 (B)', () => {
         entryRow('p-end', { captured_at: AUG_END.toISOString() }),
       ],
     })
-    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.messages.map((m) => m.id)).toEqual(['m-start', 'm-last'])
     expect(r.photos.map((p) => p.id)).toEqual(['p-start', 'p-last'])
     for (const rec of r.records) expect(isRecordInPeriod(rec, MONTHLY_CONTEXT.period)).toBe(true)
@@ -392,7 +397,7 @@ describe('기간 경계 (B)', () => {
 
   it('데이트: 시작 날짜는 안, 끝 날짜(KST 자정이 끝)는 밖', async () => {
     const d = tables({ dates: [dateRow('d-first', '2026-08-01'), dateRow('d-last', '2026-08-31'), dateRow('d-next', '2026-09-01'), dateRow('d-prev', '2026-07-31')] })
-    const r = await assembleCornerInput(fakeClient(d), { ...MONTHLY_CONTEXT, coupleId: COUPLE_A })
+    const r = await assembleCornerInput(fakeClient(d), { ...MONTHLY_CONTEXT, coupleId: COUPLE_A }, TEST_ISSUE_ID)
     // 이번 기간 2건이면 재소환 1건이 더해지지만, 이 시험은 이번 기간 데이트만 본다.
     expect(r.dates.filter((x) => x.recalled === false).map((x) => x.id)).toEqual(['d-first', 'd-last'])
   })
@@ -405,7 +410,7 @@ describe('기간 경계 (B)', () => {
     const d = tables({
       dates: [dateRow('d-1st', '2026-09-01'), dateRow('d-aug1', '2026-08-01'), dateRow('d-aug2', '2026-08-02')],
     })
-    const r = await assembleCornerInput(fakeClient(d), context)
+    const r = await assembleCornerInput(fakeClient(d), context, TEST_ISSUE_ID)
     // 2026-08-01 자정은 시작(10:00)보다 이르므로 밖, 2026-09-01 자정은 끝(10:00)보다 이르므로 안.
     expect(r.dates.filter((x) => x.recalled === false).map((x) => x.id)).toEqual(['d-aug2', 'd-1st'])
     for (const rec of r.dates.filter((x) => x.recalled === false)) expect(isRecordInPeriod(rec, context.period)).toBe(true)
@@ -413,7 +418,7 @@ describe('기간 경계 (B)', () => {
 
   it('쿼리의 gte/lt는 context.period 경계를 그대로 쓴다(채팅·사진: 순간, 데이트: KST 날짜)', async () => {
     const client = fakeClient(tables())
-    await assembleCornerInput(client, MONTHLY_CONTEXT)
+    await assembleCornerInput(client, MONTHLY_CONTEXT, TEST_ISSUE_ID)
     const messagesQuery = client.log.find((q) => q.table === 'messages')
     expect(messagesQuery?.filters).toEqual(
       expect.arrayContaining([
@@ -461,14 +466,14 @@ describe('재소환 (C)', () => {
     [4, 0],
   ])('이번 기간 데이트가 %i건이면 재소환은 %i건 (max(0, 3-n))', async (n, expected) => {
     const data = tables({ dates: [...periodDates(n), ...past.dates], data_entries: pastEntries })
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.dates.filter((d) => d.recalled === true)).toHaveLength(expected)
     expect(r.dates.filter((d) => d.recalled === false)).toHaveLength(n)
   })
 
   it('우선순위와 recallReason이 1:1이다 - ① anniversary(N 작은 순) ② never_featured(photo_count 내림) ③ sparse_month', async () => {
     const data = tables({ dates: past.dates, data_entries: pastEntries })
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.dates.map((d) => [d.id, d.source.recallReason])).toEqual([
       ['anniv-1y', 'anniversary'],
       ['anniv-2y', 'anniversary'],
@@ -489,7 +494,7 @@ describe('재소환 (C)', () => {
       ],
       data_entries: ['s-new', 's-old', 's-mid'].map(photoOf),
     })
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.dates.map((d) => [d.id, d.source.recallReason])).toEqual([
       ['s-old', 'sparse_month'],
       ['s-mid', 'sparse_month'],
@@ -502,7 +507,7 @@ describe('재소환 (C)', () => {
       dates: [dateRow('plain-never', '2026-05-01', { photo_count: 99 }), dateRow('anniv', '2025-08-20')],
       data_entries: ['plain-never', 'anniv'].map(photoOf),
     })
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.dates.map((d) => [d.id, d.source.recallReason])).toEqual([
       ['anniv', 'anniversary'],
       ['plain-never', 'never_featured'],
@@ -518,7 +523,7 @@ describe('재소환 (C)', () => {
       ],
       data_entries: ['n-b', 'n-a', 'n-late'].map(photoOf),
     })
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.dates.map((d) => d.id)).toEqual(['n-late', 'n-a', 'n-b'])
   })
 
@@ -528,7 +533,7 @@ describe('재소환 (C)', () => {
         dates: [dateRow('before', '2026-07-31'), dateRow('after', '2026-09-05')],
         data_entries: ['before', 'after'].map(photoOf),
       })
-      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
       expect(r.dates.map((d) => d.id)).toEqual(['before'])
     })
 
@@ -537,7 +542,7 @@ describe('재소환 (C)', () => {
         dates: [dateRow('gone', '2026-05-01', { deleted_at: '2026-06-01T00:00:00+09:00' }), dateRow('kept', '2026-05-02')],
         data_entries: ['gone', 'kept'].map(photoOf),
       })
-      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
       expect(r.dates.map((d) => d.id)).toEqual(['kept'])
     })
 
@@ -551,7 +556,7 @@ describe('재소환 (C)', () => {
         ],
         data_entries: ['on-limit', 'just-before', 'recent'].map(photoOf),
       })
-      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
       expect(r.dates.map((d) => d.id)).toEqual(['just-before'])
     })
 
@@ -560,7 +565,7 @@ describe('재소환 (C)', () => {
         dates: [dateRow('feb', '2025-12-01', { last_featured_at: '2026-02-15T00:00:00+09:00' })],
         data_entries: [photoOf('feb')],
       })
-      const augRun = () => assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+      const augRun = () => assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
       expect((await augRun()).dates).toEqual([])
       expect((await augRun()).dates).toEqual([])
       const sep: CornerContext = {
@@ -568,7 +573,7 @@ describe('재소환 (C)', () => {
         period: { start: new Date('2026-09-01T00:00:00+09:00'), end: new Date('2026-10-01T00:00:00+09:00') },
       }
       // 기간 시작 2026-09-01 - 6개월 = 2026-03-01. 2월 15일 기록은 그보다 이르므로 적격이다.
-      expect((await assembleCornerInput(fakeClient(data), sep)).dates.map((d) => d.id)).toEqual(['feb'])
+      expect((await assembleCornerInput(fakeClient(data), sep, TEST_ISSUE_ID)).dates.map((d) => d.id)).toEqual(['feb'])
     })
 
     it('3. 6개월 계산은 KST 달력 기준이다 - 기간 시작이 8월 31일이면 2월 말일로 맞춘다', async () => {
@@ -583,7 +588,7 @@ describe('재소환 (C)', () => {
         ],
         data_entries: ['before-limit', 'after-limit'].map(photoOf),
       })
-      const r = await assembleCornerInput(fakeClient(data), ctx)
+      const r = await assembleCornerInput(fakeClient(data), ctx, TEST_ISSUE_ID)
       expect(r.dates.map((d) => d.id)).toEqual(['before-limit'])
     })
 
@@ -596,9 +601,9 @@ describe('재소환 (C)', () => {
           entryRow('memo', { date_id: 'memo-only', entry_type: 'memo', text_content: '글만', storage_path: null }),
         ],
       })
-      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
       expect(r.dates.map((d) => d.id)).toEqual(['stop-photo'])
-      expect(r.dates[0].source.stops[0].photos.map((p) => p.path)).toEqual(['p/ph-stop.jpg'])
+      expect(r.dates[0].source.stops[0].photos.map((p) => p.path)).toEqual([dest('ph-stop')])
     })
 
     it('4. (r50) 크기 없는 사진만 있는 과거 데이트는 후보가 아니다 - 크기 있는 사진이 하나라도 있으면 후보다', async () => {
@@ -615,9 +620,9 @@ describe('재소환 (C)', () => {
           entryRow('ph-mixed-b', { date_id: 'mixed' }),
         ],
       })
-      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+      const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
       expect(r.dates.map((d) => d.id)).toEqual(['mixed'])
-      expect(r.dates[0].source.dateLevel?.photos.map((p) => p.path)).toEqual(['p/ph-mixed-b.jpg'])
+      expect(r.dates[0].source.dateLevel?.photos.map((p) => p.path)).toEqual([dest('ph-mixed-b')])
     })
   })
 
@@ -630,7 +635,7 @@ describe('재소환 (C)', () => {
         entryRow('note-old', { date_stop_id: 's-old', entry_type: 'memo', text_content: '그때', author_id: 'u2', storage_path: null }),
       ],
     })
-    const [d] = (await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)).dates
+    const [d] = (await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)).dates
     expect(d.recalled).toBe(true)
     expect(d.source.region).toBe('성수동')
     expect(d.source.stops[0].time).toBe('13:05')
@@ -640,28 +645,28 @@ describe('재소환 (C)', () => {
 
   it('재소환 사진은 PhotoRecord로 따로 나오지 않는다 (기간 이전이라 기간 판정에서 어긋나므로)', async () => {
     const data = tables({ dates: past.dates, data_entries: pastEntries })
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.photos).toEqual([])
   })
 
   it('last_featured_at·feature_count를 쓰지 않는다 - dates에 대한 쓰기 호출이 없다(읽기 체인만 존재)', async () => {
     const client = fakeClient(tables({ dates: past.dates, data_entries: pastEntries }))
     // 가짜 클라이언트 자체가 select 체인만 제공한다 - update/upsert가 필요했다면 호출 자체가 실패했을 것이다.
-    await expect(assembleCornerInput(client, MONTHLY_CONTEXT)).resolves.toBeDefined()
+    await expect(assembleCornerInput(client, MONTHLY_CONTEXT, TEST_ISSUE_ID)).resolves.toBeDefined()
     expect(Object.keys(client.from('dates'))).toEqual(['select'])
   })
 
   it('결정론: 같은 입력이면 행의 도착 순서가 달라도 같은 결과', async () => {
     const rows = tables({ dates: past.dates, data_entries: pastEntries })
     const reversed = { ...rows, dates: [...(rows.dates as AssemblyRow[])].reverse(), data_entries: [...(rows.data_entries as AssemblyRow[])].reverse() }
-    const a = await assembleCornerInput(fakeClient(rows), MONTHLY_CONTEXT)
-    const b = await assembleCornerInput(fakeClient(reversed), MONTHLY_CONTEXT)
+    const a = await assembleCornerInput(fakeClient(rows), MONTHLY_CONTEXT, TEST_ISSUE_ID)
+    const b = await assembleCornerInput(fakeClient(reversed), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(b).toEqual(a)
-    expect(await assembleCornerInput(fakeClient(rows), MONTHLY_CONTEXT)).toEqual(a)
+    expect(await assembleCornerInput(fakeClient(rows), MONTHLY_CONTEXT, TEST_ISSUE_ID)).toEqual(a)
   })
 
   it('재소환까지 거쳐 후보가 없으면 빈 목록 - 있는 만큼만 싣는다', async () => {
-    const r = await assembleCornerInput(fakeClient(tables()), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(tables()), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.records).toEqual([])
   })
 })
@@ -685,23 +690,23 @@ describe('잠긴 데이터 (D)', () => {
   })
 
   it('무료 커플: 이번 기간에서 잠긴 항목이 빠지고 건수로 센다', async () => {
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.photos.map((p) => p.id)).toEqual(['open-stop'])
     const stop = r.dates.find((d) => d.id === 'now-1')?.source.stops[0]
-    expect(stop?.photos.map((p) => p.path)).toEqual(['p/open-stop.jpg'])
+    expect(stop?.photos.map((p) => p.path)).toEqual([dest('open-stop')])
     expect(stop?.userNotes).toEqual([])
     expect(r.exclusions.lockedEntries).toBe(3)
   })
 
   it('무료 커플: 재소환에서도 빠진다 - 잠긴 사진만 있는 과거 데이트는 후보에서 빠지고, 열려 있는 것만 남는다', async () => {
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     const recalled = r.dates.filter((d) => d.recalled === true)
     expect(recalled.map((d) => d.id)).toEqual(['old-open'])
     expect(JSON.stringify(recalled)).not.toContain('lock-old')
   })
 
   it('잠긴 건수는 이번 기간 조회 범위만 센다 - 재소환 후보 판정 중에 본 잠긴 사진(lock-old)은 세지 않는다', async () => {
-    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(data), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     // 이번 기간 잠금 3건(lock-range·lock-stop·lock-note). 과거 데이트의 lock-old는 더하지 않는다(4가 아니다).
     expect(r.exclusions.lockedEntries).toBe(3)
     // 과거 데이트만 있고 이번 기간에 잠긴 항목이 없으면 0이다.
@@ -709,14 +714,14 @@ describe('잠긴 데이터 (D)', () => {
       dates: [dateRow('old-locked', '2026-05-01')],
       data_entries: [entryRow('lock-old', { date_id: 'old-locked', captured_at: '2026-05-01T10:00:00+09:00', access_locked: true })],
     })
-    const r2 = await assembleCornerInput(fakeClient(pastOnly), MONTHLY_CONTEXT)
+    const r2 = await assembleCornerInput(fakeClient(pastOnly), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r2.dates).toEqual([])
     expect(r2.exclusions.lockedEntries).toBe(0)
   })
 
   it('유료 커플: is_entry_visible이 참이므로 잠금 표시가 있어도 열람 가능 - 잠금 건수 0', async () => {
     const paid = { ...data, couples: [{ id: COUPLE_A, subscription_tier: 'paid' }] }
-    const r = await assembleCornerInput(fakeClient(paid), MONTHLY_CONTEXT)
+    const r = await assembleCornerInput(fakeClient(paid), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.photos.map((p) => p.id).sort()).toEqual(['lock-range', 'lock-stop', 'open-stop'])
     expect(r.exclusions.lockedEntries).toBe(0)
   })
@@ -729,15 +734,15 @@ describe('잠긴 데이터 (D)', () => {
 describe('오류 경로', () => {
   it('맥락 값이 틀리면 조회 전에 멈춘다 (InvalidCornerContextError, 골격과 같은 오류)', async () => {
     const client = fakeClient(tables())
-    await expect(assembleCornerInput(client, { ...MONTHLY_CONTEXT, coupleId: '' })).rejects.toBeInstanceOf(CoupleMembershipError)
+    await expect(assembleCornerInput(client, { ...MONTHLY_CONTEXT, coupleId: '' }, TEST_ISSUE_ID)).rejects.toBeInstanceOf(CoupleMembershipError)
     await expect(
-      assembleCornerInput(client, { ...MONTHLY_CONTEXT, period: { start: AUG_END, end: AUG_START } }),
+      assembleCornerInput(client, { ...MONTHLY_CONTEXT, period: { start: AUG_END, end: AUG_START } }, TEST_ISSUE_ID),
     ).rejects.toBeInstanceOf(CoupleMembershipError)
     expect(client.log).toEqual([])
   })
 
   it('커플 행이 없으면 던진다', async () => {
-    await expect(assembleCornerInput(fakeClient(tables({ couples: [] })), MONTHLY_CONTEXT)).rejects.toThrow(/couples/)
+    await expect(assembleCornerInput(fakeClient(tables({ couples: [] })), MONTHLY_CONTEXT, TEST_ISSUE_ID)).rejects.toThrow(/couples/)
   })
 
   it('DB 오류는 일반 Error로 던진다 (새 오류 종류를 만들지 않는다)', async () => {
@@ -746,6 +751,6 @@ describe('오류 경로', () => {
     const broken = {
       from: (table: string) => (table === 'messages' ? ({ select: () => ({ then: (f: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message: 'boom' } }).then(f), eq() { return this }, is() { return this }, gte() { return this }, lt() { return this }, in() { return this }, order() { return this }, range() { return this } }) } as never) : original(table)),
     }
-    await expect(assembleCornerInput(broken as never, MONTHLY_CONTEXT)).rejects.toThrow(/messages 조회 실패: boom/)
+    await expect(assembleCornerInput(broken as never, MONTHLY_CONTEXT, TEST_ISSUE_ID)).rejects.toThrow(/messages 조회 실패: boom/)
   })
 })

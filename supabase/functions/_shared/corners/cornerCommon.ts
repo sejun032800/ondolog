@@ -46,7 +46,7 @@ export interface ChatMessageRecord extends ScopedRecord {
 
 /** 사진 근거의 원문 필드(17-5). */
 export type PhotoSource = {
-  /** 저장 경로. 발행 시 magazine 버킷 경로로 치환된다(Part 8) - 이 코너들이 하지 않는다. */
+  /** 목적지 경로 `{couple_id}/{issue_id}/{entry_id}.{ext}`(§17-0-10-D) - 입력 조립이 처음부터 싣는다. 사후 치환은 없다. */
   readonly path: string
   /** 촬영 시각 ISO8601. */
   readonly at: string
