@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>표지 · 발행 노트 템플릿</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:'Pretendard';font-weight:400;src:url(/_blob/dc4276bddfe7e1f5b7ffe6b71066dbcc) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:500;src:url(/_blob/a07e84361b7478dfb56205ac89000d7c) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:600;src:url(/_blob/b02b332f1f355064afa890bbfbacb246) format('woff2')}
+@font-face{font-family:'Pretendard';font-weight:700;src:url(/_blob/bdfdcc7448429963aafbdd21eb0054fd) format('woff2')}
+@font-face{font-family:'MaruBuri';font-weight:300;src:url(/_blob/540996461c585eab6a8cd3e38a728bc4) format('woff2')}
+@font-face{font-family:'MaruBuri';font-weight:400;src:url(/_blob/2157bf749f5a88f5c28e922a1315366d) format('woff2')}
+body{margin:0}
+.bd{box-sizing:border-box;padding:60px;display:flex;gap:60px;background:#0A0814;font-family:Pretendard,sans-serif;color:#F3EFF7;position:relative;overflow:hidden}
+.cn{width:560px;flex-shrink:0;display:flex;flex-direction:column;gap:22px;padding-top:40px}
+.cn h4{margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.06em;color:#9C93B4}
+.cn ul{margin:0;padding-left:18px}
+.cn li{font-size:14px;line-height:23px;color:#C9C1DA;margin-bottom:6px}
+.cn li b{color:#F3EFF7;font-weight:600}
+.cl{display:flex;flex-direction:column;gap:16px;width:390px;flex-shrink:0}
+.lb{font-size:15px;font-weight:500;color:#9C93B4;height:24px;white-space:nowrap}
+.lb b{color:#F3EFF7;font-weight:600;margin-right:10px}
+.ph{width:390px;height:844px;position:relative;overflow:hidden;background:#0A0814;border-radius:44px;box-shadow:0 0 0 1px rgba(243,239,247,.10)}
+.ph *{box-sizing:border-box}
+.sky{background-image:url(/_blob/36e3f387eca8f7fb8113758239db980c);background-size:390px 2000px;background-repeat:no-repeat}
+.gr{position:absolute;inset:0;opacity:.65;pointer-events:none;background-image:url(/_blob/6cb13d1063c93f0badc73b9dd3ee335d);background-size:128px 128px}
+.dim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,8,20,.30) 0%,rgba(10,8,20,.55) 45%,rgba(10,8,20,.92) 78%,#0A0814 100%)}
+.ab{position:absolute}
+.mt{color:#F4B9C8;text-shadow:0 0 28px rgba(244,185,200,.45)}
+.vb{font-family:MaruBuri,serif;color:#C9C1DA;font-weight:400}
+.mu{color:#9C93B4}.fa{color:#6E6688}.lk{color:#A9B6EC}.mo{color:#E7D9C3}.or{color:#E3A0C8}.li{color:#B9A2F0}
+.kk{font-size:11px;font-weight:600;letter-spacing:.04em;color:#9C93B4}
+.hl{height:1px;background:rgba(243,239,247,.14)}
+.ch{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;border-radius:999px;font-size:12.5px;font-weight:500;background:rgba(243,239,247,.08);color:#F3EFF7;white-space:nowrap}
+.btn{display:flex;align-items:center;justify-content:center;height:52px;border-radius:999px;background:#F3EFF7;color:#0A0814;font-size:15px;font-weight:600;white-space:nowrap}
+.fab{position:absolute;right:20px;bottom:104px;height:48px;padding:0 20px;border-radius:999px;background:#F3EFF7;color:#0A0814;font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+.av{width:34px;height:34px;border-radius:999px;border:2px solid #0A0814;display:inline-block}
+.p-dusk{background-image:url(/_blob/fe361d34eb1c37833b56cc148c31c730);background-size:cover;background-position:center}
+.p-cafe{background-image:url(/_blob/6ed9a7c959ab086700d859903e00be18);background-size:cover;background-position:center}
+.p-cinema{background-image:url(/_blob/a053191b8e9196dc92c1a4f5dc8be9c9);background-size:cover;background-position:center}
+.p-river{background-image:url(/_blob/ed38fbcf1812f8b38ddb1e7e0469d5da);background-size:cover;background-position:center}
+.p-sea{background-image:url(/_blob/7caab17b1aa50ebbeff8bd19835eb880);background-size:cover;background-position:center}
+.p-bloom{background-image:url(/_blob/24dd4211c6cf5ff25b615cee73a4b5b3);background-size:cover;background-position:center}
+.nv{position:absolute;left:16px;right:16px;bottom:24px;height:64px;border-radius:22px;background:rgba(10,8,20,.88);border:1px solid rgba(243,239,247,.10);display:flex;align-items:center;justify-content:space-around;padding:0 6px}
+.nv.flat{left:0;right:0;bottom:0;height:88px;border-radius:0;border:0;border-top:1px solid rgba(243,239,247,.12);padding-bottom:24px;background:rgba(10,8,20,.94)}
+.nv span{display:flex;flex-direction:column;align-items:center;gap:4px;color:#9C93B4;font-size:11px;font-weight:500;min-width:52px}
+.nv svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.nv span.on{color:#F3EFF7;font-weight:600}
+.nv span.on svg{stroke:#F4B9C8;filter:drop-shadow(0 0 6px rgba(244,185,200,.6))}
+.sw{display:flex;gap:8px}
+.sw span{display:flex;flex-direction:column;gap:6px;font-size:11px;color:#9C93B4}
+.sw i{width:52px;height:36px;border-radius:10px;display:block}
+.vt{writing-mode:vertical-rl;text-orientation:sideways;font-size:11px;font-weight:500;letter-spacing:.08em;color:#9C93B4;white-space:nowrap}
+.mq{position:absolute;left:0;right:0;height:32px;border-top:1px solid rgba(243,239,247,.16);border-bottom:1px solid rgba(243,239,247,.16);overflow:hidden;display:flex;align-items:center;background:rgba(10,8,20,.35)}
+.mq div{display:flex;gap:18px;white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:.02em;color:#F3EFF7;animation:mq 22s linear infinite;padding-left:12px}
+.mq div i{font-style:normal;color:#F4B9C8}
+@keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion: reduce){.mq div{animation:none}}
+.st{position:absolute;padding:7px 11px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+.cd{position:absolute;border-radius:22px;background:#1C1829;border:1px solid rgba(243,239,247,.10);box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.pf{position:absolute;padding:6px 6px 26px;background:#1C1829;border-radius:6px;box-shadow:0 14px 34px rgba(0,0,0,.55)}
+.pf>div{width:100%;height:100%;border-radius:3px}
+.pf>em{position:absolute;left:8px;bottom:6px;font-style:normal;font-size:11px;color:#C9C1DA;font-weight:500}
+.bu{max-width:250px;padding:10px 14px;border-radius:20px;font-size:14.5px;line-height:21px}
+.bi{background:#1C1829;color:#F3EFF7;border-bottom-left-radius:6px}
+.bo{background:rgba(227,160,200,.18);color:#F3EFF7;border-bottom-right-radius:6px}
+.tm{font-size:10.5px;color:#6E6688}
+.inp{position:absolute;left:16px;right:16px;bottom:104px;height:52px;border-radius:999px;background:#14111F;border:1px solid rgba(243,239,247,.10);display:flex;align-items:center;padding:0 6px 0 8px;gap:10px}
+.inp .pl{width:38px;height:38px;border-radius:999px;background:rgba(243,239,247,.08);display:flex;align-items:center;justify-content:center;color:#C9C1DA;font-size:20px}
+.inp .sd{width:40px;height:40px;border-radius:999px;background:#F4B9C8;display:flex;align-items:center;justify-content:center;color:#0A0814;font-size:17px;font-weight:700;margin-left:auto}
+</style>
+
+<style>
+.pg{width:794px;height:1123px;position:relative;overflow:hidden;flex-shrink:0;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.pg *{box-sizing:border-box}
+.pc{display:flex;flex-direction:column;gap:16px}
+.pc .lb{font-size:15px}
+.mb{font-family:MaruBuri,serif}
+.wm{font-family:MaruBuri,serif;letter-spacing:.5em}
+.tb{border-collapse:collapse;width:100%}
+.tb th{font-size:11px;font-weight:600;letter-spacing:.04em;text-align:left;padding:0 0 8px;border-bottom:1.6px solid currentColor}
+.tb td{font-size:12.5px;padding:9px 0;border-bottom:.6px solid rgba(42,42,38,.25)}
+.tb td.n,.tb th.n{text-align:right;font-variant-numeric:tabular-nums}
+.th{width:82px;height:116px;border-radius:2px;position:relative;overflow:hidden;flex-shrink:0;box-shadow:0 10px 24px rgba(0,0,0,.45)}
+.cn code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#E7D9C3}
+</style>
+</helmet>
+<div class="bd" style="width: 3222px; height: 1423px">
+  <div class="cn" style="width: 540px; gap: 18px">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.24em; color: #E7D9C3">PRINT TEMPLATE · R20 → R22</span>
+      <span style="font-size: 46px; font-weight: 600; letter-spacing: -0.03em; line-height: 54px">표지 · 발행 노트</span>
+      <p style="margin: 0; font-size: 15px; line-height: 24px; color: #C9C1DA">지면에 <b style="color: #F3EFF7">호 번호와 발행일은 없고, "N월호"는 두 표지 모두 있어요.</b><br>사진이 없는 달은 활자 표지로 바뀌어요. 테마는 6종 전부.</p>
+    </div>
+    <div><h4>표지 — 두 종 공통 (MASTER 9-5 r64)</h4><ul><li><b>"N월호"</b> — 하단 이름 줄 왼쪽, 필수. PDF 한 부만 봐도 어느 달인지 알 수 있게</li><li><b>찍지 않는 것</b> — 호 번호(VOL)와 발행일. 번호는 앱이 표지 밖 라벨로 붙여요</li><li>표제 = 이달의 우리 헤드라인(16자) · 이 달의 말 = 다정한 말들 첫 발화 + 말한 사람(없으면 줄 삭제)</li></ul></div>
+    <div><h4>활자 표지 — 전환 조건과 구성</h4><ul><li>대표 사진이 없거나 원본 <b>짧은 변 1170px 미만</b>이면 활자 표지</li><li>표제가 3줄 · 줄당 6자로 띄어쓰기에 맞게 안 나뉘면 이 달의 말이 표제 자리로</li><li>우리의 온도 자리는 일 배치(M3-3) 전까지 비워요 — 줄 자체를 지움</li><li>테마 문법 하나씩: 네온핑크 상단 그라디언트 바 · 러블리 아치 · 온돌 광곽</li></ul></div>
+    <div><h4>테마 6종 — 활자 표지</h4>
+      <div style="display: flex; gap: 9px"><div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start"><div class="th" style="background: #F1ECE4"><div class="pg" style="background: #F1ECE4; color: #2A2A26; transform: scale(0.10327455919395466); transform-origin: 0 0; box-shadow: none; position: absolute; left: 0; top: 0">
+      <div class="ab wm" style="left: 0; right: 0; top: 66px; text-align: center; font-size: 30px; margin-left: .25em">ONDOLOG</div>
+      <div class="ab" style="left: 68px; right: 68px; top: 122px; height: 1.6px; background: #2A2A26"></div>
+      <div class="ab mb" style="left: 64px; right: 68px; top: 246px; font-weight: 300; font-size: 112px; line-height: 124px; letter-spacing: -0.03em">비가 와도<br>우리는<br>걸었다</div>
+      <div class="ab" style="left: 68px; width: 120px; top: 650px; height: 2px; background: #6E7F6B"></div>
+      <div class="ab" style="left: 68px; right: 68px; top: 676px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #7E7568">이 달의 말</span>
+        <span class="mb" style="font-size: 26px; line-height: 38px">“천천히 와도 돼”</span>
+        <span style="font-size: 13px; color: #7E7568">서영</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 76px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.6px solid #2A2A26; padding-top: 14px">
+        <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">9월호</span>
+        <span style="font-size: 15px; font-weight: 600">늘봄 <span style="font-weight: 400; color: #7E7568">세준 · 서영</span></span>
+      </div></div></div><span style="font-size: 11.5px; color: #C9C1DA">기본</span><code>basic</code></div><div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start"><div class="th" style="background: #EAF8F0"><div class="pg" style="background: #EAF8F0; color: #07110D; transform: scale(0.10327455919395466); transform-origin: 0 0; box-shadow: none; position: absolute; left: 0; top: 0"><div class="ab" style="left: 0; right: 0; top: 0; height: 8.3px; background: linear-gradient(90deg,#0E5C3F 0%,#42E695 45%,#2BFF9E 72%,#17EAD9 100%)"></div>
+      <div class="ab wm" style="left: 0; right: 0; top: 66px; text-align: center; font-size: 30px; margin-left: .25em">ONDOLOG</div>
+      <div class="ab" style="left: 68px; right: 68px; top: 122px; height: 1.6px; background: #07110D"></div>
+      <div class="ab mb" style="left: 64px; right: 68px; top: 246px; font-weight: 300; font-size: 112px; line-height: 124px; letter-spacing: -0.03em">비가 와도<br>우리는<br>걸었다</div>
+      <div class="ab" style="left: 68px; width: 120px; top: 650px; height: 2px; background: #0E5C3F"></div>
+      <div class="ab" style="left: 68px; right: 68px; top: 676px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #4C6659">이 달의 말</span>
+        <span class="mb" style="font-size: 26px; line-height: 38px">“천천히 와도 돼”</span>
+        <span style="font-size: 13px; color: #4C6659">서영</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 76px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.6px solid #07110D; padding-top: 14px">
+        <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">9월호</span>
+        <span style="font-size: 15px; font-weight: 600">늘봄 <span style="font-weight: 400; color: #4C6659">세준 · 서영</span></span>
+      </div></div></div><span style="font-size: 11.5px; color: #C9C1DA">힙</span><code>hip</code></div><div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start"><div class="th" style="background: #FFE4F0"><div class="pg" style="background: #FFE4F0; color: #12040B; transform: scale(0.10327455919395466); transform-origin: 0 0; box-shadow: none; position: absolute; left: 0; top: 0"><div class="ab" style="left: 0; right: 0; top: 0; height: 8.3px; background: linear-gradient(90deg,#4A0A38 0%,#C4126A 32%,#FF2E88 62%,#E879F9 100%)"></div>
+      <div class="ab wm" style="left: 0; right: 0; top: 66px; text-align: center; font-size: 30px; margin-left: .25em">ONDOLOG</div>
+      <div class="ab" style="left: 68px; right: 68px; top: 122px; height: 1.6px; background: #12040B"></div>
+      <div class="ab mb" style="left: 64px; right: 68px; top: 246px; font-weight: 300; font-size: 112px; line-height: 124px; letter-spacing: -0.03em">비가 와도<br>우리는<br>걸었다</div>
+      <div class="ab" style="left: 68px; width: 120px; top: 650px; height: 2px; background: #6E1240"></div>
+      <div class="ab" style="left: 68px; right: 68px; top: 676px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #7C2A52">이 달의 말</span>
+        <span class="mb" style="font-size: 26px; line-height: 38px">“천천히 와도 돼”</span>
+        <span style="font-size: 13px; color: #7C2A52">서영</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 76px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.6px solid #12040B; padding-top: 14px">
+        <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">9월호</span>
+        <span style="font-size: 15px; font-weight: 600">늘봄 <span style="font-weight: 400; color: #7C2A52">세준 · 서영</span></span>
+      </div></div></div><span style="font-size: 11.5px; color: #C9C1DA">네온핑크</span><code>neon</code></div><div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start"><div class="th" style="background: #F7EDEF"><div class="pg" style="background: #F7EDEF; color: #4A2836; transform: scale(0.10327455919395466); transform-origin: 0 0; box-shadow: none; position: absolute; left: 0; top: 0"><div class="ab" style="left: 52px; width: 430px; top: 200px; height: 440px; border: 1px solid #D9748F; border-radius: 215px 215px 0 0; opacity: .7"></div>
+      <div class="ab wm" style="left: 0; right: 0; top: 66px; text-align: center; font-size: 30px; margin-left: .25em">ONDOLOG</div>
+      <div class="ab" style="left: 68px; right: 68px; top: 122px; height: 1.6px; background: #4A2836"></div>
+      <div class="ab mb" style="left: 64px; right: 68px; top: 246px; font-weight: 300; font-size: 112px; line-height: 124px; letter-spacing: -0.03em">비가 와도<br>우리는<br>걸었다</div>
+      <div class="ab" style="left: 68px; width: 120px; top: 650px; height: 2px; background: #D9748F"></div>
+      <div class="ab" style="left: 68px; right: 68px; top: 676px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #8A8072">이 달의 말</span>
+        <span class="mb" style="font-size: 26px; line-height: 38px">“천천히 와도 돼”</span>
+        <span style="font-size: 13px; color: #8A8072">서영</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 76px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.6px solid #4A2836; padding-top: 14px">
+        <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">9월호</span>
+        <span style="font-size: 15px; font-weight: 600">늘봄 <span style="font-weight: 400; color: #8A8072">세준 · 서영</span></span>
+      </div></div></div><span style="font-size: 11.5px; color: #C9C1DA">러블리</span><code>lovely</code></div><div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start"><div class="th" style="background: #0A0D1A"><div class="pg" style="background: #0A0D1A; color: #F2EFE7; transform: scale(0.10327455919395466); transform-origin: 0 0; box-shadow: none; position: absolute; left: 0; top: 0">
+      <div class="ab wm" style="left: 0; right: 0; top: 66px; text-align: center; font-size: 30px; margin-left: .25em">ONDOLOG</div>
+      <div class="ab" style="left: 68px; right: 68px; top: 122px; height: 1.6px; background: #E3D0A4"></div>
+      <div class="ab mb" style="left: 64px; right: 68px; top: 246px; font-weight: 300; font-size: 112px; line-height: 124px; letter-spacing: -0.03em">비가 와도<br>우리는<br>걸었다</div>
+      <div class="ab" style="left: 68px; width: 120px; top: 650px; height: 2px; background: #E3D0A4"></div>
+      <div class="ab" style="left: 68px; right: 68px; top: 676px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #8D93A8">이 달의 말</span>
+        <span class="mb" style="font-size: 26px; line-height: 38px">“천천히 와도 돼”</span>
+        <span style="font-size: 13px; color: #8D93A8">서영</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 76px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.6px solid #E3D0A4; padding-top: 14px">
+        <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">9월호</span>
+        <span style="font-size: 15px; font-weight: 600">늘봄 <span style="font-weight: 400; color: #8D93A8">세준 · 서영</span></span>
+      </div></div></div><span style="font-size: 11.5px; color: #C9C1DA">야간</span><code>night</code></div><div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start"><div class="th" style="background: #EFE6DA"><div class="pg" style="background: #EFE6DA; color: #1F1B18; transform: scale(0.10327455919395466); transform-origin: 0 0; box-shadow: none; position: absolute; left: 0; top: 0"><div class="ab" style="left: 40px; right: 40px; top: 36px; bottom: 44px; border: 3px solid #1F1B18"></div><div class="ab" style="left: 48px; right: 48px; top: 44px; bottom: 52px; border: .8px solid #1F1B18"></div>
+      <div class="ab wm" style="left: 0; right: 0; top: 66px; text-align: center; font-size: 30px; margin-left: .25em">ONDOLOG</div>
+      <div class="ab" style="left: 68px; right: 68px; top: 122px; height: 1.6px; background: #1F1B18"></div>
+      <div class="ab mb" style="left: 64px; right: 68px; top: 246px; font-weight: 300; font-size: 112px; line-height: 124px; letter-spacing: -0.03em">비가 와도<br>우리는<br>걸었다</div>
+      <div class="ab" style="left: 68px; width: 120px; top: 650px; height: 2px; background: #A8332A"></div>
+      <div class="ab" style="left: 68px; right: 68px; top: 676px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #6B6055">이 달의 말</span>
+        <span class="mb" style="font-size: 26px; line-height: 38px">“천천히 와도 돼”</span>
+        <span style="font-size: 13px; color: #6B6055">서영</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 76px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.6px solid #1F1B18; padding-top: 14px">
+        <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">9월호</span>
+        <span style="font-size: 15px; font-weight: 600">늘봄 <span style="font-weight: 400; color: #6B6055">세준 · 서영</span></span>
+      </div></div></div><span style="font-size: 11.5px; color: #C9C1DA">온돌</span><code>ondol</code></div></div>
+      <p style="margin: 8px 0 0; font-size: 12px; line-height: 18px; color: #9C93B4">R24-1 정정 — 네온핑크·힙 활자 표지는 밝은 바탕이에요. 어두운 바탕은 야간 하나뿐이고, 활자 표지의 명도는 그 테마의 지면을 따라요. 값은 기존 발행물 PDF 실측이에요(네온 #FFE4F0/#12040B · 힙 #EAF8F0/#07110D). 상단 바는 3단이 아니라 4단이에요.</p>
+    </div>
+    <div><h4>발행 노트</h4><ul><li>킥커 오른쪽 "ONDOLOG · 커플 이름" · 수집 기간은 남김(R22-4)</li><li>없는 재료 줄(인터뷰 답 · 셋로그)은 지움 · 정정 요청은 <b>설정 › 문의</b></li></ul></div>
+    <div><h4>서재에서 보이는 모습</h4><div style="display: flex; gap: 16px"><div><div style="width: 104px; height: 146px; border-radius: 2px; background: #F1ECE4; position: relative; overflow: hidden; box-shadow: 0 10px 24px rgba(0,0,0,.5)"><div class="p-dusk" style="position: absolute; left: 0; right: 0; top: 0; height: 92px"></div><span class="wm" style="position: absolute; left: 0; right: 0; top: 7px; text-align: center; font-size: 6.5px; color: #F1ECE4">ONDOLOG</span><span class="mb" style="position: absolute; left: 8px; top: 100px; font-size: 9.5px; color: #2A2A26">가을이 오는 길목</span><span style="position: absolute; left: 8px; right: 8px; bottom: 7px; display: flex; justify-content: space-between; font-size: 6px; color: #2A2A26; border-top: .5px solid #2A2A26; padding-top: 3px"><b>9월호</b><span>늘봄</span></span></div><span style="display: flex; flex-direction: column; gap: 1px; margin-top: 8px"><span style="font-size: 11px; font-weight: 600; color: #E7D9C3">VOL.02</span><span style="font-size: 13px; font-weight: 600">9월호</span></span></div><div><div style="width: 104px; height: 146px; border-radius: 2px; background: #F1ECE4; position: relative; overflow: hidden; box-shadow: 0 10px 24px rgba(0,0,0,.5)"><span class="wm" style="position: absolute; left: 0; right: 0; top: 7px; text-align: center; font-size: 6.5px; color: #2A2A26">ONDOLOG</span><span class="mb" style="position: absolute; left: 9px; top: 30px; font-size: 17px; line-height: 19px; font-weight: 300; color: #2A2A26">비가 와도<br>우리는<br>걸었다</span><span style="position: absolute; left: 8px; right: 8px; bottom: 7px; display: flex; justify-content: space-between; font-size: 6px; color: #2A2A26; border-top: .5px solid #2A2A26; padding-top: 3px"><b>10월호</b><span>늘봄</span></span></div><span style="display: flex; flex-direction: column; gap: 1px; margin-top: 8px"><span style="font-size: 11px; font-weight: 600; color: #E7D9C3">VOL.03</span><span style="font-size: 13px; font-weight: 600">10월호</span></span></div></div></div>
+  </div><div class="pc"><div class="lb"><b>사진 표지</b>대표 사진이 있을 때</div><div class="pg" style="background: #F1ECE4; color: #2A2A26">
+      <div class="ab p-dusk" style="left: 0; right: 0; top: 0; height: 740px"></div>
+      <div class="ab" style="left: 0; right: 0; top: 0; height: 200px; background: linear-gradient(180deg, rgba(20,16,24,.45), rgba(20,16,24,0))"></div>
+      <div class="ab wm" style="left: 0; right: 0; top: 60px; text-align: center; font-size: 30px; color: #F1ECE4; margin-left: .25em">ONDOLOG</div>
+      <div class="ab" style="left: 68px; right: 68px; top: 778px; display: flex; flex-direction: column; gap: 16px">
+        <span class="mb" style="font-weight: 300; font-size: 64px; line-height: 74px; letter-spacing: -0.02em">가을이 오는 길목</span>
+        <span class="mb" style="font-size: 18px; color: #4A4640">“천천히 와도 돼” <span style="font-family: Pretendard; font-size: 13px; color: #7E7568">서영</span></span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 76px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.6px solid #2A2A26; padding-top: 14px">
+        <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">9월호</span>
+        <span style="font-size: 15px; font-weight: 600">늘봄 <span style="font-weight: 400; color: #7E7568">세준 · 서영</span></span>
+      </div>
+    </div></div><div class="pc"><div class="lb"><b>활자 표지</b>사진이 없거나 짧은 변 1170px 미만 · 기본 테마</div><div class="pg" style="background: #F1ECE4; color: #2A2A26">
+      <div class="ab wm" style="left: 0; right: 0; top: 66px; text-align: center; font-size: 30px; margin-left: .25em">ONDOLOG</div>
+      <div class="ab" style="left: 68px; right: 68px; top: 122px; height: 1.6px; background: #2A2A26"></div>
+      <div class="ab mb" style="left: 64px; right: 68px; top: 246px; font-weight: 300; font-size: 112px; line-height: 124px; letter-spacing: -0.03em">비가 와도<br>우리는<br>걸었다</div>
+      <div class="ab" style="left: 68px; width: 120px; top: 650px; height: 2px; background: #6E7F6B"></div>
+      <div class="ab" style="left: 68px; right: 68px; top: 676px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #7E7568">이 달의 말</span>
+        <span class="mb" style="font-size: 26px; line-height: 38px">“천천히 와도 돼”</span>
+        <span style="font-size: 13px; color: #7E7568">서영</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 76px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.6px solid #2A2A26; padding-top: 14px">
+        <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">9월호</span>
+        <span style="font-size: 15px; font-weight: 600">늘봄 <span style="font-weight: 400; color: #7E7568">세준 · 서영</span></span>
+      </div>
+    </div></div><div class="pc"><div class="lb"><b>발행 노트</b>표지 → 목차 → 발행 노트</div><div class="pg" style="background: #F1ECE4; color: #2A2A26">
+      <div class="ab" style="left: 68px; right: 68px; top: 60px; display: flex; align-items: center; gap: 14px; font-size: 11px; font-weight: 600; letter-spacing: .08em; color: #7E7568">
+        <span>PUBLICATION NOTE</span><span style="flex: 1; height: .6px; background: #7E7568"></span><span class="wm" style="font-size: 11px; letter-spacing: .4em; font-weight: 400">ONDOLOG</span><span style="font-weight: 500; letter-spacing: 0">· 늘봄</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; top: 84px; height: 1.6px; background: #2A2A26"></div>
+      <div class="ab" style="left: 68px; width: 529px; top: 112px; display: flex; flex-direction: column; gap: 14px">
+        <span class="mb" style="font-size: 27px; line-height: 38px">이 호는 무엇으로 만들어졌나</span>
+        <span style="font-size: 12.5px; line-height: 21.5px; color: #4A4640">9월 1일부터 9월 30일까지 두 사람이 남긴 대화, 사진, 기록으로 만들었습니다. 모은 양과 실제로 실은 양을 나란히 적습니다. 두 사람이 쓴 문장과 온도록이 쓴 문장의 비율도 함께 적습니다.</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; top: 300px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #7E7568; display: block; margin-bottom: 12px">수집한 재료</span>
+        <table class="tb"><tr><th>항목</th><th class="n">모은 양</th><th class="n">실제 게재</th></tr><tr><td>대화</td><td class="n">412개</td><td class="n">인용 9개</td></tr><tr><td>사진</td><td class="n">34장</td><td class="n">17장</td></tr><tr><td>데이트 기록</td><td class="n">3개</td><td class="n">3개</td></tr></table>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; top: 520px; display: flex; flex-direction: column; gap: 12px">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #7E7568">문장의 출처</span>
+        <div style="display: flex; height: 30px; border: .6px solid #2A2A26">
+          <div style="width: 42%; background: #2A2A26; color: #F1ECE4; font-size: 12px; font-weight: 600; display: flex; align-items: center; padding-left: 12px">두 사람 42%</div>
+          <div style="flex: 1; background: repeating-linear-gradient(45deg, rgba(42,42,38,.22) 0 1px, transparent 1px 6px); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: flex-end; padding-right: 12px">온도록 58%</div>
+        </div>
+        <span style="font-size: 11.5px; line-height: 18px; color: #7E7568">두 사람이 쓴 문장 31개 · 온도록이 쓴 문장 43개 · 집계 수치는 세지 않음</span>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; top: 670px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 36px; border-top: .6px solid #7E7568; padding-top: 18px">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #7E7568">싣지 않은 것</span>
+          <span style="font-size: 12.5px; line-height: 21px">사진 17장 — 지면 상한 초과<br>대화 403개 — 인용하지 않음</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #7E7568">비어 있는 코너</span>
+          <span style="font-size: 12.5px; line-height: 21px">이번 호에는 없습니다</span>
+        </div>
+      </div>
+      <div class="ab" style="left: 68px; right: 68px; top: 840px; font-size: 11.5px; line-height: 19px; color: #7E7568">정정 요청 — 잘못 실린 문장이 있으면 앱의 설정 › 문의로 알려 주세요.</div>
+      <div class="ab" style="left: 68px; right: 68px; bottom: 40px; display: flex; justify-content: space-between; font-size: 10.5px; color: #7E7568"><span>03</span><span class="wm" style="letter-spacing: .4em">ONDOLOG</span></div>
+    </div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3222,"height":1423}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

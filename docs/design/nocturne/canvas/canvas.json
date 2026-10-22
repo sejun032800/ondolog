@@ -723,6 +723,14 @@
    "title": "I03–I08 공통 상태 · I03–I08",
    "page": "v5",
    "is_interactive": true
+  },
+  "P1-Cover-Note.dc.html": {
+   "x": 0,
+   "y": -1923,
+   "w": 3222,
+   "h": 1423,
+   "title": "표지 · 발행 노트 템플릿 (R22)",
+   "page": "v5"
   }
  },
  "order": [
@@ -809,7 +817,8 @@
   "N-S-H2-Settings.dc.html",
   "N-S-H3-Settings.dc.html",
   "N-S-H4-Settings.dc.html",
-  "N-S-I-States.dc.html"
+  "N-S-I-States.dc.html",
+  "P1-Cover-Note.dc.html"
  ],
  "notes": {
   "t_system": {
@@ -943,6 +952,14 @@
    "text": "v5 적용본 — 109화면",
    "kind": "title1",
    "maxW": 4000,
+   "page": "v5"
+  },
+  "t_v5_pub": {
+   "x": 0,
+   "y": -2223,
+   "text": "인쇄 템플릿 — N월호 필수, 호 번호 · 발행일 없음, 활자 표지 6테마",
+   "kind": "title1",
+   "maxW": 3222,
    "page": "v5"
   }
  },
