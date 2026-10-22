@@ -24,9 +24,15 @@
 
 LLM 출력을 그대로 `content`에 넣지 않는다. **Zod 파싱을 통과한 객체만** 저장한다.
 
-검사 순서·실패 사유·재시도의 원본은 `docs/ONDOLOG_MASTER.md` §17-0-4(검사 순서)와 §17-0-5-A(재시도)다.
+```
+LLM 출력(문자열)
+  → JSON.parse
+  → Zod schema.parse       ← 실패 시 재시도, 3회 실패 시 status='failed'
+  → 금지 키 검사(§0-4)     ← 위반 시 재시도
+  → corners.content 저장
+```
 
-배치 위치: `docs/ONDOLOG_MASTER.md` §17-0-0을 따른다 — 코너 생성은 Edge Function이며 코드는 `supabase/functions/` 아래에 있다.
+배치 위치: `src/types/corners/*.ts` (Zod 스키마), `src/engine/corners/*.ts` (생성 로직)
 
 ### 0-3. 공통 봉투
 
@@ -36,8 +42,7 @@ LLM 출력을 그대로 `content`에 넣지 않는다. **Zod 파싱을 통과한
 interface CornerEnvelope<P> {
   schemaVersion: string;   // "1.0" — 구조 변경 시 증가
   header: {
-    cornerName: string;    // 코너 이름 — 앱 화면·목차용, 길이 제한 없음, 코너별 상수 (MASTER 17-0-7)
-    title: string;         // 지면 제목 — 지면 머리용, 7자 이내(코드포인트), 코너별 상수. 문구는 디자인이 정한다
+    title: string;         // 지면 제목
     subtitle?: string;
     periodLabel: string;   // "2026년 8월", "8월 3주차"
   };
@@ -53,9 +58,7 @@ Part 3-7의 "AI는 판정하지 않는다" 원칙을 스키마 수준에서 강�
 > AI가 감정을 짚어주거나 긍정적인 목소리를 내는 것은 허용된다 (Part 3-7).
 > 금지하는 것은 점수·등급·판결을 구조화된 필드로 저장하는 행위다.
 
-`FORBIDDEN_KEYS` 목록의 원본은 `docs/ONDOLOG_MASTER.md` **Part 17-0-4**다.
-코드는 그 목록을 상수로 갖는다. 여기에 목록을 복제하지 않는다 —
-산문이 두 곳에 있으면 반드시 어긋난다.
+const FORBIDDEN_KEYS = [ ... ];
 
 ---
 
@@ -191,8 +194,7 @@ interface ClosingQuestion {
 {
   "schemaVersion": "1.0",
   "header": {
-    "cornerName": "데이트 아카이브",
-    "title": "함께한 하루",
+    "title": "데이트 아카이브",
     "periodLabel": "2026년 8월"
   },
   "payload": {
@@ -560,10 +562,10 @@ interface SweetWordsPayload {
   warmthIndex: number | null;     // 그 기간 다정 지수 (0~100)
 
   /** 메인 인용 — 대화 단위 */
-  main: SweetExcerpt[];           // 월간 1~3개 / 일간 1개 (MASTER 17-0-7)
+  main: SweetExcerpt[];           // 월간 2~3개 / 일간 1개
 
   /** 서브 — 단문 나열 */
-  sub: Array<{                    // 0~6개 (MASTER 17-0-7)
+  sub: Array<{
     attribution: Attribution;
     speaker: string;
     text: string;                 // 원문 그대로
@@ -588,19 +590,19 @@ interface SweetExcerpt {
 | **출처 필수** | 모든 인용에 `attribution` 동반. "— 2026.08.22 09:20, 아침 대화 중" |
 | **AI 문장은 `context` 하나뿐** | `context`는 정황 서술만. "정말 다정하시네요" 류 감상 금지 |
 | **평가 필드 없음** | 스키마에 `rating`·`comment`·`praise` 필드를 **정의하지 않는다** |
-| **스킵 우선** | 다정한 발화가 없으면 억지로 생성하지 않는다. 기록 방식은 `docs/ONDOLOG_MASTER.md` §17-0-5-D |
+| **스킵 우선** | 다정한 발화가 없으면 `status='skipped'`, `skip_reason='no_warm_messages'`. 억지 생성 금지 |
 | 다툼 제외 | 화해 대화도 포함하지 않는다 (다툼 맥락 자체를 소환하지 않음) |
 
-**원문 보장**: `turns[].text`는 LLM이 쓰지 않고 파이프라인이 원본에서 채운다 — `docs/ONDOLOG_MASTER.md` §17-0-4-A.
+**검증**: 저장 전 `turns[].text`를 원본 `messages.body`와 대조해 불일치 시 재생성한다.
 
 ### 6-3. 예시
 
 ```json
 {
   "schemaVersion": "1.0",
-  "header": { "cornerName": "다정한 말들", "title": "다정한 말들", "periodLabel": "2026년 8월" },
+  "header": { "title": "이달의 다정한 말들", "periodLabel": "2026년 8월" },
   "payload": {
-    "warmthIndex": null,
+    "warmthIndex": 72,
     "main": [
       {
         "context": "아침 출근길에 오간 대화",
@@ -638,8 +640,7 @@ interface ThisMonthPayload {
     /** 부정 테마 배제 — 'negative'는 스키마상 허용하지 않는다 */
     polarity: 'neutral' | 'positive';
     /** 테마 추출 근거가 된 신호 */
-    /** count는 파이프라인이 계산한다 — 그 신호가 참조한 근거 ID 개수. LLM이 쓰지 않는다. 'metric'은 MVP에서 뺀다 (MASTER 17-0-7) */
-    signals: Array<{ kind: 'place' | 'keyword' | 'activity'; value: string; count: number }>;
+    signals: Array<{ kind: 'place' | 'keyword' | 'activity' | 'metric'; value: string; count: number }>;
   };
 
   /** 데이터량에 따라 2~4편 */
@@ -647,24 +648,10 @@ interface ThisMonthPayload {
     seq: number;
     title: string;
     body: string;
-    evidence: MonthEvidence[];    // 최소 1개
+    evidence: Evidence[];         // 최소 1개
   }>;
 
   closing: string;                // 다음 달로 이어지는 한 줄
-}
-```
-
-```ts
-/**
- * 17-5 전용 근거. §3의 Evidence와 별개다 — 연애 DNA는 metric 근거를 쓰므로 공유하지 않는다.
- * LLM은 근거를 ID로만 참조하고, 아래 필드는 파이프라인이 이번 입력 레코드에서 채운다 (MASTER 17-0-4-A).
- */
-interface MonthEvidence {
-  type: 'message' | 'photo' | 'date';
-  at: string;                    // 근거의 시각·날짜
-  excerpt?: string;              // type 'message' — 원문 그대로
-  attribution?: Attribution;     // type 'message'
-  photoPath?: string;            // type 'photo' — 발행 시 magazine 버킷 경로로 치환된다 (Part 8)
 }
 ```
 
@@ -723,19 +710,45 @@ interface MonthEvidence {
 
 ---
 
-## 9. 파일 배치와 파이프라인
+## 9. 파일 배치
 
-**이 절의 원본은 `docs/ONDOLOG_MASTER.md` §17-0이다.** 이 문서는 코너별
-**저장 스키마(§2~§7)**의 원본이고, 배치와 파이프라인 동작은 다시 적지 않는다.
+```
+src/
+  types/corners/
+    envelope.ts          # CornerEnvelope, 공통 값 객체, FORBIDDEN_KEYS
+    dateArchive.ts       # Zod schema + TS type
+    loveDna.ts
+    leagueWeekly.ts
+    leagueMonthly.ts
+    sweetWords.ts
+    thisMonth.ts
+    index.ts             # corner_type → schema 매핑
+  engine/corners/
+    generate.ts          # 공통 파이프라인 (LLM → parse → validate → save)
+    validators.ts        # 금지 키 검사, 원문 대조 검증
+    dateArchive.ts       # 코너별 프롬프트 + 후처리
+    ...
+```
 
-| 주제 | 원본 |
-|---|---|
-| 실행 주체·코드 위치 | §17-0-0 (모듈 경로 계약은 정적 규칙의 `MODULE` 상수, §17-0-3) |
-| 검사 순서 | §17-0-4 |
-| 원문은 LLM이 쓰지 않는다 (ID 참조 → 파이프라인이 채움) | §17-0-4-A |
-| 실패 사유 · 재시도 | §17-0-5 · §17-0-5-A |
-| 재료 부족의 두 시점 | §17-0-5-D |
-| 입력 조립 · 미디어 복제의 위치 | §17-0-5-E (미디어 복제 원칙은 Part 8) |
+### 9-1. 공통 생성 파이프라인 계약
+
+```ts
+async function generateCorner(
+  cornerType: CornerType,
+  coupleId: string,
+  period: { start: string; end: string }
+): Promise<CornerResult> {
+  // 1. 원재료 수집 (해당 기간 entries/messages/dates/stats)
+  // 2. 데이터 충분성 판정 → 부족하면 skip 또는 축소
+  // 3. LLM 호출 (코너별 프롬프트)
+  // 4. JSON.parse → Zod.parse  (실패 시 최대 3회 재시도)
+  // 5. 금지 키 검사 + 코너별 추가 검증(원문 대조 등)
+  // 6. 미디어를 magazine 버킷으로 복제하고 경로 치환
+  // 7. corners.content 저장, status='ready'
+}
+```
+
+**중요**: 6단계(미디어 복제)를 건너뛰면 원본 삭제 시 발행물이 깨진다. 스냅샷 원칙은 텍스트뿐 아니라 **미디어에도 적용**된다.
 
 ---
 

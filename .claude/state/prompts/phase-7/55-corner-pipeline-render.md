@@ -1,3 +1,5 @@
+철회 — 55-1로 대체(ROADMAP R23-1)
+
 # 위임 프롬프트 — M2-c 조판 (운영자 PC 렌더)
 
 > 대상: `corner-pipeline`
