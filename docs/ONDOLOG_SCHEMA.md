@@ -1661,6 +1661,8 @@ INSERT·UPDATE·DELETE 정책을 두지 않는다. 쓰기는 발행 Edge Functio
 
 **발행 Edge Function을 유저에게 여는 것은 C 통과 뒤다.** (r13: C = ROADMAP M2-e. 동시 발행 잠금 확인 포함)
 
+> **C 통과 (2026-10-22, `54-`).** 원격 개발 프로젝트에서 실제 `fn_publish_issue`·테마 복사 트리거로 확인했다 — 정상 발행(번호 1·`is_trial`·`theme` 복사·코너 published·`last_featured_at`/`feature_count`), 예외 5종(전후 행 동일), 같은 커플 두 호 동시 발행 → 번호 1·2, 발행된 호의 `theme` 변경 예외. 출력 원문은 `scripts/ops/out/m2e-*.txt`(추적 안 함).
+
 **A의 확인 행 (r54).** "치환 뒤 남은 `public.` 수"는 치환으로 만들었으니 항상 0이라 아무것도 증명하지
 않는다. 대신 둘을 본다: 사본 본문에 **5개 테이블(`issues`·`couples`·`ops_alerts`·`corners`·`dates`)이
 모두 `pg_temp.`로** 나오는가, 사본의 `proconfig`가 **`search_path=pg_temp`**인가. 둘 중 하나라도
