@@ -27,6 +27,28 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 022 실증 스크립트 3종 (`scripts/db/verify_022_*.sql`) | 작성 완료(`47b`), **미실행**. 실행은 메인 세션이 적용 확인 뒤 | 이 파일 "022 실증 스크립트 (`47b`)" 절 |
 | 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
+| UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
+
+## UI 기반 U0 (`53`, 2026-10-21, ui-builder) - 화면 교체 없음, 실기기 미확인
+
+내부 결정(항목당 한 줄):
+
+- 파일 경계: 컴포넌트는 `src/components/nocturne/`(옛 `Button`·`PageHeader`·`Numeral`과 이름이 겹쳐 새 폴더로 분리), 배럴 `index.ts`. 토큰 `src/theme/nocturne.ts`, 훅 `src/hooks/useReducedMotion.ts`. 옛 테마는 건드리지 않았다.
+- 시험 위치: `__tests__/components/nocturne.test.tsx` 한 파일(29건). Reanimated 4는 jest에서 `react-native-worklets/lib/module/mock`을 먼저 mock해야 로드된다(시험 파일 안에서 처리, `jest.setup.js`·package.json jest 설정은 건드리지 않음).
+- 확인 화면: `app/dev-components.tsx`(라우트, MASTER 11-3 표에 없음) -> 본체 `src/components/nocturne/dev/ComponentGallery.tsx`. 열기: 개발 빌드에서 `ondolog://dev-components`. 본체 require는 `if (__DEV__)` 긍정형 안에만 있다. `expo export --platform android` 출시 번들에서 본체 문자열 0건 확인(`if (!__DEV__) return` 뒤 require는 번들러가 못 지워 처음엔 번들에 들어갔다 — 긍정형으로 고침). 출시 빌드에서 이 경로로 가면 `/`로 되돌린다. 앱 안에 링크는 없다.
+- 사진 장막: `experimental_backgroundImage` 선형 그라디언트(`PhotoScrim.tsx`). 장막 PNG 대체는 만들지 않았다 - 실기기(`51-`)에서 안 되면 PhotoScrim 한 파일만 PNG(1x140)로 바꾼다.
+- 그레인: `Grain` 컴포넌트만 만들고 루트 레이아웃에는 마운트하지 않았다(마운트하면 옛 화면 전체가 바뀐다). 첫 새 화면(U1) 때 `app/_layout.tsx` 루트에 1회 올린다. 확인 화면은 자체에서 1회 마운트.
+- 그레인 타일 크기: 256px 파일이 RN `resizeMode="repeat"`에서 @1x 256pt로 깔린다(보드는 128pt 표시). 실기기에서 거칠어 보이면 `grain@2x.png` 이름 규칙으로 정리 - 파일 이름 변경은 하지 않았다.
+- 하늘 높이: 폭 = 화면 폭, 높이 = 화면 높이 x 2.37, 오프셋은 `sky.ts` pt 값 그대로. 화면 비율이 390x844와 다르면 이미지가 약간 늘어난다(`cover`).
+- 장막: `sky.ts` `veilOpacity`(main .72)를 그대로 썼다. `Objects-1` 보드의 Veil 설명은 "메인 .42 -> 당김 .14 -> 하늘 0"으로 값이 다르다 - 어느 쪽이 맞는지 디자인 확인 필요. `past`(지난 하늘)는 `sky.ts`에 장막 값이 없어 0(sky와 같게)으로 뒀다.
+- 탭 바 활성 표시: `Components` 보드는 별빛 점(lilac), `N-T-Tabs`·지시서는 rose 아이콘 빛. 지시서대로 rose 아이콘 + 반투명 원 + boxShadow. SVG 필터 발광은 RN에 없어 이 방식.
+- 탭 바 구성: 그리기 `TabBarView`(확인 화면과 공유) + expo-router 어댑터 `TabBar`. `(tabs)/_layout.tsx`는 `tabBar` 렌더러만 교체, `tabBarStyle`은 두지 않았다(absolute 바라 화면 영역을 줄이지 않음). 옛 화면 하단이 바에 가린다 - 의도된 중간 상태.
+- 동작 줄이기: 별 명멸·`RiseIn`은 멈춘다(별은 중간 투명도 고정). 스켈레톤 펄스(.06<->.12)와 누름 scale은 지시 범위 밖이라 그대로 둔다.
+- 디자인 보드와 다르게 한 곳: (1) 비활성 버튼 글자는 보드가 textFaint지만 글자 금지 규칙이라 textMute. (2) 비활성 ListRow는 글자색 대신 투명도 .55. (3) 참여 대기 칩 글자는 보드의 연보라(`#D7C9FA`)가 토큰에 없어 mist. (4) ListRow 높이 56(`Components`)과 54(`Objects-2`)가 달라 56. (5) Segmented 높이 34/패딩 16(`Components`)과 32/14(`Objects-1`)가 달라 34/16.
+- 색 개수: `nocturne` 객체는 18색(바탕 6 + 활자 4 + 빛 5 + 종이 3). 지시서의 "색 16"과 맞지 않는다 - 원본 Build 보드 객체를 그대로 옮겼다. 종이 3색을 빼면 15, 어느 쪽도 16이 아니다. PM 확인 필요.
+- 파생 색: 컴포넌트는 색 리터럴 없이 `withAlpha(nocturne.x, a)`로 같은 색의 투명도만 바꾼다(`nocturne.ts`의 함수). 칩·선·토글 트랙 등.
+- 의존성: `react-native-svg` 15.15.4 · `react-native-worklets` 0.10.1(`expo install`이 정확 버전으로 기록). `npx expo install`은 기존 피어 충돌(`@react-native/jest-preset` 0.86.2 고정 vs `jest-expo`의 ^0.86.3)로 ERESOLVE 실패 -> package.json만 갱신된 상태에서 `npm install --legacy-peer-deps`로 마무리(CLAUDE.md 알려진 이슈의 처방). lock은 추가만 232줄, 삭제 0줄. `zod` 4.6.7 · `@supabase/supabase-js` 2.118.0 해석 버전 그대로 -> `supabase/functions/deno.json` 변경 없음. babel 설정 파일은 필요 없다(babel-preset-expo 57.0.16이 `react-native-worklets/plugin`을 자동 추가; `expo export` 번들 성공으로 확인). `npx expo-doctor` 21/21.
+- 변경한 설정 파일: `package.json`(dependencies 2줄), `package-lock.json`. `app.json`·`eas.json`·`tsconfig.json`·`jest.setup.js`·babel 무변경.
 
 ## sel-a 좁힘 (`52r3`, 2026-10-21, corner-pipeline) - 오프라인, 실행 안 함
 

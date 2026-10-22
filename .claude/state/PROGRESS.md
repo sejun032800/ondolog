@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-21 (ui-builder, `53`): UI 기반 U0(Nocturne v5) - `src/theme/nocturne.ts`(색 18·빛 3·활자 10단·형태·모션·`ink()`), `useFonts`에 Pretendard-Medium·Bold, 공통 컴포넌트 `src/components/nocturne/`(SkyBackground·GlowNumeral·GlassCard·ProgressRule·버튼·칩 4종·Segmented·Toggle·ListGroup·나가기 머리 2종·QuoteText·Skeleton·DateCard·TabBar), `(tabs)/_layout.tsx` 탭 바 교체, 개발 전용 확인 화면 `app/dev-components.tsx`(출시 번들 제외 확인). 의존성 `react-native-svg` 15.15.4·`react-native-worklets` 0.10.1(`--legacy-peer-deps`), babel 설정·deno.json 변경 없음. 화면 교체 없음, 실기기·화면 녹화 미수행. 게이트 0 / 0 / 1059 · 53. 미커밋
+
 2026-10-21 (corner-pipeline, `52r3`): sel-a 좁힘(MASTER r61 F-2) - `inputPrefilter.ts` 판정을 "본문이 비었거나 공백뿐"만으로(자음만·이모티콘·한 글자·링크 판정 삭제), 시험 입력 `inputAssembly.test.ts` 321·335행 `'안녕 A'`·`'안녕 B'` -> `'A'`·`'B'` 복원, sel-a 시험 새 기준으로, 하네스 sel-a 규칙 문구 한 줄. dry: 뺀 건수 7 -> 0, 추정 토큰(중간값) 2,571 / 13,629 / 14,787. 게이트 0 / 0 / 1030 · 52. 실제 API 호출 없음. 미커밋
 
 2026-10-21 (corner-pipeline, `52r2`): M1b 마무리(오프라인) - 17-4 문구 복원, sel-a 운영 경로 연결(`inputPrefilter.ts`, 제외 건수 `trivialMessages`), 안전 정지(추정 입력 토큰 > 40,000이면 LLM 0회, 실패 사유 4값 밖 `outcome: 'halted'`, 하네스 `run`도 거침), 17-1 user 블록에 dateLevel, 재소환 featured 자격을 `derive`에서 코드로 강제. 시험 기댓값 1곳 수정(`inputAssembly.test.ts` 201행, 필드 추가)·입력 2곳. 게이트 0 / 0 / 1028 · 52. 실제 API 호출 없음. 미커밋

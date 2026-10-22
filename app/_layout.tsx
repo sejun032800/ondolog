@@ -25,6 +25,9 @@ export default function RootLayout() {
     'MaruBuri-SemiBold': require('../assets/fonts/MaruBuri-SemiBold.ttf'),
     'Pretendard-Regular': require('../assets/fonts/Pretendard-Regular.otf'),
     'Pretendard-SemiBold': require('../assets/fonts/Pretendard-SemiBold.otf'),
+    // Nocturne v5(src/theme/nocturne.ts fontFamily) - 웨이트는 fontFamily 키로만 구분한다.
+    'Pretendard-Medium': require('../assets/fonts/Pretendard-Medium.otf'),
+    'Pretendard-Bold': require('../assets/fonts/Pretendard-Bold.otf'),
   })
   if (!fontsLoaded) return null
 
