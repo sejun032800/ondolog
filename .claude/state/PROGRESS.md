@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-23 (corner-pipeline, `55-1b`): R26-2 확인 - `data-optional` 판정이 이미 `data-slot`·`data-src`를 모두 셈(`render/slot_fill.py` `SlotFiller` 169~177행 data-src 계수·187행 `empty > 0 and filled == 0` 삭제, `_count_slots` 93~98행). 코드 무변경, 시험 2건 추가(`render/tests/test_slot_fill.py` `Optional`: 빈 사진 경로 틀 삭제 / 경로 있는 틀 남음). 게이트 0 / 0 / 1098 · 55, Python 42건. 미커밋
+
 2026-10-23 (corner-pipeline, `55-1`): M2-c 렌더 배관 - `render/`(Python Playwright: `render_issue.py` 렌더 명령 · `slot_fill.py` 슬롯 채움 모듈 여섯 표시·R25-2 순서 · `_placeholder/issue.html` 임시 지면 한 장 · `tests/` 40건), 발행 가드 ①(`publishIssue.isRendered`)·② (`OpsStore.clearRender`, 재생성·원본 재확인 실패 때 세 필드 비움), `verifyRenderGuards.ts`. 원격 개발 DB에서 시험 커플 A 호: 렌더 -> 원본 하나 삭제 -> 발행 거부·코너 pending·세 필드 빈 값 -> 재생성·재렌더 -> 정상 발행(번호 1). 쪽당 이미지 48,491 B(1170x1655, JPEG 85). 실제 API 호출 0회. 게이트 0 / 0 / 1098 · 55 (기준 1092 · 55), Python 40건. 변경 설정: `.gitignore` 두 항목(허가). 시험 기댓값 수정: `operatorPath.test.ts` 두 곳(렌더된 호 표시). 미커밋
 
 2026-10-22 (corner-pipeline, `54`): M2-b 운영자 경로(샘플 출력 모드) + M2-e 실증 - `scripts/ops/`에 생성·발행 명령 둘(`generateIssueCli.ts`·`publishIssueCli.ts`)과 시험 데이터 `seedTestData.ts`·실증 `verifyPublishPath.ts`, `_shared/mediaPath.ts`(목적지 경로 함수 하나, 입력 조립이 `issueId`를 받아 처음부터 싣는다), R20-1(빈 본문 `''` 제외·계수)·R20-2(안전 정지 -> `pending` + `usage_over` 경보). 원격 개발 DB에서 정상 발행·예외 5종·동시 발행(번호 1·2)·테마 불변 확인. 실제 API 호출 0회. 게이트 0 / 0 / 1092 · 55 (기준 1059 · 53). 시험 기댓값 수정: `inputAssembly.test.ts` 사진 경로 7곳(원본 -> 목적지 경로). 미커밋

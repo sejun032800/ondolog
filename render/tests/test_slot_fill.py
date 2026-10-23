@@ -106,6 +106,16 @@ class Optional(unittest.TestCase):
         html = '<figure data-optional><img data-src="p"><figcaption data-slot="c"></figcaption></figure>'
         self.assertEqual(inner(html, {'p': None, 'c': ''}), '')
 
+    def test_photo_frame_with_only_src_is_removed_when_path_is_empty(self):
+        html = '<div class="frame" data-optional><img data-src="p"></div>'
+        self.assertEqual(inner(html, {'p': ''}), '')
+        self.assertEqual(inner(html, {'p': None}), '')
+        self.assertEqual(inner(html, {}), '')
+
+    def test_photo_frame_with_only_src_stays_when_path_is_present(self):
+        html = '<div class="frame" data-optional><img data-src="p"></div>'
+        self.assertEqual(inner(html, {'p': 'a/b.jpg'}), '<div class="frame"><img src="a/b.jpg"/></div>')
+
     def test_no_slots_inside_is_not_judged(self):
         self.assertEqual(inner('<div data-optional><p>고정</p></div>', {}), '<div><p>고정</p></div>')
 
