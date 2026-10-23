@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 이달의 우리 ① 리드</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="tm-lead">
+  <div class="ab col run">
+    <span class="kk-ko">이달의 우리</span>
+    <span class="kk-ko"><span data-slot="header.periodLabel">2026년 8월</span></span>
+  </div>
+  <div class="ab" style="left:var(--mX);bottom:300px">
+    <span class="kk" style="display:block">This Month</span>
+    <h1 class="h-display clamp2" style="margin-top:28px;font-size:40px;line-height:56px;
+        font-weight:300;letter-spacing:-.02em" data-slot="payload.theme.headline">처음 가본 곳이<br>많았던 달</h1>
+    <div class="hair" style="width:120px;margin-top:34px"></div>
+    <p class="body-sub" style="margin:30px 0 0;width:var(--bodyW)"
+       data-slot="payload.theme.lead">이번 달 두 사람이 남긴 기록에는 처음 방문한 장소가 다섯 곳 있었습니다. 같은 동네를 반복해서 걷던 지난 달과 달리, 8월에는 매주 다른 지도를 그렸습니다.</p>
+  </div>
+
+  <!-- 요약 수치 = theme.signals. 테마를 뽑은 근거를 그대로 숫자로 보인다(§7-2 신호 투명성) -->
+  <div class="ab col" style="bottom:130px;display:flex;gap:70px" data-repeat="payload.theme.signals">
+    <div style="flex:none;min-width:96px">
+      <span class="num-xl" data-slot=".count">5</span>
+      <span class="lbl" style="display:block;margin-top:14px" data-slot=".value">신규 방문 장소</span>
+    </div>
+  </div>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">0 4</div>
+</body>
+</html>

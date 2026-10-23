@@ -1,0 +1,9 @@
+/* neon — 기존 발행물 실측(ONDOLOG_Corners_neon_digital.pdf p11)
+   R24-1 정정: 바탕은 #FFE4F0(밝음). #12040B는 이 테마의 잉크이지 바탕이 아니다.
+   상단 바는 3단이 아니라 4단(경계 32% · 62%). */
+html[data-theme="neon"]{
+  --bg:#FFE4F0; --ink:#12040B; --sub:#7C2A52; --acc:#6E1240;
+  --hair:#7C2A52; --rule:#F5BBD6;
+  --onPhoto:#FFE4F0;
+  --bar:linear-gradient(90deg,#4A0A38 0%,#C4126A 32%,#FF2E88 62%,#E879F9 100%);
+}

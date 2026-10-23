@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 발행 노트</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="note">
+  <div class="ab col" style="top:60px;display:flex;align-items:center;gap:14px;
+       font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--sub)">
+    <span>PUBLICATION NOTE</span>
+    <span style="flex:1;height:.6px;background:var(--hair)"></span>
+    <span class="wm" style="font-size:11px;letter-spacing:.4em;font-weight:400">ONDOLOG</span>
+    <span style="font-weight:500;letter-spacing:0">· <span data-slot="@issue.nickname">늘봄</span></span>
+  </div>
+  <div class="ab col rule-heavy" style="top:84px"></div>
+
+  <div class="ab" style="left:var(--mX);top:112px;width:var(--bodyW);
+       display:flex;flex-direction:column;gap:14px">
+    <span class="h-lead">이 호는 무엇으로 만들어졌나</span>
+    <span class="body-sub">수집 기간 <span data-slot="@issue.period">9월 1일 ~ 9월 30일</span>. 두 사람이 남긴 대화, 사진, 기록으로 만들었습니다. 모은 양과 실제로 실은 양을 나란히 적습니다. 두 사람이 쓴 문장과 온도록이 쓴 문장의 비율도 함께 적습니다.</span>
+  </div>
+
+  <div class="ab col" style="top:300px">
+    <span class="lbl" style="font-weight:700;display:block;margin-bottom:12px">수집한 재료</span>
+    <table class="tb">
+      <thead><tr><th>항목</th><th class="n">모은 양</th><th class="n">실제 게재</th></tr></thead>
+      <tbody data-repeat="@note.materials">
+        <tr><td data-slot=".label">대화</td><td class="n" data-slot=".collected">412개</td><td class="n" data-slot=".used">인용 9개</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ab col" style="top:520px;display:flex;flex-direction:column;gap:12px">
+    <span class="lbl" style="font-weight:700">문장의 출처</span>
+    <div style="display:flex;height:30px;border:.6px solid var(--ink)">
+      <div style="width:42%;background:var(--ink);color:var(--bg);font-size:12px;font-weight:700;
+           display:flex;align-items:center;padding-left:12px">두 사람 <span data-slot="@note.ratioPeople">42%</span></div>
+      <div style="flex:1;background:repeating-linear-gradient(45deg,var(--rule) 0 1px,transparent 1px 6px);
+           font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:flex-end;
+           padding-right:12px">온도록 <span data-slot="@note.ratioOndolog">58%</span></div>
+    </div>
+    <span class="note">두 사람이 쓴 문장 <span data-slot="@note.sentencesPeople">31개</span> · 온도록이 쓴 문장 <span data-slot="@note.sentencesOndolog">43개</span> · 집계 수치는 세지 않음</span>
+  </div>
+
+  <div class="ab col" style="top:650px;display:flex;gap:40px">
+    <div style="flex:1">
+      <span class="lbl" style="font-weight:700;display:block;margin-bottom:12px">싣지 않은 것</span>
+      <div data-repeat="@note.notUsed"><span class="note" style="display:block;margin-bottom:6px">사진 17장 — 지면 상한 초과</span></div>
+    </div>
+    <div style="flex:1">
+      <span class="lbl" style="font-weight:700;display:block;margin-bottom:12px">비어 있는 코너</span>
+      <div data-repeat="@note.emptyCorners"><span class="note" style="display:block;margin-bottom:6px">이번 호에는 없습니다</span></div>
+    </div>
+  </div>
+
+  <div class="ab col" style="bottom:118px">
+    <div class="rule" style="margin-bottom:14px"></div>
+    <p class="note" style="margin:0">정정 요청 — 잘못 실린 문장이 있으면 앱의 <b>설정 › 문의</b>로 알려 주세요.</p>
+  </div>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">0 4</div>
+  <div class="ab wm" style="right:var(--mX);bottom:26px;font-size:10.7px;color:var(--sub)">ONDOLOG</div>
+</body>
+</html>

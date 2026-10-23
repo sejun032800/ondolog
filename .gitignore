@@ -43,3 +43,4 @@ supabase/.branches/
 scripts/ops/out/
 render/.venv/
 render/out/
+__pycache__/

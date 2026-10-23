@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 활자 표지</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="cover-type">
+  <div class="theme-device"></div>
+
+  <div class="ab wm" style="left:0;right:0;top:66px;text-align:center;font-size:30px;
+       margin-left:.25em">ONDOLOG</div>
+  <div class="ab col rule-heavy" style="top:122px"></div>
+
+  <div class="ab h-display clamp3" style="left:64px;right:var(--mX);top:246px;
+       font-size:112px;line-height:124px" data-slot="@cover.headline">비가 와도<br>우리는<br>걸었다</div>
+
+  <div class="ab" style="left:var(--mX);width:120px;top:650px;height:2px;background:var(--acc)"></div>
+  <div class="ab col" style="top:676px;display:flex;flex-direction:column;gap:8px" data-optional>
+    <span class="lbl" style="font-weight:700;letter-spacing:.04em">이 달의 말</span>
+    <span class="mb clamp2" style="font-size:26px;line-height:38px">&ldquo;<span
+          data-slot="@cover.quote">천천히 와도 돼</span>&rdquo;</span>
+    <span style="font-size:13px;color:var(--sub)" data-slot="@cover.quoteBy">서영</span>
+  </div>
+
+  <div class="ab col" style="bottom:76px">
+    <div class="rule-heavy"></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:14px">
+      <span style="font-size:20px;font-weight:700;letter-spacing:-.01em"
+            data-slot="@issue.month">9월호</span>
+      <span style="font-size:15px;font-weight:700"><span data-slot="@issue.nickname">늘봄</span>
+        <span style="font-weight:400;color:var(--sub)" data-slot="@issue.names">세준 · 서영</span></span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 사진 표지</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="cover-photo">
+  <div class="ab ph" style="left:0;right:0;top:0;height:740px">
+    <img data-src="@cover.photo" src="../images/sample/cover.jpg" alt="">
+  </div>
+  <div class="ab" style="left:0;right:0;top:0;height:200px;
+       background:linear-gradient(180deg,rgba(20,16,24,.45),rgba(20,16,24,0))"></div>
+  <div class="ab wm" style="left:0;right:0;top:60px;text-align:center;font-size:30px;
+       color:var(--onPhoto);margin-left:.25em">ONDOLOG</div>
+
+  <div class="ab col" style="top:778px;display:flex;flex-direction:column;gap:16px">
+    <span class="h-display clamp2" style="font-weight:300;font-size:64px;line-height:74px;
+          letter-spacing:-.02em" data-slot="@cover.headline">가을이 오는 길목</span>
+    <span class="mb clamp1" style="font-size:18px;color:var(--sub)" data-optional>&ldquo;<span
+          data-slot="@cover.quote">천천히 와도 돼</span>&rdquo;
+      <span style="font-family:Pretendard;font-size:13px;color:var(--sub)"
+            data-slot="@cover.quoteBy">서영</span></span>
+    <span class="lbl" data-optional>우리의 온도 <span data-slot="@cover.temperature"></span></span>
+  </div>
+
+  <div class="ab col" style="bottom:76px">
+    <div class="rule-heavy"></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:14px">
+      <span style="font-size:20px;font-weight:700;letter-spacing:-.01em"
+            data-slot="@issue.month">9월호</span>
+      <span style="font-size:15px;font-weight:700"><span data-slot="@issue.nickname">늘봄</span>
+        <span style="font-weight:400;color:var(--sub)" data-slot="@issue.names">세준 · 서영</span></span>
+    </div>
+  </div>
+</body>
+</html>

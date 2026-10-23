@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 데이트 아카이브 ① 오프너</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="da-opener">
+  <div class="ab ph" style="left:0;right:0;top:0;height:491px">
+    <img data-src="payload.articles[featured].stops[0].photos[0].path" src="../images/sample/da_open.jpg" alt="">
+  </div>
+
+  <div class="ab col" style="top:522px;display:flex;justify-content:space-between;align-items:baseline">
+    <span class="kk">Date Archive</span>
+    <span class="lbl" data-slot="@da.regionLine">연남동, 성수동 · 2026년 8월</span>
+  </div>
+  <div class="ab col" style="top:575px">
+    <p class="body clamp2" style="margin:0;width:var(--bodyW)" data-slot="@da.lead">8월에 두 사람이 함께 보낸 날은 두 번이었습니다. 연남동과 성수동, 세 곳을 거치며 남긴 열한 장의 사진과 두 개의 메모를 그대로 실었습니다.</p>
+  </div>
+
+  <div class="ab" style="left:var(--mX);top:658px;width:380px">
+    <span class="kk" style="font-size:9.1px;display:block">Article One · <span data-slot="@da.featuredDate">2026.08.19</span></span>
+    <span class="kk" style="font-size:17.3px;letter-spacing:.18em;color:var(--acc);
+          display:block;margin-top:22px" data-optional><span data-slot="@da.regionEn">Yeonnam-dong</span></span>
+    <h1 class="h-art clamp2" style="margin-top:14px"
+        data-slot="payload.articles[featured].title">스파이더맨과<br>케이크 사이</h1>
+  </div>
+
+  <div class="ab" style="left:491px;right:var(--mX);top:658px">
+    <span class="lbl" style="display:block">이날의 기록</span>
+    <div style="display:flex;gap:40px;margin-top:22px">
+      <span style="flex:1"><span class="num" data-slot="@da.startTime">14:20</span>
+        <span class="lbl" style="display:block;margin-top:9px">시작</span></span>
+      <span style="flex:1"><span class="num" data-slot="@da.endTime">20:05</span>
+        <span class="lbl" style="display:block;margin-top:9px">종료</span></span>
+    </div>
+    <div style="display:flex;gap:40px;margin-top:28px">
+      <span style="flex:1"><span class="num" data-slot="@da.stopCount">3</span>
+        <span class="lbl" style="display:block;margin-top:9px">경유지</span></span>
+      <span style="flex:1"><span class="num" data-slot="@da.photoCount">11</span>
+        <span class="lbl" style="display:block;margin-top:9px">사진</span></span>
+    </div>
+    <div class="rule" style="margin:30px 0 16px"></div>
+    <span class="note" style="display:block" data-optional><span data-slot="@da.records">남긴 기록 · 메모 2 · AI 캡션 1</span></span>
+  </div>
+  <div class="ab folio folio-r" style="right:var(--mX)" data-slot="@page">0 4</div>
+</body>
+</html>
