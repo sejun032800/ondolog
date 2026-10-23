@@ -1,0 +1,6 @@
+# 렌더 환경 (55-1). 만들기: python -m venv render/.venv && render/.venv/Scripts/python.exe -m pip install -r render/requirements.txt
+#   그다음 render/.venv/Scripts/python.exe -m playwright install chromium
+# venv를 새로 만들면 setuptools를 지운다: render/.venv/Scripts/python.exe -m pip uninstall -y setuptools
+#   (규칙 F의 파일시스템 대체 수집이 .venv 안을 걷는데, setuptools에 공백·괄호 파일명이 있다 - HANDOFF 열린 항목)
+playwright==1.64.0
+beautifulsoup4==4.15.0

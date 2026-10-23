@@ -259,6 +259,7 @@ describe('R20-2 안전 정지 - pending + usage_over 경보, 호출 0건, 발행
 
     // 사람이 경보를 처리하면(resolved_at) 발행 명령이 다시 길을 연다 - 경보 하나가 막고 있었다는 증명
     store.alerts[0] = { ...store.alerts[0], resolved_at: '2026-10-22T00:00:00Z' }
+    store.markRendered(report.issueId) // 55-1 가드 ①: 렌더된 호만 발행한다 - 이 시험의 관심은 경보이므로 렌더된 것으로 둔다
     await publishIssue({ store, media }, report.issueId)
     expect(store.publishCalls).toBe(1)
   })
@@ -278,6 +279,7 @@ describe('발행 명령 - 함수를 부르기 전의 확인', () => {
   it('정상: 미디어가 목적지에 다 있으면 함수를 한 번 부른다', async () => {
     const { store, media } = datasetWorld()
     const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    store.markRendered(issueId) // 55-1 가드 ①: 렌더된 호만 발행한다
     await publishIssue({ store, media }, issueId)
     expect(store.publishCalls).toBe(1)
   })
@@ -308,6 +310,100 @@ describe('발행 명령 - 함수를 부르기 전의 확인', () => {
     const other = memoryStore({ tables: buildTables(), couple: testCouple({ nickname: '우리' }) })
     other.issues.push(store.issues[0])
     await expect(publishIssue({ store: other, media }, issueId)).rejects.toThrow(/시험 커플/)
+  })
+})
+
+describe('발행 가드 (55-1, R23-3) - 렌더되지 않은 호는 발행하지 않는다', () => {
+  const rendered = (issueId: string) => ({
+    pdf_digital_path: `c/${issueId}/render/issue.pdf`,
+    page_count: 1,
+    cover_path: `c/${issueId}/render/page-01.jpg`,
+  })
+
+  it('① 렌더 세 필드가 모두 비었으면 함수를 부르기 전에 거부한다', async () => {
+    const { store, media } = datasetWorld()
+    const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    expect(store.issues[0]).toMatchObject({ pdf_digital_path: null, page_count: null, cover_path: null })
+    await expect(publishIssue({ store, media }, issueId)).rejects.toThrow(/렌더되지 않은 호/)
+    expect(store.publishCalls).toBe(0)
+    expect(store.issues[0].published_at).toBeNull()
+  })
+
+  it('① 세 필드 중 하나라도 비면 거부한다 - 하나씩 비워 본다', async () => {
+    for (const missing of ['pdf_digital_path', 'page_count', 'cover_path'] as const) {
+      const { store, media } = datasetWorld()
+      const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+      store.issues[0] = { ...store.issues[0], ...rendered(issueId), [missing]: null }
+      await expect(publishIssue({ store, media }, issueId)).rejects.toThrow(/렌더되지 않은 호/)
+      expect(store.publishCalls).toBe(0)
+    }
+    // 쪽 수 0도 렌더된 것이 아니다
+    const { store, media } = datasetWorld()
+    const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    store.issues[0] = { ...store.issues[0], ...rendered(issueId), page_count: 0 }
+    await expect(publishIssue({ store, media }, issueId)).rejects.toThrow(/렌더되지 않은 호/)
+  })
+
+  it('① 세 필드가 모두 있으면 발행한다', async () => {
+    const { store, media } = datasetWorld()
+    const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    store.issues[0] = { ...store.issues[0], ...rendered(issueId) }
+    await publishIssue({ store, media }, issueId)
+    expect(store.publishCalls).toBe(1)
+  })
+
+  it('② 코너가 다시 생성되면(pending -> 새 결과) 그 호의 렌더 세 필드를 비운다 - 다시 렌더해야 발행된다', async () => {
+    const { store, media } = datasetWorld()
+    const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    store.markRendered(issueId)
+    expect(store.issues[0].page_count).toBe(1)
+
+    // 변화 없는 재실행(모든 코너가 kept_ready)은 렌더를 무효로 하지 않는다
+    await generateSampleIssue({ store, media }, PARAMS)
+    expect(store.issues[0].page_count).toBe(1)
+
+    // 코너 하나가 pending으로 돌아가 다시 생성된다 - 렌더 세 필드가 비워진다
+    const index = store.corners.findIndex((c) => c.corner_type === 'sweet_words')
+    store.corners[index] = { ...store.corners[index], status: 'pending', content: {} }
+    const again = await generateSampleIssue({ store, media }, PARAMS)
+    expect(again.corners.find((c) => c.cornerType === 'sweet_words')?.outcome).toBe('ready')
+    expect(store.issues[0]).toMatchObject({ pdf_digital_path: null, page_count: null, cover_path: null })
+
+    // 다시 렌더하기 전에는 발행되지 않고, 렌더하면 발행된다
+    await expect(publishIssue({ store, media }, issueId)).rejects.toThrow(/렌더되지 않은 호/)
+    expect(store.publishCalls).toBe(0)
+    store.markRendered(issueId)
+    await publishIssue({ store, media }, issueId)
+    expect(store.publishCalls).toBe(1)
+  })
+
+  it('② 원본 재확인 실패: 원본 하나 삭제 -> 발행 거부 · 코너 pending · 렌더 필드 빈 값 · 호 미발행', async () => {
+    const { store, media, tables } = datasetWorld()
+    const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    store.markRendered(issueId) // 렌더까지 마친 호 - 가드 ①만으로는 통과하는 호다
+    expect(store.issues[0].cover_path).not.toBeNull()
+
+    const photoPath = store.corners.flatMap((c) => mediaPathsOf(c.corner_type, c.content))[0]
+    const entryId = parseMagazineMediaPath(photoPath)?.entryId as string
+    const entry = tables.data_entries.find((e) => e.id === entryId)
+    media.objects.delete(`${ENTRIES_BUCKET}/${entry?.storage_path}`)
+
+    await expect(publishIssue({ store, media }, issueId)).rejects.toThrow(/다시 준비 중/)
+    expect(store.publishCalls).toBe(0) // 호 미발행
+    expect(store.issues[0].published_at).toBeNull()
+    const reset = store.corners.filter((c) => c.status === 'pending')
+    expect(reset.length).toBeGreaterThan(0) // 코너 pending
+    expect(reset.every((c) => c.last_error === 'source_media_missing')).toBe(true) // 실패 사유 4값은 늘리지 않는다
+    expect(store.issues[0]).toMatchObject({ pdf_digital_path: null, page_count: null, cover_path: null }) // 렌더 필드 빈 값
+  })
+
+  it('② 발행된 호의 렌더 필드는 비우지 않는다', async () => {
+    const { store, media } = datasetWorld()
+    const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    store.markRendered(issueId)
+    store.issues[0] = { ...store.issues[0], published_at: '2026-10-22T00:00:00Z' }
+    await store.clearRender(issueId)
+    expect(store.issues[0].page_count).toBe(1)
   })
 })
 

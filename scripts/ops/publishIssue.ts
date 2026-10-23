@@ -9,6 +9,8 @@
  *   3. 열린 운영 경보가 없는가 - 안전 정지(R20-2)가 남긴 경보가 있으면 **함수를 부르지 않고** 거부한다.
  *   4. 미디어: 원본이 그 사이 지워졌으면 복제하지 않고 그 코너를 `pending`으로 되돌린 뒤 "다시 준비 중"으로 거부한다(D).
  *      그렇지 않으면 목적지에 전부 있는지 확인한다.
+ *   5. (55-1, R23-3) 렌더 세 필드(`pdf_digital_path`·`page_count`·`cover_path`)가 모두 있는가 - 렌더되지 않은 호는 거부한다.
+ *      4번이 코너를 `pending`으로 되돌리면 같은 순간 세 필드가 비워지므로(가드 ②, `mediaCopy.ts`), 5번은 4번 뒤의 값을 읽는다.
  * 위 확인은 함수의 검사를 **대신하지 않는다** - 함수도 같은 이유로 스스로 거부한다(예외 5종은 `verifyPublishPath.ts`가 함수를
  * 직접 불러 보인다).
  */
@@ -21,6 +23,18 @@ export interface PublishReport {
   readonly issueId: string
   readonly issue: IssueRow
   readonly media: { readonly copied: number; readonly alreadyPresent: number }
+}
+
+/** 렌더 세 필드가 모두 채워졌는가(R23-3). */
+export function isRendered(issue: IssueRow): boolean {
+  return (
+    typeof issue.pdf_digital_path === 'string' &&
+    issue.pdf_digital_path.length > 0 &&
+    typeof issue.page_count === 'number' &&
+    issue.page_count > 0 &&
+    typeof issue.cover_path === 'string' &&
+    issue.cover_path.length > 0
+  )
 }
 
 export async function publishIssue(
@@ -55,6 +69,14 @@ export async function publishIssue(
   const stillMissing = await findMissingDestinations(media, ready)
   if (stillMissing.length > 0) {
     throw new OpsStopError(`미디어 복제가 끝나지 않았다 - 목적지에 없는 사진 ${stillMissing.length}장 (${issueId})`)
+  }
+
+  // 발행 가드 ①(R23-3, MASTER 9-5 r65): 렌더되지 않은 호는 발행하지 않는다. 위 원본 재확인이 렌더 필드를 비울 수 있으므로
+  // (가드 ②) 그 뒤의 값을 다시 읽어 판정한다. 페이지 이미지 없이 발행되면 서재에 열리지 않는 호가 꽂힌다.
+  const current = await store.getIssue(issueId)
+  if (current === null) throw new OpsStopError(`없는 호다 (${issueId})`)
+  if (!isRendered(current)) {
+    throw new OpsStopError(`렌더되지 않은 호다 - pdf_digital_path·page_count·cover_path가 모두 있어야 발행한다 (${issueId})`)
   }
 
   await store.callPublish(issueId)

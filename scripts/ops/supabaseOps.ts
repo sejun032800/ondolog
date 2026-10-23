@@ -151,6 +151,15 @@ export async function connectOps(): Promise<OpsConnection> {
       if (error) fail('corners.source_date_ids 갱신 실패', error)
     },
 
+    async clearRender(issueId) {
+      const { error } = await client
+        .from('issues')
+        .update({ pdf_digital_path: null, page_count: null, cover_path: null })
+        .eq('id', issueId)
+        .is('published_at', null)
+      if (error) fail('issues 렌더 필드 비우기 실패', error)
+    },
+
     async resetCornerPending(cornerId, lastError) {
       const { error } = await client.from('corners').update({ status: 'pending', last_error: lastError }).eq('id', cornerId)
       if (error) fail('corners 되돌리기 실패', error)

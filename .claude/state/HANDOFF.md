@@ -29,6 +29,27 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 | UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
 
+## 렌더 배관 (`55-1`, 2026-10-23, corner-pipeline) - 임시 지면, 원격 개발 DB 실증 완료
+
+내부 결정(항목당 한 줄):
+
+- 분담: Python(`render/`)이 렌더·업로드·`issues` 세 필드 쓰기(REST, 표준 라이브러리 `urllib`), Deno(`scripts/ops/`)가 발행 가드 ①·②와 원본 재확인. 둘 다 같은 환경변수 두 개만 읽고, Python도 개발 프로젝트·시험 커플 확인을 `opsGuards.ts`와 같은 규칙으로 따로 한다(`render_issue.py`, 시험 있음).
+- 의존성 목록: `render/requirements.txt`(`playwright==1.64.0`·`beautifulsoup4==4.15.0`). 가상환경 `render/.venv`, 산출 `render/out/<issue_id>/`(`issue.pdf`·`page-NN.jpg`·`work/`) - 둘 다 `.gitignore`.
+- 버킷 경로: `magazine/{couple_id}/{issue_id}/render/issue.pdf`·`render/page-NN.jpg`. 세 단계 밖의 4단 경로라 사진 경로 파서(`parseMagazineMediaPath`, 3단)·`findMissingDestinations`와 섞이지 않는다. `cover_path` = `render/page-01.jpg`. 다시 렌더하면 그 폴더를 비우고 올린다.
+- 렌더 순서: 먼저 세 필드를 비우고 -> 업로드 -> 세 필드를 채운다(중간에 멎어도 낡은 값이 남지 않는다). 발행된 호·시험 커플이 아닌 호·ready 코너가 없는 호는 렌더하지 않는다(발행 뒤 재렌더 없음, 9-5).
+- 페이지 이미지: 지면 요소(`.page`)마다 요소 스크린샷, 기기 배율 = 1170 / (A4 폭 CSS px)로 가로 1170px 고정(`--image-width`, `--jpeg-quality`로 바꿈, 기본 JPEG 85). PDF 쪽 수(바이트에서 `/Type /Page` 계수)와 지면 수가 다르거나 이미지 가로가 1170이 아니면 멈춘다. PDF는 벡터라 "150DPI"는 사진 해상도에만 해당한다 - 디지털 프로필 설정값화는 M4-3.
+- 가드 ① 위치: `publishIssue`에서 원본 재확인·복제 **뒤에** 호를 다시 읽어 판정(재확인이 세 필드를 비울 수 있어서). `isRendered`는 `page_count > 0`까지 본다. SQL 함수(`fn_publish_issue`)는 렌더 필드를 모른다 - 마이그레이션이 범위 밖이라 발행 명령 쪽에서만 막는다(함수를 직접 부르면 통과한다, `verifyPublishPath.ts`가 그렇게 부른다).
+- 가드 ② 위치: `OpsStore.clearRender`(발행된 호는 건드리지 않음). 호출 둘 - `mediaCopy.copyIssueMedia`가 코너를 `pending`으로 되돌릴 때, `generateSampleIssue`가 코너 하나라도 (다시) 저장했을 때(성공·실패 모두). 변화 없는 재실행(전부 `kept_ready`)은 비우지 않는다. 배치 경로(P3~P5)는 아직 코드가 없어 거기서 부를 곳이 생기면 같은 함수를 부른다.
+- **슬롯 문법은 55-1이 정했다(원본 계약 `PM_request_design_render_issue.md`가 저장소에 없다).** `data-slot="경로"` 글자 · `data-src="경로"` 속성 · `data-repeat="경로"` · `data-if="경로"`(`!경로` 부정) · `data-optional` · `data-variant="경로"` + 자식의 `data-case="값"`. 경로: `.` 자신 / `a.b.0` 내려가기 / `@이름.x` 루트. 없는 경로는 빈 값. 빈 값 = None·빈 문자열·공백뿐·빈 배열·빈 객체(`0`·`False`는 값). **`render/issue/README.md`가 오면 55-2 착수 때 대조해 어긋나면 이 모듈을 맞춘다.** 처리한 표시는 출력에서 지운다(구조는 그대로).
+- 슬롯 해석 세부: 반복 항목이 없으면 그 안의 슬롯 수만큼 "빈 슬롯"으로 세어 `optional` 판정에 넘긴다. 슬롯이 하나도 없는 `optional`은 판정하지 않고 둔다. `if`로 지운 가지는 판정에 아예 없다(0·0).
+- 임시 지면의 값: 호 이름 = `issues.title`, 없으면 월간은 "N월호"·그 밖은 기간 시작일 / 코너 제목·기간 = content `header` / 사유 = `skip_reason`·`last_error` / 사진 = 지면 순서 앞 4장(`PHOTO_LIMIT`). 사진 경로 추출(`media_paths_of`)은 `mediaCopy.ts`의 `mediaPathsOf`와 같은 규칙의 Python 사본이다 - 저장 스키마가 바뀌면 둘을 함께 고친다.
+- Python 시험: `render/.venv/Scripts/python.exe -B -m unittest discover -s render/tests`(40건, 실제 Chromium 렌더 1건 포함, 네트워크 없음). 바이트코드가 추적 폴더에 남지 않게 `-B`·`sys.dont_write_bytecode`.
+- **열린 판단 - 규칙 F 파일시스템 대체 수집이 `.venv`를 걷는다.** `fileNameRule.test.ts`의 대체 수집은 `node_modules`·`.git`만 빼서, 새 venv의 setuptools(`launcher manifest.xml`·`script (dev).tmpl`)에서 실패한다. 시험 파일을 고치지 않고 venv에서 setuptools를 지워 통과시켰다(`requirements.txt` 머리말에 절차). 근본 해결은 그 시험의 제외 집합에 `.venv`를 더하는 것이다 - 사람이 판단.
+- **`thumbPath` 확인(R21-2):** 렌더 코드(`render/`·`scripts/ops/`)에 읽는 곳이 없다. 나오는 곳은 `src/types/corners/storedContent.ts`(스키마), `inputAssembly.ts` 700행(입력 조립이 싣는 곳)과 그 시험뿐이다.
+- 변경한 설정 파일: `.gitignore`에 `render/.venv/`·`render/out/` 두 줄(허가). package.json·app.json·eas.json·tsconfig.json·deno.json 무변경.
+- 시험 기댓값 수정: `scripts/ops/operatorPath.test.ts` 두 곳(안전 정지 뒤 발행·정상 발행)에 `store.markRendered(issueId)` 한 줄씩 - 가드 ① 때문에 발행하려면 렌더된 호여야 한다. 원본 삭제 시험은 그대로 통과한다.
+- 시험 커플 A의 호(`a791a61a-...`)는 이제 발행됐다(번호 1). `55-2`의 호 세 권은 새 초안이 필요하다.
+
 ## 운영자 경로 (`54`, 2026-10-22, corner-pipeline) - 샘플 출력 모드, 원격 개발 DB 실증 완료
 
 내부 결정(항목당 한 줄):

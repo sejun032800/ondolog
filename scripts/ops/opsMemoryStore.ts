@@ -24,6 +24,8 @@ export interface MemoryStore extends OpsStore {
   readonly corners: CornerRow[]
   readonly alerts: AlertRow[]
   publishCalls: number
+  /** 시험용: 그 호를 렌더된 것으로 만든다(렌더 명령이 채우는 세 필드). */
+  markRendered(issueId: string): void
 }
 
 export interface MemoryMedia extends MediaStore {
@@ -64,6 +66,10 @@ export function memoryStore(options: {
     corners,
     alerts,
     publishCalls: 0,
+    markRendered(issueId) {
+      const i = issues.findIndex((x) => x.id === issueId)
+      issues[i] = { ...issues[i], pdf_digital_path: `render/${issueId}.pdf`, page_count: 1, cover_path: `render/${issueId}-1.jpg` }
+    },
     assemblyClient: fakeClient(options.tables),
     cornersTable: {
       from() {
@@ -98,6 +104,9 @@ export function memoryStore(options: {
         is_trial: false,
         published_at: null,
         theme: null,
+        pdf_digital_path: null,
+        page_count: null,
+        cover_path: null,
       }
       issues.push(issue)
       return issue
@@ -134,6 +143,10 @@ export function memoryStore(options: {
     async setCornerSourceDates(cornerId, dateIds) {
       const i = corners.findIndex((c) => c.id === cornerId)
       corners[i] = { ...corners[i], source_date_ids: [...dateIds] }
+    },
+    async clearRender(issueId) {
+      const i = issues.findIndex((x) => x.id === issueId && x.published_at === null)
+      if (i >= 0) issues[i] = { ...issues[i], pdf_digital_path: null, page_count: null, cover_path: null }
     },
     async resetCornerPending(cornerId, lastError) {
       const i = corners.findIndex((c) => c.id === cornerId)

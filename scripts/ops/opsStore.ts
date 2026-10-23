@@ -24,6 +24,10 @@ export interface IssueRow {
   readonly published_at: string | null
   readonly theme: string | null
   readonly publish_mode: string
+  /** 렌더 결과 세 필드(MASTER 9-5, R23-3) - 하나라도 비면 렌더되지 않은 호다. */
+  readonly pdf_digital_path: string | null
+  readonly page_count: number | null
+  readonly cover_path: string | null
 }
 
 export interface CornerRow {
@@ -98,6 +102,11 @@ export interface OpsStore {
   insertAlert(row: NewAlert): Promise<AlertRow>
   /** 17-0-10-E: `fn_publish_issue`가 읽는 "실린 데이트" - 17-1 코너의 `source_date_ids`. */
   setCornerSourceDates(cornerId: string, dateIds: readonly string[]): Promise<void>
+  /**
+   * 발행 가드 ②(R23-3): 그 호의 렌더 세 필드를 비운다. 코너가 다시 생성되거나 `pending`으로 돌아갈 때마다 부른다 -
+   * 낡은 렌더가 새 content와 함께 발행되지 않게 한다. 발행된 호는 건드리지 않는다.
+   */
+  clearRender(issueId: string): Promise<void>
   /** 17-0-10-D: 원본이 사라진 코너를 `pending`으로 되돌린다(`last_error = 'source_media_missing'`). 실패 사유 4값은 늘리지 않는다. */
   resetCornerPending(cornerId: string, lastError: string): Promise<void>
   /** 사진 항목 ID -> 원본 `storage_path`. 소속 커플의 지워지지 않은 항목만 돌려준다. */

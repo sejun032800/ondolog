@@ -123,6 +123,8 @@ export async function copyIssueMedia(params: CopyIssueMediaParams): Promise<Medi
   }
 
   for (const id of [...resetIds].sort()) await store.resetCornerPending(id, SOURCE_MEDIA_MISSING)
+  // 발행 가드 ②(R23-3): 코너가 pending으로 돌아가면 그 호의 렌더 결과는 낡았다 - 다시 렌더해야 발행된다.
+  if (resetIds.size > 0) await store.clearRender(issueId)
 
   return { copied, alreadyPresent, missingSources, resetCornerIds: [...resetIds].sort() }
 }

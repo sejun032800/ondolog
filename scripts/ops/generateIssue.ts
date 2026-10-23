@@ -223,6 +223,7 @@ export async function generateSampleIssue(
   // ── P2~P5: 코너마다 골격을 돌린다(응답 자리만 샘플) ──────────────────────
   const reports: CornerReport[] = []
   const alertIds: string[] = []
+  let regenerated = false
   for (const entry of CORNER_TABLE) {
     const row = rows.get(entry.kind) as CornerRow
     const input = entry.inputOf(assembled)
@@ -250,6 +251,7 @@ export async function generateSampleIssue(
     const result = await runCornerModule(entry.module, { input, context, llmClient: client })
 
     if (result.outcome === 'success') {
+      regenerated = true
       await saveCornerSuccess(store.cornersTable, {
         cornerId: row.id,
         content: result.content as never,
@@ -272,6 +274,7 @@ export async function generateSampleIssue(
         detail: null,
       })
     } else if (result.outcome === 'failure') {
+      regenerated = true
       await saveCornerFailure(store.cornersTable, {
         cornerId: row.id,
         reason: result.reason,
@@ -315,6 +318,9 @@ export async function generateSampleIssue(
       })
     }
   }
+
+  // 발행 가드 ②(R23-3): 코너가 (다시) 생성됐으면 그 호의 렌더 세 필드를 비운다 - 다시 렌더해야 발행된다.
+  if (regenerated) await store.clearRender(issue.id)
 
   // ── P7 미디어 복제 - 저장된 ready 코너의 사진을 목적지로 ──────────────────
   const fresh = await store.listCorners(issue.id)
