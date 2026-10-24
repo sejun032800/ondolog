@@ -1676,11 +1676,41 @@ Row에서 `number | null`, Insert에서 필수 → 선택 + null 허용, Update�
 §9-D-1에서 의도한 한 가지 변경의 세 표면이다. r54는 Row만 적어 반드시 멈추는 규칙이었다.
 이 밖에 기존 타입이 하나라도 바뀌면 멈추고 보고한다.
 
+**예외 — CLI가 적는 메타데이터 (2026-10-24, ROADMAP R31-3).** `__InternalSupabase` 아래의 값(예: `PostgrestVersion`)은 원격 PostgREST 버전을 적은 것이지
+우리 스키마가 아니다. 이 값만 바뀐 것은 "추가만" 판정에서 뺀다 — 바뀐 값을 완료 보고에 적기만 한다. 그 밖의 바뀐 타입은 여전히 멈춘다.
+이 기준은 023 이후의 모든 재생성에 적용한다(마이그레이션 번호마다 "추가될 것"을 지시서에 적는다).
+
 **생성 명령은 기존 `database.ts`를 만들 때 쓴 명령을 그대로 쓴다.** 찾지 못하면 재생성하지 않고
 보고한다 — 플래그가 다르면 diff 전체가 달라져 위 판정을 할 수 없다. 이 변경 때문에 기존 코드에서 tsc 오류가 나면
 **고치지 않고 위치를 보고한다** — 고치는 것은 `48-`의 범위다.
 
 
+
+## 9-E. 본인 기록 삭제 (마이그레이션 023, 2026-10-24 원격 개발 적용 — MASTER 9-4 r68)
+
+```sql
+public.fn_delete_own_entry(p_entry_id uuid) returns boolean
+  language plpgsql  security definer  set search_path = public
+  -- 실행 권한: public·anon 회수, authenticated만
+```
+
+| 항목 | 규칙 |
+|---|---|
+| 확인 순서 | 로그인(아니면 `28000`) → 항목 존재, `for update`로 잠금(없으면 `P0002`) → `is_couple_member(couple_id)`(아니면 `42501`, "not a member of the couple") → `author_id = auth.uid()`(아니면 `42501`, "not uploaded by the caller") |
+| 동작 | `data_entries.deleted_at = now()` — **소프트 삭제.** 저장소 원본 파일은 지우지 않는다(보관 정책 §11). DELETE 정책은 없다 |
+| 멱등 | 이미 지운 항목은 아무것도 바꾸지 않고 `false`. 지웠으면 `true` |
+| 종류 | `entry_type`으로 제한하지 않는다 — 본인 것이면 사진·메모·(출시 후) 그림·셋로그 모두 |
+| 파생 칸 | 항목이 붙은 `dates` 행을 남은 항목으로 다시 계산한다. `photo_count` = 남은 사진 수 · `has_user_note` = 남은 **메모**가 있는가(그림은 E14와 함께 다시 본다) · `duration_minutes` = 그 날짜(KST)에 촬영 시각이 있는 사진이 둘 이상이면 첫·마지막 사이의 분, 아니면 null. 앱의 `deriveDateFields`와 같은 기준(실증에서 불일치 0건). 데이트 행은 지우지 않는다 |
+| RLS | 바꾸지 않는다. SELECT 정책(`deleted_at is null`)이 지운 항목을 숨긴다 |
+| 생성·발행 | 입력 조립은 `deleted_at`이 찬 항목을 넣지 않고, 발행 직전 원본 재확인은 그 항목을 없는 원본으로 본다(MASTER 17-0-10-D, ROADMAP R30-1) |
+
+**알려진 차이 (M4-4에서 맞춘다).** 이 함수는 definer라 열람 잠금 항목도 세지만, 앱 계산은 사용자 권한이라 잠긴 항목을 세지 못한다. 지금은 잠금이 없어
+결과가 같다. M4-4(무료 티어 잠금)의 완료 기준에 "두 계산의 잠금 처리 일치"를 넣는다.
+
+**다음에 손댈 때 — 테이블 이름에 `public.` 접두사.** `search_path`를 고정했으므로 지금도 안전하지만, 022 `fn_publish_issue`처럼 본문의 테이블 이름에 스키마를 붙이는 것이 관례다. 이 함수를 다시 고치는 마이그레이션에서 함께 맞춘다(이것만을 위한 마이그레이션은 만들지 않는다).
+
+**실증 (2026-10-24, 원격 개발).** 본인 삭제 성공·파생 칸 갱신·양쪽 조회에서 사라짐 / 상대 항목 거부 / 다른 커플 항목 거부 / 두 번째 호출 무변화 /
+비로그인 거부(실행 권한 단계) / 없는 ID `P0002` / 메모 삭제 → `has_user_note` false / 사진 0장 → 데이트 행 유지. 권한: anon false · authenticated true · `prosecdef` true · `search_path` 고정 · DELETE 정책 0.
 
 ---
 
