@@ -2,7 +2,7 @@
 
 > 대상: 클로드 코드 메인 세션 (개발 총괄)
 > 보관 경로: `.claude/state/prompts/phase-7/55-2-main-session-dispatch-render-binding.md`
-> 작성: 프롬프트 엔지니어 세션 / 2026-10-23 (v1.1 기준 — `55-1`(보충 R26-2 포함) 완료와 `render/issue/` v1.1 반입 뒤 실행, ROADMAP R26-7)
+> 작성: 프롬프트 엔지니어 세션 / 2026-10-24 (위임본 — ROADMAP r28, R28-1·2)
 >
 > 짝: `55-2-corner-pipeline-render-binding.md`
 
@@ -17,7 +17,7 @@
 ```powershell
 git status --porcelain
 Select-String -Path docs/ONDOLOG_MASTER.md  -Pattern 'DOC_REVISION: 2026-10-22-r66'
-Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-10-23-r26'
+Select-String -Path docs/ONDOLOG_ROADMAP.md -Pattern 'DOC_REVISION: 2026-10-24-r28'
 git ls-files render/_placeholder | Select-Object -First 1
 Test-Path render/issue/README.md
 Test-Path render/issue/tools/__pycache__
@@ -34,7 +34,7 @@ git ls-files .claude/state/prompts/phase-7 | Select-String -Pattern '55-2-corner
 | 명령 | 기대 출력 |
 |---|---|
 | `git status --porcelain` | 빈 출력 |
-| MASTER r66 / ROADMAP r26 | 각 한 줄 |
+| MASTER r66 / ROADMAP r28 | 각 한 줄 |
 | `render/_placeholder` | 한 줄 — `55-1`이 커밋됐다 |
 | `README.md` | `True` |
 | `tools/__pycache__` | **`False`** — 반입 때 지웠다(R26-1) |
@@ -54,7 +54,7 @@ npx tsc --noEmit -p supabase/functions/tsconfig.json
 npx jest --ci --watchAll=false
 ```
 
-기대 **0 / 0 / `55-1` 보충 완료 보고의 숫자** — Proteur가 위임 메시지와 함께 알려줍니다. jest에는 규칙 F(파일명) 시험이 들어 있어 반입한 파일 이름도 여기서 확인됩니다. 다르면 위임하지 말고 실제 숫자와 실패한 시험을 보고합니다. **파일명 시험이 `render/.venv` 안의 파일 때문에 실패하면**(`55-1` 보고 판단 2) 고치지 말고 그대로 보고합니다.
+기대 **0 / 0 / 1098 · 55**, Python 시험(`render/tests/`) **42건**. jest에는 규칙 F(파일명) 시험이 들어 있어 반입한 파일 이름도 여기서 확인됩니다. Python 시험은 `55-1`이 쓴 명령(HANDOFF "렌더 배관 (55-1)" 절)으로 돌립니다. 다르면 위임하지 말고 실제 숫자와 실패한 시험을 보고합니다. **단, 실패가 파일명 시험 하나이고 원인이 `render/.venv` 안의 파일뿐이면** 그 사실을 적고 위임합니다 — 위임의 0-1(R28-2)이 고칩니다.
 
 ## 1. 위임
 
@@ -66,8 +66,9 @@ npx jest --ci --watchAll=false
 전문 읽고 그 문서의 지시를 정확히 이행해주세요. 이 메시지에는 요약이
 없습니다. 그 파일이 지시의 전부입니다.
 
-착수 전에 아래 네 가지를 먼저 확인해주세요.
-1. 0단계 — README v1.1 문법과 55-1 채움 모듈 문법이 다르면 멈춤
+착수 전에 아래 다섯 가지를 먼저 확인해주세요.
+1. 0단계 — README 문법과 채움 모듈 문법이 다르면 모듈이 README에 맞춘다. 단 지면 HTML을 고쳐야 하거나 README가 두 가지로 읽히면 멈춤
+   0-1 — 파일명 시험 제외에 render/.venv/ 하나만 더하는 1회 허가. 가장 먼저, 다른 변경과 섞지 않음
 2. render/issue/ 안의 HTML 구조를 고치지 않는다는 것 (막히면 목록으로 보고)
 3. 없는 값을 지면에 넣지 않는다는 것과 PM 예외 두 가지 (재소환 사유 · @da.lead 숫자)
 4. 완료 기준의 PDF 세 권 조건
@@ -82,6 +83,7 @@ npx jest --ci --watchAll=false
 git status --porcelain
 git diff --stat
 git diff --stat -- render/issue
+git diff -- __tests__/build/fileNameRule.test.ts
 git diff --stat -- supabase/migrations src app docs package.json package-lock.json tsconfig.json supabase/functions/tsconfig.json supabase/functions/deno.json
 git ls-files --others --exclude-standard | Select-String -Pattern '\.(pdf|jpe?g|png)$'
 ```
@@ -96,7 +98,8 @@ Get-ChildItem scripts, supabase, src, app, render, .claude/state -Recurse -File 
 
 | 확인 | 기대 |
 |---|---|
-| 0단계 | 문법 대조 결과가 보고됐는가. 달랐다면 멈췄는가 |
+| 0단계 | 문법 대조 결과가 보고됐는가. 달랐다면 모듈을 맞춘 목록, 또는 멈춘 목록이 있는가. `render/issue/` diff가 비었는가 |
+| 0-1 | `fileNameRule.test.ts` diff가 제외 목록에 `render/.venv/` 한 항목 추가뿐인가. 다른 파일 변경과 따로 보고됐는가 |
 | PDF 세 권 | 조건대로인가 — ① 사진 표지·`basic`·타임라인 2면 ② 활자 표지·`neon`·인용 2면 ③ `skipped` 코너·다른 밝은 테마. **메인 세션이 PDF를 열어** 지면 순서·쪽 번호를 확인 |
 | 지면 구조 | `render/issue/` diff가 비었는가. 막힌 슬롯은 목록으로 보고됐는가 |
 | 지면 순서 | CORNER_LAYOUT §6. `skipped` 코너가 지면·목차에서 빠지고 쪽 번호가 다시 매겨졌는가. 대체 지면이 없는가 |
@@ -118,7 +121,8 @@ Get-ChildItem scripts, supabase, src, app, render, .claude/state -Recurse -File 
 - 관문: {각 O/X} / 기준선: {}
 
 ## 산출
-0. 0단계 문법 대조: {같음 / 다름 — 목록}
+0. 0단계 문법 대조: {같음 / 모듈을 맞춤 — 바꾼 점 / 멈춤 — 목록}
+0-1. fileNameRule.test.ts diff (따로): {}
 1. PDF 세 권: {① 경로·조건 / ② / ③}
 2. 지면 검사 결과 파일: {호별 경로·위반 건수(overset 포함)} / audit.py 대조: {}
 3. 발행 노트 문장 출처 비율 근거: {호별 분류별 문장 수}
@@ -129,6 +133,7 @@ Get-ChildItem scripts, supabase, src, app, render, .claude/state -Recurse -File 
 
 ## 변경
 - git diff --stat: {}
+- 기존 시험 변경: {fileNameRule.test.ts 외 있으면 파일·줄·이전 → 이후}
 - render/issue diff: {빈 출력 O / X}
 - 금지 대상 변경: {없음 / 있음 — 내용}
 - 렌더 산출물이 커밋 대상에 없음: {O / X}
