@@ -2013,6 +2013,13 @@ comment on view public.issues_public is
   '클라이언트 전용 뷰. pdf_print_path(300DPI+)를 노출하지 않아 실물 구독의 가치를 보호한다.';
 ```
 
+> ⚠️ **결함 (2026-10-24 발견, 마이그레이션 024에서 고침 — ROADMAP R32-1).** 위 설계는 스스로 모순이다. `security_invoker = true` 뷰는 **호출자의 권한으로** 아래 `issues`를 읽는데,
+> 바로 다음 줄이 `authenticated`의 `issues` 권한을 모두 회수한다. 그래서 009 이후 지금까지 **사용자 권한으로는 발행물을 한 번도 읽을 수 없었다**(실증은 모두 service_role이었다).
+> 고친 방식: **`issues`에 뷰가 내보내는 칸만 열 단위로 `grant select`** — `id, couple_id, issue_type, issue_number, title, cover_path, period_start, period_end, pdf_digital_path, page_count, is_trial, published_at, created_at, theme`(§9-C-4).
+> `pdf_print_path`와 그 밖의 내부 칸은 주지 않는다. RLS(`issues_select`: 커플 구성원 + 발행됨)는 그대로 행을 거르고, 열 권한이 인쇄 경로를 막는다 — 접근 조건이 한 곳에만 있다.
+> 뷰를 security definer로 바꾸는 방식은 쓰지 않는다(RLS를 건너뛰어 조건을 뷰 안에 다시 써야 하고, 보안 점검이 경고한다).
+> 뷰에 칸을 더할 때는 같은 마이그레이션에서 열 권한도 더한다.
+
 > **Storage 정책도 동일 원칙**: 인쇄용 PDF는 별도 비공개 버킷(`magazine-print`)에 두고, 클라이언트 접근 정책을 만들지 않는다. 인쇄 발주 파이프라인만 `service_role`로 접근한다.
 
 ---
