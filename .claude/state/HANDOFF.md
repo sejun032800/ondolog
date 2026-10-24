@@ -29,6 +29,30 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 | 조판 막힌 슬롯 여섯 묶음·README 빈칸 (`55-2`) — 지면 HTML을 고쳐야 한다(디자인 세션). 시험 호 ①②③은 개발 DB에 있다(① 발행됨) | 열림 | 이 파일 "조판 슬롯 채우기 (`55-2`)" 절 |
 | UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
+| **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 | 열림 | 이 파일 "U2 피드·업로드 (`56`)" 절 |
+| **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
+
+## U2 피드·업로드 (`56`, 2026-10-24, ui-builder) - 원격 개발 DB 실증 완료, 삭제는 막힘, 실기기 미확인
+
+- 파일: 항목 0 `Grain.tsx`(128pt)·`ScreenFrame.tsx`(새, 공통 화면 틀)·`Buttons.tsx`·`ListGroup.tsx`·`Chips.tsx`·`nocturne.ts`(`lilacText`). E01·E13 `app/(tabs)/feed.tsx`. E03 `app/date/[id]/index.tsx`. E15 `app/date/[id]/stop/[stopId]/index.tsx`. E11·E10 `app/(modals)/upload.tsx`(`?dateId=`가 E10). 쓰기·읽기 `src/services/dateRecordApi.ts`, 순수 규칙 `src/utils/dateRecord.ts`, 선택기 `src/services/photoPicker.ts`, 훅 3종, 부품 `src/components/{feed,date}/`. 실증 `scripts/ops/verifyU2Record.ts`.
+- 의존성·마이그레이션·docs·app.json 변경 없음. `app/(modals)/_layout.tsx`에 `upload` 화면 한 줄.
+- 내부 결정(항목당 한 줄):
+  - `arrived_at` 모름 표지 = 그 날짜 KST 00:00:00. E03은 이 값이면 시각을 그리지 않는다. 유저가 "00:00"을 넣어도 같은 값이라 숨는다.
+  - `dates.region`은 앱이 채우지 않는다. 비어 있으면 머리에서 지역을 뺀다. 제목이 비면 머리 제목 = 날짜 말("10월 3일 토요일").
+  - 같은 시각 stop은 입력 순서, 규칙 4에서 같은 도착 시각이면 seq 큰 쪽. 촬영 시각 없는 사진은 첫 stop.
+  - 피드 머리 "기록 N" = 그 달 메모 수(사진·데이트와 같은 범주로 읽음). 디자인 보드의 숫자는 예시라 대조하지 않았다.
+  - 상대 사진의 `date_stop_id`는 쓰지 않는다. E03은 저장값이 아니라 규칙 4로 배치를 다시 계산하고, 내 사진의 저장값만 맞춘다(`syncOwnPlacement`, E03 열 때·E15 저장 때).
+  - 메모는 데이트 단위라 E03 머리 아래 MEMO 블록에 둔다(E15에 장소별 메모 칸이 없다). 메모 `captured_at`은 비운다.
+  - 시간 칸(E11)은 사진 촬영 폭을 보여 줄 뿐 입력이 아니다. 장소별 도착 시각은 장소 칸에서 넣는다.
+  - E15에 도착 시각 칸을 더했다(지시 항목 5, 디자인엔 없음). "FROM PHOTO"·검색 목록은 만들지 않았다. `location_verified`·`lat`·`lng`·`place_provider_id`는 쓰지 않는다.
+  - 대표 카드 = 그 달 가장 최근 데이트. 카드 사진 = 가장 이른 촬영 시각 사진. `sky_color`·`dates.theme`은 쓰지 않는다.
+  - 피드의 얼굴 인식 안내 카드(사진 자동 정리)와 토글은 뺐다. 업로드 재시도는 사진당 3번(채팅 오프라인 큐는 메모리 전용이라 파일 업로드에 못 씀).
+  - 미연결 유저의 피드는 `<CoupleGate fallback={SoloBanner}>`. 커플 행이 없으면 배너 문구가 "초대 코드를 만들면 기록할 수 있어요".
+  - 잠긴(열람 불가) 항목은 조회되지 않아 `photo_count` 재계산에 안 잡힌다(E12는 M4-4).
+- **막힘 1 - 본인 기록 삭제(항목 7)**: 만들지 않았다. 원격에서 A 계정 권한으로 `update data_entries set deleted_at` 실행 -> "new row violates row-level security policy"(SELECT 정책 `deleted_at is null` 때문). DELETE 정책도 없다. 해결은 마이그레이션(예: 본인 행만 지우는 SECURITY DEFINER RPC) - 범위 밖이라 PM 결정. 삭제 뒤 `refreshDateDerived`는 이미 있다.
+- **막힘 2 - 규칙 6**: 위 열린 항목. 화면은 지시대로 기록 버튼 비활성.
+- `51-` 실기기 확인에 더할 것: 사진 골라 기록 -> 피드 -> 상세 흐름, EXIF GPS(iOS 시스템 선택기가 GPS를 주는지), HEIC 업로드·표시(RN `Image`가 서명 URL의 HEIC를 그리는지), 원본 크기 유지(`quality: 1`이 재인코딩 안 하는지, 올라간 byte_size), 그레인 128pt 타일, 상세 hero 장막, FAB 위치(탭 바 위), 키보드가 시트 입력을 가리는지, 월 인덱스 탭 이동.
+- 시험 데이터(원격 개발 DB, 이름에 test): 계정 `test-u2-a`·`test-u2-b`·`test-u2-solo`(@example.com), 커플 닉네임 `test-u2`(초대 코드 TESTU2), 데이트 날짜 2026-10-03. ID·경로는 `scripts/ops/out/56-u2-record.json`, 조회 출력은 `56-u2-record.txt`. 지우지 않았다.
 
 ## 조판 슬롯 채우기 (`55-2`, 2026-10-24, corner-pipeline) - 진짜 지면 13종, 원격 개발 DB 실증 완료
 

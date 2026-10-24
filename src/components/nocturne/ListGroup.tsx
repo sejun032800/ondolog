@@ -1,6 +1,6 @@
 /**
  * ListGroup, ListRow - 라벨 / 값 / 이동은 "→" 문자(아이콘 없음). 행 높이 56.
- * 비활성 행은 글자색을 바꾸지 않고(가장 옅은 색은 글자 금지) 투명도로 낮춘다.
+ * 비활성 행은 투명도 대신 글자색을 textFaint로 맞춘다(R20-5).
  */
 import { Children, type ReactNode } from 'react'
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
@@ -42,12 +42,17 @@ export interface ListRowProps {
 export function ListRow({ label, value, description, onPress, control, disabled, testID }: ListRowProps) {
   const arrow = onPress ? ' →' : ''
   const content = (
-    <View style={[styles.row, description ? styles.rowTall : null, disabled && styles.disabled]}>
+    <View style={[styles.row, description ? styles.rowTall : null]}>
       <View style={styles.main}>
-        <Text style={styles.label}>{label}</Text>
-        {description ? <Text style={styles.description}>{description}</Text> : null}
+        <Text style={[styles.label, disabled && styles.disabledText]}>{label}</Text>
+        {description ? (
+          <Text style={[styles.description, disabled && styles.disabledText]}>{description}</Text>
+        ) : null}
       </View>
-      {control ?? (value || arrow ? <Text style={styles.value}>{`${value ?? ''}${arrow}`}</Text> : null)}
+      {control ??
+        (value || arrow ? (
+          <Text style={[styles.value, disabled && styles.disabledText]}>{`${value ?? ''}${arrow}`}</Text>
+        ) : null)}
     </View>
   )
   if (onPress && !disabled) {
@@ -83,5 +88,5 @@ const styles = StyleSheet.create({
   label: { ...type.body, color: nocturne.text },
   description: { ...type.caption, fontFamily: fontFamily.regular, color: nocturne.textMute },
   value: { ...type.sub, color: nocturne.textMute },
-  disabled: { opacity: 0.55 },
+  disabledText: { color: nocturne.textFaint },
 })

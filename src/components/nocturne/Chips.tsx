@@ -106,10 +106,10 @@ const toneStyle = {
     chip: { borderWidth: 1, borderColor: withAlpha(nocturne.text, 0.16) },
     label: { color: nocturne.textSub },
   },
-  // 참여 대기(누를 수 있음). 디자인 보드의 연보라 글자색은 토큰에 없어 mist(링크색)로 둔다.
+  // 참여 대기(누를 수 있음). 글자는 디자인 토큰 lilacText(R20-6, R22-2).
   waiting: {
     chip: { backgroundColor: withAlpha(nocturne.lilac, 0.14) },
-    label: { color: nocturne.mist, fontFamily: fontFamily.semiBold },
+    label: { color: nocturne.lilacText, fontFamily: fontFamily.semiBold },
   },
   answered: {
     chip: { backgroundColor: withAlpha(nocturne.text, 0.08) },

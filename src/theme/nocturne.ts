@@ -6,7 +6,7 @@
  * `withAlpha()`로 같은 색의 투명도만 바꿔 쓴다(하드코딩 색 0건).
  *
  * 규칙(README 구현 규칙):
- * - `textFaint`는 글자 색으로 쓰지 않는다(선·비활성 전용).
+ * - `textFaint`는 비활성 컨트롤(비활성 버튼·비활성 ListRow)의 글자에만 쓴다(R20-5).
  * - `lilac`은 12pt 이하 글자에 쓰지 않는다.
  * - `moon`은 발행된 호·Vol·종이로 넘어가는 순간에만 쓴다.
  * - 웨이트는 fontFamily로만 구분한다. 굵기 전용 스타일 속성은 쓰지 않는다.
@@ -31,7 +31,7 @@ export const nocturne = {
   text: '#F3EFF7',
   textSub: '#C9C1DA',
   textMute: '#9C93B4',
-  /** 선·비활성 전용. 글자 색 금지. */
+  /** 선·비활성 컨트롤 글자 전용(R20-5). 그 밖의 글자 금지. */
   textFaint: '#6E6688',
 
   // 빛
@@ -39,6 +39,8 @@ export const nocturne = {
   orchid: '#E3A0C8',
   /** 12pt 이하 글자 금지. */
   lilac: '#B9A2F0',
+  /** lilac 칩 위 글자 하나(참여 대기 칩). 디자인 토큰 이름 그대로(R20-6, R22-2). */
+  lilacText: '#D7C9FA',
   mist: '#A9B6EC',
   /** 발행된 호·Vol 번호·종이로 넘어가는 순간만. */
   moon: '#E7D9C3',

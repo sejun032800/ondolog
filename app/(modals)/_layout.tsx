@@ -21,6 +21,8 @@ export default function ModalsLayout() {
       <Stack.Screen name="couple-gate" options={{ title: '연인 초대' }} />
       <Stack.Screen name="biometric-consent" options={{ title: '생체정보 동의' }} />
       <Stack.Screen name="reference-photo" options={{ title: '대표사진 등록' }} />
+      {/* 데이트 기록 쓰기(E11)·사진 더하기(E10) - 시트가 손잡이 + ✕ 머리를 직접 그린다. */}
+      <Stack.Screen name="upload" options={{ headerShown: false }} />
     </Stack>
   )
 }
