@@ -1,5 +1,9 @@
 # 진행 상황
 
+2026-10-24 (메인 세션, `59-` 2부): 024 원격 적용 확인(migration list 024). 권한 확인 9항목 OK(`pdf_print_path` 권한 0·14칸 정확·anon 0). 타입 재생성 diff 없음(파일 안 씀). B 실증 `verifyIssuesGrant.ts` 실패 0건(① 14칸·발행 호만 ② 인쇄 칸·`select *`·필터 모두 42501 ⑥ 쪽 14/14·표지·PDF 200 ⑦ 다른 커플 서명 0/16 ⑧ main.tsx VOL.1). C U3 실증 `verifyU3Library.ts` 통과(A·B 같은 서재, 초안 미노출, 다음 호 카드 type 커플 9월호 100%). 보안 점검: issues 관련 새 경고 없음. 게이트 0 / 0 / 1288 · 64, Python 122. 미커밋
+
+2026-10-24 (db-architect, `59-` A): 024 발행물 읽기 열 권한 - `supabase/migrations/024_issues_column_grants.sql`(`grant select (14칸) on issues to authenticated`, `pdf_print_path`·anon 제외, 정책·뷰 무변경), 확인 스크립트 `scripts/db/check_024_preapply.sql`·`verify_024_privileges.sql`·`scripts/ops/verifyIssuesGrant.ts`. 원격 읽기 전용 조회로 뷰 14칸 일치·`magazine_storage_select`는 `issues`를 안 읽음(024와 무관하게 풀림) 확인. **작성만, 원격 미적용·미실행.** 게이트 0 / 0 / 1288 · 64(직전 커밋이 `u3StaticRules.test.ts` 13건을 지워 1301 · 65에서 내려감). 미커밋
+
 2026-10-24 (ui-builder, `58-` U3): 서재 D01·D14·D16·속표지 D10·뷰어 D11(핀치 줌)·PDF 열기 코드·시험 완료(게이트 0 / 0 / 1301 · 65, 기준 1209 · 59, Python 122, 새 의존성·마이그레이션 없음). **멈춤: 원격 `issues_public`가 사용자 권한으로 `permission denied for table issues`(security_invoker + 009의 `revoke all on issues`) - 실증 미완, db-architect 판단 필요.** 미커밋
 
 2026-10-24 (ui-builder, `57-` C): 본인 기록 삭제 UI + stop 시각 규칙 + "메모 N" - E03에서 내 사진·메모에만 "지우기"(I05 확인 `ConfirmDialog`, "이미 발행된 호에서는 지워지지 않아요"), `deleteOwnEntry`는 `fn_delete_own_entry` RPC만 호출. stop 도착 시각은 늘 실제 시각(`planStops`·`resolveStopArrival`, KST 00:00 표시 값 코드 `kstMidnightIso`·`isTimeKnown`·`stopTimeLabel`·`buildStops` 삭제), 피드 머리 "메모 N · 사진 N · 데이트 N". 원격 개발 DB 실증(`scripts/ops/verifyU2Delete.ts`) 실패 0건, 00:00 stop 0건(없음). 게이트 0 / 0 / 1209 · 59(기준 1188 · 59), 새 의존성·마이그레이션 없음. 미커밋

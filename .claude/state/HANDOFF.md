@@ -32,6 +32,18 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 -> R30-1로 RPC 결정, `023_delete_own_entry.sql` 작성(`57-` A), **원격 적용·실증 완료**, 앱 UI는 `57-` C에서 만듦(실기기 확인 대기) | 앱 쪽 해소 | 이 파일 "본인 기록 삭제 UI · stop 시각 (`57-` C)" 절 |
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 
+## 발행물 읽기 열 권한 (`59-` A, 2026-10-24, db-architect) - 작성만, 원격 미적용·미실행
+
+- 파일: `supabase/migrations/024_issues_column_grants.sql` · `scripts/db/check_024_preapply.sql`(적용 전, 읽기 전용) · `scripts/db/verify_024_privileges.sql`(권한, 읽기 전용) · `scripts/ops/verifyIssuesGrant.ts`(실증 (1)~(8), 출력 `scripts/ops/out/59-issues-grant.txt`). 원격에는 읽기 전용 조회만 했다.
+- 내부 결정(한 줄씩)
+  - 파일명 `024_issues_column_grants.sql`. `grant select (14칸) on public.issues to authenticated` 한 문장. 정책·뷰·버킷 정책 변경 없음, anon 권한 없음.
+  - 원격 `issues_public`는 SCHEMA 9-C-4의 14칸과 칸 이름·순서가 같고 `security_invoker=true`. 원격 `issues`에는 17칸이 있고(`pdf_print_path`·`publish_mode`·`updated_at` 포함) 열·테이블 권한이 anon/authenticated 모두 0건.
+  - `magazine_storage_select`는 `bucket_id='magazine' and is_couple_member(foldername[1]::uuid)`이다. `issues`·`issues_public`를 조회하지 않고(`is_couple_member`는 security definer) 폴더의 첫 마디(커플 id)만 본다. 그래서 서명 URL은 024와 무관하게 이미 사용자 권한으로 풀려 있었다. 버킷 정책은 바꿀 것이 없다.
+  - 관찰(범위 밖, 바꾸지 않음): 뷰 `issues_public`에 anon·authenticated의 INSERT/UPDATE/DELETE/TRUNCATE 권한이 보인다(Supabase 기본 권한). 뒤의 `issues`에 쓰기 권한이 없고 024도 SELECT만 주므로 실제로는 거부된다. 하지만 anon의 뷰 SELECT도 있어 방어가 `issues` 쪽 권한 부재에 기대고 있다 - 필요하면 뷰의 쓰기 권한 회수를 PM이 별도로 결정.
+  - `select *`는 열 권한 때문에 사용자 권한으로 거부된다 - 앱 코드가 `issues`를 `*`로 읽으면 안 된다(현재 앱은 `issues_public`만 읽고 칸을 명시한다).
+- SCHEMA에 옮길 물리 명세 초안은 이 세션 최종 보고에 있다(위치: 10-7 결함 박스의 "마이그레이션 024" 문구에 파일명 확정, 13장 순서에 024 한 줄, 14장 검증 쿼리에 열 권한 한 줄).
+- 사람이 적용: 연결 확인 -> `check_024_preapply.sql` -> `npx supabase migration list` -> `npx supabase db push --dry-run` -> `npx supabase db push` -> `verify_024_privileges.sql` -> `verifyIssuesGrant.ts run`.
+
 ## 본인 기록 삭제 UI · stop 시각 (`57-` C, 2026-10-24, ui-builder) - 원격 개발 DB 실증 완료, 실기기 미확인
 
 - 파일: 삭제 확인 `src/components/nocturne/ConfirmDialog.tsx`(I05, `index.ts`에 export) · `src/components/date/StopTimeline.tsx`(지우기 칩) · E03 `app/date/[id]/index.tsx`(사진·메모 지우기 + 확인) · 삭제 RPC 호출 `deleteOwnEntry`·`canDeleteEntry`(`src/services/dateRecordApi.ts`) · stop 시각 규칙 `src/utils/dateRecord.ts`(`planStops`·`resolveStopArrival`·`earliestCaptureOn`·`stopTimeErrorMessage`) · E11 `app/(modals)/upload.tsx` · E15 `app/date/[id]/stop/[stopId]/index.tsx` · 피드 머리 `src/components/feed/MonthChapterHeader.tsx`("메모 N · 사진 N · 데이트 N"). 실증 `scripts/ops/verifyU2Delete.ts`(출력 `scripts/ops/out/57-c-delete-and-stop-time.txt`).
