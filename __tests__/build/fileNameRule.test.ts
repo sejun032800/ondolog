@@ -12,7 +12,7 @@ import * as path from 'path'
  *
  * 수집(r47): **git이 추적하는 모든 파일 - 최상위 포함.** `git ls-files --cached --others --exclude-standard -z`
  * (추적 + 아직 `git add` 전인 새 파일, `.gitignore` 제외)이고 디렉터리 목록을 두지 않는다. `-z`는 한글 경로가
- * 따옴표로 이스케이프되는 것을 피하려는 것이다. git을 쓸 수 없는 환경에서는 파일시스템을 돌되 `node_modules/`·`.git/`만 뺀다.
+ * 따옴표로 이스케이프되는 것을 피하려는 것이다. git을 쓸 수 없는 환경에서는 파일시스템을 돌되 `node_modules/`·`.git/`·`render/.venv/`만 뺀다.
  *
  * 위치가 `__tests__/build/`인 이유: 저장소 전체 위생 검사라 `engine/`이 아니고, 외부 프로세스(git)를 부르기 때문이다.
  */
@@ -34,6 +34,8 @@ function fileNameViolations(relPaths: readonly string[]): string[] {
 }
 
 const UNTRACKED_DIRS = new Set(['node_modules', '.git'])
+/** 경로 기준 제외(R28-2): Python 가상환경. `node_modules/`와 같은 취급이다. */
+const UNTRACKED_PATHS = new Set(['render/.venv'])
 
 function collectByFileSystem(): string[] {
   const out: string[] = []
@@ -41,6 +43,7 @@ function collectByFileSystem(): string[] {
     for (const entry of fs.readdirSync(path.join(REPO_ROOT, dirRel), { withFileTypes: true })) {
       if (UNTRACKED_DIRS.has(entry.name)) continue
       const rel = dirRel === '' ? entry.name : `${dirRel}/${entry.name}`
+      if (UNTRACKED_PATHS.has(rel)) continue
       if (entry.isDirectory()) walk(rel)
       else out.push(rel)
     }

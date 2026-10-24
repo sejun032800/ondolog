@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-24 (corner-pipeline, `55-2`): M2-c 조판 슬롯 채우기 - 진짜 지면 13종(`render/issue/` v1.1.1)으로 렌더. 0단계: 채움 모듈을 README 문법에 맞춤(repeat 컨테이너·variant 형제·경로 `.`/`@`/봉투·`[featured]`·`.length`·표시 유지·글자 배열), 지면 HTML 무변경. 새 파일 `render/compose.py`·`page_audit.py`·`romanize.py`·`seed_render_tests.py`·`tests/{fixtures,test_compose,test_romanize}.py`, `pypdf` 추가, 임시 지면 삭제. 파일명 시험에 `render/.venv/` 제외 한 줄(R28-2 허가). 시험 호 세 권(① basic 사진 표지·타임라인 2면 ② neon 활자 표지·인용 2면 ③ lovely·다정한 말들 skipped) 렌더 + ① 정상 발행(번호 1). 막힌 슬롯 여섯 묶음은 HANDOFF. 게이트 0 / 0 / 1098 · 55(기준과 같음), Python 시험 42 -> 122건. 실제 API 호출 0회. 미커밋
+
 2026-10-23 (corner-pipeline, `55-1b`): R26-2 확인 - `data-optional` 판정이 이미 `data-slot`·`data-src`를 모두 셈(`render/slot_fill.py` `SlotFiller` 169~177행 data-src 계수·187행 `empty > 0 and filled == 0` 삭제, `_count_slots` 93~98행). 코드 무변경, 시험 2건 추가(`render/tests/test_slot_fill.py` `Optional`: 빈 사진 경로 틀 삭제 / 경로 있는 틀 남음). 게이트 0 / 0 / 1098 · 55, Python 42건. 미커밋
 
 2026-10-23 (corner-pipeline, `55-1`): M2-c 렌더 배관 - `render/`(Python Playwright: `render_issue.py` 렌더 명령 · `slot_fill.py` 슬롯 채움 모듈 여섯 표시·R25-2 순서 · `_placeholder/issue.html` 임시 지면 한 장 · `tests/` 40건), 발행 가드 ①(`publishIssue.isRendered`)·② (`OpsStore.clearRender`, 재생성·원본 재확인 실패 때 세 필드 비움), `verifyRenderGuards.ts`. 원격 개발 DB에서 시험 커플 A 호: 렌더 -> 원본 하나 삭제 -> 발행 거부·코너 pending·세 필드 빈 값 -> 재생성·재렌더 -> 정상 발행(번호 1). 쪽당 이미지 48,491 B(1170x1655, JPEG 85). 실제 API 호출 0회. 게이트 0 / 0 / 1098 · 55 (기준 1092 · 55), Python 40건. 변경 설정: `.gitignore` 두 항목(허가). 시험 기댓값 수정: `operatorPath.test.ts` 두 곳(렌더된 호 표시). 미커밋

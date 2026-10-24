@@ -1,4 +1,4 @@
-"""렌더 명령의 순수 부분 + 오프라인 렌더 시험 (위임: 55-1). 네트워크·원격 접속 없음.
+"""렌더 명령의 순수 부분 + 오프라인 렌더 시험 (위임: 55-1, 55-2). 네트워크·원격 접속 없음.
 
 실행 (저장소 루트에서): render/.venv/Scripts/python.exe -B -m unittest discover -s render/tests
 """
@@ -11,16 +11,19 @@ import unittest
 from pathlib import Path
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+HERE = os.path.dirname(__file__)
+sys.path.insert(0, os.path.join(HERE, '..'))
+sys.path.insert(0, HERE)
 
+import fixtures as fx  # noqa: E402
 import render_issue as r  # noqa: E402
-from slot_fill import fill  # noqa: E402
+from compose import PageSpec, compose_issue  # noqa: E402
+from page_audit import design_audit_js  # noqa: E402
 
 REF = 'abcdefghij1234567890'
 URL = f'https://{REF}.supabase.co'
 LINKED = json.dumps({'ref': REF, 'name': 'ondolog'})
-COUPLE = 'c0000000-0000-4000-8000-000000000001'
-ISSUE = 'i0000000-0000-4000-8000-000000000001'
+NAMES = [fx.A, fx.B]
 
 
 class Guards(unittest.TestCase):
@@ -52,71 +55,6 @@ class Guards(unittest.TestCase):
                 r.ascii_name(bad)
 
 
-def date_archive(paths):
-    return {'header': {'title': '데이트 아카이브', 'periodLabel': '2026년 9월'},
-            'payload': {'articles': [{'stops': [{'photos': [{'path': p} for p in paths]}]}]}}
-
-
-def this_month(paths):
-    return {'header': {'title': '이달의 우리'},
-            'payload': {'articles': [{'evidence': [{'type': 'photo', 'photoPath': p} for p in paths] + [{'type': 'chat'}]}]}}
-
-
-P = [f'{COUPLE}/{ISSUE}/e{i}.png' for i in range(1, 7)]
-CORNERS = [
-    {'seq': 1, 'corner_type': 'date_archive', 'status': 'ready', 'content': date_archive(P[:3])},
-    {'seq': 2, 'corner_type': 'sweet_words', 'status': 'skipped', 'skip_reason': 'insufficient_input', 'content': {}},
-    {'seq': 3, 'corner_type': 'this_month', 'status': 'ready', 'content': this_month([P[2], P[3], P[4], P[5]])},
-]
-ISSUE_ROW = {'id': ISSUE, 'couple_id': COUPLE, 'issue_type': 'monthly', 'period_start': '2026-09-01', 'period_end': '2026-09-30', 'title': None}
-
-
-class View(unittest.TestCase):
-    def test_media_paths_follow_the_stored_schema(self):
-        self.assertEqual(r.media_paths_of('date_archive', date_archive(['a', 'b'])), ['a', 'b'])
-        self.assertEqual(r.media_paths_of('this_month', this_month(['x'])), ['x'])
-        self.assertEqual(r.media_paths_of('sweet_words', {'payload': {'articles': []}}), [])
-        self.assertEqual(r.media_paths_of('date_archive', {}), [])
-
-    def test_pick_photos_in_seq_order_without_duplicates_and_only_ready(self):
-        picked = r.pick_photos(CORNERS, 4)
-        self.assertEqual(picked, P[:4])
-        corners = [dict(CORNERS[0], status='pending')] + CORNERS[1:]
-        self.assertEqual(r.pick_photos(corners, 4), P[2:6])
-
-    def test_issue_name(self):
-        self.assertEqual(r.issue_name(ISSUE_ROW), '9월호')
-        self.assertEqual(r.issue_name({**ISSUE_ROW, 'title': '가을'}), '가을')
-        self.assertEqual(r.issue_name({**ISSUE_ROW, 'issue_type': 'daily'}), '2026-09-01')
-
-    def test_view_carries_only_values_that_exist(self):
-        src = {p: f'photos/{p.split("/")[-1]}' for p in P}
-        v = r.build_view(ISSUE_ROW, {'nickname': 'test-x'}, CORNERS, src)
-        self.assertEqual([c['view'] for c in v['corners']], ['ready', 'absent', 'ready'])
-        self.assertEqual(v['corners'][1]['reason'], 'insufficient_input')
-        self.assertIsNone(v['corners'][1]['title'])
-        self.assertEqual(len(v['photos']), 4)
-        self.assertTrue(v['issue']['hasPhotos'])
-
-    def test_placeholder_fills_with_the_slot_module(self):
-        src = {p: f'photos/{p.split("/")[-1]}' for p in P}
-        html = fill(r.PLACEHOLDER.read_text(encoding='utf-8'), r.build_view(ISSUE_ROW, {'nickname': 'test-x'}, CORNERS, src))
-        self.assertIn('9월호', html)
-        self.assertIn('2026-09-01 ~ 2026-09-30', html)
-        self.assertIn('데이트 아카이브', html)
-        self.assertIn('사유: <span>insufficient_input</span>', html)
-        self.assertEqual(html.count('<img'), 4)
-        self.assertNotIn('data-slot', html)
-        self.assertNotIn('실린 사진 없음', html)
-
-    def test_placeholder_without_photos_drops_the_photo_block_and_says_so(self):
-        corners = [{'seq': 1, 'corner_type': 'date_archive', 'status': 'ready', 'content': date_archive([])}]
-        html = fill(r.PLACEHOLDER.read_text(encoding='utf-8'), r.build_view(ISSUE_ROW, {'nickname': None}, corners, {}))
-        self.assertNotIn('<img', html)
-        self.assertNotIn('class="photos"', html)
-        self.assertIn('실린 사진 없음', html)
-
-
 class Files(unittest.TestCase):
     def test_jpeg_size_and_pdf_pages(self):
         jpeg = b'\xff\xd8' + b'\xff\xe0\x00\x04\x00\x00' + b'\xff\xc0\x00\x0b\x08\x04\x00\x04\x92\x01\x01\x11\x00'
@@ -124,21 +62,187 @@ class Files(unittest.TestCase):
         self.assertEqual(r.pdf_page_count(b'<</Type /Pages>> <</Type /Page /X>> <</Type/Page>>'), 2)
 
 
-class OfflineRender(unittest.TestCase):
-    """실제 Chromium으로 임시 지면을 렌더한다 - 가로 1170px 이미지, 쪽 수 일치, 한글 글리프."""
+class FakeApi:
+    """질의 문자열만 기록하고 미리 정한 행을 돌려준다."""
 
-    def test_render_placeholder_to_pdf_and_images(self):
+    def __init__(self, tables):
+        self.tables = tables
+        self.queries = []
+
+    def select_all(self, table, query):
+        self.queries.append((table, query))
+        rows = self.tables.get(table, [])
+        if table == 'data_entries' and 'entry_type=eq.photo' in query:
+            rows = [e for e in rows if e['entry_type'] == 'photo']
+        return rows
+
+    select = select_all
+
+
+class Materials(unittest.TestCase):
+    ISSUE = {'period_start': '2026-09-01', 'period_end': '2026-09-30'}
+
+    def test_counts_use_the_kst_window_and_the_assembly_conditions(self):
+        api = FakeApi({
+            'messages': [{'id': 'm1'}, {'id': 'm2'}, {'id': 'm3'}],
+            'dates': [{'id': 'd1'}, {'id': 'd2'}],
+            'date_stops': [{'id': 's1'}],
+            'data_entries': [{'id': 'e1', 'entry_type': 'photo'}, {'id': 'e2', 'entry_type': 'memo'}, {'id': 'e3', 'entry_type': 'drawing'}],
+        })
+        got = r.collect_materials(api, self.ISSUE, {'id': 'c-1', 'subscription_tier': 'free'})
+        # 같은 행이 여러 질의에 나와도 한 번만 센다(사진·메모는 집합) - 그림은 재료 집계에 넣지 않는다
+        self.assertEqual(got, {'messages': 3, 'dates': 2, 'photos': 1, 'memos': 1})
+        by_table = {t: q for t, q in api.queries}
+        self.assertIn('sent_at=gte.2026-09-01T00%3A00%3A00%2B09%3A00', by_table['messages'])
+        self.assertIn('sent_at=lt.2026-10-01T00%3A00%3A00%2B09%3A00', by_table['messages'])  # period_end 다음 날 0시(KST)
+        self.assertIn('deleted_at=is.null', by_table['messages'])
+        self.assertIn('date_on=gte.2026-09-01', by_table['dates'])
+        self.assertIn('date_on=lte.2026-09-30', by_table['dates'])
+        entry_queries = [q for t, q in api.queries if t == 'data_entries']
+        self.assertTrue(entry_queries and all('access_locked=eq.false' in q for q in entry_queries))  # 무료 커플은 잠긴 항목을 못 본다
+
+    def test_paid_couple_sees_locked_entries_too(self):
+        api = FakeApi({})
+        r.collect_materials(api, self.ISSUE, {'id': 'c-1', 'subscription_tier': 'paid'})
+        self.assertTrue(all('access_locked' not in q for t, q in api.queries if t == 'data_entries'))
+
+
+def sample_photos(size=(1200, 1600)):
+    cache = {}
+
+    def fetch(dest):
+        name = dest.split('/')[-1]
+        if name not in cache:
+            cache[name] = fx.png(*size, hue=sum(map(ord, name)) % 80)
+        return cache[name]
+    return fetch
+
+
+def build(scenario, work, size=(1200, 1600), materials=None):
+    couple = {**fx.COUPLE_ROW, 'magazine_theme': scenario['theme']}
+    comp = compose_issue(fx.ISSUE_ROW, couple, NAMES, scenario['corners'], materials)
+    r.prepare_work(work)
+    files = r.build_pages(comp, r.load_templates(), work, fx.ISSUE_ROW, sample_photos(size))
+    return comp, files
+
+
+class Sample(unittest.TestCase):
+    """견본 사진(`render/issue/images/sample/`)은 렌더 결과에 들어가면 안 된다 - 들어가면 실패다."""
+
+    def test_work_folder_never_gets_the_sample_images(self):
         with tempfile.TemporaryDirectory() as tmp:
-            work = Path(tmp)
-            (work / 'photos').mkdir()
-            html = fill(r.PLACEHOLDER.read_text(encoding='utf-8'), r.build_view(ISSUE_ROW, {'nickname': 'test-x'}, CORNERS, {}))
-            f = work / 'issue.html'
-            f.write_text(html, encoding='utf-8')
-            pdf, images = r.render_pdf_and_images(f, r.IMAGE_WIDTH_PX, r.JPEG_QUALITY)
-            self.assertEqual(len(images), 1)
-            self.assertEqual(r.pdf_page_count(pdf), 1)
-            self.assertEqual(r.jpeg_size(images[0])[0], 1170)
+            work = Path(tmp) / 'work'
+            comp, files = build(fx.photo_scenario(), work)
+            self.assertFalse((work / 'images').exists())
+            self.assertEqual(sorted(p.name for p in work.iterdir()), ['base.css', 'fonts', 'pages', 'photos', 'themes'])
+            for f in files:
+                self.assertNotIn('images/sample', f.read_text(encoding='utf-8'))
+            self.assertTrue(all(img.exists() for img in (work / 'photos').iterdir()))
+
+    def test_a_sample_path_left_in_a_page_is_a_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            comp = compose_issue(fx.ISSUE_ROW, {**fx.COUPLE_ROW}, NAMES, fx.photo_scenario()['corners'], None)
+            templates = r.load_templates()
+            templates['back'] = templates['back'].replace('<body class="back">', '<body class="back"><img src="../images/sample/back.jpg">')
+            r.prepare_work(work)
+            with self.assertRaises(r.StopError) as ctx:
+                r.build_pages(comp, templates, work, fx.ISSUE_ROW, sample_photos())
+            self.assertIn('견본', str(ctx.exception))
+
+    def test_every_image_in_a_filled_page_is_a_work_folder_photo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            comp, files = build(fx.photo_scenario(), work)
+            for f in files:
+                for src in __import__('re').findall(r'<img\b[^>]*\bsrc="([^"]*)"', f.read_text(encoding='utf-8')):
+                    self.assertTrue(src.startswith('../photos/'), (f.name, src))
+
+    def test_missing_destination_copy_stops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            comp = compose_issue(fx.ISSUE_ROW, {**fx.COUPLE_ROW}, NAMES, fx.photo_scenario()['corners'], None)
+            r.prepare_work(work)
+            with self.assertRaises(r.StopError):
+                r.build_pages(comp, r.load_templates(), work, fx.ISSUE_ROW, lambda dest: None)
+
+    def test_photo_path_of_another_issue_stops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            comp = compose_issue(fx.ISSUE_ROW, {**fx.COUPLE_ROW}, NAMES, fx.photo_scenario()['corners'], None)
+            r.prepare_work(work)
+            with self.assertRaises(r.StopError):
+                r.build_pages(comp, r.load_templates(), work, {**fx.ISSUE_ROW, 'id': 'other'}, sample_photos())
+
+
+class Render(unittest.TestCase):
+    """실제 Chromium으로 렌더한다 - 지면마다 PDF 한 쪽 · 가로 1170px 이미지 · 한글 글리프 · 검사 결과."""
+
+    def test_photo_scenario_renders_to_one_pdf_with_matching_pages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            comp, files = build(fx.photo_scenario(), work, materials={'messages': 120, 'photos': 14, 'dates': 3, 'memos': 4})
+            results = r.render_pages(files)
+            pdf, counts = r.merge_pdf([x['pdf'] for x in results])
+            self.assertEqual(len(results), 14)
+            self.assertEqual(counts, [1] * 14)                       # 한 지면 = PDF 한 쪽
+            self.assertEqual(r.pdf_page_count(pdf), 14)
             self.assertTrue(pdf.startswith(b'%PDF'))
+            for x in results:
+                self.assertEqual(r.jpeg_size(x['image'])[0], 1170)
+            audit = r.audit_summary(comp, results, 'x')
+            self.assertTrue(audit['designAuditSame'])                # 디자인의 audit.py와 같은 결과
+            self.assertEqual(audit['totals'].get('overset', 0), 0)   # 분할이 맞으면 판면 초과가 없다
+            self.assertEqual(audit['totals'].get('overflow', 0), 0)
+            self.assertEqual(audit['totals'].get('broken-image', 0), 0)
+            self.assertEqual(audit['totals'].get('contrast', 0), 0)
+
+    def test_all_six_themes_render(self):
+        for theme in ('basic', 'hip', 'neon', 'lovely', 'night', 'ondol'):
+            with tempfile.TemporaryDirectory() as tmp:
+                work = Path(tmp) / 'work'
+                sc = fx.type_scenario(theme)
+                sc['corners'] = [sc['corners'][2]]  # 이달의 우리만 - 표지·목차·노트·본문·뒤표지가 모두 한 번씩
+                comp, files = build(sc, work, size=(900, 1200))
+                for f in files:
+                    self.assertIn(f'data-theme="{theme}"', f.read_text(encoding='utf-8'), (theme, f.name))
+                results = r.render_pages(files)
+                self.assertTrue(all(x['pdf'].startswith(b'%PDF') for x in results), theme)
+                self.assertTrue(r.audit_summary(comp, results, 'x')['designAuditSame'], theme)
+
+    def test_audit_catches_overset_when_the_timeline_is_not_split(self):
+        """분할이 필요한 이유 - 사진 있는 stop 셋을 한 면에 두면 판면 953px을 넘는다(README §5). 검사는 이를 기록하되 렌더는 실패시키지 않는다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            comp, _ = build(fx.photo_scenario(), work)
+            template = [p for p in comp.pages if p.stem == 'da-timeline'][0]
+            stops = [fx.stop(i, f'1{i}:00', f'장소{i}', [fx.photo('e01')], [], '캡션') for i in range(3)]
+            crowded = PageSpec('da-timeline', template.corner, template.computed, template.bind, template.corner_type)
+            crowded.corner = json.loads(json.dumps(template.corner))
+            crowded.corner['payload']['articles'][0]['stops'] = stops
+            comp.pages = [crowded]
+            f = work / 'pages' / '01-da-timeline.html'
+            f.write_text(r.fill_page(crowded, 'basic', r.load_templates()).replace('src="' + fx.dest('e01') + '"', 'src="../photos/e01.png"'), encoding='utf-8')
+            results = r.render_pages([f])
+            kinds = {x['k'] for x in results[0]['findings']}
+            self.assertIn('overset', kinds)
+            self.assertTrue(results[0]['design'].get('same'), results[0]['design'])
+
+    def test_design_audit_is_read_from_the_design_tools(self):
+        self.assertIn('overset', design_audit_js(r.TOOLS_DIR))
+
+    def test_clipped_text_is_recorded(self):
+        """원문이 `.clamp`에 잘리면 기록한다 - 지면에서 보이지 않는 원문이다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            sc = fx.photo_scenario()
+            sw = json.loads(json.dumps(sc['corners'][1]['content']))
+            sw['payload']['main'][0]['turns'][0]['text'] = '아주 긴 말 ' * 60
+            sc['corners'][1] = fx.corner_row('sweet_words', sw, seq=2)
+            comp, files = build(sc, work)
+            quotes = [f for f in files if 'sw-quotes' in f.name][0]
+            results = r.render_pages([quotes])
+            self.assertIn('clipped', {x['k'] for x in results[0]['findings']})
 
 
 if __name__ == '__main__':

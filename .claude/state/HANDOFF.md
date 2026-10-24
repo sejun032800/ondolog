@@ -27,7 +27,45 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 022 실증 스크립트 3종 (`scripts/db/verify_022_*.sql`) | 작성 완료(`47b`), **미실행**. 실행은 메인 세션이 적용 확인 뒤 | 이 파일 "022 실증 스크립트 (`47b`)" 절 |
 | 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
+| 조판 막힌 슬롯 여섯 묶음·README 빈칸 (`55-2`) — 지면 HTML을 고쳐야 한다(디자인 세션). 시험 호 ①②③은 개발 DB에 있다(① 발행됨) | 열림 | 이 파일 "조판 슬롯 채우기 (`55-2`)" 절 |
 | UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
+
+## 조판 슬롯 채우기 (`55-2`, 2026-10-24, corner-pipeline) - 진짜 지면 13종, 원격 개발 DB 실증 완료
+
+0단계(슬롯 문법 대조): `render/issue/README.md` v1.1.1과 `55-1` 모듈이 달랐고, **모듈을 README에 맞췄다**(R28-1). 지면 HTML 구조는 고치지 않았다. 바꾼 점: ① `data-repeat`은 **컨테이너**에 붙고 첫 자식이 틀(55-1은 속성 단 요소 자신을 복제했다) ② `data-variant`는 **형제**가 각자 이름을 가지고 하나만 남는다(55-1은 부모 `data-variant="경로"` + 자식 `data-case`) - 고르는 기준은 README §3이라 `compose.choose_variant`가 한다 ③ 경로: `.`으로 시작하면 항목, `@`는 코너 밖 값, 그 밖은 코너 봉투 기준(반복 안에서도), `[숫자]`·`[featured]`·`[i]`·`.length` 추가 ④ 표시를 출력에서 지우지 않는다(`base.css`가 `[data-repeat=".turns"]`를, `tm-articles.html`이 `[data-variant="grid-2"]`를 선택자로 읽는다) ⑤ 값이 글자 하나인 배열(`@note.notUsed`)은 틀 요소의 글자가 곧 항목 ⑥ 값의 줄바꿈은 `<br>`. 그대로 둔 것: `data-if`·`data-optional`(`data-src`도 센다, R26-2)·해석 순서(R25-2). 멈춤 조건에는 걸리지 않았다.
+
+내부 결정(항목당 한 줄):
+
+- 분담: `render/slot_fill.py`(문법) · `render/compose.py`(어느 지면을 어떤 데이터로 - 네트워크·파일 없음) · `render/page_audit.py`(지면 검사) · `render/romanize.py`(로마자) · `render/render_issue.py`(읽기·렌더·업로드) · `render/seed_render_tests.py`(시험 호 만들기). 55-1의 임시 지면 `render/_placeholder/`는 지웠다.
+- PDF는 지면마다 Chromium이 한 쪽씩 내고 `pypdf`(6.21.2, `requirements.txt`에 추가)로 한 권으로 잇는다. 지면 HTML이 `body`·`body.클래스` 선택자에 기대 한 문서로 합칠 수 없다. 지면 하나가 PDF 한 쪽이 아니면 멈춘다.
+- 작업 폴더(`render/out/<호>/work/`)에는 `base.css`·`themes/`·`fonts/`만 복사한다. **`images/`(견본 사진)는 복사하지 않고**, 채운 HTML에 `images/sample`이 남거나 `<img>`가 작업 폴더 사진이 아니면 `StopError`.
+- 지면 순서: 표지 · 목차 · 발행 노트 · 데이트 아카이브(오프너 → 타임라인 1~2면 → 장소·세 물음 → 대표가 아닌 기사마다 `da-article`) · 다정한 말들(오프너 → 인용: main 1~2개 1면, 3개 2면) · 이달의 우리(저중심면 → 소기사) · 뒤표지. `ready`가 아닌 코너(skipped·pending·failed)는 지면·목차에서 빠지고 쪽 번호를 다시 센다. 대체 지면 없음.
+- 쪽 번호 = 표지부터 센 장 번호, 두 자리 `04`(견본의 `0 4`는 글자 사이를 `letter-spacing`이 벌린 모양으로 읽었다). 목차에는 코너만 싣는다(발행 노트는 부속이라 넣지 않았다).
+- `@issue.month`·`@back.closing`의 달 = `issues.period_end`의 달(`periodLabel`이 기간의 끝 쪽 달을 쓰는 것과 같다). `@back.nextMonth` = 그 다음 달 영문(12월 → 다음 해 January).
+- 표지: 대표 사진 = featured 첫 stop 첫 사진 → featured 기사 안 첫 사진 → 다른 기사 첫 사진. 원본 짧은 변은 content의 `PhotoRef.width·height`로 본다(1170 이상이면 사진 표지, 1169는 활자). 표제의 "3줄·줄당 6자"는 줄 안 띄어쓰기를 포함한 글자 수, 단어는 쪼개지 않는다(앞에서부터 채움). **줄바꿈은 활자 표지에만** 넣는다 - 사진 표지 표제는 `clamp2`라 3줄이면 셋째 줄이 잘린다. 표제가 나뉘지 않으면 이 달의 말(`main[0].turns[0]`)로 대체하고, 그 말은 "이 달의 말" 줄에도 그대로 남는다(둘 다 없으면 표제는 나뉘지 않은 `theme.headline` 그대로).
+- 타임라인 분할: README §5 실측표 합이 953px을 넘을 때. 앞에서부터 채워 **최대 2면**(CORNER_LAYOUT §3-1), 둘째 면에도 안 들어가는 stop은 싣지 않고 발행 노트 "싣지 않은 것"에 적는다. 메모도 AI 캡션도 없는 stop은 표에 칸이 없어 'AI 캡션만' 열의 값을 쓴다(실제보다 크게 잡는 쪽). 지면에 놓을 수 있는 메모 = 글이 있는 `memo`뿐(그림 메모는 메모로 세지 않고 노트에 적는다). 템플릿이 `userNotes[0]`만 그리므로 한 구간의 둘째 메모부터는 노트에 "메모 N개 - 한 구간에 하나만 싣습니다".
+- `@da.lead`: 재소환을 뺀 이번 기간 기사들의 stop·사진(stop당 3장 상한 뒤)·메모를 센다(R26-5). 지역이 비면 "지역, " 조각을 뺀다. 숫자 외의 틀은 README 그대로. `@da.photoCount`·`@da.records` 등 나머지 합은 README 문장 그대로(상한을 적용하지 않는 합).
+- `@toc.desc`(README에 식이 없다 - **README 빈칸**): content에서 세는 사실만 - "기사 N편" · "인용 N개" · "소기사 N편". 견본의 "화보 · …의 두 번의 하루"는 만들 수 없는 말이라 쓰지 않았다.
+- 장소 목록(`@da.places`)은 8곳까지(README `tools/sweep.py`가 통과를 확인한 최대 항목 수), 넘는 곳은 노트에 적는다. 이달의 우리 신호는 3개까지(§3-4 "요약 수치 3개"). `.seq`는 `seq + 1`을 두 자리로(content의 `seq`는 0부터). `.evidence` 한 줄은 README §9 규칙 + 근거 `date`는 날짜만(README에 `date` 근거 규칙이 없다 - 저장 스키마엔 `metric`이 없고 `date`가 있다). `.photo`는 README·content에 출처가 없어 바인딩하지 않았다(사진 틀이 삭제된다).
+- 다정한 말들 단문의 `attribution.at`은 ISO 문자열이라 지면 견본의 `08.11 23:40`으로 보기 사본에서 포맷한다(README에 형식이 없다). 원본 content는 건드리지 않는다(`compose`는 보기 사본만 만든다 - 시험이 확인).
+- 재소환 사유(R26-4): `anniversary`만 `{이번 호 연도 - dateOn 연도}년 전 이맘때`, 나머지는 빈 값이라 라벨째 빠진다. 시험이 세 사유를 지면 HTML에 채워 확인한다.
+- 문장 출처(§3-0): "문장" = 마침표·물음표·느낌표·말줄임표·줄바꿈 뒤에서 끊은 조각(글자가 있으면 최소 1). **지면에 실제로 실린 것만, 원천 한 번만**(표지가 다시 보이는 표제·이 달의 말은 따로 세지 않는다). 두 사람: 실린 `userNotes[0].text`·인용 `turns`·`sub`·15자 이하 `evidence.excerpt`. 온도록: 실린 `aiCaption`·기사 제목·`theme.headline`·`theme.lead`·`articles[].body`·`closing`·`context`·`closingQuestions`(+`basis`)와 고정 틀 문장 `@da.lead`(2문장)·`@da.routeHeadline`·`@back.closing`. 집계 수치·고정 문구(HTML에 박힌 것)·`recallReason` 라벨은 세지 않는다. 호별 분류별 수는 `render/out/<호>/compose.json`.
+- 재료 집계("모은 양"): DB에서 센다(대화 = 기간 안 본문 있는 메시지 / 데이트 / 사진 = 촬영 시각이 기간 안이거나 이번 기간 데이트·구간에 묶인 것 / 메모 = 그 데이트·구간에 묶인 것). 기간은 KST `[period_start, period_end+1일)`, 미삭제, 무료 커플은 잠기지 않은 것만(`inputAssembly.ts`와 같은 조건, 의미 없는 조각은 빼지 않는다). 0이면 행을 지운다. "실제 게재" = 실린 인용 줄 수 · 실린 사진 수 · 실린 메모 수 · 재소환 뺀 데이트 수.
+- 지면 검사: 6항목 + `overset` + `clipped`(`.clamp1~4`가 글자를 잘랐다 - 원문이 지면에서 안 보이는 자리). `safe`(판면 이탈)는 요소 상자가 아니라 **글자 줄 상자**로 판정하고 러닝헤드·폴리오·사진 위는 뺀다. 디자인 `tools/audit.py`의 `AUDIT`을 실행 때 그대로 읽어 같은 지면에서 공통 다섯 항목(overflow·tiny·contrast·overset·overlap)이 같은지 대조한다(`audit.json`의 `designAudit`). 위반은 렌더를 실패시키지 않는다.
+- 시험 호 세 권은 Python(`render/seed_render_tests.py`)으로 만들었다 - Deno 진입점을 더하지 않으려고. content는 합성 시험 데이터(`render/tests/fixtures.py`)이고 저장 스키마(Zod)는 Deno로 따로 한 번 검증했다(8개 모두 통과). 복제(P7)가 하는 일(원본 `entries`와 같은 사진을 `magazine` 목적지에 미리 둠)은 시험 스크립트가 직접 한다 - 발행 명령의 원본·목적지 확인이 그대로 돈다. 만든 행·파일 목록: `render/out/seed-55-2.json`(지우지 않는다).
+- `render/requirements.txt`: `pypdf==6.21.2` 추가(55-2). 로마자 표기 라이브러리(`korean-romanizer`)는 써 보고 버렸다 - 종로 `jongro`·신라 `sinra` 등 국어의 로마자 표기법과 다른 결과를 낸다.
+- 로마자 한계: 복합어의 ㄴ첨가(학여울)는 판정하지 않는다. 시·군·구·읍·면·동·리·가·도로 끝나는 두 음절 이상 단어는 행정 단위로 본다(왕십리 → `Wangsip-ri`). 한글·공백 외 문자가 섞이면 빈 값(줄 삭제).
+- Python 시험: `render/.venv/Scripts/python.exe -B -m unittest discover -s render/tests`(실제 Chromium 렌더 포함, 네트워크 없음, 약 2분).
+- 파일명 시험: `render/.venv/`만 제외에 더했다(R28-2 1회 허가) - 55-1의 "setuptools 지우기" 우회는 이제 필요 없다.
+
+막힌 슬롯 - 지면 HTML이 값을 받지 못하거나 거짓이 되는 곳(고치지 않았다. 디자인 세션 몫):
+
+1. `note.html` 문장의 출처 막대: 두 사람 쪽 폭이 `style="width:42%"` 인라인 고정이라 비율이 막대에 반영되지 않는다(글자의 %만 슬롯). 시험 호 ①: 글자는 34% / 66%인데 막대는 42%. 이 지면의 핵심 장치다.
+2. `sw-opener.html` 두 변형의 "다정 지수 [값] · [기간]" 줄: `payload.warmthIndex`(산출식이 없어 늘 null)와 `header.periodLabel`이 같은 `data-optional` 안에 있어, null이어도 기간이 차 있어 줄이 안 지워지고 "다정 지수  · 2026년 9월"(숫자 없는 라벨)이 남는다. README §7-1의 "null이면 줄째 빠진다"와 다르다.
+3. `da-article.html` 고정 문구 셋: 러닝헤드 "그때 그 시절"(재소환이 아닌 기사에도 찍힌다) · "Article Two"(셋째 기사에도, `@da.articleNo`는 실제 번호 "기사 03") · "그날 남은 사진 중 세 장"(사진이 세 장 미만이어도).
+4. `da-opener.html` "Article One": featured가 `articles`의 첫 기사가 아니면 타임라인의 `@da.articleNo`("기사 02")와 어긋난다. 사진 틀에 `data-optional`·변형이 없어 featured 첫 stop에 사진이 없으면 빈 회색 상자가 남는다(표지는 사진 사슬로 다른 사진을 쓰는데 오프너·`da-article` 히어로는 `stops[0].photos[0]` 한 경로뿐).
+5. README 빈칸: `@toc.desc` 계산식 · `tm-articles`의 `.photo` 출처(§9에 없음, content에도 없음) · `.attribution.at` 표기 형식 · `.seq` 번호 형식 · 근거 `date` 표기 · `da-article`의 `.caption`(견본은 "AI 캡션 · …" 접두, README는 aiCaption 값만) · 폴리오 형식(`04` vs `0 4`). 위 결정은 렌더러가 임시로 정했다.
+6. 원문 잘림 위험: 유저 메모(`clamp2`)·인용 turn(`clamp3`)·표지의 이 달의 말·`@da.lead`가 길면 CSS 안전망이 글자를 자른다. 생성 단계 길이 상한은 AI 문장용이고 유저 원문에는 정책이 없다. 검사가 `clipped`로 기록한다.
 
 ## 렌더 배관 (`55-1`, 2026-10-23, corner-pipeline) - 임시 지면, 원격 개발 DB 실증 완료
 
