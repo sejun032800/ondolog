@@ -29,8 +29,29 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 | 조판 막힌 슬롯 여섯 묶음·README 빈칸 (`55-2`) — 지면 HTML을 고쳐야 한다(디자인 세션). 시험 호 ①②③은 개발 DB에 있다(① 발행됨) | 열림 | 이 파일 "조판 슬롯 채우기 (`55-2`)" 절 |
 | UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
-| **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 | 열림 | 이 파일 "U2 피드·업로드 (`56`)" 절 |
+| **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 -> R30-1로 RPC 결정, `023_delete_own_entry.sql` 작성(`57-` A), **원격 미적용** | 열림 | 이 파일 "U2 피드·업로드 (`56`)" 절 |
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
+
+## 본인 기록 삭제 RPC (`57-` A, 2026-10-24, db-architect) - 작성만, 원격 미적용·미실행
+
+- 파일: `supabase/migrations/023_delete_own_entry.sql` · `scripts/db/check_023_preapply.sql`(적용 전, 읽기 전용) · `scripts/db/verify_023_privileges_and_settings.sql`(권한·설정, 읽기 전용) · `scripts/ops/verifyDeleteOwnEntry.ts`(다섯 경우 + 추가 3, 사용자 세션으로 RPC 호출, 출력 `scripts/ops/out/57-delete-own-entry.txt`). **전부 작성만 했고 원격에는 아무것도 실행하지 않았다.**
+- 내부 결정(한 줄씩)
+  - 파일명 `023_delete_own_entry.sql`, 함수 `public.fn_delete_own_entry(p_entry_id uuid) returns boolean` - true=지움, false=이미 지워져 있어 변화 없음(멱등).
+  - 확인 순서와 SQLSTATE: 비로그인 `28000` -> 없는 항목 `P0002` -> 커플 아님 `42501` -> 작성자 아님 `42501` -> 이미 지움이면 false. 메시지는 `fn_delete_own_entry: ...`로 넷이 구분된다. 커플 확인이 작성자 확인보다 앞이라 남의 커플 항목은 "커플 아님"으로 나온다.
+  - 항목 행을 `for update`로 잠가 같은 항목을 동시에 지우는 두 호출이 겹치지 않게 했다. 데이트 행도 `for update`.
+  - `anon`은 권한 회수로 함수 호출 자체가 막힌다(`permission denied`). `auth.uid() is null` 분기는 `service_role` 등 로그인 없는 호출자용 방어선이다. `service_role` 실행 권한은 기본값 그대로 남긴다.
+  - 파생 칸 계산은 앱의 `refreshDateDerived`/`deriveDateFields`(`src/utils/dateRecord.ts`)와 같다: `photo_count`=지우지 않은 사진 수, `has_user_note`=지우지 않은 **메모**가 있는가(SCHEMA 칸 주석은 "글/그림"이나 앱이 메모만 세므로 맞췄다. 그림 항목을 쓰게 되면 양쪽을 함께 고칠 것), `duration_minutes`=그 날짜(KST) 촬영 시각 있는 사진이 둘 이상일 때 첫~마지막 폭(분, 반올림) 아니면 null.
+  - 앱 쪽은 사용자 권한이라 잠긴(`access_locked`) 항목을 못 세지만 이 함수는 definer라 잠긴 항목도 센다. 무료 티어 잠금(M4-4) 도입 때 같은 값이 나오는지 한 번 볼 것.
+  - 항목 종류(`entry_type`)로 제한하지 않았다 - MASTER 9-4의 제한은 "자기가 올린 것"이다. 그림·셋로그도 본인 것이면 지워진다.
+  - 사진이 0장이 된 데이트는 지우지 않는다. `date_stop_id`·저장소 원본 파일·`date_stops`는 건드리지 않는다.
+  - RLS·정책 변경 없음, DELETE 정책 없음, 새 테이블 없음.
+- SCHEMA에 옮길 물리 명세 초안(PM이 §9-D 다음 새 절 또는 §9-E로 옮긴다 - 이 세션은 `docs/`를 고치지 않았다)
+  - 위치 제안: §13 마이그레이션 순서에 `023_delete_own_entry.sql` 한 줄, §9에 "9-E. 본인 기록 삭제 RPC" 절, §14 검증 쿼리에 권한 확인 한 줄.
+  - 시그니처: `public.fn_delete_own_entry(p_entry_id uuid) returns boolean`, `language plpgsql`, `security definer`, `set search_path = public`. 권한: `revoke all ... from public, anon; grant execute ... to authenticated`.
+  - 동작: (1) `auth.uid()` null이면 예외 28000 (2) `data_entries` 행 `for update`, 없으면 P0002 (3) `is_couple_member(couple_id)` 아니면 42501 (4) `author_id <> auth.uid()`면 42501 (5) `deleted_at`이 이미 차 있으면 false로 반환(변화 없음) (6) `deleted_at = now()` (7) `date_id`가 있으면 `dates`의 `photo_count`·`has_user_note`·`duration_minutes`를 남은(`deleted_at is null`) 항목으로 재계산 (8) true 반환.
+  - 불변식: 저장소 파일을 지우지 않는다(§11-2). 발행된 호는 건드리지 않는다. 입력 조립과 발행 직전 재확인이 `deleted_at`이 찬 항목을 "없는 원본"으로 보는 것은 `57-` B의 일이다(R30-1).
+  - 타입: 적용 뒤 `src/types/database.ts`를 재생성하면 `Functions.fn_delete_own_entry`가 추가만 된다(§9-D-10 기준). 이번엔 건드리지 않았다.
+- 사람이 적용할 때(022와 같은 방식, 위 "022 적용·실증 결과" 절 근거): ① 메인 세션이 `check_023_preapply.sql` 실행(Supabase MCP `execute_sql`, 기대: 함수 없음 OK) ② `npx supabase migration list`로 023이 Local에만 있는지 확인 ③ `npx supabase db push --dry-run`이 `023_delete_own_entry.sql` 하나만 보이는지 확인 ④ `npx supabase db push` ⑤ `verify_023_privileges_and_settings.sql` 실행 ⑥ `verifyDeleteOwnEntry.ts run`(위 파일 머리의 deno 명령, `verifyU2Record.ts`와 같은 플래그).
 
 ## U2 피드·업로드 (`56`, 2026-10-24, ui-builder) - 원격 개발 DB 실증 완료, 삭제는 막힘, 실기기 미확인
 

@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-24 (db-architect, `57-` A): 023 본인 기록 삭제 RPC - `supabase/migrations/023_delete_own_entry.sql`(`fn_delete_own_entry`, security definer, 작성자=호출자·같은 커플 확인, 멱등, 파생 칸 재계산, authenticated만), 확인 스크립트 `scripts/db/check_023_preapply.sql`·`verify_023_privileges_and_settings.sql`·`scripts/ops/verifyDeleteOwnEntry.ts`. **작성만, 원격 미적용·미실행.** 상세·SCHEMA 명세 초안은 HANDOFF "본인 기록 삭제 RPC (`57-` A)". 미커밋
+
 2026-10-24 (ui-builder, `56`): U2 피드·업로드 - E01 피드·E13 혼자 기록·E03 상세·E11/E10 기록 쓰기·E15 장소 고치기, 항목 0(그레인 128pt `ScreenFrame`·`textFaint` 비활성·`lilacText`), 쓰기 규칙 `dateRecord.ts`·`dateRecordApi.ts`. 원격 개발 DB 실증: A 사진 5·장소 2·메모 기록 -> B(사용자 세션)가 같은 기록 조회. **막힘: 본인 기록 삭제(RLS가 소프트 삭제 거부, DELETE 정책 없음), 규칙 6(커플 행은 초대 코드 발급 때만 생김 - 없으면 기록 버튼 비활성)** - 둘 다 PM 결정, HANDOFF. 게이트 0 / 0 / 1185 · 59 (기준 1098 · 55), Python 122. 새 의존성·마이그레이션 없음. 미커밋
 
 2026-10-24 (corner-pipeline, `55-2`): M2-c 조판 슬롯 채우기 - 진짜 지면 13종(`render/issue/` v1.1.1)으로 렌더. 0단계: 채움 모듈을 README 문법에 맞춤(repeat 컨테이너·variant 형제·경로 `.`/`@`/봉투·`[featured]`·`.length`·표시 유지·글자 배열), 지면 HTML 무변경. 새 파일 `render/compose.py`·`page_audit.py`·`romanize.py`·`seed_render_tests.py`·`tests/{fixtures,test_compose,test_romanize}.py`, `pypdf` 추가, 임시 지면 삭제. 파일명 시험에 `render/.venv/` 제외 한 줄(R28-2 허가). 시험 호 세 권(① basic 사진 표지·타임라인 2면 ② neon 활자 표지·인용 2면 ③ lovely·다정한 말들 skipped) 렌더 + ① 정상 발행(번호 1). 막힌 슬롯 여섯 묶음은 HANDOFF. 게이트 0 / 0 / 1098 · 55(기준과 같음), Python 시험 42 -> 122건. 실제 API 호출 0회. 미커밋
