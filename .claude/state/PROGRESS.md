@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-24 (ui-builder, `58-` U3): 서재 D01·D14·D16·속표지 D10·뷰어 D11(핀치 줌)·PDF 열기 코드·시험 완료(게이트 0 / 0 / 1301 · 65, 기준 1209 · 59, Python 122, 새 의존성·마이그레이션 없음). **멈춤: 원격 `issues_public`가 사용자 권한으로 `permission denied for table issues`(security_invoker + 009의 `revoke all on issues`) - 실증 미완, db-architect 판단 필요.** 미커밋
+
 2026-10-24 (ui-builder, `57-` C): 본인 기록 삭제 UI + stop 시각 규칙 + "메모 N" - E03에서 내 사진·메모에만 "지우기"(I05 확인 `ConfirmDialog`, "이미 발행된 호에서는 지워지지 않아요"), `deleteOwnEntry`는 `fn_delete_own_entry` RPC만 호출. stop 도착 시각은 늘 실제 시각(`planStops`·`resolveStopArrival`, KST 00:00 표시 값 코드 `kstMidnightIso`·`isTimeKnown`·`stopTimeLabel`·`buildStops` 삭제), 피드 머리 "메모 N · 사진 N · 데이트 N". 원격 개발 DB 실증(`scripts/ops/verifyU2Delete.ts`) 실패 0건, 00:00 stop 0건(없음). 게이트 0 / 0 / 1209 · 59(기준 1188 · 59), 새 의존성·마이그레이션 없음. 미커밋
 
 2026-10-24 (corner-pipeline, `57-` B): 지운 항목(`data_entries.deleted_at`)을 생성·발행 경로에서 뺌 - 입력 조립(`inputAssembly.ts` 330·336행)과 발행 전 원본 재확인(`supabaseOps.ts` `entrySourcePaths`)이 이미 `deleted_at is null`을 걸고 있어 **코드 무변경**, 시험 3건 추가(입력 조립 1·발행 재확인 2) + 원격 실증 스크립트 `scripts/ops/verifyDeletedEntryGuard.ts`(작성자 세션으로 `fn_delete_own_entry` RPC -> 발행 거부·코너 `pending`+`source_media_missing`·렌더 세 필드 빈 값, 출력 `scripts/ops/out/57-b-deleted-entry-guard.txt`). 발행된 호 지문 전후 같음. 게이트 0 / 0 / 1188 · 59(기준 1185 · 59), Python 122, deno check 통과. 실제 LLM 호출 0회. 미커밋

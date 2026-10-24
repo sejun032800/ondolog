@@ -1,49 +1,77 @@
 /**
- * 매거진 탭 — Part 11-2: "매거진 | 미연결 시: 진입 가능하나 발행물 없음
- * → 초대 유도". `issues_public` 뷰만 조회한다는 원칙(CLAUDE.md 절대
- * 규칙 3)은 실제 발행물 조회를 붙이는 Phase 7+에서 지킨다 — 이 화면은
- * 아직 아무 것도 조회하지 않는다(issues/issues_public 어느 쪽도 참조 X).
+ * 매거진 탭 - 서재(D01) · 첫 호 시작(D14) · 미연결(D16). docs/design/nocturne `N-T-Tabs` D01, `N-S-D2-Magazine` D14,
+ * `N-S-D3-Magazine` D16. 라우트: MASTER 11-3 `(tabs)/magazine.tsx`.
+ *
+ * - 서재에는 **발행된 호만** 꽂힌다(`issues_public`, 인쇄 PDF 경로는 이 화면 어디에도 없다 - 절대 규칙 3).
+ * - 커플 전용 기능이라 `<CoupleGate>`로 감싼다. 미연결 유저에게도 탭은 보이고, 들어오면 D16(잠긴 문)이 보인다.
+ * - 표지를 누르면 `(modals)/magazine-viewer`(D10 속표지 -> D11 뷰어)가 시트로 올라온다.
+ * - 다음 호 카드의 "제작 현황 →"은 숨긴다(D02는 U5). 정렬·검색(D13)도 이번 범위 밖이다.
  */
 import { useRouter } from 'expo-router'
 import { useEffect } from 'react'
-import { Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CoupleGate } from '../../src/components/CoupleGate'
-import { Button } from '../../src/components/Button'
-import { PageHeader } from '../../src/components/PageHeader'
-import { useTheme } from '../../src/theme'
+import { Unconnected } from '../../src/components/magazine/EmptyShelves'
+import { LibraryContent } from '../../src/components/magazine/LibraryContent'
+import { ScreenFrame } from '../../src/components/nocturne/ScreenFrame'
+import { useLibrary } from '../../src/hooks/useLibrary'
 import { useSession } from '../../src/hooks/useSession'
 import { useCoupleStore } from '../../src/store/coupleStore'
+import { nocturne, shape, type } from '../../src/theme/nocturne'
+import { libraryMode } from '../../src/utils/magazine'
 
 export default function MagazineTab() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { session } = useSession()
-  const refresh = useCoupleStore((s) => s.refresh)
-  const { colors, typography, spacing } = useTheme()
+  const userId = session?.user.id ?? null
+  const refreshCouple = useCoupleStore((s) => s.refresh)
+  const connection = useCoupleStore((s) => s.status)
+  const coupleId = useCoupleStore((s) => s.coupleId)
+  const library = useLibrary(connection === 'connected' ? coupleId : null)
 
   useEffect(() => {
-    if (session) refresh(session.user.id)
-  }, [session, refresh])
+    if (userId) void refreshCouple(userId)
+  }, [userId, refreshCouple])
+
+  const mode = libraryMode({
+    connection,
+    loading: library.loading,
+    error: library.error,
+    publishedCount: library.issues.length,
+  })
+  const bottom = insets.bottom + shape.tabBarGap + shape.tabBarHeight + 24
+  const top = insets.top + 14
 
   return (
-    <SafeAreaView edges={['top']} style={{ backgroundColor: colors.paper, flex: 1 }}>
-      <PageHeader left="매 거 진" />
-      <View style={{ padding: 24 }}>
-        <CoupleGate
-          fallback={
-            <View style={{ gap: spacing.s4 }}>
-              <Text style={[typography.body, { color: colors.inkMute }]}>
-                연결되면 우리만의 매거진이 발행돼요.
-              </Text>
-              <Button label="연인 초대하기" onPress={() => router.push('/couple-gate')} />
-            </View>
-          }
-        >
-          <Text style={[typography.body, { color: colors.inkMute }]}>
-            아직 발행된 매거진이 없어요. (Phase 7 범위)
-          </Text>
-        </CoupleGate>
+    <ScreenFrame>
+      <View style={[styles.header, { paddingTop: top }]}>
+        <Text style={styles.title}>매거진</Text>
       </View>
-    </SafeAreaView>
+      <CoupleGate
+        fallback={
+          <View style={[styles.gate, { paddingBottom: bottom }]}>
+            <Unconnected onInvite={() => router.push('/couple-gate')} />
+          </View>
+        }
+      >
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottom }]}>
+          <LibraryContent
+            mode={mode}
+            library={library}
+            onOpen={(issue) => router.push({ pathname: '/magazine-viewer', params: { issueId: issue.id } })}
+            onRetry={() => void library.reload()}
+          />
+        </ScrollView>
+      </CoupleGate>
+    </ScreenFrame>
   )
 }
+
+const styles = StyleSheet.create({
+  header: { paddingHorizontal: shape.space.screen },
+  title: { ...type.display, fontSize: 26, color: nocturne.text },
+  scroll: { paddingHorizontal: shape.space.screen, paddingTop: 28, gap: 28 },
+  gate: { flex: 1, paddingHorizontal: 20, paddingTop: 72 },
+})

@@ -23,6 +23,8 @@ export default function ModalsLayout() {
       <Stack.Screen name="reference-photo" options={{ title: '대표사진 등록' }} />
       {/* 데이트 기록 쓰기(E11)·사진 더하기(E10) - 시트가 손잡이 + ✕ 머리를 직접 그린다. */}
       <Stack.Screen name="upload" options={{ headerShown: false }} />
+      {/* 매거진 뷰어(D10 속표지 -> D11) - 속표지가 ✕를 직접 그린다. */}
+      <Stack.Screen name="magazine-viewer" options={{ headerShown: false }} />
     </Stack>
   )
 }
