@@ -1716,6 +1716,22 @@ public.fn_delete_own_entry(p_entry_id uuid) returns boolean
 
 ## 10. RLS (Row Level Security)
 
+### 10-0. 함수 실행 권한 원칙 (2026-10-24, 마이그레이션 025 — ROADMAP R33-1)
+
+**발견.** Postgres는 새 함수에 `EXECUTE`를 `PUBLIC`에 주고, Supabase 기본 권한은 `anon`·`authenticated`에도 준다. 그래서 `/rest/v1/rpc/…`로
+**공개 anon 키만 있으면** security definer 배치 함수(`expire_stories`·`apply_retention_policy`·`execute_dissolution` 등)를 누구나 부를 수 있었다(보안 점검: definer 함수 8개 anon, 10개 authenticated).
+
+| 분류 | 실행 권한 |
+|---|---|
+| **배치 전용**(pg_cron이 부르는 것) | `public`·`anon`·`authenticated` 모두 회수. pg_cron은 작업 소유자 권한으로 돈다. Edge Function이 REST로 부르는 것만 `service_role`에 명시 부여 |
+| **RLS 헬퍼**(`is_couple_member`·`is_entry_visible`·`partner_id` 등 정책 안에서 불리는 것) | `authenticated`만. `public`·`anon` 회수 |
+| **클라이언트 RPC**(`fn_issue_progress`·`fn_delete_own_entry` 등 앱이 부르는 것) | `authenticated`만. `public`·`anon` 회수 |
+| **발행·생성 경로**(`fn_publish_issue` 등) | `service_role`만(기존 그대로) |
+| **anon이 불러야 하는 함수** | 없는 것이 기본값. 필요하면 마이그레이션에 이유를 적고 하나씩 부여 |
+
+**앞으로의 함수.** 025에서 `alter default privileges in schema public revoke execute on functions from public, anon, authenticated`를 걸어, 새 함수는
+**권한 없이 태어나고 마이그레이션이 명시적으로 준다**(022·023이 이미 그렇게 썼다). 함수에는 `set search_path`를 반드시 둔다.
+
 ### 10-1. 헬퍼 함수
 
 `couples`에도 RLS가 걸리므로, 자식 테이블 정책에서 `couples`를 직접 서브쿼리하면 재귀 평가가 발생한다. `SECURITY DEFINER`로 이를 우회한다.
