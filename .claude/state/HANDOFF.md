@@ -32,6 +32,15 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 -> R30-1로 RPC 결정, `023_delete_own_entry.sql` 작성(`57-` A), **원격 적용·실증 완료**, 앱 UI는 `57-` C에서 만듦(실기기 확인 대기) | 앱 쪽 해소 | 이 파일 "본인 기록 삭제 UI · stop 시각 (`57-` C)" 절 |
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 
+## 함수 실행 권한 025 (`60-` 1부, 2026-10-24, db-architect) - 작성만, 원격 미적용·미실행
+
+- 파일: `supabase/migrations/025_function_execute_grants.sql` · `scripts/db/check_025_preapply.sql` · `verify_025_privileges.sql` · `verify_025_owner_run.sql` · `scripts/ops/verifyFunctionGrants.ts`(`ONDOLOG_025_APPLIED=1` 없으면 멈춤).
+- 결정(내부): 트리거 함수 4개(`tg_set_updated_at`·`unlock_on_upgrade`·`fn_issues_theme_*`)는 SCHEMA 10-0에 분류가 없어 "배치 전용"과 같게 모든 클라이언트 역할에서 회수 - 트리거 발동은 EXECUTE를 검사하지 않는다. 10-0 표에 "트리거 전용" 행 추가 필요.
+- 결정(내부): 배치·헬퍼·클라이언트 RPC·트리거 함수는 `service_role`도 회수(10-0: Edge Function이 REST로 부를 때만 service_role 부여, 부르는 곳 0). `fn_publish_issue`만 service_role.
+- 결정(내부): `current_couple_id()`는 부르는 곳이 없지만 SCHEMA 10-1이 헬퍼로 정의하고 011이 authenticated만 줬으므로 헬퍼 분류 유지.
+- 알려진 것: 기본 권한 회수는 `postgres` 소유 항목만(`supabase_admin` 소유 항목은 postgres가 못 바꿈, 이 프로젝트 마이그레이션 함수에는 안 걸림). 기본 권한의 `service_role`은 남긴다. 9-E의 `public.` 접두사는 023 본문에 이미 있어 정의 재작성은 글자 그대로 같다.
+- 사람이 적용: 연결 확인 -> `check_025_preapply.sql` -> `npx supabase migration list` -> `npx supabase db push --dry-run` -> `npx supabase db push` -> `verify_025_privileges.sql`(전부 ok) -> `verify_025_owner_run.sql` -> `verifyFunctionGrants.ts run` -> 59- B·57- 회귀 -> 보안 점검 기준선 비교.
+
 ## 발행물 읽기 열 권한 (`59-` A, 2026-10-24, db-architect) - 작성만, 원격 미적용·미실행
 
 - 파일: `supabase/migrations/024_issues_column_grants.sql` · `scripts/db/check_024_preapply.sql`(적용 전, 읽기 전용) · `scripts/db/verify_024_privileges.sql`(권한, 읽기 전용) · `scripts/ops/verifyIssuesGrant.ts`(실증 (1)~(8), 출력 `scripts/ops/out/59-issues-grant.txt`). 원격에는 읽기 전용 조회만 했다.

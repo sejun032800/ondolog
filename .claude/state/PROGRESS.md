@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-24 (db-architect, `60-` 1부): 025 함수 실행 권한 최소화 - `supabase/migrations/025_function_execute_grants.sql`(함수 14개 분류대로 revoke/grant, 기본 권한 회수 `for role postgres`, `issues_public` anon 전부·authenticated SELECT 외 회수, 트리거 함수 3개 `search_path` 고정, `fn_delete_own_entry` 정의 재작성 - 본문은 023과 같다). 확인 `scripts/db/check_025_preapply.sql`(원격에서 읽기 전용으로 돌려 전부 OK)·`verify_025_privileges.sql`·`verify_025_owner_run.sql`, 실증 `scripts/ops/verifyFunctionGrants.ts`. 기준선 `scripts/ops/out/60-security-baseline.txt`. 애매한 함수 없음(트리거 함수 4개는 SCHEMA 10-0에 분류가 없어 문서 보강 필요). **작성만, 원격 미적용·미실행.** 게이트 0 / 0 / 1288 · 64. 미커밋
+
 2026-10-24 (메인 세션, `59-` 2부): 024 원격 적용 확인(migration list 024). 권한 확인 9항목 OK(`pdf_print_path` 권한 0·14칸 정확·anon 0). 타입 재생성 diff 없음(파일 안 씀). B 실증 `verifyIssuesGrant.ts` 실패 0건(① 14칸·발행 호만 ② 인쇄 칸·`select *`·필터 모두 42501 ⑥ 쪽 14/14·표지·PDF 200 ⑦ 다른 커플 서명 0/16 ⑧ main.tsx VOL.1). C U3 실증 `verifyU3Library.ts` 통과(A·B 같은 서재, 초안 미노출, 다음 호 카드 type 커플 9월호 100%). 보안 점검: issues 관련 새 경고 없음. 게이트 0 / 0 / 1288 · 64, Python 122. 미커밋
 
 2026-10-24 (db-architect, `59-` A): 024 발행물 읽기 열 권한 - `supabase/migrations/024_issues_column_grants.sql`(`grant select (14칸) on issues to authenticated`, `pdf_print_path`·anon 제외, 정책·뷰 무변경), 확인 스크립트 `scripts/db/check_024_preapply.sql`·`verify_024_privileges.sql`·`scripts/ops/verifyIssuesGrant.ts`. 원격 읽기 전용 조회로 뷰 14칸 일치·`magazine_storage_select`는 `issues`를 안 읽음(024와 무관하게 풀림) 확인. **작성만, 원격 미적용·미실행.** 게이트 0 / 0 / 1288 · 64(직전 커밋이 `u3StaticRules.test.ts` 13건을 지워 1301 · 65에서 내려감). 미커밋
