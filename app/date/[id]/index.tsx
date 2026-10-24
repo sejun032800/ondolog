@@ -6,12 +6,15 @@
  * - stop별 타임라인: 시각(유저가 말한 시각일 때만) · 장소 · 사진. 사진 배치는 규칙 4로 다시 계산한다.
  * - 메모는 데이트 단위다(규칙 5). E15에 장소별 메모 칸이 없어 stop에 붙이지 않고, 머리 아래 한 블록에 둔다.
  * - 사진 더하기 -> E10(`/upload?dateId=`). 장소 고치기 -> E15.
- * - 본인 기록 삭제는 아직 없다: 클라이언트가 지울 수 있는 경로가 DB에 없다(HANDOFF `56-` 막힌 항목).
+ * - 본인 기록 삭제(R30-1): **내가 올린** 사진·메모에만 "지우기"가 보인다(상대의 것에는 없다). 누르면 되돌릴 수 없는 확인(I05)을 거쳐
+ *   `fn_delete_own_entry` RPC만 부른다. 이미 발행된 호는 지워지지 않는다. 답변 후 다시 읽어 화면에서 사라진다.
  */
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useState } from 'react'
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StopTimeline } from '../../../src/components/date/StopTimeline'
+import { ConfirmDialog } from '../../../src/components/nocturne/ConfirmDialog'
 import { GhostButton } from '../../../src/components/nocturne/Buttons'
 import { PressScale } from '../../../src/components/nocturne/PressScale'
 import { QuoteText } from '../../../src/components/nocturne/QuoteText'
@@ -19,6 +22,8 @@ import { ScreenFrame } from '../../../src/components/nocturne/ScreenFrame'
 import { Skeleton } from '../../../src/components/nocturne/Skeleton'
 import { useDateDetail } from '../../../src/hooks/useDateDetail'
 import { useSession } from '../../../src/hooks/useSession'
+import { canDeleteEntry, deleteOwnEntry } from '../../../src/services/dateRecordApi'
+import { supabase } from '../../../src/services/supabase'
 import { buildDateHead } from '../../../src/utils/dateRecord'
 import { fontFamily, nocturne, shape, type, withAlpha } from '../../../src/theme/nocturne'
 
@@ -30,7 +35,25 @@ export default function DateDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>()
   const dateId = Array.isArray(params.id) ? params.id[0] : params.id
   const { session } = useSession()
-  const detail = useDateDetail(dateId, session?.user.id ?? null)
+  const viewerId = session?.user.id ?? null
+  const detail = useDateDetail(dateId, viewerId)
+  const [pending, setPending] = useState<{ id: string; kind: 'photo' | 'memo' } | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const confirmDelete = async () => {
+    if (!pending || deleting) return
+    setDeleting(true)
+    try {
+      await deleteOwnEntry(supabase, pending.id)
+      setPending(null)
+      await detail.reload()
+    } catch (e) {
+      setPending(null)
+      Alert.alert('지우지 못했어요', e instanceof Error ? e.message : '다시 시도해 주세요')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const date = detail.date
   const cover = detail.stops.flatMap((s) => s.photos).find((p) => p.storage_path && detail.urls[p.storage_path])
@@ -70,18 +93,32 @@ export default function DateDetailScreen() {
               <View style={{ gap: 14 }} testID="detail-memos">
                 <Text style={styles.sectionKicker}>MEMO</Text>
                 {detail.memos.map((m) => (
-                  <QuoteText key={m.id} mark="rule" attribution={detail.names[m.author_id]}>
-                    {m.text_content ?? ''}
-                  </QuoteText>
+                  <View key={m.id} style={{ gap: 6 }}>
+                    <QuoteText mark="rule" attribution={detail.names[m.author_id]}>
+                      {m.text_content ?? ''}
+                    </QuoteText>
+                    {canDeleteEntry(m, viewerId) ? (
+                      <PressScale
+                        onPress={() => setPending({ id: m.id, kind: 'memo' })}
+                        accessibilityLabel="내 메모 지우기"
+                        testID={`delete-memo-${m.id}`}
+                        hitSlop={12}
+                        style={styles.deleteMemo}
+                      >
+                        <Text style={styles.deleteMemoLabel}>지우기</Text>
+                      </PressScale>
+                    ) : null}
+                  </View>
                 ))}
               </View>
             ) : null}
 
             <StopTimeline
-              dateOn={date.date_on}
               stops={detail.stops}
               urls={detail.urls}
               onEditStop={(stopId) => router.push(`/date/${date.id}/stop/${stopId}`)}
+              viewerId={viewerId}
+              onDeletePhoto={(id) => setPending({ id, kind: 'photo' })}
             />
 
             <GhostButton
@@ -92,6 +129,16 @@ export default function DateDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <ConfirmDialog
+        visible={pending !== null}
+        title={pending?.kind === 'memo' ? '이 메모를 지울까요?' : '이 사진을 지울까요?'}
+        message={`지운 ${pending?.kind === 'memo' ? '메모는' : '사진은'} 되돌릴 수 없어요. 이미 발행된 호에서는 지워지지 않아요.`}
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPending(null)}
+        testID="delete-confirm"
+      />
 
       <View style={[styles.back, { top: insets.top + 8 }]}>
         <PressScale onPress={() => router.back()} accessibilityLabel="뒤로" style={styles.backCircle}>
@@ -119,6 +166,8 @@ const styles = StyleSheet.create({
   meta: { ...type.sub, color: nocturne.textMute },
   message: { ...type.body, color: nocturne.textSub },
   bodyWrap: { paddingHorizontal: shape.space.screen, paddingTop: 28, gap: 28 },
+  deleteMemo: { alignSelf: 'flex-start', paddingLeft: 15 },
+  deleteMemoLabel: { ...type.caption, color: nocturne.textMute },
   sectionKicker: { ...type.kicker, color: nocturne.textMute },
   back: { position: 'absolute', left: 18 },
   backCircle: {

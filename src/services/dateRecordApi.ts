@@ -20,18 +20,29 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   assignStop,
-  buildStops,
   deriveDateFields,
   entryStoragePath,
   firstLine,
   sequenceStops,
+  planStops,
+  resolveStopArrival,
+  stopTimeErrorMessage,
   type PickedPhoto,
   type PlaceInput,
-  arrivalIso,
-  kstMidnightIso,
+  type StopTimeError,
 } from '../utils/dateRecord'
 
-export type Db = Pick<SupabaseClient, 'from' | 'storage'>
+export type Db = Pick<SupabaseClient, 'from' | 'storage' | 'rpc'>
+
+/** stop 도착 시각을 정할 수 없을 때(R30-2) - 저장하기 전에 던진다. 메시지는 그대로 유저에게 보인다. */
+export class StopTimeInputError extends Error {
+  readonly detail: StopTimeError
+  constructor(detail: StopTimeError) {
+    super(stopTimeErrorMessage(detail))
+    this.name = 'StopTimeInputError'
+    this.detail = detail
+  }
+}
 
 export const ENTRIES_BUCKET = 'entries'
 /** 사진 서명 URL 유효 시간 - 화면에 떠 있는 동안만 필요하다. */
@@ -165,6 +176,20 @@ async function ensureDate(
   return { id: (data as { id: string }).id, created: true }
 }
 
+/** 이 커플의 그 날짜 데이트에 stop이 하나라도 있는가(없는 데이트도 false). */
+async function dateHasStops(db: Db, coupleId: string, dateOn: string): Promise<boolean> {
+  const { data, error } = await db
+    .from('dates')
+    .select('id')
+    .eq('couple_id', coupleId)
+    .eq('date_on', dateOn)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error) fail('데이트 조회 실패', error)
+  if (!data) return false
+  return (await loadStops(db, (data as { id: string }).id)).length > 0
+}
+
 async function loadStops(db: Db, dateId: string): Promise<StopRow[]> {
   const { data, error } = await db
     .from('date_stops')
@@ -196,18 +221,26 @@ export async function resequenceStops(db: Db, dateId: string): Promise<StopRow[]
   return loadStops(db, dateId)
 }
 
-/** 새 장소를 stop으로 더한다. 기존 stop이 있고 새 장소가 없으면 아무것도 더하지 않는다(규칙 4). */
+/**
+ * 새 장소를 stop으로 더한다. 기존 stop이 있고 새 장소가 없으면 아무것도 더하지 않는다(규칙 4).
+ * 시각은 늘 실제 시각이다(R30-2) - 정할 수 없으면 `StopTimeInputError`.
+ */
 async function addStops(
   db: Db,
   coupleId: string,
   dateId: string,
   dateOn: string,
   places: readonly PlaceInput[],
+  photoCapturedAts: readonly (string | null)[],
 ): Promise<StopRow[]> {
   const existing = await loadStops(db, dateId)
-  const planned = buildStops(places, dateOn)
-  const hasNamed = planned.some((p) => p.placeName !== null)
+  const hasNamed = places.some((p) => p.name.trim().length > 0)
   if (existing.length > 0 && !hasNamed) return existing
+
+  const plan = planStops(places, dateOn, photoCapturedAts)
+  if (!plan.ok) throw new StopTimeInputError(plan.error)
+  const planned = plan.stops
+  if (planned.length === 0) return existing // 메모만 기록하고 장소가 없다 - 만들 stop이 없다
 
   const toInsert = existing.length === 0 ? planned : planned.filter((p) => p.placeName !== null)
   const base = existing.length === 0 ? 0 : Math.max(...existing.map((s) => s.seq)) + 1
@@ -246,6 +279,17 @@ export async function recordDate(db: Db, deps: RecordDeps, input: RecordDateInpu
   }
   const retryDelay = deps.retryDelayMs ?? 400
 
+  // 0. 도착 시각을 정할 수 있는가(R30-2) - 업로드·쓰기 전에 확인한다(원본만 올라가고 행이 없는 일을 막는다).
+  const photoCapturedAts = input.photos.map((p) => p.capturedAt)
+  const precheck = planStops(input.places, input.dateOn, photoCapturedAts)
+  if (!precheck.ok) {
+    const hasNamed = input.places.some((p) => p.name.trim().length > 0)
+    // 장소 없이 사진만 더하는 경우는, 그 날짜에 stop이 이미 있으면 새 stop이 필요 없다.
+    if (hasNamed || !(await dateHasStops(db, input.coupleId, input.dateOn))) {
+      throw new StopTimeInputError(precheck.error)
+    }
+  }
+
   // 1. 사진 원본 업로드(리사이즈 없음). 경로: {couple_id}/{entry_id}.{ext}
   const uploaded: { entryId: string; path: string; photo: PickedPhoto }[] = []
   let failedPhotos = 0
@@ -276,7 +320,7 @@ export async function recordDate(db: Db, deps: RecordDeps, input: RecordDateInpu
 
   // 2. 데이트와 stop
   const date = await ensureDate(db, input.coupleId, input.dateOn)
-  const stops = await addStops(db, input.coupleId, date.id, input.dateOn, input.places)
+  const stops = await addStops(db, input.coupleId, date.id, input.dateOn, input.places, photoCapturedAts)
 
   // 3. 사진 행 - 규칙 4로 stop에 붙인다
   const photoEntryIds: string[] = []
@@ -355,21 +399,39 @@ export interface UpdateStopInput {
   dateOn: string
   userId: string
   placeName: string
-  /** `HH:MM` 또는 비움(비우면 "시각 모름"). */
+  /** `HH:MM` 또는 비움. 비워도 되는 것은 첫 stop뿐이고(가장 이른 촬영 시각으로 채운다), 아니면 `StopTimeInputError`. */
   arrivalClock: string | null
 }
 
 /**
  * 장소 이름(직접 입력)과 도착 시각을 고친다. `place_provider_id` · `lat` · `lng`는 건드리지 않는다(지도·검색은 출시 후).
+ * 도착 시각은 늘 실제 시각이다(R30-2) - 정할 수 없으면 아무것도 쓰지 않고 `StopTimeInputError`를 던진다.
  * 고친 뒤 stop 번호를 다시 매기고, **내가 올린** 사진의 배치를 규칙 4로 다시 맞춘다(상대의 사진 행은 쓰지 않는다).
  */
 export async function updateStop(db: Db, input: UpdateStopInput): Promise<void> {
   const name = input.placeName.trim()
+  const stops = await loadStops(db, input.dateId)
+  const target = stops.find((s) => s.id === input.stopId)
+  if (!target) throw new Error('장소 수정 실패: 이 데이트의 장소가 아니에요')
+  const { data: photoRows, error: photoError } = await db
+    .from('data_entries')
+    .select('captured_at')
+    .eq('date_id', input.dateId)
+    .eq('entry_type', 'photo')
+    .is('deleted_at', null)
+  if (photoError) fail('사진 조회 실패', photoError)
+  const arrival = resolveStopArrival({
+    dateOn: input.dateOn,
+    clock: input.arrivalClock,
+    isFirst: target.seq === 0,
+    photoCapturedAts: ((photoRows ?? []) as { captured_at: string | null }[]).map((r) => r.captured_at),
+  })
+  if (!arrival.ok) throw new StopTimeInputError(arrival.error)
   const { error } = await db
     .from('date_stops')
     .update({
       place_name: name.length > 0 ? name : null,
-      arrived_at: arrivalIso(input.dateOn, input.arrivalClock) ?? kstMidnightIso(input.dateOn),
+      arrived_at: arrival.arrivedAt,
     })
     .eq('id', input.stopId)
     .eq('date_id', input.dateId)
@@ -407,6 +469,26 @@ export async function syncOwnPlacement(db: Db, dateId: string, userId: string): 
     changed += 1
   }
   return changed
+}
+
+// ---------------------------------------------------------------------------
+// 본인 기록 삭제 (R30-1)
+// ---------------------------------------------------------------------------
+
+/**
+ * 내가 올린 사진·메모를 지운다 - **`fn_delete_own_entry` RPC만** 부른다(`data_entries`를 직접 update하지 않는다).
+ * 작성자 = 호출자·같은 커플은 함수가 확인하고, 데이트 파생 칸도 함수가 다시 맞춘다.
+ * 이미 지운 항목이면 false(멱등). 이미 발행된 호는 이 함수가 건드리지 않는다.
+ */
+export async function deleteOwnEntry(db: Db, entryId: string): Promise<boolean> {
+  const { data, error } = await db.rpc('fn_delete_own_entry', { p_entry_id: entryId })
+  if (error) fail('기록 삭제 실패', error)
+  return data === true
+}
+
+/** 지우기 버튼을 보일 항목인가 - 내가 올린 것만. */
+export function canDeleteEntry(entry: { author_id: string }, viewerId: string | null): boolean {
+  return viewerId !== null && entry.author_id === viewerId
 }
 
 // ---------------------------------------------------------------------------

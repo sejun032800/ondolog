@@ -11,6 +11,9 @@ import {
   recordDate,
   refreshDateDerived,
   resequenceStops,
+  StopTimeInputError,
+  canDeleteEntry,
+  deleteOwnEntry,
   syncOwnPlacement,
   updateStop,
   withRetry,
@@ -33,6 +36,7 @@ class FakeStore {
   uploads: { path: string; size: number; contentType?: string }[] = []
   failUploadsFor = new Set<string>()
   failUploadsAlways = false
+  rpcCalls: { fn: string; args: Record<string, unknown> }[] = []
   private counter = 0
 
   nextId(prefix: string): string {
@@ -191,6 +195,10 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
 function makeDb(store: FakeStore): Db {
   const db = {
     from: (table: string) => new Query(store, table),
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      store.rpcCalls.push({ fn, args })
+      return { data: true, error: null }
+    },
     storage: {
       from: (_bucket: string) => ({
         upload: async (path: string, body: ArrayBuffer, opts?: { contentType?: string }) => {
@@ -364,7 +372,8 @@ describe('규칙 1·3·4·5·7 - 데이트 하나 기록', () => {
       memo: '',
     })
     expect(store.tables.date_stops).toHaveLength(1)
-    expect(store.tables.date_stops[0]).toMatchObject({ seq: 0, place_name: null, arrived_at: '2026-10-03T00:00:00+09:00' })
+    // R30-2 - 시각 모름 표시 값이 아니라 가장 이른 촬영 시각(실제 시각)이다.
+    expect(store.tables.date_stops[0]).toMatchObject({ seq: 0, place_name: null, arrived_at: '2026-10-03T14:20:00+09:00' })
     const stopId = store.tables.date_stops[0].id
     expect(store.tables.data_entries.every((e) => e.date_stop_id === stopId)).toBe(true)
   })
@@ -498,18 +507,22 @@ describe('E15 - 장소 고치기', () => {
     expect(store.writtenColumns.date_stops.has('place_provider_id')).toBe(false)
   })
 
-  it('시각을 비우면 "모름"(그 날짜 00:00)으로 돌아간다', async () => {
-    const store = new FakeStore()
+  async function recordOne(store: FakeStore, extra: { clock?: string; photos?: PickedPhoto[] } = {}) {
     const db = makeDb(store)
     await recordDate(db, deps(store), {
       coupleId: COUPLE,
       userId: ME,
       dateOn: '2026-10-03',
-      places: [{ name: '카페', arrivalClock: '16:40' }],
-      photos: [photo(1, '2026-10-03T17:00:00+09:00')],
+      places: [{ name: '카페', arrivalClock: extra.clock ?? '16:40' }],
+      photos: extra.photos ?? [photo(1, '2026-10-03T17:00:00+09:00')],
       memo: '',
     })
-    const stop = store.tables.date_stops[0]
+    return { db, stop: store.tables.date_stops[0] }
+  }
+
+  it('R30-2 - 첫 stop의 시각을 비우면 그 데이트 사진의 가장 이른 촬영 시각으로 저장한다(00:00 표시 값은 없다)', async () => {
+    const store = new FakeStore()
+    const { db, stop } = await recordOne(store)
     await updateStop(db, {
       stopId: stop.id as string,
       dateId: stop.date_id as string,
@@ -518,7 +531,63 @@ describe('E15 - 장소 고치기', () => {
       placeName: '  ',
       arrivalClock: null,
     })
-    expect(store.tables.date_stops[0]).toMatchObject({ place_name: null, arrived_at: '2026-10-03T00:00:00+09:00' })
+    expect(store.tables.date_stops[0]).toMatchObject({ place_name: null, arrived_at: '2026-10-03T17:00:00+09:00' })
+  })
+
+  it('R30-2 - 둘째 stop의 시각을 비우면 저장하지 않는다', async () => {
+    const store = new FakeStore()
+    const { db } = await recordOne(store, { clock: '10:00', photos: [photo(1, '2026-10-03T11:00:00+09:00')] })
+    await recordDate(db, deps(store), {
+      coupleId: COUPLE,
+      userId: ME,
+      dateOn: '2026-10-03',
+      places: [{ name: '식당', arrivalClock: '18:00' }],
+      photos: [],
+      memo: 'x',
+    })
+    const second = bySeq(store)[1]
+    const before = JSON.stringify(store.tables.date_stops)
+    await expect(
+      updateStop(db, {
+        stopId: second.id as string,
+        dateId: second.date_id as string,
+        dateOn: '2026-10-03',
+        userId: ME,
+        placeName: '식당',
+        arrivalClock: null,
+      }),
+    ).rejects.toBeInstanceOf(StopTimeInputError)
+    expect(JSON.stringify(store.tables.date_stops)).toBe(before)
+  })
+
+  it('R30-2 - 사진의 시각이 없고 시각도 비우면 저장하지 않는다', async () => {
+    const store = new FakeStore()
+    const { db, stop } = await recordOne(store, { photos: [photo(1, null)] })
+    await expect(
+      updateStop(db, {
+        stopId: stop.id as string,
+        dateId: stop.date_id as string,
+        dateOn: '2026-10-03',
+        userId: ME,
+        placeName: '카페',
+        arrivalClock: null,
+      }),
+    ).rejects.toThrow('도착 시각')
+    expect(store.tables.date_stops[0].arrived_at).toBe('2026-10-03T16:40:00+09:00')
+  })
+
+  it('R30-2 - 실제 00:00을 입력하면 00:00으로 저장한다', async () => {
+    const store = new FakeStore()
+    const { db, stop } = await recordOne(store)
+    await updateStop(db, {
+      stopId: stop.id as string,
+      dateId: stop.date_id as string,
+      dateOn: '2026-10-03',
+      userId: ME,
+      placeName: '카페',
+      arrivalClock: '00:00',
+    })
+    expect(store.tables.date_stops[0].arrived_at).toBe('2026-10-03T00:00:00+09:00')
   })
 
   it('상대가 올린 사진 행은 쓰지 않는다 - 내 행만 맞춘다', async () => {
@@ -656,5 +725,128 @@ describe('refreshDateDerived', () => {
     )
     await refreshDateDerived(makeDb(store), 'd1', '2026-10-03')
     expect(store.tables.dates[0]).toMatchObject({ photo_count: 2, duration_minutes: 90, has_user_note: false })
+  })
+})
+
+describe('R30-2 - 기록할 때 도착 시각을 정할 수 없으면 아무것도 올리거나 쓰지 않는다', () => {
+  it('장소 둘 · 둘째 시각 없음 -> 업로드도 행도 없다', async () => {
+    const store = new FakeStore()
+    const db = makeDb(store)
+    await expect(
+      recordDate(db, deps(store), {
+        coupleId: COUPLE,
+        userId: ME,
+        dateOn: '2026-10-03',
+        places: [{ name: 'A', arrivalClock: '10:00' }, { name: 'B' }],
+        photos: [photo(1, '2026-10-03T11:00:00+09:00')],
+        memo: '',
+      }),
+    ).rejects.toBeInstanceOf(StopTimeInputError)
+    expect(store.uploads).toHaveLength(0)
+    expect(store.tables.dates).toHaveLength(0)
+    expect(store.tables.date_stops).toHaveLength(0)
+    expect(store.tables.data_entries).toHaveLength(0)
+  })
+
+  it('장소 하나 · 시각 없음 · 사진에도 시각 없음 -> 저장하지 않는다', async () => {
+    const store = new FakeStore()
+    const db = makeDb(store)
+    await expect(
+      recordDate(db, deps(store), {
+        coupleId: COUPLE,
+        userId: ME,
+        dateOn: '2026-10-03',
+        places: [{ name: 'A' }],
+        photos: [photo(1, null)],
+        memo: '',
+      }),
+    ).rejects.toThrow('첫 장소의 도착 시각')
+    expect(store.uploads).toHaveLength(0)
+    expect(store.tables.date_stops).toHaveLength(0)
+  })
+
+  it('장소 하나 · 시각 없음 · 사진 있음 -> 가장 이른 촬영 시각으로 저장한다', async () => {
+    const store = new FakeStore()
+    const db = makeDb(store)
+    await recordDate(db, deps(store), {
+      coupleId: COUPLE,
+      userId: ME,
+      dateOn: '2026-10-03',
+      places: [{ name: 'A' }],
+      photos: [photo(1, '2026-10-03T15:00:00+09:00'), photo(2, '2026-10-03T13:10:00+09:00')],
+      memo: '',
+    })
+    expect(store.tables.date_stops).toHaveLength(1)
+    expect(store.tables.date_stops[0].arrived_at).toBe('2026-10-03T13:10:00+09:00')
+  })
+
+  it('메모만 기록하고 장소가 없으면 stop을 만들지 않는다(00:00 stop도 없다)', async () => {
+    const store = new FakeStore()
+    const db = makeDb(store)
+    await recordDate(db, deps(store), { coupleId: COUPLE, userId: ME, dateOn: '2026-10-03', places: [], photos: [], memo: '오늘 메모' })
+    expect(store.tables.date_stops).toHaveLength(0)
+    expect(store.tables.data_entries).toHaveLength(1)
+  })
+
+  it('이미 stop이 있는 날에 장소 없이 시각 없는 사진을 더해도 된다(새 stop이 필요 없다)', async () => {
+    const store = new FakeStore()
+    const db = makeDb(store)
+    await recordDate(db, deps(store), {
+      coupleId: COUPLE,
+      userId: ME,
+      dateOn: '2026-10-03',
+      places: [{ name: 'A', arrivalClock: '10:00' }],
+      photos: [photo(1, '2026-10-03T10:30:00+09:00')],
+      memo: '',
+    })
+    await recordDate(db, deps(store), {
+      coupleId: COUPLE,
+      userId: ME,
+      dateOn: '2026-10-03',
+      places: [],
+      photos: [photo(2, null)],
+      memo: '',
+    })
+    expect(store.tables.date_stops).toHaveLength(1)
+  })
+
+  it('저장된 stop 시각 중 KST 00:00 표시 값을 만드는 경로가 없다 - 어떤 입력에서도 입력·촬영 시각만 쓴다', async () => {
+    const store = new FakeStore()
+    const db = makeDb(store)
+    await recordDate(db, deps(store), {
+      coupleId: COUPLE,
+      userId: ME,
+      dateOn: '2026-10-03',
+      places: [{ name: 'A' }, { name: 'B', arrivalClock: '19:00' }],
+      photos: [photo(1, '2026-10-03T12:00:00+09:00')],
+      memo: '',
+    })
+    expect(store.tables.date_stops.map((x) => x.arrived_at).sort()).toEqual([
+      '2026-10-03T12:00:00+09:00',
+      '2026-10-03T19:00:00+09:00',
+    ])
+  })
+})
+
+describe('R30-1 - 본인 기록 삭제', () => {
+  it('fn_delete_own_entry RPC만 부르고 data_entries를 직접 쓰지 않는다', async () => {
+    const store = new FakeStore()
+    const db = makeDb(store)
+    const deleted = await deleteOwnEntry(db, 'entry-1')
+    expect(deleted).toBe(true)
+    expect(store.rpcCalls).toEqual([{ fn: 'fn_delete_own_entry', args: { p_entry_id: 'entry-1' } }])
+    expect(store.writtenColumns.data_entries).toBeUndefined()
+    expect(store.writtenColumns.dates).toBeUndefined()
+  })
+
+  it('RPC 오류는 던진다', async () => {
+    const db = { rpc: async () => ({ data: null, error: { message: 'not the author' } }) } as unknown as Db
+    await expect(deleteOwnEntry(db, 'entry-1')).rejects.toThrow('not the author')
+  })
+
+  it('지우기는 내가 올린 항목에만 보인다', () => {
+    expect(canDeleteEntry({ author_id: ME }, ME)).toBe(true)
+    expect(canDeleteEntry({ author_id: PARTNER }, ME)).toBe(false)
+    expect(canDeleteEntry({ author_id: ME }, null)).toBe(false)
   })
 })

@@ -1,6 +1,7 @@
 export { BackgroundStars, BACKGROUND_STARS, twinklePeriodMs } from './BackgroundStars'
 export { PrimaryButton, GhostButton } from './Buttons'
 export { StatusChip, MilestoneChip, VolBadge, LockBadge, formatVol } from './Chips'
+export { ConfirmDialog } from './ConfirmDialog'
 export { DateCard } from './DateCard'
 export { PushHeader, SheetHeader } from './ExitHeader'
 export { GlassCard, SoftCard } from './GlassCard'

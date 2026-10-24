@@ -8,6 +8,7 @@ import { FeedChapterView } from '../../src/components/feed/FeedChapterView'
 import { monthCountsLabel } from '../../src/components/feed/MonthChapterHeader'
 import { SoloBanner } from '../../src/components/feed/SoloBanner'
 import { StopTimeline } from '../../src/components/date/StopTimeline'
+import { ConfirmDialog } from '../../src/components/nocturne/ConfirmDialog'
 import { GhostButton, PrimaryButton } from '../../src/components/nocturne/Buttons'
 import { StatusChip } from '../../src/components/nocturne/Chips'
 import { GRAIN_TILE_PT, grainLayout } from '../../src/components/nocturne/Grain'
@@ -70,9 +71,9 @@ describe('U0 손질', () => {
 })
 
 describe('피드 부품', () => {
-  it('월 머리 카운트는 "기록 N · 사진 N · 데이트 N"이고 별은 쓰지 않는다', () => {
+  it('월 머리 카운트는 "메모 N · 사진 N · 데이트 N"이고 별은 쓰지 않는다', () => {
     const label = monthCountsLabel({ memoTotal: 4, photoTotal: 18, dateTotal: 3 })
-    expect(label).toBe('기록 4 · 사진 18 · 데이트 3')
+    expect(label).toBe('메모 4 · 사진 18 · 데이트 3')
     expect(label).not.toContain('별')
   })
 
@@ -136,13 +137,13 @@ describe('피드 부품', () => {
 
 describe('E03 타임라인', () => {
   const stops = [
-    { id: 's0', seq: 0, arrived_at: '2026-10-03T00:00:00+09:00', place_name: null, photos: [] },
+    { id: 's0', seq: 0, arrived_at: '2026-10-03T09:30:00+09:00', place_name: null, photos: [] },
     { id: 's1', seq: 1, arrived_at: '2026-10-03T14:20:00+09:00', place_name: '홍대 CGV', photos: [] },
   ]
 
-  it('시각 모름 stop은 시각을 그리지 않고, 말한 시각은 그린다', async () => {
-    await render(<StopTimeline dateOn="2026-10-03" stops={stops} urls={{}} onEditStop={() => {}} />)
-    expect(screen.queryByText('00:00')).toBeNull()
+  it('저장된 도착 시각을 그대로 그린다', async () => {
+    await render(<StopTimeline stops={stops} urls={{}} onEditStop={() => {}} viewerId="a" onDeletePhoto={() => {}} />)
+    expect(screen.getByText('09:30')).toBeTruthy()
     expect(screen.getByText('14:20')).toBeTruthy()
     expect(screen.getByText('홍대 CGV')).toBeTruthy()
     expect(screen.getByText('장소 이름 더하기')).toBeTruthy()
@@ -150,8 +151,67 @@ describe('E03 타임라인', () => {
 
   it('장소 줄을 누르면 E15로 간다', async () => {
     const onEdit = jest.fn()
-    await render(<StopTimeline dateOn="2026-10-03" stops={stops} urls={{}} onEditStop={onEdit} />)
+    await render(<StopTimeline stops={stops} urls={{}} onEditStop={onEdit} viewerId="a" onDeletePhoto={() => {}} />)
     await fireEvent.press(screen.getByText('홍대 CGV'))
     expect(onEdit).toHaveBeenCalledWith('s1')
+  })
+
+  it('실제 00:00 도착 시각은 00:00으로 보인다(가리지 않는다)', async () => {
+    const midnight = [{ id: 'm', seq: 0, arrived_at: '2026-10-03T00:00:00+09:00', place_name: '자정 산책', photos: [] }]
+    await render(<StopTimeline stops={midnight} urls={{}} onEditStop={() => {}} viewerId="a" onDeletePhoto={() => {}} />)
+    expect(screen.getByText('00:00')).toBeTruthy()
+  })
+
+  it('지우기는 내가 올린 사진에만 있고 상대의 사진에는 없다', async () => {
+    const photo = (id: string, author: string) => ({
+      id,
+      date_id: 'd',
+      date_stop_id: 's1',
+      author_id: author,
+      entry_type: 'photo' as const,
+      storage_path: `c/${id}.jpg`,
+      text_content: null,
+      width: 1,
+      height: 1,
+      captured_at: null,
+      created_at: '2026-10-03T00:00:00Z',
+    })
+    const withPhotos = [
+      { id: 's1', seq: 0, arrived_at: '2026-10-03T14:20:00+09:00', place_name: '홍대 CGV', photos: [photo('mine', 'a'), photo('theirs', 'b')] },
+    ]
+    const onDelete = jest.fn()
+    await render(<StopTimeline stops={withPhotos} urls={{}} onEditStop={() => {}} viewerId="a" onDeletePhoto={onDelete} />)
+    expect(screen.getByTestId('delete-photo-mine')).toBeTruthy()
+    expect(screen.queryByTestId('delete-photo-theirs')).toBeNull()
+    await fireEvent.press(screen.getByTestId('delete-photo-mine'))
+    expect(onDelete).toHaveBeenCalledWith('mine')
+  })
+})
+
+describe('되돌릴 수 없는 확인(I05)', () => {
+  it('문구에 발행된 호에서는 지워지지 않는다는 말이 있고, 지우기·취소가 전달된다', async () => {
+    const onConfirm = jest.fn()
+    const onCancel = jest.fn()
+    await render(
+      <ConfirmDialog
+        visible
+        title="이 사진을 지울까요?"
+        message="지운 사진은 되돌릴 수 없어요. 이미 발행된 호에서는 지워지지 않아요."
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+        testID="dlg"
+      />,
+    )
+    expect(screen.getByText(/이미 발행된 호에서는 지워지지 않아요/)).toBeTruthy()
+    await fireEvent.press(screen.getByTestId('dlg-cancel'))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onConfirm).not.toHaveBeenCalled()
+    await fireEvent.press(screen.getByTestId('dlg-confirm'))
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
+
+  it('보이지 않으면 아무것도 그리지 않는다', async () => {
+    await render(<ConfirmDialog visible={false} title="t" message="m" onConfirm={() => {}} onCancel={() => {}} />)
+    expect(screen.queryByText('t')).toBeNull()
   })
 })

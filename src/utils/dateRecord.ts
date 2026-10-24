@@ -11,12 +11,12 @@
  * 시각은 전부 KST(+09:00) 기준 문자열 산수로 다룬다. `Date`의 지역 시간 함수(getHours 등)는 쓰지 않는다 -
  * 기기 시간대가 달라도 같은 입력이 같은 출력을 내야 한다.
  *
- * ── arrived_at 규칙(규칙에 없는 칸, 내부 결정) ──────────────────────────────
- * `date_stops.arrived_at`은 NOT NULL이다. 유저가 도착 시각을 넣지 않은 stop은 **그 날짜의 KST 00:00:00**
- * (`kstMidnightIso`)으로 저장하고, 이 값을 "시각 모름" 표지로 읽는다(`isTimeKnown`). 화면은 표지인 stop의 시각을
- * 그리지 않는다 - 타임라인에 실제와 다른 시각이 보이지 않는다. 유저가 "00:00"을 직접 넣어도 같은 값이라 시각을
- * 그리지 않는다(숨길 뿐 거짓을 보이지 않는다).
- * 표지 값은 어떤 촬영 시각 이하이므로 규칙 4에서는 "그날의 처음부터 있던 stop"처럼 동작한다.
+ * ── arrived_at 규칙 (R30-2, MASTER 9-4 r68) ──────────────────────────────────
+ * `date_stops.arrived_at`은 NOT NULL이고 **늘 실제 시각만** 저장한다. "시각 모름" 표시 값(그 날짜 00:00)은 없다 -
+ * 표시 값을 두면 입력 조립·렌더가 그 뜻을 알아야 하고, 하나라도 모르면 지면에 "00:00"이 찍힌다.
+ * 시각을 정하는 규칙은 `planStops`(E11)와 `resolveStopArrival`(E15) 하나다: 장소 하나 = 입력 시각 또는 가장 이른 촬영 시각,
+ * 둘 이상 = 둘째부터 시각 필수 · 첫 장소는 비우면 가장 이른 촬영 시각, 사진도 시각도 없으면 시각 필수.
+ * 유저가 "00:00"을 직접 넣으면 그것은 실제 00:00이고 그대로 00:00으로 보인다.
  */
 
 const MS_PER_MINUTE = 60_000
@@ -103,11 +103,6 @@ export function defaultDateOn(capturedAts: readonly (string | null)[], now: Date
   return new Date(earliest + KST_OFFSET_MS).toISOString().slice(0, 10)
 }
 
-/** 그 날짜의 KST 00:00:00 - "도착 시각 모름" 표지(위 docblock). */
-export function kstMidnightIso(dateOn: string): string {
-  return `${dateOn}T00:00:00+09:00`
-}
-
 /** `HH:MM`(24시간) 형식 확인. */
 export function isValidClock(value: string): boolean {
   const m = /^(\d{2}):(\d{2})$/.exec(value.trim())
@@ -136,35 +131,95 @@ export interface PlannedStop {
   arrivedAt: string
 }
 
-/** stop의 도착 시각이 유저가 말한 시각인가(표지 값이 아닌가). */
-export function isTimeKnown(arrivedAt: string, dateOn: string): boolean {
-  const a = toEpochMs(arrivedAt)
-  const m = toEpochMs(kstMidnightIso(dateOn))
-  return a !== null && m !== null && a !== m
+/**
+ * 그 날짜(KST)에 찍힌 사진 중 가장 이른 촬영 시각(ISO). 없으면 null.
+ * 다른 날짜에 찍힌 사진의 시각은 쓰지 않는다 - stop이 그 데이트의 날짜 밖에 놓이지 않게 한다.
+ */
+export function earliestCaptureOn(capturedAts: readonly (string | null)[], dateOn: string): string | null {
+  let best: { t: number; iso: string } | null = null
+  for (const c of capturedAts) {
+    if (c === null) continue
+    const t = toEpochMs(c)
+    if (t === null || kstDateOf(c) !== dateOn) continue
+    if (best === null || t < best.t) best = { t, iso: c }
+  }
+  return best?.iso ?? null
 }
 
-/** E03 타임라인에 그릴 시각. 모르면 null(그리지 않는다). */
-export function stopTimeLabel(arrivedAt: string, dateOn: string): string | null {
-  return isTimeKnown(arrivedAt, dateOn) ? kstTimeOf(arrivedAt) : null
-}
+export type StopTimeError =
+  /** 시각을 어디서도 얻을 수 없다 - 유저가 넣어야 한다. */
+  | { kind: 'time_required'; index: number; first: boolean }
+  /** 넣은 시각이 `HH:MM`이 아니다. */
+  | { kind: 'invalid_clock'; index: number }
+
+export type StopTimeResult = { ok: true; arrivedAt: string } | { ok: false; error: StopTimeError }
 
 /**
- * 규칙 4 - 유저가 입력한 장소 하나가 stop 하나. 장소가 하나도 없으면 이름 없는 stop 하나.
- * 도착 시각 순으로 seq 0부터. 같은 시각(모름 포함)은 입력 순서를 지킨다.
+ * stop 하나의 도착 시각(R30-2) - 늘 실제 시각이다.
+ * - 시각을 넣었으면 그 시각(`HH:MM`이 아니면 `invalid_clock`).
+ * - 비웠으면: 첫 장소(`isFirst`)만 그 날짜의 가장 이른 촬영 시각으로 채운다. 둘째부터이거나 촬영 시각이 없으면 `time_required`.
  */
-export function buildStops(places: readonly PlaceInput[], dateOn: string): PlannedStop[] {
+export function resolveStopArrival(args: {
+  dateOn: string
+  clock: string | null | undefined
+  isFirst: boolean
+  photoCapturedAts: readonly (string | null)[]
+  /** 오류에 실을 장소 번호(0부터). */
+  index?: number
+}): StopTimeResult {
+  const index = args.index ?? 0
+  const clock = (args.clock ?? '').trim()
+  if (clock.length > 0) {
+    const iso = arrivalIso(args.dateOn, clock)
+    return iso === null ? { ok: false, error: { kind: 'invalid_clock', index } } : { ok: true, arrivedAt: iso }
+  }
+  const earliest = args.isFirst ? earliestCaptureOn(args.photoCapturedAts, args.dateOn) : null
+  return earliest === null
+    ? { ok: false, error: { kind: 'time_required', index, first: args.isFirst } }
+    : { ok: true, arrivedAt: earliest }
+}
+
+/** 오류를 유저에게 보일 문장으로. */
+export function stopTimeErrorMessage(error: StopTimeError): string {
+  if (error.kind === 'invalid_clock') return '도착 시각은 00:00부터 23:59 사이로 써 주세요'
+  return error.first
+    ? '사진에 촬영 시각이 없어요. 첫 장소의 도착 시각을 써 주세요'
+    : `장소 ${error.index + 1}의 도착 시각을 써 주세요`
+}
+
+export type StopPlan = { ok: true; stops: PlannedStop[] } | { ok: false; error: StopTimeError }
+
+/**
+ * 규칙 4·R30-2 - 유저가 입력한 장소 하나가 stop 하나. 도착 시각 순으로 seq 0부터. 같은 시각은 입력 순서를 지킨다.
+ * 장소가 하나도 없으면: 사진이 있을 때만 이름 없는 stop 하나(사진을 붙일 곳) - 시각은 가장 이른 촬영 시각이고
+ * 없으면 `time_required`. 사진도 없으면(메모만) stop을 만들지 않는다.
+ */
+export function planStops(
+  places: readonly PlaceInput[],
+  dateOn: string,
+  photoCapturedAts: readonly (string | null)[],
+): StopPlan {
   const named = places
     .map((p, inputIndex) => ({ name: p.name.trim(), clock: p.arrivalClock ?? null, inputIndex }))
     .filter((p) => p.name.length > 0)
+
   if (named.length === 0) {
-    return [{ seq: 0, placeName: null, arrivedAt: kstMidnightIso(dateOn) }]
+    if (photoCapturedAts.length === 0) return { ok: true, stops: [] }
+    const t = resolveStopArrival({ dateOn, clock: null, isFirst: true, photoCapturedAts, index: 0 })
+    if (!t.ok) return t
+    return { ok: true, stops: [{ seq: 0, placeName: null, arrivedAt: t.arrivedAt }] }
   }
-  const withTime = named.map((p) => ({
-    placeName: p.name,
-    arrivedAt: arrivalIso(dateOn, p.clock) ?? kstMidnightIso(dateOn),
-    inputIndex: p.inputIndex,
-  }))
-  return sequenceStops(withTime).map(({ placeName, arrivedAt }, seq) => ({ seq, placeName, arrivedAt }))
+
+  const withTime: { placeName: string; arrivedAt: string; inputIndex: number }[] = []
+  for (let i = 0; i < named.length; i += 1) {
+    const t = resolveStopArrival({ dateOn, clock: named[i].clock, isFirst: i === 0, photoCapturedAts, index: i })
+    if (!t.ok) return t
+    withTime.push({ placeName: named[i].name, arrivedAt: t.arrivedAt, inputIndex: named[i].inputIndex })
+  }
+  return {
+    ok: true,
+    stops: sequenceStops(withTime).map(({ placeName, arrivedAt }, seq) => ({ seq, placeName, arrivedAt })),
+  }
 }
 
 /** 도착 시각 -> 입력(또는 기존) 순서로 안정 정렬. */

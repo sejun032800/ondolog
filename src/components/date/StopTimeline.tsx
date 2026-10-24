@@ -1,26 +1,40 @@
 /**
  * E03 stop별 타임라인 - 시각 · 점과 선 · 장소 · 사진 · (메모는 데이트 단위라 화면 위쪽 블록에 있다).
  *
- * - 시각은 유저가 말한 도착 시각일 때만 그린다. "모름" 표지 값(그 날짜 00:00)이면 그리지 않는다 -
- *   실제와 다른 시각이 보이지 않는다(`stopTimeLabel`).
+ * - 시각은 저장된 도착 시각을 그대로 그린다(KST `HH:MM`). stop 시각은 늘 실제 시각이라 가리는 값이 없다(R30-2) -
+ *   실제 00:00이면 00:00으로 보인다.
+ * - 내가 올린 사진에만 "지우기"가 보인다(`viewerId`). 상대의 사진에는 없다(R30-1).
  * - 장소 이름이 없으면 이름을 더하라는 글을 보인다(앱이 이름을 지어내지 않는다).
  * - 사진 배치는 호출부가 규칙 4(`assignStop`)로 계산해 넘긴다.
  */
 import { Image, StyleSheet, Text, View } from 'react-native'
 import type { DetailStop } from '../../hooks/useDateDetail'
-import { stopTimeLabel } from '../../utils/dateRecord'
+import { canDeleteEntry } from '../../services/dateRecordApi'
+import { kstTimeOf } from '../../utils/dateRecord'
 import { PressScale } from '../nocturne/PressScale'
 import { fontFamily, nocturne, type, withAlpha } from '../../theme/nocturne'
 
 export interface StopTimelineProps {
-  dateOn: string
   stops: readonly DetailStop[]
   /** 사진 경로 -> 서명 URL */
   urls: Record<string, string>
   onEditStop: (stopId: string) => void
+  /** 지금 보는 사람. 이 사람이 올린 사진에만 지우기가 보인다. */
+  viewerId: string | null
+  onDeletePhoto: (entryId: string) => void
 }
 
-function StopPhotos({ photos, urls }: { photos: DetailStop['photos']; urls: Record<string, string> }) {
+function StopPhotos({
+  photos,
+  urls,
+  viewerId,
+  onDeletePhoto,
+}: {
+  photos: DetailStop['photos']
+  urls: Record<string, string>
+  viewerId: string | null
+  onDeletePhoto: (entryId: string) => void
+}) {
   if (photos.length === 0) return null
   const single = photos.length === 1
   return (
@@ -32,6 +46,17 @@ function StopPhotos({ photos, urls }: { photos: DetailStop['photos']; urls: Reco
             {uri ? (
               <Image source={{ uri }} resizeMode="cover" style={StyleSheet.absoluteFill} accessibilityLabel="사진" />
             ) : null}
+            {canDeleteEntry(p, viewerId) ? (
+              <PressScale
+                onPress={() => onDeletePhoto(p.id)}
+                accessibilityLabel="내 사진 지우기"
+                testID={`delete-photo-${p.id}`}
+                hitSlop={8}
+                style={styles.deleteChip}
+              >
+                <Text style={styles.deleteLabel}>지우기</Text>
+              </PressScale>
+            ) : null}
           </View>
         )
       })}
@@ -39,11 +64,11 @@ function StopPhotos({ photos, urls }: { photos: DetailStop['photos']; urls: Reco
   )
 }
 
-export function StopTimeline({ dateOn, stops, urls, onEditStop }: StopTimelineProps) {
+export function StopTimeline({ stops, urls, onEditStop, viewerId, onDeletePhoto }: StopTimelineProps) {
   return (
     <View testID="stop-timeline">
       {stops.map((stop) => {
-        const time = stopTimeLabel(stop.arrived_at, dateOn)
+        const time = kstTimeOf(stop.arrived_at)
         return (
           <View key={stop.id} style={styles.row} testID={`stop-${stop.seq}`}>
             <Text style={styles.time}>{time ?? ''}</Text>
@@ -64,7 +89,7 @@ export function StopTimeline({ dateOn, stops, urls, onEditStop }: StopTimelinePr
                 )}
                 <Text style={styles.edit}>{'고치기'}</Text>
               </PressScale>
-              <StopPhotos photos={stop.photos} urls={urls} />
+              <StopPhotos photos={stop.photos} urls={urls} viewerId={viewerId} onDeletePhoto={onDeletePhoto} />
             </View>
           </View>
         )
@@ -88,4 +113,16 @@ const styles = StyleSheet.create({
   photoCell: { borderRadius: 16, overflow: 'hidden', backgroundColor: nocturne.inkRaise2 },
   photoPair: { width: '48%', flexGrow: 1, height: 112 },
   photoSingle: { width: '100%', height: 150 },
+  deleteChip: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: withAlpha(nocturne.ink, 0.6),
+  },
+  deleteLabel: { ...type.caption, color: nocturne.text },
 })

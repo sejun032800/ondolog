@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   graphql_public: {
     Tables: {
@@ -1388,6 +1388,7 @@ export type Database = {
         Returns: undefined
       }
       expire_stories: { Args: never; Returns: number }
+      fn_delete_own_entry: { Args: { p_entry_id: string }; Returns: boolean }
       fn_issue_progress: {
         Args: never
         Returns: {

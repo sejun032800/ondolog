@@ -6,6 +6,8 @@
  * - 사진은 시스템 선택 화면(`expo-image-picker`)에서 고른다. 라이브러리 스캔·얼굴 인식은 없다(R13-2).
  * - 날짜 기본값은 사진 중 가장 이른 촬영 시각의 날짜(KST), 없으면 오늘. 유저가 바꾸면 더는 덮어쓰지 않는다(규칙 2).
  * - 시간 칸은 사진 촬영 시각의 폭을 보여 줄 뿐이다. 장소별 도착 시각은 장소 칸에서(또는 E15에서) 넣는다.
+ * - stop 도착 시각은 늘 실제 시각이다(R30-2): 첫 장소는 비우면 가장 이른 촬영 시각, 둘째부터는 필수, 사진도 시각도 없으면 필수.
+ *   정할 수 없으면 이유를 글로 적고 기록 버튼을 비활성으로 둔다(`planStops`).
  * - 메모는 데이트 단위다. 기록할 커플 행이 없으면(규칙 6) 기록 버튼은 비활성이고 이유를 글로 적는다.
  */
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -40,8 +42,11 @@ import {
   formatClockInput,
   formatDateDotted,
   formatDateInput,
-  isValidClock,
+  earliestCaptureOn,
   isValidDateOn,
+  kstTimeOf,
+  planStops,
+  stopTimeErrorMessage,
   timeRangeLabel,
   todayKst,
   type PickedPhoto,
@@ -131,9 +136,15 @@ export default function UploadSheet() {
   const updatePlace = (index: number, patch: Partial<PlaceInput>) =>
     setPlaces((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)))
 
-  const placesInvalid = places.some((p) => p.name.trim().length > 0 && (p.arrivalClock ?? '').length > 0 && !isValidClock(p.arrivalClock ?? ''))
+  const capturedAts = useMemo(() => photos.map((p) => p.capturedAt), [photos])
+  const stopPlan = useMemo(() => (addMode ? null : planStops(places, dateOn, capturedAts)), [addMode, places, dateOn, capturedAts])
+  const stopError = stopPlan !== null && !stopPlan.ok ? stopTimeErrorMessage(stopPlan.error) : null
+  const earliestClock = (() => {
+    const iso = earliestCaptureOn(capturedAts, dateOn)
+    return iso ? kstTimeOf(iso) : null
+  })()
   const hasContent = photos.length > 0 || (!addMode && memo.trim().length > 0)
-  const canSave = hasContent && coupleId !== null && userId !== null && isValidDateOn(dateOn) && !placesInvalid && !saving
+  const canSave = hasContent && coupleId !== null && userId !== null && isValidDateOn(dateOn) && stopError === null && !saving
 
   const save = async () => {
     if (!canSave || !coupleId || !userId) return
@@ -279,7 +290,7 @@ export default function UploadSheet() {
                   <TextInput
                     value={p.arrivalClock ?? ''}
                     onChangeText={(v) => updatePlace(i, { arrivalClock: formatClockInput(v) })}
-                    placeholder="14:20"
+                    placeholder={i === 0 ? (earliestClock ?? '14:20') : '14:20'}
                     placeholderTextColor={nocturne.textMute}
                     keyboardType="number-pad"
                     maxLength={5}
@@ -296,7 +307,7 @@ export default function UploadSheet() {
                 </View>
               ))}
               <Text style={styles.caption}>
-                도착 시각을 비워 두면 시각을 보이지 않아요. 사진은 촬영 시각에 가장 가까운 앞선 장소에 붙어요
+                첫 장소는 도착 시각을 비우면 사진의 가장 이른 촬영 시각이 돼요. 둘째 장소부터는 도착 시각이 필요해요. 사진은 촬영 시각에 가장 가까운 앞선 장소에 붙어요
               </Text>
               <GhostButton label="장소 더하기" onPress={() => setPlaces((prev) => [...prev, { name: '', arrivalClock: '' }])} />
             </View>
@@ -322,6 +333,9 @@ export default function UploadSheet() {
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 16 }]}>
           {noCouple ? <Text style={styles.caption} testID="no-couple-note">초대 코드를 만들면 기록할 수 있어요</Text> : null}
+          {hasContent && stopError !== null ? (
+            <Text style={styles.caption} testID="stop-time-error">{stopError}</Text>
+          ) : null}
           <PrimaryButton
             label={saving ? '남기는 중이에요' : addMode ? '사진 더하기' : '기록 남기기'}
             onPress={save}

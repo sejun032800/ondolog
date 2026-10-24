@@ -5,6 +5,7 @@
  * `place_provider_id` · `lat` · `lng`는 건드리지 않는다.
  * 디자인의 E15에는 장소별 메모 칸이 없다 - 그래서 stop에 붙는 메모도 만들지 않았다(메모는 데이트 단위, 규칙 5).
  * 도착 시각을 고치면 stop 순서와 내 사진의 배치가 규칙 4로 다시 맞춰진다.
+ * 도착 시각은 늘 실제 시각이다(R30-2): 첫 장소는 비우면 그 데이트 사진의 가장 이른 촬영 시각, 둘째부터는 필수, 정할 수 없으면 저장할 수 없다.
  */
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
@@ -14,9 +15,9 @@ import { PrimaryButton } from '../../../../../src/components/nocturne/Buttons'
 import { PushHeader } from '../../../../../src/components/nocturne/ExitHeader'
 import { ScreenFrame } from '../../../../../src/components/nocturne/ScreenFrame'
 import { useSession } from '../../../../../src/hooks/useSession'
-import { fetchDate, fetchStopsOfDate, updateStop } from '../../../../../src/services/dateRecordApi'
+import { fetchDate, fetchEntriesOfDates, fetchStopsOfDate, updateStop } from '../../../../../src/services/dateRecordApi'
 import { supabase } from '../../../../../src/services/supabase'
-import { formatClockInput, isValidClock, stopTimeLabel } from '../../../../../src/utils/dateRecord'
+import { formatClockInput, kstTimeOf, resolveStopArrival, stopTimeErrorMessage } from '../../../../../src/utils/dateRecord'
 import { nocturne, shape, type, withAlpha } from '../../../../../src/theme/nocturne'
 
 function first(value: string | string[] | undefined): string {
@@ -34,6 +35,8 @@ export default function StopEditScreen() {
   const [dateOn, setDateOn] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [clock, setClock] = useState('')
+  const [isFirst, setIsFirst] = useState(false)
+  const [photoTimes, setPhotoTimes] = useState<(string | null)[]>([])
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -41,12 +44,18 @@ export default function StopEditScreen() {
     let alive = true
     ;(async () => {
       try {
-        const [date, stops] = await Promise.all([fetchDate(supabase, dateId), fetchStopsOfDate(supabase, dateId)])
+        const [date, stops, entries] = await Promise.all([
+          fetchDate(supabase, dateId),
+          fetchStopsOfDate(supabase, dateId),
+          fetchEntriesOfDates(supabase, [dateId]),
+        ])
         const stop = stops.find((s) => s.id === stopId)
         if (!alive || !date || !stop) return
         setDateOn(date.date_on)
         setName(stop.place_name ?? '')
-        setClock(stopTimeLabel(stop.arrived_at, date.date_on) ?? '')
+        setClock(kstTimeOf(stop.arrived_at) ?? '')
+        setIsFirst(stop.seq === 0)
+        setPhotoTimes(entries.filter((e) => e.entry_type === 'photo').map((e) => e.captured_at))
         setLoaded(true)
       } catch {
         // 불러오지 못하면 저장 버튼이 꺼진 채로 남는다.
@@ -57,8 +66,11 @@ export default function StopEditScreen() {
     }
   }, [dateId, stopId])
 
-  const clockOk = clock.length === 0 || isValidClock(clock)
-  const canSave = loaded && clockOk && !saving && session !== null
+  const timeCheck = dateOn
+    ? resolveStopArrival({ dateOn, clock, isFirst, photoCapturedAts: photoTimes })
+    : null
+  const timeError = timeCheck !== null && !timeCheck.ok ? stopTimeErrorMessage(timeCheck.error) : null
+  const canSave = loaded && timeError === null && !saving && session !== null
 
   const save = async () => {
     if (!canSave || !dateOn || !session) return
@@ -117,9 +129,10 @@ export default function StopEditScreen() {
               testID="stop-clock-input"
             />
             <Text style={styles.caption}>
-              {clockOk
-                ? '비워 두면 시각을 보이지 않아요. 시각을 바꾸면 사진이 촬영 시각에 맞춰 다시 자리를 찾아요'
-                : '시각은 00:00부터 23:59 사이로 써 주세요'}
+              {timeError ??
+                (isFirst
+                  ? '비워 두면 사진의 가장 이른 촬영 시각이 돼요. 시각을 바꾸면 사진이 촬영 시각에 맞춰 다시 자리를 찾아요'
+                  : '시각을 바꾸면 사진이 촬영 시각에 맞춰 다시 자리를 찾아요')}
             </Text>
           </View>
         </View>

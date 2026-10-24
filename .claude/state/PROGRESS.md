@@ -1,5 +1,11 @@
 # 진행 상황
 
+2026-10-24 (ui-builder, `57-` C): 본인 기록 삭제 UI + stop 시각 규칙 + "메모 N" - E03에서 내 사진·메모에만 "지우기"(I05 확인 `ConfirmDialog`, "이미 발행된 호에서는 지워지지 않아요"), `deleteOwnEntry`는 `fn_delete_own_entry` RPC만 호출. stop 도착 시각은 늘 실제 시각(`planStops`·`resolveStopArrival`, KST 00:00 표시 값 코드 `kstMidnightIso`·`isTimeKnown`·`stopTimeLabel`·`buildStops` 삭제), 피드 머리 "메모 N · 사진 N · 데이트 N". 원격 개발 DB 실증(`scripts/ops/verifyU2Delete.ts`) 실패 0건, 00:00 stop 0건(없음). 게이트 0 / 0 / 1209 · 59(기준 1188 · 59), 새 의존성·마이그레이션 없음. 미커밋
+
+2026-10-24 (corner-pipeline, `57-` B): 지운 항목(`data_entries.deleted_at`)을 생성·발행 경로에서 뺌 - 입력 조립(`inputAssembly.ts` 330·336행)과 발행 전 원본 재확인(`supabaseOps.ts` `entrySourcePaths`)이 이미 `deleted_at is null`을 걸고 있어 **코드 무변경**, 시험 3건 추가(입력 조립 1·발행 재확인 2) + 원격 실증 스크립트 `scripts/ops/verifyDeletedEntryGuard.ts`(작성자 세션으로 `fn_delete_own_entry` RPC -> 발행 거부·코너 `pending`+`source_media_missing`·렌더 세 필드 빈 값, 출력 `scripts/ops/out/57-b-deleted-entry-guard.txt`). 발행된 호 지문 전후 같음. 게이트 0 / 0 / 1188 · 59(기준 1185 · 59), Python 122, deno check 통과. 실제 LLM 호출 0회. 미커밋
+
+2026-10-24 (메인 세션, `57-` 2부 §5~§7): 023 원격 적용 확인(`fn_delete_own_entry(p_entry_id uuid)` 있음, migration list 023). 실증 `verifyDeleteOwnEntry.ts` 실패 0건(①~⑧, 출력 `scripts/ops/out/57-delete-own-entry.txt`), 파생 칸을 `deriveDateFields`로 다시 계산한 값과 대조 ①·④·⑦·⑧ 일치. 권한 쿼리 8항목 OK. 타입 재생성: `PostgrestVersion "14.5"` -> `"14.15"` 1회 허용(사람) 후 `database.ts`에 씀(+`fn_delete_own_entry`). `deno.lock` 삭제, 이후 Deno는 `--no-lock`. B·C 위임·검증 완료(메인 세션 재실행 게이트 0 / 0 / 1209 · 59, Python 122). 미커밋
+
 2026-10-24 (db-architect, `57-` A): 023 본인 기록 삭제 RPC - `supabase/migrations/023_delete_own_entry.sql`(`fn_delete_own_entry`, security definer, 작성자=호출자·같은 커플 확인, 멱등, 파생 칸 재계산, authenticated만), 확인 스크립트 `scripts/db/check_023_preapply.sql`·`verify_023_privileges_and_settings.sql`·`scripts/ops/verifyDeleteOwnEntry.ts`. **작성만, 원격 미적용·미실행.** 상세·SCHEMA 명세 초안은 HANDOFF "본인 기록 삭제 RPC (`57-` A)". 미커밋
 
 2026-10-24 (ui-builder, `56`): U2 피드·업로드 - E01 피드·E13 혼자 기록·E03 상세·E11/E10 기록 쓰기·E15 장소 고치기, 항목 0(그레인 128pt `ScreenFrame`·`textFaint` 비활성·`lilacText`), 쓰기 규칙 `dateRecord.ts`·`dateRecordApi.ts`. 원격 개발 DB 실증: A 사진 5·장소 2·메모 기록 -> B(사용자 세션)가 같은 기록 조회. **막힘: 본인 기록 삭제(RLS가 소프트 삭제 거부, DELETE 정책 없음), 규칙 6(커플 행은 초대 코드 발급 때만 생김 - 없으면 기록 버튼 비활성)** - 둘 다 PM 결정, HANDOFF. 게이트 0 / 0 / 1185 · 59 (기준 1098 · 55), Python 122. 새 의존성·마이그레이션 없음. 미커밋

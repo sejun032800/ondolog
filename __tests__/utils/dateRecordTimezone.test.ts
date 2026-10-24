@@ -36,11 +36,12 @@ const PROBE = `
     '2026-10-02T16:30:00Z', '2026-10-03T00:00:00+09:00', '2026-10-03T14:20:00+09:00',
     '2026-10-03T16:40:00+09:00', '2026-10-03T20:05:00+09:00', null,
   ];
-  const stops = m.buildStops([
+  const plan = m.planStops([
+    { name: '집 앞' },
     { name: '홍대 CGV', arrivalClock: '14:20' },
     { name: '연남동 디저트 카페', arrivalClock: '16:40' },
-    { name: '집 앞' },
-  ], '2026-10-03');
+  ], '2026-10-03', shots);
+  const stops = plan.stops;
   const out = {
     exif: m.parseExifDateTime('2026:10:03 14:20:11'),
     defaults: [
@@ -52,7 +53,7 @@ const PROBE = `
     ],
     stops: stops,
     assigned: shots.map((s) => { const a = m.assignStop(s, stops); return a ? a.seq : null }),
-    labels: stops.map((s) => m.stopTimeLabel(s.arrivedAt, '2026-10-03')),
+    labels: stops.map((s) => m.kstTimeOf(s.arrivedAt)),
     derived: m.deriveDateFields(shots, 2, '2026-10-03'),
     range: m.timeRangeLabel(shots, '2026-10-03'),
     words: [m.formatDateWords('2026-10-03'), m.formatDateDotted('2026-10-03'), m.kstDateOf(shots[0]), m.kstTimeOf(shots[0])],
@@ -102,7 +103,7 @@ describe('데이트 기록 규칙 - 실행 환경의 시간대에 기대지 않�
     // stop 순서: 집 앞(시각 모름, 00:00) -> 홍대 CGV 14:20 -> 카페 16:40
     // 촬영: 10-03 01:30 / 00:00 / 14:20 / 16:40 / 20:05 / 시각 없음
     expect(result.assigned).toEqual([0, 0, 1, 2, 2, 0])
-    expect(result.labels).toEqual([null, '14:20', '16:40'])
+    expect(result.labels).toEqual(['00:00', '14:20', '16:40'])
     expect(result.range).toBe('00:00–20:05')
   })
 })

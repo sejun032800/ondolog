@@ -1,13 +1,12 @@
 /**
  * 데이트 기록 순수 규칙 (U2, `56-`) - 규칙 2(날짜 기본값) · 규칙 4(사진 -> stop 배치, 결정론) · 규칙 7(파생 칸)과
- * "규칙에 없는 칸"(arrived_at 표지) 처리, 제목이 비었을 때의 머리.
+ * stop 도착 시각 규칙(R30-2 - 늘 실제 시각), 제목이 비었을 때의 머리.
  */
 import {
   assignStop,
   arrivalIso,
   buildCardTexts,
   buildDateHead,
-  buildStops,
   defaultDateOn,
   deriveDateFields,
   entryStoragePath,
@@ -18,18 +17,25 @@ import {
   formatDateInput,
   formatDateWords,
   groupByMonth,
-  isTimeKnown,
   isValidDateOn,
   kstDateOf,
-  kstMidnightIso,
   kstTimeOf,
   parseExifDateTime,
   photoFromPickerAsset,
   sequenceStops,
-  stopTimeLabel,
+  earliestCaptureOn,
+  planStops,
+  resolveStopArrival,
+  stopTimeErrorMessage,
+  type StopPlan,
   timeRangeLabel,
   todayKst,
 } from '../../src/utils/dateRecord'
+
+function okStops(plan: StopPlan) {
+  if (!plan.ok) throw new Error(`계획 실패: ${JSON.stringify(plan.error)}`)
+  return plan.stops
+}
 
 describe('규칙 2 - 날짜 기본값', () => {
   it('EXIF 촬영 시각(시간대 없음)은 KST로 읽는다', () => {
@@ -80,12 +86,15 @@ describe('규칙 2 - 날짜 기본값', () => {
 
 describe('규칙 4 - 사진을 촬영 시각으로 stop에 붙인다', () => {
   const dateOn = '2026-10-03'
-  const stops = buildStops(
-    [
-      { name: '홍대 CGV', arrivalClock: '14:20' },
-      { name: '연남동 디저트 카페', arrivalClock: '16:40' },
-    ],
-    dateOn,
+  const stops = okStops(
+    planStops(
+      [
+        { name: '홍대 CGV', arrivalClock: '14:20' },
+        { name: '연남동 디저트 카페', arrivalClock: '16:40' },
+      ],
+      dateOn,
+      [],
+    ),
   ).map((s) => ({ ...s }))
 
   it('유저가 입력한 장소 하나가 stop 하나이고 seq는 0부터, 도착 시각 순이다', () => {
@@ -96,12 +105,15 @@ describe('규칙 4 - 사진을 촬영 시각으로 stop에 붙인다', () => {
   })
 
   it('입력 순서와 시각 순서가 달라도 시각 순으로 번호를 매긴다', () => {
-    const reversed = buildStops(
-      [
-        { name: '카페', arrivalClock: '16:40' },
-        { name: '영화관', arrivalClock: '14:20' },
-      ],
-      dateOn,
+    const reversed = okStops(
+      planStops(
+        [
+          { name: '카페', arrivalClock: '16:40' },
+          { name: '영화관', arrivalClock: '14:20' },
+        ],
+        dateOn,
+        [],
+      ),
     )
     expect(reversed.map((s) => s.placeName)).toEqual(['영화관', '카페'])
     expect(reversed.map((s) => s.seq)).toEqual([0, 1])
@@ -134,13 +146,6 @@ describe('규칙 4 - 사진을 촬영 시각으로 stop에 붙인다', () => {
     }
   })
 
-  it('장소를 하나도 안 넣으면 이름 없는 stop 하나다', () => {
-    expect(buildStops([], dateOn)).toEqual([{ seq: 0, placeName: null, arrivedAt: kstMidnightIso(dateOn) }])
-    expect(buildStops([{ name: '   ', arrivalClock: '14:20' }], dateOn)).toEqual([
-      { seq: 0, placeName: null, arrivedAt: kstMidnightIso(dateOn) },
-    ])
-  })
-
   it('도착 시각을 바꾸면 배치가 바뀐다(E15)', () => {
     const edited = stops.map((s) => (s.seq === 1 ? { ...s, arrivedAt: arrivalIso(dateOn, '14:00') as string } : s))
     expect(assignStop('2026-10-03T14:10:00+09:00', stops)?.seq).toBe(0)
@@ -156,45 +161,102 @@ describe('규칙 4 - 사진을 촬영 시각으로 stop에 붙인다', () => {
   })
 })
 
-describe('규칙에 없는 칸 - arrived_at 표지', () => {
+describe('R30-2 - stop 도착 시각은 늘 실제 시각이다', () => {
   const dateOn = '2026-10-03'
+  const shots = ['2026-10-03T15:30:10+09:00', '2026-10-03T14:05:40+09:00', null]
 
-  it('시각을 넣지 않은 stop은 그 날짜 KST 00:00으로 저장하고 시각을 그리지 않는다', () => {
-    const [stop] = buildStops([{ name: '홍대 CGV' }], dateOn)
-    expect(stop.arrivedAt).toBe('2026-10-03T00:00:00+09:00')
-    expect(isTimeKnown(stop.arrivedAt, dateOn)).toBe(false)
-    expect(stopTimeLabel(stop.arrivedAt, dateOn)).toBeNull()
+  it('장소 1 · 시각 없음 · 사진 있음 -> 가장 이른 촬영 시각으로 저장한다', () => {
+    const stops = okStops(planStops([{ name: '홍대 CGV' }], dateOn, shots))
+    expect(stops).toEqual([{ seq: 0, placeName: '홍대 CGV', arrivedAt: '2026-10-03T14:05:40+09:00' }])
+    expect(kstTimeOf(stops[0].arrivedAt)).toBe('14:05')
   })
 
-  it('유저가 말한 시각은 그대로 그린다', () => {
-    const [stop] = buildStops([{ name: '홍대 CGV', arrivalClock: '14:20' }], dateOn)
-    expect(isTimeKnown(stop.arrivedAt, dateOn)).toBe(true)
-    expect(stopTimeLabel(stop.arrivedAt, dateOn)).toBe('14:20')
+  it('장소 1 · 시각 있음 -> 입력한 시각(사진이 있어도 입력이 이긴다)', () => {
+    const stops = okStops(planStops([{ name: '홍대 CGV', arrivalClock: '14:20' }], dateOn, shots))
+    expect(stops[0].arrivedAt).toBe('2026-10-03T14:20:00+09:00')
   })
 
-  it('형식이 틀린 시각은 모름으로 둔다(실제와 다른 시각을 만들지 않는다)', () => {
-    const [a] = buildStops([{ name: 'A', arrivalClock: '25:99' }], dateOn)
-    const [b] = buildStops([{ name: 'B', arrivalClock: '14' }], dateOn)
-    expect(a.arrivedAt).toBe(kstMidnightIso(dateOn))
-    expect(b.arrivedAt).toBe(kstMidnightIso(dateOn))
+  it('장소 2 · 둘째 시각 없음 -> 저장할 수 없다(둘째 장소를 가리킨다)', () => {
+    const plan = planStops([{ name: 'A', arrivalClock: '10:00' }, { name: 'B' }], dateOn, shots)
+    expect(plan).toEqual({ ok: false, error: { kind: 'time_required', index: 1, first: false } })
+    if (plan.ok) throw new Error('unreachable')
+    expect(stopTimeErrorMessage(plan.error)).toBe('장소 2의 도착 시각을 써 주세요')
+  })
+
+  it('장소 2 · 첫 장소 시각 없음 · 사진 있음 -> 첫 장소는 가장 이른 촬영 시각', () => {
+    const stops = okStops(planStops([{ name: 'A' }, { name: 'B', arrivalClock: '16:40' }], dateOn, shots))
+    expect(stops.map((s) => [s.seq, s.placeName, kstTimeOf(s.arrivedAt)])).toEqual([
+      [0, 'A', '14:05'],
+      [1, 'B', '16:40'],
+    ])
+  })
+
+  it('사진도 시각도 없으면 저장할 수 없다', () => {
+    expect(planStops([{ name: 'A' }], dateOn, [])).toEqual({
+      ok: false,
+      error: { kind: 'time_required', index: 0, first: true },
+    })
+    expect(planStops([{ name: 'A' }], dateOn, [null, null]).ok).toBe(false)
+  })
+
+  it('다른 날짜에 찍힌 사진의 시각은 쓰지 않는다', () => {
+    const other = ['2026-10-02T23:00:00+09:00']
+    expect(earliestCaptureOn(other, dateOn)).toBeNull()
+    expect(planStops([{ name: 'A' }], dateOn, other).ok).toBe(false)
+  })
+
+  it('실제 00:00을 입력하면 00:00으로 저장하고 00:00으로 보인다(값을 가리지 않는다)', () => {
+    const stops = okStops(planStops([{ name: '자정 산책', arrivalClock: '00:00' }], dateOn, []))
+    expect(stops[0].arrivedAt).toBe('2026-10-03T00:00:00+09:00')
+    expect(kstTimeOf(stops[0].arrivedAt)).toBe('00:00')
+  })
+
+  it('형식이 틀린 시각은 저장하지 않는다(다른 값으로 바꾸지 않는다)', () => {
+    expect(planStops([{ name: 'A', arrivalClock: '25:99' }], dateOn, shots)).toEqual({
+      ok: false,
+      error: { kind: 'invalid_clock', index: 0 },
+    })
+    expect(planStops([{ name: 'B', arrivalClock: '14' }], dateOn, shots).ok).toBe(false)
     expect(arrivalIso(dateOn, '14:20')).toBe('2026-10-03T14:20:00+09:00')
     expect(arrivalIso(dateOn, '')).toBeNull()
   })
 
-  it('시각 모름 stop은 그날의 처음부터 있던 것처럼 배치된다', () => {
-    const stops = buildStops([{ name: '집 앞' }, { name: '카페', arrivalClock: '16:40' }], dateOn)
-    expect(stops.map((s) => s.placeName)).toEqual(['집 앞', '카페'])
-    expect(assignStop('2026-10-03T10:00:00+09:00', stops)?.placeName).toBe('집 앞')
-    expect(assignStop('2026-10-03T17:00:00+09:00', stops)?.placeName).toBe('카페')
+  it('장소가 없으면: 사진이 있을 때만 이름 없는 stop 하나(가장 이른 촬영 시각), 사진도 없으면 stop이 없다', () => {
+    expect(okStops(planStops([], dateOn, shots))).toEqual([
+      { seq: 0, placeName: null, arrivedAt: '2026-10-03T14:05:40+09:00' },
+    ])
+    expect(okStops(planStops([{ name: '   ', arrivalClock: '14:20' }], dateOn, shots))).toHaveLength(1)
+    expect(okStops(planStops([], dateOn, []))).toEqual([])
+    expect(planStops([], dateOn, [null]).ok).toBe(false)
   })
 
-  it('시각이 같으면(모름 여럿) 입력 순서를 지킨다', () => {
-    const stops = buildStops([{ name: 'A' }, { name: 'B' }, { name: 'C' }], dateOn)
-    expect(stops.map((s) => s.placeName)).toEqual(['A', 'B', 'C'])
+  it('E15 - 첫 stop만 비울 수 있고, 둘째부터는 필수다', () => {
+    const first = resolveStopArrival({ dateOn, clock: '', isFirst: true, photoCapturedAts: shots })
+    expect(first).toEqual({ ok: true, arrivedAt: '2026-10-03T14:05:40+09:00' })
+    expect(resolveStopArrival({ dateOn, clock: '', isFirst: false, photoCapturedAts: shots }).ok).toBe(false)
+    expect(resolveStopArrival({ dateOn, clock: '', isFirst: true, photoCapturedAts: [] }).ok).toBe(false)
+    expect(resolveStopArrival({ dateOn, clock: '17:00', isFirst: false, photoCapturedAts: [] })).toEqual({
+      ok: true,
+      arrivedAt: '2026-10-03T17:00:00+09:00',
+    })
+  })
+
+  it('같은 시각이면 입력 순서를 지킨다', () => {
+    const stops = okStops(
+      planStops(
+        [
+          { name: 'A', arrivalClock: '10:00' },
+          { name: 'B', arrivalClock: '10:00' },
+        ],
+        dateOn,
+        [],
+      ),
+    )
+    expect(stops.map((s) => s.placeName)).toEqual(['A', 'B'])
     expect(
       sequenceStops([
-        { arrivedAt: '2026-10-03T00:00:00+09:00', inputIndex: 1, id: 'b' },
-        { arrivedAt: '2026-10-03T00:00:00+09:00', inputIndex: 0, id: 'a' },
+        { arrivedAt: '2026-10-03T10:00:00+09:00', inputIndex: 1, id: 'b' },
+        { arrivedAt: '2026-10-03T10:00:00+09:00', inputIndex: 0, id: 'a' },
       ]).map((s) => s.id),
     ).toEqual(['a', 'b'])
   })

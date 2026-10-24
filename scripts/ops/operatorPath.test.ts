@@ -397,6 +397,47 @@ describe('발행 가드 (55-1, R23-3) - 렌더되지 않은 호는 발행하지 
     expect(store.issues[0]).toMatchObject({ pdf_digital_path: null, page_count: null, cover_path: null }) // 렌더 필드 빈 값
   })
 
+  it('② (57-) 작성자가 지운 항목: 저장소 원본 파일·목적지 사본이 그대로 있어도 같게 처리한다', async () => {
+    const { store, media, tables } = datasetWorld()
+    const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    store.markRendered(issueId)
+
+    const photoPath = store.corners.flatMap((c) => mediaPathsOf(c.corner_type, c.content))[0]
+    const entryId = parseMagazineMediaPath(photoPath)?.entryId as string
+    const entry = tables.data_entries.find((e) => e.id === entryId) as Record<string, unknown>
+    // fn_delete_own_entry가 하는 일: deleted_at만 찬다. 파일은 남는다.
+    entry.deleted_at = '2026-10-24T00:00:00+09:00'
+    expect(media.objects.has(`${ENTRIES_BUCKET}/${entry.storage_path}`)).toBe(true)
+    expect(media.objects.has(`${MAGAZINE_BUCKET}/${photoPath}`)).toBe(true)
+
+    await expect(publishIssue({ store, media }, issueId)).rejects.toThrow(/다시 준비 중/)
+    expect(store.publishCalls).toBe(0)
+    expect(store.issues[0].published_at).toBeNull()
+    const reset = store.corners.filter((c) => c.status === 'pending')
+    expect(reset.length).toBeGreaterThan(0)
+    expect(reset.every((c) => c.last_error === 'source_media_missing')).toBe(true) // 실패 사유 4값은 늘리지 않는다
+    expect(store.issues[0]).toMatchObject({ pdf_digital_path: null, page_count: null, cover_path: null })
+    // 파일은 지우지 않는다
+    expect(media.objects.has(`${ENTRIES_BUCKET}/${entry.storage_path}`)).toBe(true)
+    expect(media.objects.has(`${MAGAZINE_BUCKET}/${photoPath}`)).toBe(true)
+  })
+
+  it('② (57-) 이미 발행된 호의 content는 바꾸지 않는다 - 발행된 호는 함수 앞에서 거부되고 코너는 그대로다', async () => {
+    const { store, media, tables } = datasetWorld()
+    const { issueId } = await generateSampleIssue({ store, media }, PARAMS)
+    store.markRendered(issueId)
+    await publishIssue({ store, media }, issueId)
+    store.issues[0] = { ...store.issues[0], published_at: '2026-10-24T00:00:00Z' } // 발행된 상태
+    const before = JSON.stringify([store.corners, store.issues])
+
+    const photoPath = store.corners.flatMap((c) => mediaPathsOf(c.corner_type, c.content))[0]
+    const entryId = parseMagazineMediaPath(photoPath)?.entryId as string
+    ;(tables.data_entries.find((e) => e.id === entryId) as Record<string, unknown>).deleted_at = '2026-10-25T00:00:00+09:00'
+
+    await expect(publishIssue({ store, media }, issueId)).rejects.toThrow(/이미 발행/)
+    expect(JSON.stringify([store.corners, store.issues])).toBe(before)
+  })
+
   it('② 발행된 호의 렌더 필드는 비우지 않는다', async () => {
     const { store, media } = datasetWorld()
     const { issueId } = await generateSampleIssue({ store, media }, PARAMS)

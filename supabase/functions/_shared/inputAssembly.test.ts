@@ -180,6 +180,37 @@ describe('조회와 레코드 - 채팅·사진·데이트', () => {
     const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT, TEST_ISSUE_ID)
     expect(r.records).toEqual([])
   })
+
+  it('지운 항목(data_entries.deleted_at이 찬 것)은 사진·메모·그림 어느 자리에서도 입력에 들어가지 않는다 (57-)', async () => {
+    const gone = '2026-08-23T00:00:00+09:00'
+    const d = tables({
+      dates: [dateRow('d-1', AUG_DAY('19'))],
+      date_stops: [stopRow('s-1', 'd-1', 0, '2026-08-19T14:20:00+09:00')],
+      data_entries: [
+        entryRow('e-kept', { date_stop_id: 's-1', captured_at: '2026-08-19T14:25:00+09:00' }),
+        entryRow('e-gone-stop', { date_stop_id: 's-1', captured_at: '2026-08-19T14:26:00+09:00', deleted_at: gone }),
+        entryRow('e-gone-memo', { date_stop_id: 's-1', entry_type: 'memo', text_content: '지운 메모', storage_path: null, width: null, height: null, deleted_at: gone }),
+        entryRow('e-gone-draw', { date_id: 'd-1', entry_type: 'drawing', drawing_path: 'd/gone.png', storage_path: null, width: null, height: null, deleted_at: gone }),
+        entryRow('e-gone-standalone', { captured_at: '2026-08-10T10:00:00+09:00', deleted_at: gone }),
+      ],
+    })
+    const r = await assembleCornerInput(fakeClient(d), MONTHLY_CONTEXT, TEST_ISSUE_ID)
+    expect(r.photos.map((p) => p.id)).toEqual(['e-kept']) // 지운 독립 사진·정거장 사진은 레코드가 되지 않는다
+    const stop = r.dates[0].source.stops[0]
+    expect(stop.photos.map((p) => p.path)).toEqual([dest('e-kept')])
+    expect(stop.userNotes).toEqual([])
+    expect(r.dates[0].source.dateLevel).toEqual({ photos: [], userNotes: [] })
+    expect(JSON.stringify(r)).not.toContain('e-gone')
+    expect(JSON.stringify(r)).not.toContain('지운 메모')
+    // 지운 항목은 "제외"로 세지 않는다 - 조회 단계에서 애초에 읽지 않는다
+    expect(r.exclusions).toEqual({
+      messagesWithoutBody: 0,
+      trivialMessages: 0,
+      standalonePhotosWithoutTime: 0,
+      photosWithoutSize: 0,
+      lockedEntries: 0,
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------

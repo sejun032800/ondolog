@@ -1,7 +1,7 @@
 /**
- * 월 챕터 머리 - 큰 달 숫자 · 영문 달 · "기록 N · 사진 N · 데이트 N".
+ * 월 챕터 머리 - 큰 달 숫자 · 영문 달 · "메모 N · 사진 N · 데이트 N"(R30-4 - 숫자가 무엇을 세는지 이름이 말한다).
  * MVP 조정표: 디자인의 "✦ 별 N"은 쓰지 않고 "데이트 N"으로 쓴다(하늘이 돌아오면 별).
- * 기록 N = 그 달 데이트에 남긴 메모 수, 사진 N = 사진 수, 데이트 N = 데이트 수(내부 결정, HANDOFF).
+ * 메모 N = 그 달 데이트에 남긴 메모 수, 사진 N = 사진 수, 데이트 N = 데이트 수(내부 결정, HANDOFF).
  */
 import { StyleSheet, Text, View } from 'react-native'
 import { englishMonth } from '../../utils/dateRecord'
@@ -15,7 +15,7 @@ export interface MonthChapterHeaderProps {
 }
 
 export function monthCountsLabel({ memoTotal, photoTotal, dateTotal }: Omit<MonthChapterHeaderProps, 'month'>): string {
-  return `기록 ${memoTotal} · 사진 ${photoTotal} · 데이트 ${dateTotal}`
+  return `메모 ${memoTotal} · 사진 ${photoTotal} · 데이트 ${dateTotal}`
 }
 
 export function MonthChapterHeader(props: MonthChapterHeaderProps) {

@@ -29,8 +29,40 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
 | 조판 막힌 슬롯 여섯 묶음·README 빈칸 (`55-2`) — 지면 HTML을 고쳐야 한다(디자인 세션). 시험 호 ①②③은 개발 DB에 있다(① 발행됨) | 열림 | 이 파일 "조판 슬롯 채우기 (`55-2`)" 절 |
 | UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
-| **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 -> R30-1로 RPC 결정, `023_delete_own_entry.sql` 작성(`57-` A), **원격 미적용** | 열림 | 이 파일 "U2 피드·업로드 (`56`)" 절 |
+| **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 -> R30-1로 RPC 결정, `023_delete_own_entry.sql` 작성(`57-` A), **원격 적용·실증 완료**, 앱 UI는 `57-` C에서 만듦(실기기 확인 대기) | 앱 쪽 해소 | 이 파일 "본인 기록 삭제 UI · stop 시각 (`57-` C)" 절 |
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
+
+## 본인 기록 삭제 UI · stop 시각 (`57-` C, 2026-10-24, ui-builder) - 원격 개발 DB 실증 완료, 실기기 미확인
+
+- 파일: 삭제 확인 `src/components/nocturne/ConfirmDialog.tsx`(I05, `index.ts`에 export) · `src/components/date/StopTimeline.tsx`(지우기 칩) · E03 `app/date/[id]/index.tsx`(사진·메모 지우기 + 확인) · 삭제 RPC 호출 `deleteOwnEntry`·`canDeleteEntry`(`src/services/dateRecordApi.ts`) · stop 시각 규칙 `src/utils/dateRecord.ts`(`planStops`·`resolveStopArrival`·`earliestCaptureOn`·`stopTimeErrorMessage`) · E11 `app/(modals)/upload.tsx` · E15 `app/date/[id]/stop/[stopId]/index.tsx` · 피드 머리 `src/components/feed/MonthChapterHeader.tsx`("메모 N · 사진 N · 데이트 N"). 실증 `scripts/ops/verifyU2Delete.ts`(출력 `scripts/ops/out/57-c-delete-and-stop-time.txt`).
+- 지운 코드: `kstMidnightIso` · `isTimeKnown` · `stopTimeLabel` · `buildStops`(이전 `arrivalIso(...) ?? kstMidnightIso(...)`, "시각 모름" 표지로 읽던 E03·E15 화면 코드). `StopTimeline`의 `dateOn` 인자도 뺌.
+- 의존성·마이그레이션·docs·app.json·package.json 변경 없음.
+- 내부 결정(항목당 한 줄):
+  - 삭제 진입: E03에서 내 사진은 사진 위 오른쪽 아래 "지우기" 칩, 내 메모는 메모 아래 "지우기" 글자. 디자인 보드에 E03 삭제 진입 위치가 없어 정함. 상대의 항목에는 렌더하지 않는다(`canDeleteEntry`).
+  - I05 문구는 항목별로 "이 사진을 지울까요?" / "이 메모를 지울까요?" + "지운 사진은 되돌릴 수 없어요. 이미 발행된 호에서는 지워지지 않아요."(보드의 "사진 11장과 메모 2개가 함께" 문구는 데이트 단위 삭제용이라 쓰지 않음 - 데이트 삭제는 범위 밖).
+  - 삭제 뒤 `useDateDetail.reload()`로 다시 읽는다. 파생 칸은 RPC가 맞추므로 클라이언트는 `refreshDateDerived`를 부르지 않는다. 피드는 화면에 돌아올 때 다시 읽는다.
+  - 첫 장소의 "가장 이른 촬영 시각"은 **그 데이트 날짜(KST)에 찍힌 사진**만 본다. 다른 날짜 사진의 시각을 쓰면 stop이 데이트 날짜 밖에 놓인다.
+  - 장소 없이 사진이 있으면 이름 없는 stop 하나(시각 = 가장 이른 촬영 시각, 없으면 저장 불가). **메모만 있고 장소가 없으면 stop을 만들지 않는다**(이전엔 00:00 stop). E03 타임라인은 비고 메모는 그대로 보인다.
+  - 이미 stop이 있는 날에 장소 없이 사진을 더할 때는 시각 규칙을 적용하지 않는다(새 stop이 없다). stop이 하나도 없는 날(메모만 기록)에 EXIF 없는 사진만 더하면 저장 불가 - E10에는 장소 칸이 없어 길이 막힌다(드문 경우, 열린 판단).
+  - E11은 저장 전에 규칙을 검사한다(`recordDate`가 업로드 전에 `planStops` 확인) - 거부되면 업로드·행이 0이다(원격 확인).
+  - E15는 "첫 stop"을 저장된 `seq === 0`으로 본다. 첫 stop만 시각을 비울 수 있다.
+  - E15 도착 시각 칸에는 저장된 시각을 그대로 채운다(예전 표지 값이면 "00:00"이 채워진다 - 항목 11 결과가 "없음"이라 해당 없음).
+- 항목 11: 원격 개발 DB 전체 stop 39건 중 KST 00:00:00 = **0건**(없음). 다시 기록한 것 없음.
+- `51-` 실기기 확인에 더할 것(56- 보고 9가지 + 하나): (1) 사진 골라 기록 -> 피드 -> 상세 흐름 (2) EXIF GPS(iOS 시스템 선택기가 GPS를 주는지) (3) HEIC 업로드·표시 (4) 원본 크기 유지(`quality: 1`, 올라간 byte_size) (5) 그레인 128pt 타일 (6) 상세 hero 장막 (7) FAB 위치(탭 바 위) (8) 키보드가 시트 입력을 가리는지 (9) 월 인덱스 탭 이동 (10) **내 사진 삭제 -> 피드·상세에서 사라짐** - 더해서 지우기 칩이 사진 위에서 눌리는지, I05 확인 카드 위치·막(.66), 상대 항목에 칩이 없는지.
+- 시험 데이터: 날짜 `2027-01-08`(커플 `test-u2`), A 사진 3장 중 1장 소프트 삭제·B 사진 1장, stop 시각 14:05:40(KST). 지우지 않았다.
+
+## 지운 항목을 생성·발행 경로에서 빼기 (`57-` B, 2026-10-24, corner-pipeline) - 원격 개발 DB 실증 완료
+
+입력 조립과 발행 전 원본 재확인은 이미 `deleted_at is null`을 걸고 있었다(`inputAssembly.ts` 330·336행, `supabaseOps.ts` `entrySourcePaths`). 코드 무변경, 시험·실증만 더했다. 이미 발행된 호의 content·렌더 결과를 바꾸는 코드는 없다.
+
+내부 결정(항목당 한 줄):
+
+- 지운 항목은 제외 건수 사유로 세지 않는다 - 조회 단계에서 읽지 않아 셀 수 없고, 사유를 늘리면 `exclusions` 모양이 바뀐다. 시험이 건수가 0임을 고정한다.
+- 발행 재확인의 "없는 원본" 판정은 `entrySourcePaths`가 지운 항목을 돌려주지 않는 것으로 이미 같아서 새 분기를 두지 않았다. 사유는 기존 `source_media_missing` 그대로(4값 불변).
+- 실증은 새 파일 `scripts/ops/verifyDeletedEntryGuard.ts`다. 기존 `verifyRenderGuards.ts`는 service_role로 `deleted_at`을 직접 써서 이번 규약(작성자 세션 RPC)과 달라 손대지 않고 남겼다.
+- 실증은 `deleted_at`을 되돌리지 않는다(RPC에 되돌림 없음, service_role 직접 쓰기 금지). 시험 호 ③(`22f0c5eb-...`, `test-온기`)의 사진 한 장(`a521f79b-...`)이 소모됐고, 그 호의 date_archive 코너는 `pending`, 렌더 세 필드는 빈 값이다. 다시 쓰려면 재생성·재렌더가 필요하다(지운 사진 없이).
+- 발행된 호 불변은 코드가 아니라 시험으로 고정했다: 발행된 호는 `이미 발행` 거부이고 코너·호 행이 그대로(jest), 원격은 발행된 호 ①(`233b1922-...`)의 호·코너 지문 전후 같음.
+- jest `inputAssembly.test.ts`·`operatorPath.test.ts`에 시험 추가만 했고 기존 assertion은 고치지 않았다.
 
 ## 본인 기록 삭제 RPC (`57-` A, 2026-10-24, db-architect) - 작성만, 원격 미적용·미실행
 
@@ -52,6 +84,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
   - 불변식: 저장소 파일을 지우지 않는다(§11-2). 발행된 호는 건드리지 않는다. 입력 조립과 발행 직전 재확인이 `deleted_at`이 찬 항목을 "없는 원본"으로 보는 것은 `57-` B의 일이다(R30-1).
   - 타입: 적용 뒤 `src/types/database.ts`를 재생성하면 `Functions.fn_delete_own_entry`가 추가만 된다(§9-D-10 기준). 이번엔 건드리지 않았다.
 - 사람이 적용할 때(022와 같은 방식, 위 "022 적용·실증 결과" 절 근거): ① 메인 세션이 `check_023_preapply.sql` 실행(Supabase MCP `execute_sql`, 기대: 함수 없음 OK) ② `npx supabase migration list`로 023이 Local에만 있는지 확인 ③ `npx supabase db push --dry-run`이 `023_delete_own_entry.sql` 하나만 보이는지 확인 ④ `npx supabase db push` ⑤ `verify_023_privileges_and_settings.sql` 실행 ⑥ `verifyDeleteOwnEntry.ts run`(위 파일 머리의 deno 명령, `verifyU2Record.ts`와 같은 플래그).
+- 023 타입 재생성 때 PostgrestVersion 14.5→14.15 (원격 버전 변경, 1회 허용)
 
 ## U2 피드·업로드 (`56`, 2026-10-24, ui-builder) - 원격 개발 DB 실증 완료, 삭제는 막힘, 실기기 미확인
 
