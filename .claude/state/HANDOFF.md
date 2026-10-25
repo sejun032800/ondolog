@@ -33,6 +33,23 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## 큐 재개 시점 · U6 온보딩 2부 (`65-`, 2026-10-25, ui-builder) - 원격 실증 미실행(자동 모드 분류기가 원격 쓰기를 막음), 실기기 미확인
+
+- 큐 재개(§0): 텍스트 큐 · 사진 큐 인스턴스를 `src/services/chatQueueHub.ts`(싱글턴 `chatQueueHub`) 한 곳이 갖는다. 루트 `useChatQueueResume`(`app/_layout.tsx`)이 로그인 + 커플 연결 확인 후 `attach`, AppState `active`에서 `kick`, 로그아웃·미연결에서 `detach`(타이머만 멈춤, 기기 저장은 안 지움). 채팅 탭 훅도 같은 `attach`를 부르고(같은 키면 무동작) `subscribe`로 화면 상태만 받는다 - 탭 진입 시 재개는 남았고 한 곳(허브)에서 관리된다. 같은 항목 동시 시도 0: 사진 큐는 원래 `inflight`가 있었고 텍스트 큐(`chatRetryQueue.ts`)에 같은 `inflight`를 새로 넣었다.
+- 훅 시험 `chatPhotoQueue.test.tsx`의 "앱 재시작"은 이제 허브를 `detach`하는 것으로 흉내 낸다(프로세스가 죽으면 허브도 사라지기 때문).
+- 큐 재개 경계: 커플 확인이 다시 도는 중(`status: loading`)에는 `detach`하지 않는다(`coupleStore.refresh`가 loading을 거치므로).
+- A17: 보드는 코드가 처음부터 보이지만, 열기만 해서 커플 행을 만들지 않으려고 **[초대 코드 만들기]를 눌러야 발급**한다(`getOrCreateInvite`). 이유: 열 때마다 대기 코드가 생기면, 받은 코드를 입력하는 쪽에게 대기 코드가 남고(그 코드를 제3자가 쓰면 한 사람이 활성 커플 둘에 속할 수 있다 - 인덱스는 user_a · user_b를 따로만 막는다). 같은 이유로 발급한 사람이 상대 코드도 입력하는 경우의 위험은 기존과 같다(보고).
+- A17 대기 쪽은 코드 표시 중 4초마다 `fetchExistingInvite`(읽기만)로 연결을 안다 - 실시간 구독은 새로 안 만들었다.
+- A18 코드 칸은 6칸(생성 코드 길이). 오류 문구: 보드의 안내 문장은 항상 보이고, 무효(null) 때는 "연결할 수 없어요. 코드를 다시 확인해주세요."를 더한다.
+- A19 날짜 입력은 "YYYY.MM.DD" 텍스트(A03과 같은 방식, 새 의존성 없음). 닉네임은 날짜를 먼저 정한 쪽만 쓴다(`saveStartDateAndNickname`). A20은 `setOrConfirmStartDate`의 기존 규칙(`coupleApi.ts` 133~152행)을 그대로 쓴다. 거의 동시 입력에서 늦은 쪽의 날짜가 적용되지 않으면 적용된 날짜를 A20으로 보여 준다.
+- A16 오버라이드: 기존 `overrideEnneagramCore`가 `enneagram_effective`(생성 칸)를 쓰고 있었다 - 서버가 거부하는 쓰기였다. `personalityCore.overrideEnneagramCore`로 옮기면서 쓰는 칸을 override · count · updated_at 셋으로 줄였다.
+- 보드와 다르게: A14·A15 고정 문장 MASTER 문장 · 보드의 "안정형"(애착 이름 노출, MASTER 10-5-3) 안 씀 · A14에 보드에 없는 ⑤ 애착 묶음 추가 · A16 부제에 스턴버그 추가 · A17 [복사하기] 없음(R37-4) · A20 "설정 > 커플에서 함께 고칠 수 있어요"는 그 기능이 없어 뺌 · 공유 버튼 없음(M3-6).
+- A17 [솔로예요] = [나중에 할게요]와 같다: `completeOnboardingWithoutCouple`(진행 단계 3) 뒤 `/main`. 솔로 기록은 M4. 이미 발급한 코드가 있으면 그 대기 행은 그대로 남는다.
+- 옛 코드 정리: `ConsentChecklist.tsx` · `ResultCard.tsx` · `__tests__/components/ConsentChecklist.test.tsx`(8건) 삭제. `LegalDocumentModal.tsx`는 `BiometricConsentPanel.tsx`(생체정보 동의, 출시 후)가 아직 써서 남겼다. 옛 테마를 쓰는 채 아무도 안 쓰는 컴포넌트(`Big5Bars` · `ScoreBar` · `SternbergTriangle` · `TypeLabel` · `CompatibilitySection`(시험 있음) · `InvitePanel` · `DateInput` · `ScreenContainer` · `PageHeader` · `Numeral`)는 범위 밖이라 안 지웠다 - 옛 테마를 지울 때 함께.
+- 온보딩 라우트(`app/(onboarding)/`)의 옛 테마 import 0(`_layout.tsx`의 `useTheme`도 뺐다).
+- `51-` 확인 목록(본문 파일은 저장소에 없다): 22가지 + "온보딩 2부(초대 -> 연결 -> 사귄 날짜, 두 기기)" + "채팅 탭을 열지 않고 재시작해도 큐 전송" = **24가지**.
+- 원격 실증(§0 c `verifyU6Signup.ts` 재실행 · §6 두 계정 실증)은 실행하지 못했다 - 원격 쓰기(시험 계정 생성)를 자동 모드 분류기가 거부했다. 실행 권한을 주면 이어서 한다.
+
 ## 기존 계정 · 동의 문장 · 사진 영속 큐 (`64-`, 2026-10-25, ui-builder) - 원격 개발 DB 실증 완료, 실기기 미확인
 
 - 파일: 동의 문장 `src/constants/consent.ts`(`AI_USAGE_HELPER`)·`app/(onboarding)/consent.tsx` · 기존 계정 `app/index.tsx`(A02 링크, 재개 분기)·`app/(onboarding)/{auth,consent}.tsx`·`src/hooks/{useSignupFinalize,resolveResumePath}.ts`·`src/store/sessionStore.ts`(`existingAccountPath`)·`src/utils/{onboardingRules,onboardingResume}.ts`·`src/services/{personalityCore,personalityApi,coupleApi,onboardingStepCore}.ts` · 사진 큐 `src/utils/{chatPhotoQueue,chatPhotoQueueRunner}.ts`·`src/services/{chatPhotoCore,photoQueueFs,photoQueueStore,chatApi}.ts`·`src/hooks/useRealtimeMessages.ts` · 실증 `scripts/ops/verifyExistingAccount.ts`(옛 `verifyU6Signup.ts`의 "다시 부름" 기대값을 r70 동작으로 고침).

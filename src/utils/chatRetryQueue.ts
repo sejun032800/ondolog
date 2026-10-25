@@ -41,6 +41,8 @@ export interface ChatRetryQueueDeps {
 export class ChatRetryQueue {
   private queue: QueuedMessage[]
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>()
+  /** 시도 중인 항목 - 같은 항목이 겹쳐 시도되지 않게 한다(재개 신호가 겹쳐도 동시 전송 0). */
+  private readonly inflight = new Set<string>()
 
   constructor(
     private readonly deps: ChatRetryQueueDeps,
@@ -86,6 +88,13 @@ export class ChatRetryQueue {
     return item
   }
 
+  /** 앱 복귀 · 재개 신호 - 대기(pending) 항목을 기다리지 않고 바로 시도한다(R39-5). 진행 중인 항목은 건드리지 않는다. */
+  kick(): void {
+    for (const item of this.queue) {
+      if (item.status === 'pending' && !this.inflight.has(item.clientMsgId)) this.schedule(item.clientMsgId, 0)
+    }
+  }
+
   /** "다시 시도" 탭 — 카운터 리셋 후 큐 즉시 재투입, pending으로 전환한다. */
   retryNow(clientMsgId: string): void {
     const item = this.queue.find((m) => m.clientMsgId === clientMsgId)
@@ -128,7 +137,14 @@ export class ChatRetryQueue {
     const item = this.queue.find((m) => m.clientMsgId === clientMsgId)
     if (!item || item.status !== 'pending') return // 그 사이 취소/다시시도로 상태가 바뀌었을 수 있다
 
-    const result = await this.deps.attemptSend(item)
+    if (this.inflight.has(clientMsgId)) return
+    this.inflight.add(clientMsgId)
+    let result: AttemptOutcome
+    try {
+      result = await this.deps.attemptSend(item)
+    } finally {
+      this.inflight.delete(clientMsgId)
+    }
 
     // attemptSend가 비동기로 도는 동안 취소됐을 수 있다 — 이미 사라졌으면 아무것도 하지 않는다.
     if (!this.queue.some((m) => m.clientMsgId === clientMsgId)) return

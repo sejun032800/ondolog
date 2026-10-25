@@ -8,6 +8,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { act, renderHook, waitFor } from '@testing-library/react-native'
 import { useRealtimeMessages } from '../../src/hooks/useRealtimeMessages'
+import { chatQueueHub } from '../../src/services/chatQueueHub'
 import { chatPhotoQueueKey, parseQueuedPhotos, type QueuedPhoto } from '../../src/utils/chatPhotoQueue'
 import type { PickedPhoto } from '../../src/utils/dateRecord'
 
@@ -171,10 +172,15 @@ async function storedQueue(): Promise<QueuedPhoto[]> {
 }
 
 async function mount() {
+  chatQueueHub.detach() // 앱 프로세스가 새로 시작한다 - 큐는 허브가 갖는다(R39-5). 남는 것은 기기 저장과 복사본뿐이다.
   const hook = await renderHook(() => useRealtimeMessages(COUPLE, USER))
   await waitFor(() => expect(hook.result.current.loading).toBe(false))
   return hook
 }
+
+afterEach(() => {
+  chatQueueHub.detach()
+})
 
 beforeEach(async () => {
   backend = new FakeBackend()

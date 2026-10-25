@@ -72,6 +72,16 @@ export class ChatPhotoQueue {
     return this.runAttempt(item.clientId, true)
   }
 
+  /**
+   * 앱 복귀 · 재개 신호 - 대기(pending) 항목을 기다리지 않고 바로 시도한다(R39-5). 진행 중(`inflight`)인 항목은 건드리지 않는다 -
+   * 끝나면 그쪽이 다음 일을 잡는다(같은 항목 동시 업로드 0).
+   */
+  kick(): void {
+    for (const item of this.queue) {
+      if (item.status === 'pending' && !this.inflight.has(item.clientId)) this.schedule(item.clientId, 0)
+    }
+  }
+
   /** [다시 보내기] - 횟수를 0으로 돌리고 바로 시도한다. */
   retryNow(clientId: string): void {
     const item = this.queue.find((q) => q.clientId === clientId)

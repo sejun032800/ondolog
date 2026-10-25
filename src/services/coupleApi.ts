@@ -18,6 +18,7 @@ import { ONBOARDING_STEP } from '../constants/onboardingStep'
 import { supabase } from './supabase'
 import { advanceOnboardingStep } from './onboardingStepCore'
 import type { Database } from '../types/database'
+import { isStartDateSelectable, isValidNickname, normalizeNickname } from '../utils/coupleStart'
 
 type CoupleRow = Database['public']['Tables']['couples']['Row']
 
@@ -144,6 +145,60 @@ export async function setOrConfirmStartDate(
   const { data, error } = await supabase
     .from('couples')
     .update({ start_date_confirmed_by: userId })
+    .eq('id', coupleId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * A17 - **읽기만 한다**(없으면 만들지 않는다). 이미 pending/active 커플 행이 있으면 그 상태를, 없으면 null.
+ * 화면이 열릴 때(이미 발급한 코드를 다시 보이기 · 이미 연결됐으면 건너가기)와, 코드를 보여 둔 채 상대가 입력했는지 살필 때 쓴다.
+ * 발급은 사람이 [초대 코드 만들기]를 누를 때 `getOrCreateInvite`가 한다 - 이 함수는 커플 행을 만들지 않는다.
+ */
+export async function fetchExistingInvite(userId: string): Promise<InviteStatus | null> {
+  const { data, error } = await supabase
+    .from('couples')
+    .select('*')
+    .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+    .in('status', ['pending', 'active'])
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return { status: data.status === 'active' ? 'connected' : 'pending', couple: data }
+}
+
+/** A19 · A20 - 커플 행 하나(사귄 날짜 · 누가 정했는지 · 닉네임)를 읽는다. */
+export async function fetchCouple(coupleId: string): Promise<CoupleRow> {
+  const { data, error } = await supabase.from('couples').select('*').eq('id', coupleId).single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * A19 [시작하기] - 사귄 날짜와 커플 닉네임을 저장한다(R13-11 #4: 닉네임은 사귄 날짜 화면에서 함께 묻는다).
+ *
+ * 날짜는 **기존 규칙 그대로** `setOrConfirmStartDate`가 정한다(먼저 입력한 값 적용, 상대는 확인만). 이 함수는 앞에서 입력 규칙
+ * (미래 날짜 불가 - KST 오늘까지, 닉네임 1~20자)을 한 번 더 막고, **내가 날짜를 정한 쪽일 때만** 닉네임을 쓴다 - 상대가 먼저 정했다면
+ * 닉네임도 상대가 정한 것이라 덮지 않는다. 반환한 행의 `start_date_set_by`로 화면이 누가 정했는지 안다.
+ */
+export async function saveStartDateAndNickname(
+  coupleId: string,
+  userId: string,
+  date: string,
+  nickname: string,
+  now: Date = new Date(),
+): Promise<CoupleRow> {
+  if (!isStartDateSelectable(date, now)) throw new Error('사귄 날짜는 오늘까지만 고를 수 있어요.')
+  if (!isValidNickname(nickname)) throw new Error('커플 닉네임은 1자 이상 20자 이하여야 해요.')
+
+  const row = await setOrConfirmStartDate(coupleId, userId, date)
+  if (row.start_date_set_by !== userId) return row
+
+  const { data, error } = await supabase
+    .from('couples')
+    .update({ nickname: normalizeNickname(nickname) })
     .eq('id', coupleId)
     .select()
     .single()

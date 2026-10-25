@@ -1,238 +1,232 @@
 /**
- * 화면 7. 결과 랜딩(상세).
+ * A14 · A15 상세 결과 + A16 결과와 달라요 (MASTER 9-1 화면 7). 디자인 `N-S-A3-Onboarding`.
  *
- * 근거: docs/ONDOLOG_MASTER.md Part 9-1 화면 7 —
- *   노출: ① 연애유형 라벨 + 상세 설명 ② 빅5 5축 막대그래프
- *     ③ 애니어그램 코어 설명 + 후보 2개("—일 수도 있어요")
- *     ④ 스턴버그 삼각형 ⑤ 애착 유형 설명 ⑥ (온도) 궁합 ⑦ "결과와 달라요" 버튼
- *   저장: personality_profiles 정식 생성.
- *   "결과와 달라요": 애니어그램 코어만 오버라이드, 무제한, 원본/오버라이드
- *     값 둘 다 보관.
+ * 라우트는 하나(`result-detail`, MASTER 11-3)이고 A16은 같은 화면의 다른 모습이다(← 로 돌아온다).
+ *   A14 · A15: ① 라벨 + 설명 ② 빅5 ③ 애니어그램 코어 + 후보 2개 ④ 스턴버그 ⑤ 애착 ⑥ best / contrast 궁합 + **고정 문장** ⑦ "결과와 달라요".
+ *   값은 서버에 저장된 결과 그대로다(결정론) - 화면은 계산하지 않는다.
+ *   A16: 애니어그램 9유형에서 고른다. **코어만 바뀐다**(`enneagram_override`만 쓰고 추론값 · 빅5 · 스턴버그 · 애착은 그대로). 횟수 제한 없음.
  *
- * description_ko가 null인 유형은 문구를 지어내지 않고 그 섹션만
- * 조건부로 숨긴다(완료 기준 4).
+ * 보드와 다르게 한 곳(65- 보고): 고정 문장은 MASTER 문장 그대로(`resultDetailCopy.ts`) · 애착 유형 이름("안정형" 등)은 쓰지 않는다(MASTER 10-5-3) ·
+ * ⑤ 애착 묶음을 보드에 없지만 둔다(MASTER 화면 7) · 공유 버튼은 없다(A09 공유 카드는 M3-6) · A16 부제는 스턴버그까지 적는다(MASTER).
+ *
+ * 진행 단계(`onboarding_step`)는 이 화면이 직접 쓰지 않는다 - 프로필 행을 처음 만들 때 `ensurePersonalityProfile`가 `advanceOnboardingStep`으로 올린다.
  */
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native'
-import { Big5Bars } from '../../src/components/Big5Bars'
-import { CompatibilitySection } from '../../src/components/CompatibilitySection'
-import { Button } from '../../src/components/Button'
-import { ScoreBar } from '../../src/components/ScoreBar'
-import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { TypeLabel } from '../../src/components/TypeLabel'
-import { SternbergTriangle } from '../../src/components/SternbergTriangle'
-import type { EnneagramCore } from '../../src/constants/enneagram'
-import { ATTACHMENT_REFRAME_KO } from '../../src/constants/attachmentDisplay'
-import { ENNEAGRAM_CORE_EN, ENNEAGRAM_CORE_KO, LOVE_TYPE_LABEL_BY_CODE } from '../../src/constants/loveTypeLabels'
-import { useTheme } from '../../src/theme'
-import { useSession } from '../../src/hooks/useSession'
+import { useEffect, useState } from 'react'
+import { StyleSheet, Text, View } from 'react-native'
+import { OnboardingScreen } from '../../src/components/onboarding/OnboardingScreen'
 import {
-  ensurePersonalityProfile,
-  fetchLatestAssessment,
-  fetchPersonalityProfile,
-  overrideEnneagramCore,
-} from '../../src/services/personalityApi'
-import type { Database } from '../../src/types/database'
+  AttachmentCard,
+  Big5Card,
+  CompatibilityCards,
+  EnneagramCard,
+  SternbergCard,
+} from '../../src/components/onboarding/ResultSections'
+import { PrimaryButton } from '../../src/components/nocturne/Buttons'
+import { PressScale } from '../../src/components/nocturne/PressScale'
+import { ScreenFrame } from '../../src/components/nocturne/ScreenFrame'
+import { SoftCard } from '../../src/components/nocturne/GlassCard'
+import type { EnneagramCore } from '../../src/constants/enneagram'
+import { ENNEAGRAM_CORE_EN, ENNEAGRAM_CORE_KO, LOVE_TYPE_LABEL_BY_CODE } from '../../src/constants/loveTypeLabels'
+import { COMPATIBILITY_START_TEMPERATURE_NOTICE } from '../../src/constants/resultDetailCopy'
+import { useResultDetail } from '../../src/hooks/useResultDetail'
+import { useSession } from '../../src/hooks/useSession'
+import { fontFamily, nocturne, type, withAlpha } from '../../src/theme/nocturne'
 import { getEnneagramCandidates } from '../../src/utils/enneagramCandidates'
-import { HARMONIC_GROUP_KO, HORNEVIAN_GROUP_KO } from '../../src/utils/enneagramGroups'
-
-type AssessmentRow = Database['public']['Tables']['personality_assessments']['Row']
-type ProfileRow = Database['public']['Tables']['personality_profiles']['Row']
 
 const ALL_CORES: EnneagramCore[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 export default function ResultDetailScreen() {
   const router = useRouter()
-  const { colors, typography, spacing, radius, attachmentClimate } = useTheme()
   const { session, loading: sessionLoading } = useSession()
-  const [assessment, setAssessment] = useState<AssessmentRow | null>(null)
-  const [profile, setProfile] = useState<ProfileRow | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showOverride, setShowOverride] = useState(false)
-  const [overriding, setOverriding] = useState(false)
-
-  const load = useCallback(async (userId: string) => {
-    setLoading(true)
-    try {
-      const a = await fetchLatestAssessment(userId)
-      if (!a) {
-        Alert.alert('결과를 찾을 수 없어요', '이전 화면부터 다시 진행해주세요.')
-        return
-      }
-      const p = await ensurePersonalityProfile(userId, a)
-      setAssessment(a)
-      setProfile(p)
-    } catch (e) {
-      Alert.alert('불러오기에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const userId = session?.user.id ?? null
+  const { state, reload, override } = useResultDetail(userId)
+  const [view, setView] = useState<'detail' | 'override'>('detail')
+  const [picked, setPicked] = useState<EnneagramCore | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [overrideError, setOverrideError] = useState(false)
 
   useEffect(() => {
-    if (sessionLoading) return
-    if (!session) {
-      router.replace('/')
-      return
-    }
-    load(session.user.id)
-  }, [sessionLoading, session, load, router])
+    if (!sessionLoading && !session) router.replace('/')
+  }, [sessionLoading, session, router])
 
-  if (sessionLoading || loading || !assessment || !profile) {
+  if (state.status === 'loading' || !session) {
+    return <ScreenFrame />
+  }
+
+  if (state.status === 'missing' || state.status === 'error') {
+    const missing = state.status === 'missing'
     return (
-      <ScreenContainer>
-        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.inkFull} size="large" />
-        </View>
-      </ScreenContainer>
+      <OnboardingScreen
+        title={missing ? '결과를 찾을 수 없어요' : '결과를 불러오지 못했어요'}
+        subtitle={missing ? '처음부터 다시 진행해주세요.' : '잠시 뒤에 다시 시도해주세요.'}
+        footer={
+          missing ? (
+            <PrimaryButton label="처음부터 다시" onPress={() => router.replace('/basic-info')} testID="detail-restart" />
+          ) : (
+            <PrimaryButton label="다시 시도" onPress={reload} testID="detail-retry" />
+          )
+        }
+      />
     )
   }
 
+  const { assessment, profile } = state
   const effectiveCore = (profile.enneagram_effective ?? profile.enneagram_inferred) as EnneagramCore
   const label = LOVE_TYPE_LABEL_BY_CODE[profile.love_type_code]
-  const climate = label ? attachmentClimate[label.attachment] : 'ember'
   const candidates = profile.enneagram_override
     ? []
     : getEnneagramCandidates(assessment.q1, profile.enneagram_inferred as EnneagramCore)
-  const attachmentReframe = ATTACHMENT_REFRAME_KO[assessment.attachment]
 
-  const handleOverride = async (core: EnneagramCore) => {
-    if (!session) return
-    setOverriding(true)
-    try {
-      const updated = await overrideEnneagramCore(session.user.id, core)
-      setProfile(updated)
-      setShowOverride(false)
-    } catch (e) {
-      Alert.alert('변경에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
-    } finally {
-      setOverriding(false)
+  if (view === 'override') {
+    const selected = picked ?? effectiveCore
+    const confirm = async () => {
+      if (selected === effectiveCore) {
+        setView('detail')
+        return
+      }
+      setSaving(true)
+      setOverrideError(false)
+      const ok = await override(selected)
+      setSaving(false)
+      if (ok) setView('detail')
+      else setOverrideError(true)
     }
+    return (
+      <OnboardingScreen
+        key="override"
+        onBack={() => {
+          setPicked(null)
+          setOverrideError(false)
+          setView('detail')
+        }}
+        title={'나에게 더 가까운\n코어를 골라주세요'}
+        subtitle="코어만 바뀌어요. 빅5 · 스턴버그 · 애착 결과는 그대로예요."
+        footer={
+          <>
+            {overrideError ? (
+              <Text style={styles.error} accessibilityRole="alert" testID="override-error">
+                저장하지 못했어요. 다시 시도해주세요.
+              </Text>
+            ) : null}
+            <PrimaryButton label="이 코어로 할게요" onPress={confirm} disabled={saving} testID="override-confirm" />
+          </>
+        }
+      >
+        <SoftCard style={styles.coreList}>
+          {ALL_CORES.map((core, i) => {
+            const on = core === selected
+            return (
+              <PressScale
+                key={core}
+                onPress={() => setPicked(core)}
+                accessibilityRole="radio"
+                accessibilityLabel={`${core} ${ENNEAGRAM_CORE_EN[core]} ${ENNEAGRAM_CORE_KO[core]}`}
+                accessibilityState={{ selected: on }}
+                testID={`core-${core}`}
+                style={[styles.coreRow, i > 0 && styles.coreRowRule]}
+              >
+                <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
+                <Text style={styles.coreName}>
+                  {core} {'·'} {ENNEAGRAM_CORE_EN[core]} {ENNEAGRAM_CORE_KO[core]}
+                </Text>
+                {core === effectiveCore ? <Text style={styles.nowMark}>지금 결과</Text> : null}
+              </PressScale>
+            )
+          })}
+        </SoftCard>
+      </OnboardingScreen>
+    )
   }
 
+  const description = label?.descriptionKo ?? label?.copyKo ?? null
+
   return (
-    <ScreenContainer
-      footer={<Button label="다음" onPress={() => router.push('/invite')} />}
+    <OnboardingScreen
+      key="detail"
+      footer={
+        <>
+          {/* MASTER 9-1 화면 7 ⑥ 하단 고정 문장 - 글자 그대로. 단정하는 문장은 두지 않는다. */}
+          <Text style={styles.notice} testID="compatibility-start-notice">
+            {COMPATIBILITY_START_TEMPERATURE_NOTICE}
+          </Text>
+          <PrimaryButton label="다음" onPress={() => router.push('/invite')} testID="detail-next" />
+        </>
+      }
     >
-      {/* ① 연애유형 라벨 + 상세 설명 */}
-      <View style={{ gap: spacing.s3 }}>
-        <Text style={[typography.caption, { color: colors.inkMute }]}>
-          {profile.love_type_code} · {label?.labelEn}
+      <View style={styles.head}>
+        <Text style={styles.labelEn} testID="detail-label-en">
+          {label?.labelEn ?? profile.love_type_code}
         </Text>
-        <TypeLabel
-          labelEn={label?.labelEn ?? profile.love_type_code}
-          labelKo={label?.labelKo ?? profile.love_type_code}
-          copyKo={label?.copyKo}
-          climate={climate}
-        />
-        {label?.descriptionKo && (
-          <Text style={[typography.bodySerif, { color: colors.inkFull }]}>{label.descriptionKo}</Text>
-        )}
+        <Text style={styles.labelKo} testID="detail-label-ko">
+          {label?.labelKo ?? profile.love_type_code}
+        </Text>
+        <Text style={styles.meta} testID="detail-meta">
+          {assessment.mbti} {'·'} 애니어그램 {effectiveCore}
+        </Text>
+        {description ? (
+          <Text style={styles.description} testID="detail-description">
+            {description}
+          </Text>
+        ) : null}
       </View>
 
-      {/* ② 빅5 5축 막대그래프 */}
-      <Section title="성격 5요인">
-        <Big5Bars
-          big5={{
-            bigE: assessment.big_e,
-            bigO: assessment.big_o,
-            bigA: assessment.big_a,
-            bigC: assessment.big_c,
-            bigN: assessment.big_n,
-          }}
-        />
-      </Section>
-
-      {/* ③ 애니어그램 코어 설명 + 후보 2개 */}
-      <Section title="애니어그램 코어">
-        <Text style={[typography.headline, { color: colors.inkFull }]}>
-          {effectiveCore} {ENNEAGRAM_CORE_EN[effectiveCore]} {ENNEAGRAM_CORE_KO[effectiveCore]}
-        </Text>
-        <Text style={[typography.caption, { color: colors.inkMute }]}>
-          {HORNEVIAN_GROUP_KO[effectiveCore]} · {HARMONIC_GROUP_KO[effectiveCore]}
-        </Text>
-        {candidates.length > 0 && (
-          <View style={{ gap: 4, marginTop: 4 }}>
-            {candidates.map((c) => (
-              <Text key={c} style={[typography.caption, { color: colors.inkFull }]}>
-                {c} {ENNEAGRAM_CORE_EN[c]} {ENNEAGRAM_CORE_KO[c]}일 수도 있어요
-              </Text>
-            ))}
-          </View>
-        )}
-      </Section>
-
-      {/* ④ 스턴버그 삼각형 */}
-      <Section title="사랑의 삼각형">
-        <SternbergTriangle
-          sternberg={{
-            intimacy: assessment.stern_intimacy,
-            passion: assessment.stern_passion,
-            commitment: assessment.stern_commitment,
-          }}
-        />
-      </Section>
-
-      {/* ⑤ 애착 유형 설명 */}
-      <Section title="애착">
-        {attachmentReframe && (
-          <Text style={[typography.body, { color: colors.inkMute }]}>{attachmentReframe}</Text>
-        )}
-        <ScoreBar label="불안 축" value={assessment.attach_anxiety} />
-        <ScoreBar label="회피 축" value={assessment.attach_avoidance} />
-      </Section>
-
-      {/* ⑥ 궁합 */}
-      <View style={{ gap: spacing.s3 }}>
-        <CompatibilitySection enneagramCore={effectiveCore} />
-      </View>
-
-      {/* ⑦ "결과와 달라요" */}
-      <View style={{ gap: spacing.s3 }}>
-        {!showOverride ? (
-          <Button variant="secondary" label="결과와 달라요" onPress={() => setShowOverride(true)} />
-        ) : (
-          <View style={{ gap: spacing.s4 }}>
-            <Text style={[typography.title, { color: colors.inkFull }]}>어떤 유형에 더 가까운가요?</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s2 }}>
-              {ALL_CORES.map((core) => {
-                const isSelected = core === effectiveCore
-                return (
-                  <Pressable
-                    key={core}
-                    disabled={overriding}
-                    onPress={() => handleOverride(core)}
-                    style={{
-                      backgroundColor: isSelected ? colors.inkFull : colors.paperAlt,
-                      borderColor: colors.rule,
-                      borderRadius: radius.touch,
-                      borderWidth: 1,
-                      paddingHorizontal: spacing.s4,
-                      paddingVertical: spacing.s3,
-                    }}
-                  >
-                    <Text style={[typography.caption, { color: isSelected ? colors.paper : colors.inkFull }]}>
-                      {core} {ENNEAGRAM_CORE_EN[core]}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </View>
-            <Button variant="secondary" label="닫기" onPress={() => setShowOverride(false)} />
-          </View>
-        )}
-      </View>
-    </ScreenContainer>
+      <Big5Card
+        big5={{
+          bigE: assessment.big_e,
+          bigO: assessment.big_o,
+          bigA: assessment.big_a,
+          bigC: assessment.big_c,
+          bigN: assessment.big_n,
+        }}
+      />
+      <SternbergCard
+        sternberg={{
+          intimacy: assessment.stern_intimacy,
+          passion: assessment.stern_passion,
+          commitment: assessment.stern_commitment,
+        }}
+      />
+      <AttachmentCard
+        attachment={assessment.attachment}
+        anxiety={assessment.attach_anxiety}
+        avoidance={assessment.attach_avoidance}
+      />
+      <EnneagramCard
+        core={effectiveCore}
+        candidates={candidates}
+        onMismatch={() => {
+          setPicked(effectiveCore)
+          setView('override')
+        }}
+      />
+      <CompatibilityCards core={effectiveCore} />
+    </OnboardingScreen>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const { colors, typography, spacing } = useTheme()
-  return (
-    <View style={{ gap: spacing.s3 }}>
-      <Text style={[typography.title, { color: colors.inkFull }]}>{title}</Text>
-      {children}
-    </View>
-  )
-}
+const styles = StyleSheet.create({
+  head: { gap: 8, paddingTop: 8 },
+  labelEn: { ...type.kicker, fontSize: 14, lineHeight: 20, letterSpacing: 3.4, color: nocturne.orchid },
+  labelKo: { ...type.display, color: nocturne.text },
+  meta: { ...type.sub, color: nocturne.textSub },
+  description: { ...type.body, color: nocturne.textSub, marginTop: 12 },
+  notice: { ...type.sub, color: nocturne.textMute, textAlign: 'center' },
+  error: { ...type.sub, color: nocturne.textSub, textAlign: 'center' },
+  coreList: { marginTop: 28, paddingVertical: 8, paddingHorizontal: 22 },
+  coreRow: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 56 },
+  coreRowRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: nocturne.hairline },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: withAlpha(nocturne.text, 0.3),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOn: { backgroundColor: nocturne.text, borderColor: nocturne.text },
+  radioDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: nocturne.ink },
+  coreName: { ...type.body, flex: 1, color: nocturne.text },
+  nowMark: { ...type.sub, color: nocturne.textMute, fontFamily: fontFamily.regular },
+})

@@ -31,7 +31,6 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../services/supabase'
 import {
   attemptQueuedPhoto,
@@ -43,15 +42,9 @@ import {
   type MessageRow,
   type StoryRow,
 } from '../services/chatApi'
+import { chatQueueHub } from '../services/chatQueueHub'
 import { photoQueueFs } from '../services/photoQueueFs'
-import { loadPhotoQueue, savePhotoQueue } from '../services/photoQueueStore'
-import {
-  chatQueueStorageKey,
-  parseQueuedMessages,
-  type OutgoingMessage,
-  type QueuedMessage,
-} from '../utils/chatQueue'
-import { ChatRetryQueue, type AttemptOutcome } from '../utils/chatRetryQueue'
+import type { OutgoingMessage } from '../utils/chatQueue'
 import {
   canSendBody,
   mergeMessage,
@@ -61,7 +54,6 @@ import {
   syncQueuedMessages,
   type ChatMessage,
 } from '../utils/chatMessages'
-import { ChatPhotoQueue } from '../utils/chatPhotoQueueRunner'
 import { syncPhotoMessages, type QueuedPhoto } from '../utils/chatPhotoQueue'
 import type { PickedPhoto } from '../utils/dateRecord'
 import { generateUuidV4 } from '../utils/uuid'
@@ -109,106 +101,36 @@ export function useRealtimeMessages(
   const [loading, setLoading] = useState(true)
   const [stories, setStories] = useState<StoryRow[]>([])
   const [storiesLoading, setStoriesLoading] = useState(true)
-  const retryQueueRef = useRef<ChatRetryQueue | null>(null)
   /** 메우기가 "마지막으로 받은 메시지"를 읽는 자리(구독 콜백이 낡은 상태를 보지 않게). */
   const messagesRef = useRef<ChatMessage[]>([])
   const [hasTextQueued, setHasTextQueued] = useState(false)
   const [hasPhotoQueued, setHasPhotoQueued] = useState(false)
   const hasQueued = hasTextQueued || hasPhotoQueued
-  /** 사진 영속 큐(메시지 · 스토리). */
-  const photoQueueRef = useRef<ChatPhotoQueue | null>(null)
   /** 복사본이 사라지거나 복사하지 못해 큐에서 빠진 사진 말풍선(이 세션에서 실패로 보인다). 다시 보낼 수 없고 취소(길게 누르기)로 지운다. */
   const lostPhotoIdsRef = useRef<Set<string>>(new Set())
 
-  /** 전송 1회 시도(최초 시도와 재시도가 공유) — 성공/중복이면 화면에 확정 행을 반영한다. */
-  const attemptSend = useCallback(async (item: OutgoingMessage): Promise<AttemptOutcome> => {
-    const result = await apiSendMessage(item)
-
-    if (result.status === 'sent') {
-      setMessages((prev) => mergeMessage(prev, rowToChatMessage(result.row)))
-      return { outcome: 'sent' }
-    }
-    if (result.status === 'already_sent') {
-      if (result.row) setMessages((prev) => mergeMessage(prev, rowToChatMessage(result.row!)))
-      return { outcome: 'already_sent' }
-    }
-    return { outcome: 'failed', errorClass: result.errorClass }
-  }, [])
-
-  // 큐 복원 + 커플별 ChatRetryQueue 인스턴스화(완료 기준: 강제 종료 후
-  // 재실행 시 pending 복원 + 재시도 재개).
-  useEffect(() => {
-    if (!coupleId) {
-      retryQueueRef.current?.dispose()
-      retryQueueRef.current = null
-      setHasTextQueued(false)
-      return
-    }
-
-    const storageKey = chatQueueStorageKey(coupleId)
-
-    const onQueueChange = (queue: QueuedMessage[]) => {
-      AsyncStorage.setItem(storageKey, JSON.stringify(queue)).catch(() => {
-        // 저장 실패해도 이번 세션 메모리 큐는 계속 동작한다 — 다음 변경 때 다시 저장을 시도한다.
-      })
-      setMessages((prev) => syncQueuedMessages(prev, queue))
-      // 자동 재시도 중인 항목만(소진·영구 실패는 말풍선의 "다시 보내기"가 맡는다).
-      setHasTextQueued(queue.some((item) => item.status === 'pending'))
-    }
-
-    // 큐 인스턴스는 이 자리에서 동기적으로 만든다(AsyncStorage 읽기를
-    // 기다리지 않는다) — `retryQueueRef.current`가 잠깐 비어 있는 창이
-    // 생기면 그 사이 전송이 실패했을 때 큐에 아예 안 들어가고 조용히
-    // 사라질 수 있기 때문이다. 복원된 항목은 나중에 `hydrate`로 합친다.
-    const queue = new ChatRetryQueue({ attemptSend, onQueueChange })
-    retryQueueRef.current = queue
-
-    let cancelled = false
-    AsyncStorage.getItem(storageKey)
-      .then((raw) => {
-        if (cancelled) return
-        queue.hydrate(parseQueuedMessages(raw))
-      })
-      .catch(() => {
-        // 복원 읽기 자체가 실패해도 이미 만들어진 빈 큐로 계속 동작한다.
-      })
-
-    return () => {
-      cancelled = true
-      queue.dispose()
-      retryQueueRef.current = null
-    }
-  }, [coupleId, attemptSend])
-
-  // 사진 영속 큐 복원 + 인스턴스화 - 앱을 다시 열면 남은 항목을 이어서 보낸다(R37-2).
+  // 큐는 허브가 갖는다(R39-5) - 채팅 탭을 열지 않아도 앱 시작 · 복귀에서 돌고 있다. 여기서는 같은 허브에 붙어(같은 커플 · 사용자면 아무 일도 없다)
+  // 확정 행 · 큐 변화를 화면 상태에 반영한다. 탭을 떠나도 큐는 멈추지 않는다.
   useEffect(() => {
     if (!coupleId || !currentUserId) {
-      photoQueueRef.current?.dispose()
-      photoQueueRef.current = null
+      setHasTextQueued(false)
       setHasPhotoQueued(false)
       return
     }
-
-    const queue = new ChatPhotoQueue({
-      attempt: async (item) => {
-        const result = await attemptQueuedPhoto(item)
-        if (result.outcome === 'done') {
-          const message = result.message
-          const story = result.story
-          if (message) setMessages((prev) => mergeMessage(prev, rowToChatMessage(message)))
-          if (story) setStories((prev) => (prev.some((x) => x.id === story.id) ? prev : [story, ...prev]))
-        }
-        return result
+    chatQueueHub.attach(coupleId, currentUserId)
+    return chatQueueHub.subscribe({
+      onMessage: (row) => setMessages((prev) => mergeMessage(prev, rowToChatMessage(row))),
+      onStory: (story) => setStories((prev) => (prev.some((x) => x.id === story.id) ? prev : [story, ...prev])),
+      onTextQueue: (queue) => {
+        setMessages((prev) => syncQueuedMessages(prev, queue))
+        // 자동 재시도 중인 항목만(소진·영구 실패는 말풍선의 "다시 보내기"가 맡는다).
+        setHasTextQueued(queue.some((item) => item.status === 'pending'))
       },
-      onChange: (items) => {
-        void savePhotoQueue(coupleId, currentUserId, items)
+      onPhotoQueue: (items) => {
         setMessages((prev) => syncPhotoMessages(prev, items))
         setHasPhotoQueued(items.some((item) => item.status === 'pending'))
       },
-      discard: (item) => {
-        void photoQueueFs.remove(item.localUri)
-      },
-      onLost: (item) => {
+      onPhotoLost: (item) => {
         if (item.kind !== 'message') return
         lostPhotoIdsRef.current.add(item.clientId)
         setMessages((prev) =>
@@ -216,18 +138,6 @@ export function useRealtimeMessages(
         )
       },
     })
-    photoQueueRef.current = queue
-
-    let cancelled = false
-    void loadPhotoQueue(coupleId, currentUserId).then((items) => {
-      if (!cancelled) queue.hydrate(items)
-    })
-
-    return () => {
-      cancelled = true
-      queue.dispose()
-      photoQueueRef.current = null
-    }
   }, [coupleId, currentUserId])
 
   // 초기 메시지 로드.
@@ -339,12 +249,12 @@ export function useRealtimeMessages(
         }),
       )
 
-      const result = await attemptSend(outgoing)
+      const result = await chatQueueHub.attemptText(outgoing)
       if (result.outcome === 'failed') {
-        retryQueueRef.current?.enqueueAfterInitialFailure(outgoing, result.errorClass)
+        chatQueueHub.getTextQueue()?.enqueueAfterInitialFailure(outgoing, result.errorClass)
       }
     },
-    [coupleId, currentUserId, attemptSend],
+    [coupleId, currentUserId],
   )
 
   /** 고른 사진을 앱 문서 폴더에 복사해 큐 항목으로 만든다. 복사하지 못하면 null. */
@@ -375,7 +285,7 @@ export function useRealtimeMessages(
 
   const sendPhoto = useCallback(
     async (photo: PickedPhoto) => {
-      if (!coupleId || !currentUserId || !photoQueueRef.current) return
+      if (!coupleId || !currentUserId || !chatQueueHub.getPhotoQueue()) return
       const item = await toQueuedPhoto(photo, 'message')
       if (!item) {
         // 복사하지 못했다 - 큐에 넣을 수 없어 실패로 보인다(길게 눌러 지운다).
@@ -398,23 +308,23 @@ export function useRealtimeMessages(
         )
         return
       }
-      await photoQueueRef.current.add(item)
+      await chatQueueHub.getPhotoQueue()?.add(item)
     },
     [coupleId, currentUserId, toQueuedPhoto],
   )
 
   const retryFailed = useCallback((clientMsgId: string) => {
-    if (photoQueueRef.current?.has(clientMsgId)) {
-      photoQueueRef.current.retryNow(clientMsgId)
+    if (chatQueueHub.getPhotoQueue()?.has(clientMsgId)) {
+      chatQueueHub.getPhotoQueue()?.retryNow(clientMsgId)
       return
     }
     if (lostPhotoIdsRef.current.has(clientMsgId)) return // 복사본이 없어 다시 보낼 수 없다
-    retryQueueRef.current?.retryNow(clientMsgId)
+    chatQueueHub.getTextQueue()?.retryNow(clientMsgId)
   }, [])
 
   const cancelPending = useCallback((clientMsgId: string) => {
-    if (photoQueueRef.current?.has(clientMsgId)) {
-      photoQueueRef.current.cancel(clientMsgId)
+    if (chatQueueHub.getPhotoQueue()?.has(clientMsgId)) {
+      chatQueueHub.getPhotoQueue()?.cancel(clientMsgId)
       setMessages((prev) => prev.filter((m) => m.clientMsgId !== clientMsgId))
       return
     }
@@ -422,7 +332,7 @@ export function useRealtimeMessages(
       setMessages((prev) => prev.filter((m) => m.clientMsgId !== clientMsgId))
       return
     }
-    retryQueueRef.current?.cancel(clientMsgId)
+    chatQueueHub.getTextQueue()?.cancel(clientMsgId)
   }, [])
 
   // 스토리 목록 로드(작성 UI + 목록 표시만 — 만료/보관 배치는 이번 범위 아님).
@@ -448,13 +358,13 @@ export function useRealtimeMessages(
 
   const postStory = useCallback(
     async (photo: PickedPhoto): Promise<boolean> => {
-      if (!photoQueueRef.current) return false
+      if (!chatQueueHub.getPhotoQueue()) return false
       const item = await toQueuedPhoto(photo, 'story')
       if (!item) return false
-      const outcome = await photoQueueRef.current.add(item)
-      if (outcome === 'failed' || outcome === 'lost') {
+      const outcome = await chatQueueHub.getPhotoQueue()?.add(item)
+      if (outcome === undefined || outcome === 'failed' || outcome === 'lost') {
         // 사람에게 실패를 알리는 경우 - 나중에 몰래 올라가지 않게 큐에서 뺀다.
-        photoQueueRef.current.cancel(item.clientId)
+        chatQueueHub.getPhotoQueue()?.cancel(item.clientId)
         return false
       }
       return true

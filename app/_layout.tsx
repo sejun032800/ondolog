@@ -15,10 +15,13 @@
  */
 import { useFonts } from 'expo-font'
 import { Stack } from 'expo-router'
+import { useChatQueueResume } from '../src/hooks/useChatQueueResume'
 import { useHydrateThemePreference } from '../src/theme'
 
 export default function RootLayout() {
   useHydrateThemePreference()
+  // 채팅 큐 재개(R39-5) - 앱 시작 · 복귀에서 남은 글 · 사진을 이어서 보낸다. 채팅 탭을 열 필요가 없다.
+  useChatQueueResume()
   const [fontsLoaded] = useFonts({
     'MaruBuri-Light': require('../assets/fonts/MaruBuri-Light.ttf'),
     'MaruBuri-Regular': require('../assets/fonts/MaruBuri-Regular.ttf'),

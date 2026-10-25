@@ -34,6 +34,7 @@ import { supabase } from './supabase'
 import { advanceOnboardingStep } from './onboardingStepCore'
 import {
   createProfileAndAssessment as createProfileAndAssessmentCore,
+  overrideEnneagramCore as overrideEnneagramCoreCore,
   type CreateProfileAndAssessmentInput,
 } from './personalityCore'
 import type { Database } from '../types/database'
@@ -113,29 +114,14 @@ export async function ensurePersonalityProfile(
 }
 
 /**
- * 화면 7 "결과와 달라요" — 애니어그램 코어만 오버라이드. 무제한, 원본
- * 추론값(enneagram_inferred)은 절대 덮어쓰지 않는다.
+ * 화면 7 "결과와 달라요"(A16) - 애니어그램 코어만 오버라이드. 무제한, 원본 추론값(enneagram_inferred)은 건드리지 않는다.
+ * 알맹이는 `personalityCore.overrideEnneagramCore`(쓰는 칸 셋 - override · count · updated_at).
  */
-export async function overrideEnneagramCore(
+export function overrideEnneagramCore(
   userId: string,
   newCore: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9,
 ): Promise<ProfileRow> {
-  const current = await fetchPersonalityProfile(userId)
-  if (!current) throw new Error('personality_profiles 행이 없습니다.')
-
-  const { data, error } = await supabase
-    .from('personality_profiles')
-    .update({
-      enneagram_override: newCore,
-      enneagram_effective: newCore,
-      override_count: current.override_count + 1,
-      override_updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId)
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  return overrideEnneagramCoreCore(supabase, userId, newCore)
 }
 
 /** 진행 단계를 **올린다**(같거나 작은 값은 아무 일도 하지 않는다 - r70). 알맹이는 `onboardingStepCore.ts`. */

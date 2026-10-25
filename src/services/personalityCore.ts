@@ -121,3 +121,39 @@ export async function createProfileAndAssessment(
 
   return assessment
 }
+
+type ProfileRow = Database['public']['Tables']['personality_profiles']['Row']
+
+/**
+ * A16 "결과와 달라요" - 애니어그램 코어만 오버라이드한다. 무제한(횟수 제한 없음).
+ *
+ * **쓰는 칸은 `enneagram_override` · `override_count` · `override_updated_at` 셋뿐이다.** 원본 추론값(`enneagram_inferred`)은 건드리지
+ * 않아 둘 다 보관된다(MASTER 9-1 화면 7). `enneagram_effective`는 `coalesce(override, inferred)`로 서버가 계산하는 생성 칸이라
+ * 클라이언트가 쓰지 않는다(쓰면 거부된다). 빅5 · 스턴버그 · 애착은 `personality_assessments`에 있어 이 함수가 읽지도 쓰지도 않는다.
+ */
+export async function overrideEnneagramCore(
+  db: PersonalityDb,
+  userId: string,
+  newCore: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9,
+): Promise<ProfileRow> {
+  const { data: current, error: readError } = await db
+    .from('personality_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!current) throw new Error('personality_profiles 행이 없습니다.')
+
+  const { data, error } = await db
+    .from('personality_profiles')
+    .update({
+      enneagram_override: newCore,
+      override_count: current.override_count + 1,
+      override_updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
