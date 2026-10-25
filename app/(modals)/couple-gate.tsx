@@ -1,43 +1,35 @@
 /**
- * 초대 모달 — Part 11-3 "couple-gate.tsx # 초대 모달(화면 8과 동일
- * 컴포넌트 재사용)". `<CoupleGate>`의 기본 "초대하기" 버튼과 채팅 탭의
- * `autoOpenInvite`가 여기로 라우팅한다.
+ * 초대 모달(F02 미연결 진입 - 초대) - Part 11-3 `couple-gate.tsx`. `<CoupleGate>`의 초대 진입(채팅은 진입 즉시, 그 밖은 버튼)이
+ * 여기로 온다. 아래 화면이 비치는 투명 모달 위에 시트(`InviteSheet`)를 올린다. 나가는 길 = 바깥(어둡게 한 면) 누르기.
  *
- * 온보딩 화면 8과 달리 이 모달은 이미 온보딩을 마친 유저가 나중에
- * 초대하는 경로다 — 스킵은 그냥 모달을 닫는 것이고, 연결 성공 시에도
- * 사귄 날짜 입력(화면 +)은 여전히 필요하다.
+ * 코드 발급·입력은 기존 함수(`coupleApi`)를 그대로 쓴다. 연결되면 사귄 날짜 입력(`/start-date`)으로 간다(기존 동작).
+ * `?from=chat`이면 안내 문구가 채팅 문구가 된다.
  */
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect } from 'react'
 import { View } from 'react-native'
-import { InvitePanel } from '../../src/components/InvitePanel'
-import { ScreenContainer } from '../../src/components/ScreenContainer'
+import { InviteSheet } from '../../src/components/couple/InviteSheet'
 import { useSession } from '../../src/hooks/useSession'
 import { useCoupleStore } from '../../src/store/coupleStore'
-import { useTheme } from '../../src/theme'
 
 export default function CoupleGateModal() {
   const router = useRouter()
+  const params = useLocalSearchParams<{ from?: string }>()
   const { session } = useSession()
   const refresh = useCoupleStore((s) => s.refresh)
-  const { colors } = useTheme()
 
   useEffect(() => {
     if (session) refresh(session.user.id)
   }, [session, refresh])
 
-  if (!session) return <View style={{ backgroundColor: colors.paper, flex: 1 }} />
+  if (!session) return <View style={{ flex: 1 }} />
 
   return (
-    <ScreenContainer
-      title="연인을 초대해보세요"
-      subtitle="상대만 있으면 이 기능이 바로 열려요."
-    >
-      <InvitePanel
-        userId={session.user.id}
-        onConnected={() => router.replace('/start-date')}
-        onSkip={() => router.back()}
-      />
-    </ScreenContainer>
+    <InviteSheet
+      userId={session.user.id}
+      fromChat={params.from === 'chat'}
+      onClose={() => router.back()}
+      onConnected={() => router.replace('/start-date')}
+    />
   )
 }

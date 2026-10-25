@@ -19,67 +19,41 @@
  *   쓰지 않는다(Phase 7, AI 감정 태깅 담당 — 이번 범위 아님).
  * - `stories`는 select/insert만 한다. update 정책이 없어(SCHEMA.md §7)
  *   update 쿼리를 만들지 않는다(만료 처리는 배치 전용 `expire_stories()`).
- *   이미지 실제 업로드는 이번 범위 밖이라 `media_path`는 자리표시자
- *   경로(`{couple_id}/placeholder`)를 쓴다 — 실제 Storage 객체는 없다.
+ * - 전송·스토리 생성·사진 업로드/서명의 알맹이는 `chatCore.ts`(저장소 클라이언트를 인자로 받음)에 있고, 여기서는 앱 전역
+ *   `supabase`를 넣어 부른다. 빈 본문 거부(R21-5)는 알맹이 안에 있어 어느 쪽으로 불러도 같다.
  */
 import { supabase } from './supabase'
 import {
-  classifySendError,
-  isDuplicateInsertError,
-  type OutgoingMessage,
-  type SendErrorClass,
-} from '../utils/chatQueue'
-import type { Database } from '../types/database'
+  createStory as createStoryCore,
+  fetchMessageByClientId as fetchMessageByClientIdCore,
+  sendMessage as sendMessageCore,
+  signChatMedia as signChatMediaCore,
+  uploadChatMedia as uploadChatMediaCore,
+  type ChatBucket,
+  type CreateStoryInput,
+  type MessageRow,
+  type SendInput,
+  type SendMessageResult,
+  type StoryRow,
+} from './chatCore'
 
-export type MessageRow = Database['public']['Tables']['messages']['Row']
-export type StoryRow = Database['public']['Tables']['stories']['Row']
+export type { ChatBucket, CreateStoryInput, MessageRow, SendInput, SendMessageResult, StoryRow }
 
-export type SendMessageResult =
-  | { status: 'sent'; row: MessageRow }
-  | { status: 'already_sent'; row: MessageRow | null }
-  | { status: 'failed'; errorClass: SendErrorClass; error: unknown }
-
-/** 완료 기준 2 — 동일 client_msg_id로 재시도해도 중복 삽입되지 않는다. */
-export async function sendMessage(input: OutgoingMessage): Promise<SendMessageResult> {
-  try {
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
-        couple_id: input.coupleId,
-        sender_id: input.senderId,
-        body: input.body,
-        client_msg_id: input.clientMsgId,
-      })
-      .select()
-      .single()
-
-    if (!error && data) return { status: 'sent', row: data }
-
-    if (error && isDuplicateInsertError(error)) {
-      const existing = await fetchMessageByClientId(input.coupleId, input.clientMsgId)
-      return { status: 'already_sent', row: existing }
-    }
-
-    return { status: 'failed', errorClass: classifySendError(error), error }
-  } catch (error) {
-    // fetch 자체가 던진 경우(네트워크 끊김 등) — Postgrest 에러 객체가
-    // 아니라 code가 없으므로 classifySendError가 재시도 대상으로 분류한다.
-    return { status: 'failed', errorClass: classifySendError(null), error }
-  }
+/** 완료 기준 2 - 동일 client_msg_id로 재시도해도 중복 삽입되지 않는다. 공백뿐인 본문(사진 없음)은 거부한다(R21-5). */
+export function sendMessage(input: SendInput): Promise<SendMessageResult> {
+  return sendMessageCore(supabase, input)
 }
 
-export async function fetchMessageByClientId(
-  coupleId: string,
-  clientMsgId: string,
-): Promise<MessageRow | null> {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('couple_id', coupleId)
-    .eq('client_msg_id', clientMsgId)
-    .maybeSingle()
-  if (error) throw error
-  return data
+export function fetchMessageByClientId(coupleId: string, clientMsgId: string): Promise<MessageRow | null> {
+  return fetchMessageByClientIdCore(supabase, coupleId, clientMsgId)
+}
+
+export function uploadChatMedia(bucket: ChatBucket, path: string, bytes: ArrayBuffer, contentType: string) {
+  return uploadChatMediaCore(supabase, bucket, path, bytes, contentType)
+}
+
+export function signChatMedia(bucket: ChatBucket, paths: readonly string[]) {
+  return signChatMediaCore(supabase, bucket, paths)
 }
 
 export async function fetchMessages(coupleId: string, limit = 200): Promise<MessageRow[]> {
@@ -122,27 +96,6 @@ export async function fetchStories(coupleId: string): Promise<StoryRow[]> {
   return data ?? []
 }
 
-export interface CreateStoryInput {
-  coupleId: string
-  authorId: string
-  caption: string | null
-}
-
-const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000
-
-export async function createStory(input: CreateStoryInput): Promise<StoryRow> {
-  const expiresAt = new Date(Date.now() + STORY_LIFETIME_MS).toISOString()
-  const { data, error } = await supabase
-    .from('stories')
-    .insert({
-      couple_id: input.coupleId,
-      author_id: input.authorId,
-      media_path: `${input.coupleId}/placeholder`,
-      caption: input.caption,
-      expires_at: expiresAt,
-    })
-    .select()
-    .single()
-  if (error) throw error
-  return data
+export function createStory(input: CreateStoryInput): Promise<StoryRow> {
+  return createStoryCore(supabase, input)
 }

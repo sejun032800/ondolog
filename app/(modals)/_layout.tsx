@@ -18,7 +18,14 @@ export default function ModalsLayout() {
         headerShadowVisible: false,
       }}
     >
-      <Stack.Screen name="couple-gate" options={{ title: '연인 초대' }} />
+      {/* 초대 시트(F02) - 아래 화면이 비치는 투명 모달 위에 시트를 직접 그린다. */}
+      <Stack.Screen
+        name="couple-gate"
+        options={{ headerShown: false, presentation: 'transparentModal', animation: 'slide_from_bottom' }}
+      />
+      {/* 채팅 시트: 스토리 보기(F03)·사진 크게 보기(F06) - 손잡이 + ✕를 직접 그린다. */}
+      <Stack.Screen name="story-viewer" options={{ headerShown: false }} />
+      <Stack.Screen name="photo-viewer" options={{ headerShown: false }} />
       <Stack.Screen name="biometric-consent" options={{ title: '생체정보 동의' }} />
       <Stack.Screen name="reference-photo" options={{ title: '대표사진 등록' }} />
       {/* 데이트 기록 쓰기(E11)·사진 더하기(E10) - 시트가 손잡이 + ✕ 머리를 직접 그린다. */}

@@ -34,9 +34,11 @@ import {
   fetchStories,
   markMessagesRead,
   sendMessage as apiSendMessage,
+  uploadChatMedia,
   type MessageRow,
   type StoryRow,
 } from '../services/chatApi'
+import { readLocalBytes } from '../services/photoPicker'
 import {
   chatQueueStorageKey,
   parseQueuedMessages,
@@ -45,6 +47,7 @@ import {
 } from '../utils/chatQueue'
 import { ChatRetryQueue, type AttemptOutcome } from '../utils/chatRetryQueue'
 import {
+  canSendBody,
   mergeMessage,
   mergeMessages,
   pickUnreadFromPartner,
@@ -52,7 +55,21 @@ import {
   syncQueuedMessages,
   type ChatMessage,
 } from '../utils/chatMessages'
+import { entryStoragePath, type PickedPhoto } from '../utils/dateRecord'
 import { generateUuidV4 } from '../utils/uuid'
+
+const IMAGE_CONTENT_TYPE: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  webp: 'image/webp',
+}
+
+function contentTypeOf(photo: PickedPhoto): string {
+  return photo.mimeType ?? IMAGE_CONTENT_TYPE[photo.ext] ?? 'image/jpeg'
+}
 
 export interface UseRealtimeMessagesResult {
   messages: ChatMessage[]
@@ -62,9 +79,14 @@ export interface UseRealtimeMessagesResult {
   retryFailed: (clientMsgId: string) => void
   /** 전송 중/실패 말풍선을 길게 눌렀을 때 — 전송 취소. */
   cancelPending: (clientMsgId: string) => void
+  /** 텍스트 오프라인 큐에 보내지 못한 메시지가 남아 있다(연결이 끊긴 것으로 본다 - F05 안내). */
+  hasQueued: boolean
+  /** 사진 한 장을 보낸다(올린 뒤 메시지 한 줄). 텍스트 큐와 별개로 이 세션 메모리에서만 재시도한다. */
+  sendPhoto: (photo: PickedPhoto) => Promise<void>
   stories: StoryRow[]
   storiesLoading: boolean
-  postStory: (caption: string | null) => Promise<void>
+  /** 고른 사진을 바로 스토리로 올린다(R13-11 #6, 편집 화면·캡션 없음). 성공 여부를 돌려준다. */
+  postStory: (photo: PickedPhoto) => Promise<boolean>
 }
 
 export function useRealtimeMessages(
@@ -76,6 +98,9 @@ export function useRealtimeMessages(
   const [stories, setStories] = useState<StoryRow[]>([])
   const [storiesLoading, setStoriesLoading] = useState(true)
   const retryQueueRef = useRef<ChatRetryQueue | null>(null)
+  const [hasQueued, setHasQueued] = useState(false)
+  /** 사진 보내기 작업(이 세션 메모리). 성공하면 지운다. */
+  const photoJobsRef = useRef<Map<string, { photo: PickedPhoto; sentAt: string }>>(new Map())
 
   /** 전송 1회 시도(최초 시도와 재시도가 공유) — 성공/중복이면 화면에 확정 행을 반영한다. */
   const attemptSend = useCallback(async (item: OutgoingMessage): Promise<AttemptOutcome> => {
@@ -98,6 +123,7 @@ export function useRealtimeMessages(
     if (!coupleId) {
       retryQueueRef.current?.dispose()
       retryQueueRef.current = null
+      setHasQueued(false)
       return
     }
 
@@ -108,6 +134,8 @@ export function useRealtimeMessages(
         // 저장 실패해도 이번 세션 메모리 큐는 계속 동작한다 — 다음 변경 때 다시 저장을 시도한다.
       })
       setMessages((prev) => syncQueuedMessages(prev, queue))
+      // 자동 재시도 중인 항목만(소진·영구 실패는 말풍선의 "다시 보내기"가 맡는다).
+      setHasQueued(queue.some((item) => item.status === 'pending'))
     }
 
     // 큐 인스턴스는 이 자리에서 동기적으로 만든다(AsyncStorage 읽기를
@@ -198,8 +226,9 @@ export function useRealtimeMessages(
   const sendText = useCallback(
     async (body: string) => {
       if (!coupleId || !currentUserId) return
+      // 화면의 보내기 막음·API의 거부와 같은 규칙(`canSendBody`, R21-5).
+      if (!canSendBody(body)) return
       const trimmed = body.trim()
-      if (!trimmed) return
 
       const clientMsgId = generateUuidV4()
       const sentAt = new Date().toISOString()
@@ -233,11 +262,75 @@ export function useRealtimeMessages(
     [coupleId, currentUserId, attemptSend],
   )
 
-  const retryFailed = useCallback((clientMsgId: string) => {
-    retryQueueRef.current?.retryNow(clientMsgId)
-  }, [])
+  /** 사진 한 건 보내기 - 올리고(경로는 `client_msg_id`에서 정해져 재시도해도 같은 파일), 메시지 한 줄을 멱등으로 넣는다. */
+  const runPhotoJob = useCallback(
+    async (clientMsgId: string) => {
+      const job = photoJobsRef.current.get(clientMsgId)
+      if (!job || !coupleId || !currentUserId) return
+      const markFailed = () =>
+        setMessages((prev) =>
+          prev.map((m) => (m.clientMsgId === clientMsgId ? { ...m, pending: false, failed: true } : m)),
+        )
+      try {
+        const path = entryStoragePath(coupleId, clientMsgId, job.photo.ext)
+        const bytes = await readLocalBytes(job.photo.uri)
+        const uploaded = await uploadChatMedia('messages', path, bytes, contentTypeOf(job.photo))
+        if (!uploaded.ok) return markFailed()
+        const result = await apiSendMessage({ clientMsgId, coupleId, senderId: currentUserId, body: null, mediaPath: path })
+        if (result.status === 'failed') return markFailed()
+        if (result.row) setMessages((prev) => mergeMessage(prev, rowToChatMessage(result.row!)))
+        photoJobsRef.current.delete(clientMsgId)
+      } catch {
+        markFailed()
+      }
+    },
+    [coupleId, currentUserId],
+  )
+
+  const sendPhoto = useCallback(
+    async (photo: PickedPhoto) => {
+      if (!coupleId || !currentUserId) return
+      const clientMsgId = generateUuidV4()
+      const sentAt = new Date().toISOString()
+      photoJobsRef.current.set(clientMsgId, { photo, sentAt })
+      setMessages((prev) =>
+        mergeMessage(prev, {
+          id: `local:${clientMsgId}`,
+          clientMsgId,
+          coupleId,
+          senderId: currentUserId,
+          body: null,
+          mediaPath: null,
+          sentAt,
+          readAt: null,
+          pending: true,
+          localUri: photo.uri,
+        }),
+      )
+      await runPhotoJob(clientMsgId)
+    },
+    [coupleId, currentUserId, runPhotoJob],
+  )
+
+  const retryFailed = useCallback(
+    (clientMsgId: string) => {
+      if (photoJobsRef.current.has(clientMsgId)) {
+        setMessages((prev) =>
+          prev.map((m) => (m.clientMsgId === clientMsgId ? { ...m, pending: true, failed: false } : m)),
+        )
+        void runPhotoJob(clientMsgId)
+        return
+      }
+      retryQueueRef.current?.retryNow(clientMsgId)
+    },
+    [runPhotoJob],
+  )
 
   const cancelPending = useCallback((clientMsgId: string) => {
+    if (photoJobsRef.current.delete(clientMsgId)) {
+      setMessages((prev) => prev.filter((m) => m.clientMsgId !== clientMsgId))
+      return
+    }
     retryQueueRef.current?.cancel(clientMsgId)
   }, [])
 
@@ -263,10 +356,19 @@ export function useRealtimeMessages(
   }, [coupleId])
 
   const postStory = useCallback(
-    async (caption: string | null) => {
-      if (!coupleId || !currentUserId) return
-      const row = await apiCreateStory({ coupleId, authorId: currentUserId, caption })
-      setStories((prev) => [row, ...prev])
+    async (photo: PickedPhoto): Promise<boolean> => {
+      if (!coupleId || !currentUserId) return false
+      try {
+        const path = entryStoragePath(coupleId, generateUuidV4(), photo.ext)
+        const bytes = await readLocalBytes(photo.uri)
+        const uploaded = await uploadChatMedia('stories', path, bytes, contentTypeOf(photo))
+        if (!uploaded.ok) return false
+        const row = await apiCreateStory({ coupleId, authorId: currentUserId, mediaPath: path })
+        setStories((prev) => [row, ...prev])
+        return true
+      } catch {
+        return false
+      }
     },
     [coupleId, currentUserId],
   )
@@ -277,6 +379,8 @@ export function useRealtimeMessages(
     sendText,
     retryFailed,
     cancelPending,
+    hasQueued,
+    sendPhoto,
     stories,
     storiesLoading,
     postStory,

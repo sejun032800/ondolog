@@ -35,6 +35,54 @@ export interface ChatMessage {
   pending?: boolean
   /** true면 재시도 소진 또는 영구 실패로 자동 재시도가 멈춘 상태 — §13-3 "전송 실패". */
   failed?: boolean
+  /**
+   * 내가 방금 고른 사진의 기기 안 주소(서버 확정 전의 사진 말풍선). 서버 행에는 없다.
+   * 텍스트 오프라인 큐와 무관한 이 세션 메모리 값이라, 큐 동기화가 이 항목을 지우지 않는다.
+   */
+  localUri?: string | null
+}
+
+/**
+ * 본문이 비었거나 공백뿐인지. **보내기 막음의 단 하나의 규칙**이다 - 화면(보내기 버튼)·훅(`sendText`)·API(`chatApi.sendMessage`)가
+ * 모두 이 함수를 쓴다(R21-5). 생성 단계(R20-1)가 빼는 기준과 같다: 비었거나 공백뿐인 본문만.
+ */
+export function isBlankBody(body: string | null | undefined): boolean {
+  return body == null || body.trim().length === 0
+}
+
+/** 보낼 수 있는 메시지인가: 사진이 있거나, 본문이 공백뿐이 아니다. */
+export function canSendBody(body: string | null | undefined, hasMedia = false): boolean {
+  return hasMedia || !isBlankBody(body)
+}
+
+const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'] as const
+
+/** 날짜 구분선 글자 - "10월 20일 화요일"(올해), 다른 해는 "2025년 10월 20일 월요일". `dateKey`는 `YYYY-MM-DD`(기기 로컬 날짜). */
+export function chatDateLabel(dateKey: string, currentYear: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  const weekday = WEEKDAY_KO[new Date(y, m - 1, d).getDay()]
+  const core = `${m}월 ${d}일 ${weekday}요일`
+  return y === currentYear ? core : `${y}년 ${core}`
+}
+
+/** 스토리 올린 뒤 지난 시간 "방금" / "N분 전" / "N시간 전"(스토리는 24시간만 보여 일 단위가 없다). */
+export function relativeAgeLabel(iso: string, now: Date): string {
+  const minutes = Math.floor((now.getTime() - new Date(iso).getTime()) / 60000)
+  if (minutes < 1) return '방금'
+  if (minutes < 60) return `${minutes}분 전`
+  return `${Math.floor(minutes / 60)}시간 전`
+}
+
+/** 말풍선 옆 시각 "09:20"(기기 로컬, 24시간). */
+export function chatTimeLabel(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+}
+
+/** 사진 크게 보기 머리의 "10월 20일 12:34"(기기 로컬). */
+export function photoStampLabel(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${chatTimeLabel(iso)}`
 }
 
 export function rowToChatMessage(row: MessageRow): ChatMessage {
@@ -115,6 +163,7 @@ export function syncQueuedMessages(list: ChatMessage[], queue: QueuedMessage[]):
   const withoutCancelled = list.filter((m) => {
     if (!m.pending && !m.failed) return true
     if (!m.clientMsgId) return true
+    if (m.localUri) return true // 사진 말풍선은 이 세션 메모리 작업이라 텍스트 큐와 무관하다
     return queuedIds.has(m.clientMsgId)
   })
   return mergeMessages(withoutCancelled, queue.map(queuedMessageToChatMessage))

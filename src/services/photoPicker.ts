@@ -11,11 +11,11 @@ import { photoFromPickerAsset, type PickedPhoto } from '../utils/dateRecord'
 /** 한 번에 고를 수 있는 최대 장수(시스템 선택 화면의 제한). 0이면 시스템 최대. */
 export const PICK_LIMIT = 30
 
-export async function pickPhotos(): Promise<PickedPhoto[]> {
+export async function pickPhotos(limit: number = PICK_LIMIT): Promise<PickedPhoto[]> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
-    allowsMultipleSelection: true,
-    selectionLimit: PICK_LIMIT,
+    allowsMultipleSelection: limit !== 1,
+    selectionLimit: limit,
     orderedSelection: true,
     exif: true,
     quality: 1,
