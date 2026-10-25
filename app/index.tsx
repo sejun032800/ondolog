@@ -12,23 +12,25 @@
  * 세션 확인 중·재개 분기 중에는 스플래시를 그대로 둔다(스피너 없음). 이 화면이 서버를 부르는 것은 **이미 로그인된 세션이 있을 때뿐**이다
  * (`useSession`의 기기 안 세션 복원 + 재개 분기의 프로필 조회) - 로그인 전 온보딩 화면(A03~A13)은 서버를 부르지 않는다.
  *
- * 보드의 "이미 계정이 있어요" 링크는 두지 않았다: 동의(A10)가 로그인(A11) 앞이어야 하는데(MASTER 6-1) 이 링크는 동의 없이
- * 로그인으로 가는 길이 된다. 이미 로그인된 기기는 위 재개 분기가 맡는다.
+ * A02 "이미 계정이 있어요"(R38-3, MASTER 6-5 r70): 동의 없이 로그인(A11)으로 바로 간다 - 동의는 이미 `profiles`에 찍혀 있다. 이 길로 왔다는
+ * 표시는 `sessionStore.existingAccountPath`(메모리)뿐이다. 로그인 뒤 `profiles`가 없으면 로그인한 채 A03부터 다시(아래 재개 분기와 같다).
+ * 재개 분기의 경로 규칙은 기존 계정 로그인 직후와 같은 함수(`resolveResumePath`)를 쓴다.
  */
 import { useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Wordmark } from '../src/components/onboarding/Wordmark'
 import { PrimaryButton } from '../src/components/nocturne/Buttons'
+import { PressScale } from '../src/components/nocturne/PressScale'
 import { RiseIn } from '../src/components/nocturne/RiseIn'
 import { ScreenFrame } from '../src/components/nocturne/ScreenFrame'
 import { SkyBackground } from '../src/components/nocturne/SkyBackground'
-import { ONBOARDING_STEP } from '../src/constants/onboardingStep'
+import { resolveResumePath } from '../src/hooks/resolveResumePath'
 import { useSession } from '../src/hooks/useSession'
 import { fetchProfile } from '../src/services/personalityApi'
-import { useCoupleStore } from '../src/store/coupleStore'
-import { nocturne, type } from '../src/theme/nocturne'
+import { useSessionStore } from '../src/store/sessionStore'
+import { nocturne, shape, type } from '../src/theme/nocturne'
 
 /** 스플래시(A01)를 보이는 시간. 이 뒤에 시작(A02)으로 바뀐다. */
 const SPLASH_MS = 1400
@@ -38,6 +40,8 @@ export default function LogoStart() {
   const { session, loading } = useSession()
   const [resolving, setResolving] = useState(false)
   const [splashDone, setSplashDone] = useState(false)
+  /** 앱을 열었을 때 이미 로그인돼 있었는가(null = 아직 모름). 열린 뒤에 생긴 세션은 이 화면이 맡지 않는다. */
+  const startedLoggedInRef = useRef<boolean | null>(null)
   const insets = useSafeAreaInsets()
 
   useEffect(() => {
@@ -46,7 +50,11 @@ export default function LogoStart() {
   }, [])
 
   useEffect(() => {
-    if (loading || !session) return
+    if (loading) return
+    if (startedLoggedInRef.current === null) startedLoggedInRef.current = !!session
+    // 로그인 화면(A11)에서 방금 로그인한 세션은 거기서 `useSignupFinalize`가 분기한다. 이 화면은 스택 아래에 남아 있어서
+    // 같은 세션 변화를 보고 끼어들면(`/basic-info`로 갈아치움) 저장·분기와 다투게 된다.
+    if (!session || !startedLoggedInRef.current) return
 
     let cancelled = false
     setResolving(true)
@@ -63,29 +71,7 @@ export default function LogoStart() {
           return
         }
 
-        if (profile.onboarding_step === ONBOARDING_STEP.AUTH) {
-          router.replace('/result-detail')
-          return
-        }
-        if (profile.onboarding_step === ONBOARDING_STEP.RESULT) {
-          router.replace('/invite')
-          return
-        }
-
-        // INVITE 또는 COMPLETE — 커플 연결 상태를 확인해 사귄 날짜
-        // 입력이 아직 필요한지 판단한다.
-        await useCoupleStore.getState().refresh(session.user.id)
-        const couple = useCoupleStore.getState()
-        if (
-          profile.onboarding_step === ONBOARDING_STEP.INVITE &&
-          couple.status === 'connected' &&
-          !couple.relationshipStartDate
-        ) {
-          router.replace('/start-date')
-          return
-        }
-
-        router.replace('/main')
+        router.replace((await resolveResumePath(profile)) as never)
       } finally {
         if (!cancelled) setResolving(false)
       }
@@ -121,7 +107,25 @@ export default function LogoStart() {
           </RiseIn>
         </View>
         <View style={[styles.startFooter, { paddingBottom: insets.bottom + 40 }]}>
-          <PrimaryButton label="시작하기" onPress={() => router.push('/basic-info')} testID="start-button" />
+          <PrimaryButton
+            label="시작하기"
+            onPress={() => {
+              useSessionStore.getState().setExistingAccountPath(false)
+              router.push('/basic-info')
+            }}
+            testID="start-button"
+          />
+          <PressScale
+            onPress={() => {
+              useSessionStore.getState().setExistingAccountPath(true)
+              router.push('/auth')
+            }}
+            accessibilityLabel="이미 계정이 있어요"
+            style={styles.existing}
+            testID="existing-account"
+          >
+            <Text style={styles.existingLabel}>이미 계정이 있어요</Text>
+          </PressScale>
         </View>
       </SkyBackground>
     </ScreenFrame>
@@ -133,5 +137,7 @@ const styles = StyleSheet.create({
   startTop: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 60 },
   startCopy: { alignItems: 'center', gap: 44 },
   headline: { ...type.display, color: nocturne.text, textAlign: 'center' },
-  startFooter: { paddingHorizontal: 20 },
+  startFooter: { paddingHorizontal: 20, gap: 4 },
+  existing: { minHeight: shape.touch, alignItems: 'center', justifyContent: 'center' },
+  existingLabel: { ...type.body, fontSize: 15.5, color: nocturne.mist },
 })

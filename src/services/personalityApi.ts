@@ -31,6 +31,7 @@
 import { ONBOARDING_STEP } from '../constants/onboardingStep'
 import { computeLoveTypeCode } from '../engine/loveTypeInference'
 import { supabase } from './supabase'
+import { advanceOnboardingStep } from './onboardingStepCore'
 import {
   createProfileAndAssessment as createProfileAndAssessmentCore,
   type CreateProfileAndAssessmentInput,
@@ -43,10 +44,10 @@ type ProfileRow = Database['public']['Tables']['personality_profiles']['Row']
 export type { CreateProfileAndAssessmentInput } from './personalityCore'
 
 /**
- * 화면 6 성공 직후 1회 호출(U6 이후: A11 로그인 직후, `useSignupFinalize`). 알맹이는 `personalityCore.ts` -
+ * 화면 6 성공 직후 호출(U6 이후: A11 로그인 직후, `useSignupFinalize`). 없을 때만 넣는다(r70). 알맹이는 `personalityCore.ts` -
  * 앱 전역 `supabase`를 넣어 부른다. 동의 시각·세이브포인트 규칙은 그쪽 주석 그대로다.
  */
-export function createProfileAndAssessment(input: CreateProfileAndAssessmentInput): Promise<AssessmentRow> {
+export function createProfileAndAssessment(input: CreateProfileAndAssessmentInput): Promise<AssessmentRow | null> {
   return createProfileAndAssessmentCore(supabase, input)
 }
 
@@ -137,15 +138,12 @@ export async function overrideEnneagramCore(
   return data
 }
 
-export async function updateOnboardingStep(
+/** 진행 단계를 **올린다**(같거나 작은 값은 아무 일도 하지 않는다 - r70). 알맹이는 `onboardingStepCore.ts`. */
+export function updateOnboardingStep(
   userId: string,
   step: (typeof ONBOARDING_STEP)[keyof typeof ONBOARDING_STEP],
 ): Promise<void> {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ onboarding_step: step })
-    .eq('id', userId)
-  if (error) throw error
+  return advanceOnboardingStep(supabase, userId, step)
 }
 
 export async function fetchProfile(

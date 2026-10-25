@@ -454,7 +454,8 @@ describe('로그인 전 서버 호출 0건 · 영속 저장소에 온보딩 답 
       jest.advanceTimersByTime(1600)
     })
     expect(screen.getByTestId('start-button')).toBeTruthy()
-    expect(screen.queryByText(/이미 계정/)).toBeNull() // 동의 없이 로그인으로 가는 길을 두지 않는다
+    // "이미 계정이 있어요"는 r70(R38-3)에서 되살렸다 - 동의는 이미 profiles에 찍혀 있다. 누르기 전에는 서버를 부르지 않는다(아래 호출 목록).
+    expect(screen.getByTestId('existing-account')).toBeTruthy()
     const allowed = new Set(['supabase.auth.getSession', 'supabase.auth.onAuthStateChange'])
     expect(mockCalls.filter((c) => !allowed.has(c))).toEqual([])
     expect(setItemSpy).not.toHaveBeenCalled()

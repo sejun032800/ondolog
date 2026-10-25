@@ -6,8 +6,8 @@
  *    동의 시각 없이 사용자 권한으로 profiles 행을 직접 넣어 보면 거부된다(017: NOT NULL, default 없음).
  * 3. **부른 뒤에만**: 앱이 로그인 직후 부르는 함수 그대로(`personalityCore.createProfileAndAssessment`, 앱은 `personalityApi`가 같은 알맹이를 부른다) ->
  *    세 칸이 찍히고, 마케팅은 체크하지 않았으므로 비어 있고, `onboarding_step`=0, personality_assessments 1행(seq 1).
- * 4. **이미 동의·답이 있는 계정으로 같은 함수를 다시 부르면** 어떻게 되는지(코드가 하는 그대로, 바꾸지 않는다): profiles는 upsert라 시각·이름이 덮이고
- *    onboarding_step이 0으로 되돌아가며, assessment insert는 `unique(user_id, seq)`에 걸려 실패한다.
+ * 4. **이미 동의·답이 있는 계정으로 같은 함수를 다시 부르면**(r70 이후 - 없을 때만 넣기): 오류 없이 통과하고, profiles의 시각·이름·진행 단계와
+ *    assessment는 그대로다. (r70 이전에는 upsert라 덮였고 assessment insert가 23505로 실패했다 - `64-`가 바꿨다. 자세한 실증은 `verifyExistingAccount.ts`.)
  *
  * service_role은 **계정 만들기·로그인 토큰·읽어 확인하기**에만 쓴다. 저장 호출은 사용자 세션(anon 키 + 로그인)이다. 토큰·키·URL은 출력·파일에 쓰지 않는다.
  *
@@ -88,7 +88,7 @@ async function main(): Promise<void> {
     marketingAgreed: false,
   })
   const t1 = Date.now()
-  line(`createProfileAndAssessment -> assessment seq ${assessment.seq}, enneagram_core ${assessment.enneagram_core}`)
+  line(`createProfileAndAssessment -> assessment seq ${assessment?.seq}, enneagram_core ${assessment?.enneagram_core}`)
 
   const after = await admin
     .from('profiles')
@@ -131,8 +131,8 @@ async function main(): Promise<void> {
     .single()
   line(`[다시 부름] profiles: display_name '${again.data.display_name}', onboarding_step ${again.data.onboarding_step}(부르기 전 3), terms_agreed_at ${again.data.terms_agreed_at === firstStamp ? '그대로' : '새 시각으로 덮임'}, marketing_agreed_at ${again.data.marketing_agreed_at ? '찍힘' : '비어 있음'}`)
   line(`[다시 부름] personality_assessments insert -> ${secondError ? `실패(${secondError})` : '성공'}`)
-  check(again.data.onboarding_step === 0 && again.data.terms_agreed_at !== firstStamp, '[다시 부름] profiles는 upsert라 덮이고 세이브포인트가 0으로 되돌아간다(기록용 - 바꾸지 않는다)')
-  check(secondError === '23505', '[다시 부름] 두 번째 assessment는 unique(user_id, seq)에 걸려 실패한다(기록용)')
+  check(again.data.onboarding_step === 3 && again.data.terms_agreed_at === firstStamp && again.data.display_name === 'test-세준', '[다시 부름] 없을 때만 넣기 - profiles가 덮이지 않고 세이브포인트도 그대로(3)')
+  check(secondError === '', '[다시 부름] 두 번째 호출은 오류 없이 통과한다(assessment 23505는 성공으로 본다)')
 
   line(`\n실패 ${failures}건`)
   await Deno.mkdir('scripts/ops/out', { recursive: true })

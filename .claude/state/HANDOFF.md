@@ -33,6 +33,28 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## 기존 계정 · 동의 문장 · 사진 영속 큐 (`64-`, 2026-10-25, ui-builder) - 원격 개발 DB 실증 완료, 실기기 미확인
+
+- 파일: 동의 문장 `src/constants/consent.ts`(`AI_USAGE_HELPER`)·`app/(onboarding)/consent.tsx` · 기존 계정 `app/index.tsx`(A02 링크, 재개 분기)·`app/(onboarding)/{auth,consent}.tsx`·`src/hooks/{useSignupFinalize,resolveResumePath}.ts`·`src/store/sessionStore.ts`(`existingAccountPath`)·`src/utils/{onboardingRules,onboardingResume}.ts`·`src/services/{personalityCore,personalityApi,coupleApi,onboardingStepCore}.ts` · 사진 큐 `src/utils/{chatPhotoQueue,chatPhotoQueueRunner}.ts`·`src/services/{chatPhotoCore,photoQueueFs,photoQueueStore,chatApi}.ts`·`src/hooks/useRealtimeMessages.ts` · 실증 `scripts/ops/verifyExistingAccount.ts`(옛 `verifyU6Signup.ts`의 "다시 부름" 기대값을 r70 동작으로 고침).
+- 내부 결정(항목당 한 줄):
+  - `npx expo install expo-file-system`은 peer 충돌(`@react-native/jest-preset`)로 npm이 중단했으나 `package.json`에 `~57.0.7`이 이미 적혀 있었고, 알려진 이슈(CLAUDE.md)대로 `npm install --legacy-peer-deps` 한 번으로 `package-lock.json`을 맞췄다. 바뀐 파일은 두 개뿐(각 1줄), `app.json` 플러그인은 필요 없었다. 커밋 전 `npx expo install --check`는 사람.
+  - 로그인 직후 분기의 규칙은 순수 함수 `decideAfterLogin`(existing / save / answers / consent). 프로필이 있어도 메모리 답·동의가 온전하고 **검사 행만 없으면** 저장 경로로 끝까지 간다(우리 쪽 저장이 중간에 끊긴 흔적 - R38-3 d의 "일부만 들어간 상태"를 화면 재진입에서도 잇기 위해). 이때만 `fetchLatestAssessment`를 더 읽는다. 완성된 기존 계정은 저장 호출 0.
+  - 프로필 없음 + 답은 있는데 동의가 비면 A03이 아니라 A10부터(`/consent`). 답이 비면 A03(`/basic-info`)부터. 둘 다 로그인한 채다.
+  - 로그인한 채 A10에서 [동의하고 시작하기]는 A11을 건너뛰고 `useSignupFinalize(auto: false).start()`로 저장한다. 실패하면 A11과 같은 문장 "저장하지 못했어요. 다시 시도해주세요."를 버튼 아래에 보이고, 버튼을 다시 누르면 재시도한다.
+  - 이미 계정 길의 A11은 부제를 "이미 가입한 계정으로 로그인해요."로 바꾸고 하단 안내(동의 유지)를 숨긴다 - 기존 문장("방금 본 결과가 계정에 저장돼요")이 사실과 달라서. Part 9 화면 문구라 디자인 세션이 확인할 것.
+  - `app/index.tsx`는 앱을 열었을 때 이미 로그인돼 있던 경우에만 재개 분기를 탄다(`startedLoggedInRef`). 스택 아래에 남은 A01이 A11 로그인 직후의 세션 변화를 보고 `/basic-info`로 갈아치우며 저장·분기와 다투는 길을 막았다(63- 때부터 있던 잠재 결함).
+  - 진행 단계 갱신은 `advanceOnboardingStep`(`update ... where id and onboarding_step < step`) 하나로 모았다. 같은 값·작은 값은 0행 갱신이고 오류가 아니다. 가입 직후 0은 새 프로필을 넣을 때만 정해진다(이미 있는 프로필은 insert가 23505라 건드리지 않음).
+  - `onboarding_step`을 쓰는 곳(클라이언트): `personalityCore.ts:73` 새 프로필 insert의 0(이미 있으면 안 쓰임) · `onboardingStepCore.ts:22-24` 유일한 갱신(`< step` 조건) · `personalityApi.ts:146` `updateOnboardingStep` -> 위 함수(호출: `personalityApi.ts:111` RESULT) · `coupleApi.ts:98·108·113` 세 함수 -> 위 함수. 읽기: `resolveResumePath.ts`·`onboardingResume.ts`. `scripts/ops/` 시험 계정 준비(admin, 클라이언트 아님)의 `onboarding_step: 3`·`update`는 앱 경로가 아니라 그대로 둠.
+  - 사진 큐 저장 위치: AsyncStorage 키 `chat_photo_queue:{coupleId}:{userId}`(텍스트 큐 `chat_queue:{coupleId}`와 같은 방식, 사용자별로 나눠 다른 사람의 항목을 보내지 않는다). 복사본은 `Paths.document/chat-photo-queue/{clientId}.{ext}`(성공·취소·사라짐이면 지움).
+  - 스토리는 클라이언트 id 열이 없어(마이그레이션 없음) 큐 항목의 `clientId`를 업로드 경로 파일 이름으로 쓰고, **같은 `couple_id`+`media_path` 행이 이미 있으면 insert하지 않는다**(조회 뒤 삽입 - 같은 항목이 겹쳐 시도되지 않도록 러너가 진행 중 표시를 둔다). 만료는 삽입 시각 + 24시간(`expires_at > created_at` 제약 때문에 늦게 올라가도 안전).
+  - 첫 시도의 일시 실패는 재시도 횟수를 쓰지 않고 2초부터(텍스트 큐와 같은 백오프), 복원 때의 시도는 재시도 1회로 센다. 5회 소진·영구 실패(4xx, 408·429 제외)는 `failed`: 메시지는 말풍선 [다시 보내기], 스토리는 화면이 없어 앱을 열 때 한 번 다시 시도하게 pending으로 돌린다. `postStory`가 영구 실패로 false를 돌리면 사람에게 알린 것이므로 큐에서 뺀다.
+  - 복사본이 사라진 항목(저장공간을 비움 등): 서버를 부르지 않고 큐에서 뺀다. 메시지는 이 세션에서 실패 말풍선으로 보이고(다시 보내기는 동작 안 함, 길게 눌러 지움), 스토리는 조용히 사라진다(보여 줄 자리가 없음). 앱을 다시 열면 말풍선도 없다.
+  - `hasQueued`(F05 안내)는 텍스트 큐 또는 사진 큐에 대기 항목이 있으면 true. `postStory`는 올렸거나 큐에서 이어 보내는 중이면 true(실패 알림을 띄우지 않는다), 복사 실패·영구 실패면 false.
+  - 사진 큐는 채팅 탭이 붙어야(`useRealtimeMessages` 마운트) 이어 보낸다 - 텍스트 큐와 같은 한계. 탭이 지연 마운트면 앱을 열고 채팅 탭을 열 때 재개된다(`51-`에서 확인).
+  - 옛 `u6Onboarding.test.tsx`의 "이미 계정 링크 없음" 단언 한 줄만 "링크가 있음"으로 고쳤다(R38-3이 되살린 것). 나머지 규칙 11 시험은 그대로 통과.
+- 실증(원격 개발 DB, 사용자 권한): 기존 시험 계정 `test-63-signup-*`·`test-61-*`(커플 연결) 전후 같음 · 새 계정 저장 2회 행 수 그대로 · 일부만 저장 끝까지 · 진행 단계 감소 0 · 사진 메시지·스토리 각각 객체 1·행 1(끊김 두 종류, 앱 재시작 흉내 포함). 시험 데이터: `test-64-save-*`·`test-64-partial-*` 계정, 시험 커플 `test-62-chat`의 사진 메시지·스토리 행(지우지 않음). 첫 실행에서 "전후 같음"이 한 번 FAIL이었는데 스크립트 결함이었다(단계 0 계정에 `advance(1)`을 불러 정당하게 0->1로 올라감) - 지금 값 이하로만 부르도록 고쳐 다시 돌려 0건. 그 계정(`test-63-signup-20261025101534`)의 단계는 이제 1이다.
+- `51-` 확인 목록(본문 파일은 저장소에 없어 목록 파일은 못 고친다): 63-이 센 20가지에 "기존 계정 재로그인(새 기기 · 재설치) - 진행 단계 유지"와 "비행기 모드에서 사진 보내고 앱 재시작 -> 이어 보내기" 둘을 더하면 **22가지**다. 지시서(`64-`)는 21가지라고 적었는데 63-의 20에 사진 항목이 이미 들어 있지 않으면 22가 맞다 - 63- HANDOFF는 사진 항목을 20에서 뺐다("a를 하면 21가지"). 산수 확인 필요(PM). "Android 카카오 왕복 중 앱 종료 -> A03부터 복구"는 온보딩 항목에 묶어 적는다.
+
 ## 사진 큐 · U6 온보딩 1부 (`63-`, 2026-10-25, ui-builder) - 원격 개발 DB 실증 완료(저장 경로), 실기기 미확인
 
 - 파일: §0 `src/utils/chatGapFill.ts`·`src/hooks/useRealtimeMessages.ts`·`src/services/chatApi.ts`(`fetchMessagesAfter`)·`src/components/couple/InviteSheet.tsx`(`selectable`). §1 화면 `app/index.tsx`·`app/(onboarding)/{basic-info,mbti,love-quiz,result-brief,consent,underage,auth}.tsx`·`app/(modals)/legal-document.tsx`, 컴포넌트 `src/components/onboarding/`, 규칙 `src/utils/onboardingRules.ts`(+`age.ts`의 `calculateAgeKst`), 훅 `src/hooks/useSignupFinalize.ts`, 저장 알맹이 `src/services/personalityCore.ts`, 토큰 `nocturne.kakao`, 실증 `scripts/ops/verifyU6Signup.ts`.

@@ -68,7 +68,15 @@ interface SessionState {
    */
   consent: ConsentFlags
 
+  // ── 이미 계정이 있어요(A02) ──
+  /**
+   * A02 "이미 계정이 있어요"로 로그인(A11)에 온 길인가(R38-3). 동의 없이 A11에 머물 수 있게 하는 표시일 뿐이다.
+   * 메모리에만 둔다 - 앱을 닫으면 사라진다(영속 저장소 금지). "시작하기"로 들어오면 꺼진다.
+   */
+  existingAccountPath: boolean
+
   // ── 액션 ──
+  setExistingAccountPath: (value: boolean) => void
   setConsent: (consent: ConsentFlags) => void
   setBasicInfo: (info: BasicInfo) => void
   setName: (name: string) => void
@@ -99,8 +107,10 @@ const initialState = {
   q5: null,
   result: null,
   consent: EMPTY_CONSENT,
+  existingAccountPath: false,
 } satisfies Omit<
   SessionState,
+  | 'setExistingAccountPath'
   | 'setConsent'
   | 'setBasicInfo'
   | 'setName'
@@ -119,6 +129,8 @@ const CLEARED_QUIZ = { q1: null, q2: null, q3: null, q4: null, q5: null, result:
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   ...initialState,
+
+  setExistingAccountPath: (value) => set({ existingAccountPath: value }),
 
   setConsent: (consent) => set({ consent }),
 

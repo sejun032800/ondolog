@@ -82,3 +82,66 @@ export function parseBirthInput(text: string, now: Date): string | null {
 export function birthIsoToInput(iso: string | null): string {
   return iso ? iso.replace(/-/g, '.') : ''
 }
+
+// ---------------------------------------------------------------------------
+// 로그인 직후 분기 (MASTER 6-5 "기존 계정", r70)
+// ---------------------------------------------------------------------------
+
+/** 가입 저장에 필요한 메모리 답(A03~A08)이 전부 있는가. */
+export function hasCompleteAnswers(state: {
+  name: string
+  gender: unknown
+  birthDate: string | null
+  mbti: unknown
+  q1: unknown
+  q2: unknown
+  q3: unknown
+  q4: unknown
+  q5: unknown
+  result: unknown
+}): boolean {
+  return (
+    state.name.trim().length > 0 &&
+    !!state.gender &&
+    !!state.birthDate &&
+    !!state.mbti &&
+    !!state.q1 &&
+    !!state.q2 &&
+    !!state.q3 &&
+    !!state.q4 &&
+    !!state.q5 &&
+    !!state.result
+  )
+}
+
+/** 로그인 직후 무엇을 할까. */
+export type AfterLoginAction =
+  /** 기존 계정 - 저장 경로를 부르지 않고 메모리를 버리고 서버 진행 단계로 간다. */
+  | 'existing'
+  /** 새 계정 - 메모리의 답과 동의를 저장한다. */
+  | 'save'
+  /** 새 계정인데 답이 없다 - 로그인한 채 A03부터 다시. */
+  | 'answers'
+  /** 새 계정이고 답은 있는데 동의가 없다 - 로그인한 채 A10부터. */
+  | 'consent'
+
+/**
+ * 로그인 직후 분기의 단 하나의 규칙(순수 함수).
+ *
+ * - `profiles`가 있으면 기존 계정이다 - 메모리에 답이 있어도 저장하지 않는다(기존 기록이 이긴다).
+ *   단 하나의 예외: 메모리 답이 온전하고 **검사 행만 없는** 경우는 우리 쪽 저장이 중간에 끊긴 흔적(프로필만 들어감)이라 끝까지 간다.
+ * - `profiles`가 없으면 메모리를 본다: 답이 비면 A03부터, 답은 있고 동의가 비면 A10부터, 둘 다 있으면 저장.
+ */
+export function decideAfterLogin(input: {
+  hasProfile: boolean
+  hasAssessment: boolean
+  answersComplete: boolean
+  consentComplete: boolean
+}): AfterLoginAction {
+  if (input.hasProfile) {
+    return input.answersComplete && input.consentComplete && !input.hasAssessment ? 'save' : 'existing'
+  }
+  if (!input.answersComplete) return 'answers'
+  if (!input.consentComplete) return 'consent'
+  return 'save'
+}

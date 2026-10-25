@@ -13,3 +13,8 @@
  * 이 값만 바꾸면 된다(`.claude/state/DECISIONS.md` 참조).
  */
 export const MIN_AGE_YEARS = 14
+
+/** A10 "AI 콘텐츠 생성을 위한 데이터 활용" 항목 아래 설명 한 줄. 화면(`app/(onboarding)/consent.tsx`)이 이 상수를 읽는다. */
+// 임시 — M3-7에서 프로바이더·보존·학습 정책을 담은 고지문으로 교체 (MASTER 6-3 r70)
+export const AI_USAGE_HELPER =
+  '두 사람의 대화·메모·사진이 잡지를 만드는 데 쓰여요. 글로 된 기록은 잡지 문장을 쓰기 위해 외부 AI 서비스로 보내지고, 사진 자체는 보내지 않아요.'

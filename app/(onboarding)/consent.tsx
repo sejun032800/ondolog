@@ -5,18 +5,23 @@
  * ② 이용약관 ③ 개인정보 처리방침 ④ AI 콘텐츠 생성을 위한 데이터 활용(셋 다 필수) ⑤ 마케팅 수신(선택).
  * 문서가 있는 ②~⑤에는 [보기]가 있다(A12, 6-3). [동의하고 시작하기]는 필수가 전부 체크됐을 때만 켜진다 - 판단은 순수 함수 `canAgree`.
  *
- * 이 화면은 **서버를 부르지 않는다**. 체크 상태는 `sessionStore.consent`(메모리)에 두고, 로그인(A11)이 이어받는다.
+ * 이 화면은 **로그인 전에는 서버를 부르지 않는다**. 체크 상태는 `sessionStore.consent`(메모리)에 두고, 로그인(A11)이 이어받는다.
+ * 이미 로그인한 채 여기 온 길(A02 "이미 계정이 있어요"로 로그인했는데 `profiles`가 없어 A03부터 다시 온 경우, R38-3)에서는 A11을 건너뛴다:
+ * [동의하고 시작하기]가 바로 가입 마무리(`useSignupFinalize`, `auto: false`)를 시작한다.
  * 만 14세 미만이면 이 화면 대신 A13으로 간다(가입 차단). 생년월일이 없으면(앞 화면 답이 사라짐) 처음 입력으로 돌려보낸다.
  */
 import { useRouter } from 'expo-router'
 import { useEffect } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { ConsentRow } from '../../src/components/onboarding/ConsentRow'
 import { OnboardingScreen } from '../../src/components/onboarding/OnboardingScreen'
 import { PrimaryButton } from '../../src/components/nocturne/Buttons'
 import { SoftCard } from '../../src/components/nocturne/GlassCard'
+import { AI_USAGE_HELPER } from '../../src/constants/consent'
+import { useSession } from '../../src/hooks/useSession'
+import { useSignupFinalize } from '../../src/hooks/useSignupFinalize'
 import { useSessionStore } from '../../src/store/sessionStore'
-import { nocturne } from '../../src/theme/nocturne'
+import { nocturne, type } from '../../src/theme/nocturne'
 import {
   canAgree,
   isAgeEligible,
@@ -25,11 +30,10 @@ import {
 } from '../../src/utils/onboardingRules'
 import type { LegalDocumentKey } from '../../src/constants/legalDocuments'
 
-/** 보드의 AI 활용 항목 설명(MASTER 6-3 ④의 두 요지: 대화·사진·메모가 쓰인다 / 외부로 전송된다). */
-const AI_HELPER = '대화·사진·메모가 잡지를 만드는 데 쓰이고, 이때 외부 AI로 전송돼요'
-
 export default function ConsentScreen() {
   const router = useRouter()
+  const { session } = useSession()
+  const finalize = useSignupFinalize(session, (path) => router.replace(path as never), { auto: false })
   const birthDate = useSessionStore((s) => s.birthDate)
   const consent = useSessionStore((s) => s.consent)
   const setConsent = useSessionStore((s) => s.setConsent)
@@ -53,8 +57,8 @@ export default function ConsentScreen() {
       footer={
         <PrimaryButton
           label="동의하고 시작하기"
-          disabled={!enabled}
-          onPress={() => router.push('/auth')}
+          disabled={!enabled || finalize.status === 'saving'}
+          onPress={() => (session ? finalize.start() : router.push('/auth'))}
           testID="consent-proceed"
         />
       }
@@ -93,7 +97,7 @@ export default function ConsentScreen() {
         <ConsentRow
           label="AI 콘텐츠 생성을 위한 데이터 활용"
           tag="필수"
-          helper={AI_HELPER}
+          helper={AI_USAGE_HELPER}
           checked={consent.aiUsage}
           onToggle={() => toggle('aiUsage')}
           onView={() => view('aiUsage')}
@@ -111,6 +115,11 @@ export default function ConsentScreen() {
           viewTestID="consent-marketing-view"
         />
       </SoftCard>
+      {finalize.status === 'failed' ? (
+        <Text style={styles.error} testID="consent-save-error">
+          저장하지 못했어요. 다시 시도해주세요.
+        </Text>
+      ) : null}
     </OnboardingScreen>
   )
 }
@@ -118,4 +127,5 @@ export default function ConsentScreen() {
 const styles = StyleSheet.create({
   card: { marginTop: 32, paddingVertical: 8, paddingHorizontal: 20 },
   rule: { height: 1, backgroundColor: nocturne.hairline },
+  error: { ...type.sub, color: nocturne.rose, textAlign: 'center', marginTop: 16 },
 })

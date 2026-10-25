@@ -23,6 +23,9 @@
  *   `supabase`를 넣어 부른다. 빈 본문 거부(R21-5)는 알맹이 안에 있어 어느 쪽으로 불러도 같다.
  */
 import { supabase } from './supabase'
+import { attemptQueuedPhoto as attemptQueuedPhotoCore, type AttemptedPhoto } from './chatPhotoCore'
+import { photoQueueFs } from './photoQueueFs'
+import type { QueuedPhoto } from '../utils/chatPhotoQueue'
 import {
   createStory as createStoryCore,
   fetchMessageByClientId as fetchMessageByClientIdCore,
@@ -37,7 +40,12 @@ import {
   type StoryRow,
 } from './chatCore'
 
-export type { ChatBucket, CreateStoryInput, MessageRow, SendInput, SendMessageResult, StoryRow }
+export type { ChatBucket, CreateStoryInput, MessageRow, SendInput, SendMessageResult, StoryRow, AttemptedPhoto }
+
+/** 사진 영속 큐 항목 한 번의 시도(올리기 + 메시지 한 줄 / 스토리 한 행, 다시 보내도 각 하나). 알맹이는 `chatPhotoCore.ts`. */
+export function attemptQueuedPhoto(item: QueuedPhoto): Promise<AttemptedPhoto> {
+  return attemptQueuedPhotoCore(supabase, item, photoQueueFs)
+}
 
 /** 완료 기준 2 - 동일 client_msg_id로 재시도해도 중복 삽입되지 않는다. 공백뿐인 본문(사진 없음)은 거부한다(R21-5). */
 export function sendMessage(input: SendInput): Promise<SendMessageResult> {

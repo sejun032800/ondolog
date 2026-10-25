@@ -2,11 +2,13 @@
  * A11 로그인 수단 - 동의(A10) 다음이다(MASTER 6-1, R24-4). 디자인 `N-A11-Login`.
  *
  * **동의 없이는 이 화면에 머물 수 없다**: 필수 동의가 빠졌거나 만 14세 미만이거나 생년월일(앞 화면 답)이 없으면 A10으로 되돌린다
- * (순수 함수 `canEnterLogin`). 로그인 버튼 자체도 같은 조건일 때만 눌린다.
+ * (순수 함수 `canEnterLogin`). 로그인 버튼 자체도 같은 조건일 때만 눌린다. 이 가드는 **로그인 안 된 상태에만** 적용한다(R38-3):
+ * 이미 로그인한 채 들어왔거나, A02 "이미 계정이 있어요"로 온 길(`existingAccountPath`, 메모리 표시)이면 동의 없이 머문다 -
+ * 동의는 이미 `profiles`에 찍혀 있다.
  *
  * 카카오 로그인은 **기존 코드**(`signInWithSocialProvider`)를 그대로 쓴다. 구글·애플은 아직 동작하지 않아(Supabase 프로바이더 미설정,
- * HANDOFF) 보드의 버튼을 **숨겼다**. 로그인에 성공하면 `useSignupFinalize`가 기존 저장 경로로 답과 동의 시각을 저장하고, **저장이 실패하면
- * 넘어가지 않으며 [다시 시도]가 나온다**(동의·답은 그대로). 로그인 인증이 실패해도 동의 상태는 그대로 남는다(MASTER 6-5).
+ * HANDOFF) 보드의 버튼을 **숨겼다**. 로그인에 성공하면 `useSignupFinalize`가 `profiles`를 조회해 갈린다: 이미 있으면 저장 없이
+ * 서버 진행 단계로, 없으면 기존 저장 경로로 답과 동의 시각을 저장하고, **저장이 실패하면 넘어가지 않으며 [다시 시도]가 나온다**(동의·답은 그대로). 로그인 인증이 실패해도 동의 상태는 그대로 남는다(MASTER 6-5).
  */
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
@@ -31,18 +33,21 @@ export default function AuthScreen() {
   const { session } = useSession()
   const birthDate = useSessionStore((s) => s.birthDate)
   const consent = useSessionStore((s) => s.consent)
+  const existingAccountPath = useSessionStore((s) => s.existingAccountPath)
   const [kakaoPending, setKakaoPending] = useState(false)
   const [loginError, setLoginError] = useState(false)
 
-  const finalize = useSignupFinalize(session, () => router.replace('/result-detail'))
-  const entryAllowed = canEnterLogin(birthDate, consent, new Date())
+  const finalize = useSignupFinalize(session, (path) => router.replace(path as never))
+  // 동의를 받은 길이거나, "이미 계정이 있어요"로 온 길이면 로그인 버튼이 눌린다.
+  const entryAllowed = canEnterLogin(birthDate, consent, new Date()) || existingAccountPath
 
-  // 동의 없이는 로그인 화면에 머물 수 없다. 저장이 끝난 뒤 메모리가 비워진 것은 되돌림 사유가 아니다.
+  // 동의 없이는 로그인 화면에 머물 수 없다 - **로그인 안 된 상태에만**. 로그인한 뒤의 분기는 훅이 맡는다.
+  // 저장이 끝난 뒤 메모리가 비워진 것은 되돌림 사유가 아니다.
   const { isFinished } = finalize
   useEffect(() => {
-    if (isFinished()) return
+    if (session || isFinished()) return
     if (!entryAllowed) router.replace('/consent')
-  }, [entryAllowed, isFinished, router])
+  }, [session, entryAllowed, isFinished, router])
 
   const signInKakao = async () => {
     if (!entryAllowed || kakaoPending) return
@@ -59,7 +64,7 @@ export default function AuthScreen() {
   }
 
   const saving =
-    finalize.status === 'saving' || finalize.isFinished() || (!!session && finalize.status === 'idle' && entryAllowed)
+    finalize.status === 'saving' || finalize.isFinished() || (!!session && finalize.status === 'idle')
   const saveFailed = finalize.status === 'failed'
 
   return (
@@ -72,7 +77,9 @@ export default function AuthScreen() {
         <View style={styles.spacer} />
         <RiseIn style={[styles.bottom, { paddingBottom: insets.bottom + 44 }]}>
           <Text style={styles.title}>{'어떤 계정으로\n시작할까요?'}</Text>
-          <Text style={styles.sub}>로그인하면 방금 본 결과가 계정에 저장돼요.</Text>
+          <Text style={styles.sub}>
+            {existingAccountPath ? '이미 가입한 계정으로 로그인해요.' : '로그인하면 방금 본 결과가 계정에 저장돼요.'}
+          </Text>
 
           <View style={styles.buttons}>
             {saveFailed ? (
@@ -101,7 +108,7 @@ export default function AuthScreen() {
               </>
             )}
           </View>
-          <Text style={styles.foot}>동의한 내용은 로그인이 실패해도 그대로 남아요</Text>
+          {existingAccountPath ? null : <Text style={styles.foot}>동의한 내용은 로그인이 실패해도 그대로 남아요</Text>}
         </RiseIn>
       </SkyBackground>
     </ScreenFrame>

@@ -16,6 +16,7 @@
 
 import { ONBOARDING_STEP } from '../constants/onboardingStep'
 import { supabase } from './supabase'
+import { advanceOnboardingStep } from './onboardingStepCore'
 import type { Database } from '../types/database'
 
 type CoupleRow = Database['public']['Tables']['couples']['Row']
@@ -94,11 +95,7 @@ export async function redeemInviteCode(
 
 /** "나중에 할게요" / "솔로예요" — 커플 없이 온보딩을 완료 처리한다. */
 export async function completeOnboardingWithoutCouple(userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ onboarding_step: ONBOARDING_STEP.COMPLETE })
-    .eq('id', userId)
-  if (error) throw error
+  await advanceOnboardingStep(supabase, userId, ONBOARDING_STEP.COMPLETE)
 }
 
 /**
@@ -108,20 +105,12 @@ export async function completeOnboardingWithoutCouple(userId: string): Promise<v
  * (`markStartDateOnboardingComplete` 참조).
  */
 export async function markInviteDoneAwaitingStartDate(userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ onboarding_step: ONBOARDING_STEP.INVITE })
-    .eq('id', userId)
-  if (error) throw error
+  await advanceOnboardingStep(supabase, userId, ONBOARDING_STEP.INVITE)
 }
 
 /** 화면 +(사귄 날짜) 완료 — 온보딩 전체를 완료 처리한다. */
 export async function markStartDateOnboardingComplete(userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ onboarding_step: ONBOARDING_STEP.COMPLETE })
-    .eq('id', userId)
-  if (error) throw error
+  await advanceOnboardingStep(supabase, userId, ONBOARDING_STEP.COMPLETE)
 }
 
 /**
