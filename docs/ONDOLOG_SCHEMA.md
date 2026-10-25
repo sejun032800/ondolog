@@ -1723,13 +1723,14 @@ public.fn_delete_own_entry(p_entry_id uuid) returns boolean
 
 | 분류 | 실행 권한 |
 |---|---|
-| **배치 전용**(pg_cron이 부르는 것) | `public`·`anon`·`authenticated` 모두 회수. pg_cron은 작업 소유자 권한으로 돈다. Edge Function이 REST로 부르는 것만 `service_role`에 명시 부여 |
-| **RLS 헬퍼**(`is_couple_member`·`is_entry_visible`·`partner_id` 등 정책 안에서 불리는 것) | `authenticated`만. `public`·`anon` 회수 |
-| **클라이언트 RPC**(`fn_issue_progress`·`fn_delete_own_entry` 등 앱이 부르는 것) | `authenticated`만. `public`·`anon` 회수 |
+| **배치 전용**(pg_cron이 부르는 것) | `public`·`anon`·`authenticated`·**`service_role`** 모두 회수(025). pg_cron은 작업 소유자(`postgres`) 권한으로 돈다. Edge Function이 REST로 부르게 되면 그 지시서에서 `service_role`에 명시 부여 |
+| **트리거 전용**(`tg_set_updated_at` 등) | 모두 회수 — 트리거는 `EXECUTE`를 검사하지 않는다 |
+| **RLS 헬퍼**(`is_couple_member`·`is_entry_visible`·`partner_id`·`current_couple_id`) | `authenticated`만(`service_role`도 회수 — RLS를 건너뛰므로 부를 일이 없다) |
+| **클라이언트 RPC**(`fn_issue_progress`·`fn_delete_own_entry`) | `authenticated`만 |
 | **발행·생성 경로**(`fn_publish_issue` 등) | `service_role`만(기존 그대로) |
 | **anon이 불러야 하는 함수** | 없는 것이 기본값. 필요하면 마이그레이션에 이유를 적고 하나씩 부여 |
 
-**앞으로의 함수.** 025에서 `alter default privileges in schema public revoke execute on functions from public, anon, authenticated`를 걸어, 새 함수는
+**앞으로의 함수.** 025에서 `alter default privileges for role postgres in schema public revoke execute on functions from public, anon, authenticated`를 걸어(마이그레이션 실행 역할이 `postgres` — `supabase_admin` 소유 기본 권한은 바꿀 수 없어 그대로), 새 함수는
 **권한 없이 태어나고 마이그레이션이 명시적으로 준다**(022·023이 이미 그렇게 썼다). 함수에는 `set search_path`를 반드시 둔다.
 
 ### 10-1. 헬퍼 함수
