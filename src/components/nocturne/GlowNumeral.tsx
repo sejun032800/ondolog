@@ -1,7 +1,7 @@
 /**
  * GlowNumeral - 온도록이 계산한 값(metric) 전용 숫자.
  * 정수/소수를 42% 크기로 나눠 그린다. 카운트업 없음 - 받은 값을 그대로 보인다.
- * 발광은 textShadow(그라디언트 글자 아님). 미연결(connected=false)은 textMute, 발광 없음.
+ * 발광은 textShadow(그라디언트 글자 아님). 미연결(connected=false)은 textSub, 발광 없음(R36-1).
  */
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { NUMERAL_DECIMAL_RATIO, glow, nocturne, type } from '../../theme/nocturne'
@@ -11,7 +11,7 @@ export interface GlowNumeralProps {
   value: number
   /** 정수부 크기. 기본 hero(92). */
   size?: number
-  /** false면 미연결 표시: textMute, 발광 없음. 값은 호출자가 고정값을 넘긴다. */
+  /** false면 미연결 표시: textSub, 발광 없음. 값은 호출자가 고정값을 넘긴다. */
   connected?: boolean
   /** 소수부 뒤에 붙는 기호. 기본 도(°). */
   unit?: string
@@ -34,7 +34,7 @@ export function GlowNumeral({
   const { integer, decimal } = splitNumeral(value)
   const scale = size / type.hero.fontSize
   const decimalSize = Math.round(size * NUMERAL_DECIMAL_RATIO)
-  const color = connected ? nocturne.rose : nocturne.textMute
+  const color = connected ? nocturne.rose : nocturne.textSub
   const shadow = connected ? glow.numeral : null
 
   return (

@@ -45,6 +45,9 @@ export const nocturne = {
   /** 발행된 호·Vol 번호·종이로 넘어가는 순간만. */
   moon: '#E7D9C3',
 
+  /** B05 연애유형 영문 라벨 전용(R36-4, 디자인 `N-B-Main` 값). 다른 글자에 쓰지 않는다. */
+  ember: '#C08A64',
+
   // 종이(발행물 세계)
   paper: '#F1ECE4',
   paperInk: '#2A2530',

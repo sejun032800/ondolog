@@ -100,10 +100,11 @@ describe('GlowNumeral', () => {
     expect(splitNumeral(37)).toEqual({ integer: '37', decimal: '0' })
   })
 
-  it('소수부는 정수부의 42%이고, 미연결은 textMute + 발광 없음', async () => {
+  it('소수부는 정수부의 42%이고, 미연결은 textSub + 발광 없음', async () => {
     const { toJSON } = await render(<GlowNumeral value={36.5} connected={false} />)
     const json = JSON.stringify(toJSON())
-    expect(json).toContain(nocturne.textMute)
+    expect(json).toContain(nocturne.textSub)
+    expect(json).not.toContain(nocturne.textMute)
     expect(json).not.toContain('textShadowRadius')
     expect(Math.round(92 * NUMERAL_DECIMAL_RATIO)).toBe(39)
   })

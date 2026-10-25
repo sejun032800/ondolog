@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
 
   loveCard: { padding: 18 },
   loveBody: { gap: 8, marginTop: 8 },
-  loveEn: { fontFamily: fontFamily.semiBold, fontSize: 12, lineHeight: 16, letterSpacing: 1.44, color: nocturne.orchid },
+  loveEn: { fontFamily: fontFamily.semiBold, fontSize: 12, lineHeight: 16, letterSpacing: 1.44, color: nocturne.ember },
   loveKo: { ...type.title, color: nocturne.text },
   loveCopy: { fontFamily: fontFamily.regular, fontSize: 13, lineHeight: 20, color: nocturne.textSub },
   loveMeta: { ...type.caption, color: nocturne.textMute },

@@ -23,20 +23,8 @@ function parseDateOnly(iso: string): Date {
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 /**
- * 시작일부터 `now`까지의 "N일차"를 계산한다(시작일 = 1일차).
- * `now`를 인자로 받아 테스트 가능하게 하되, 생략 시 실제 현재 시각을 쓴다.
- */
-export function computeDaysTogether(startDateIso: string, now: Date = new Date()): number {
-  const start = parseDateOnly(startDateIso)
-  const today = parseDateOnly(now.toISOString())
-  const diffDays = Math.round((today.getTime() - start.getTime()) / MS_PER_DAY)
-  return Math.max(1, diffDays + 1)
-}
-
-/**
- * KST 기준 "N일차"(시작일 = 1일차). 메인 탭(U1)은 이 함수를 쓴다.
- * 위 `computeDaysTogether`는 UTC 날짜로 세므로 한국 시간 00:00~09:00에 하루 늦다 - 화면은 KST 날짜가 기준이다.
- * 시작일이 미래면 1이다.
+ * KST 기준 "N일차"(시작일 = 1일차). 사귄 일수 계산은 이 함수 하나다(R36-3).
+ * `now`를 인자로 받아 테스트 가능하게 하되, 생략 시 실제 현재 시각을 쓴다. 시작일이 미래면 1이다.
  */
 export function computeDaysTogetherKst(startDateIso: string, now: Date = new Date()): number {
   const start = parseDateOnly(startDateIso)
@@ -82,7 +70,7 @@ function milestoneLabel(day: number): string {
 }
 
 /**
- * 사귄 일수(`computeDaysTogether`의 결과)를 받아 마일스톤 임박/당일
+ * 사귄 일수(`computeDaysTogetherKst`의 결과)를 받아 마일스톤 임박/당일
  * 여부를 계산한다. Part 9-2 "사귄 일수 표시 규격" 표 그대로:
  * 100일 단위 + 연 단위 마일스톤, 7일 전부터 강조, 당일은 별도 표시.
  */

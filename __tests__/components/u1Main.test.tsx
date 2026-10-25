@@ -10,6 +10,7 @@ import type { LibraryState } from '../../src/hooks/useLibrary'
 import type { LoveTypeSummary, MainFacts } from '../../src/hooks/useMainData'
 import type { PublishedIssue } from '../../src/services/magazineApi'
 import { useCoupleStore } from '../../src/store/coupleStore'
+import { nocturne } from '../../src/theme/nocturne'
 
 jest.mock('react-native-worklets', () => require('react-native-worklets/lib/module/mock'))
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'))
@@ -154,11 +155,16 @@ describe('B05 미연결', () => {
     expect(screen.queryByTestId('main-issue-progress')).toBeNull()
   })
 
-  it('36.5는 발광 없이 textMute 색이다', async () => {
+  it('36.5는 발광 없이 textSub 색이다(R36-1)', async () => {
     await render(<MainTab />)
     const style = flatStyle(screen.getByText('36'))
     expect(style.textShadowColor).toBeUndefined()
-    expect(style.color).not.toBe('#F4B9C8')
+    expect(style.color).toBe(nocturne.textSub)
+  })
+
+  it('B05 영문 라벨은 ember 토큰 색이다(R36-4)', async () => {
+    await render(<MainTab />)
+    expect(flatStyle(screen.getByText('KEELEMBER')).color).toBe(nocturne.ember)
   })
 
   it('초대 버튼은 커플 게이트로 간다', async () => {
