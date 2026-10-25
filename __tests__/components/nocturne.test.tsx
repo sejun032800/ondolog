@@ -274,7 +274,7 @@ describe('배경·진입·뼈대 렌더', () => {
     expect(screen.getByTestId('background-stars')).toBeTruthy()
     const veil = screen.getByTestId('sky-veil').props.style
     const flat = Array.isArray(veil) ? Object.assign({}, ...veil) : veil
-    expect(flat.opacity).toBe(0.72)
+    expect(flat.opacity).toBe(0.42)
   })
 
   it('SkyBackground stars=false면 배경 별을 그리지 않는다', async () => {

@@ -66,6 +66,18 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
+/**
+ * 메인 전용 하단 장막(R22-1, 디자인 `N-B-Main`): 화면 아래 460pt, ink 0 -> .75(45%) -> .94(100%).
+ * 위쪽 별이 보이고 아래 카드 글자가 읽히게 한다. 색은 ink 토큰에서 만든다.
+ */
+export const mainBottomVeil = {
+  height: 460,
+  gradient: `linear-gradient(180deg, ${withAlpha(nocturne.ink, 0)} 0%, ${withAlpha(nocturne.ink, 0.75)} 45%, ${withAlpha(
+    nocturne.ink,
+    0.94,
+  )} 100%)`,
+} as const
+
 /** 발광 3종. numeral은 온도·수치 글자에만, star는 데이트 별 후광, lift는 시트·떠 있는 카드만. */
 export const glow = {
   numeral: {

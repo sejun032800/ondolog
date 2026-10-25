@@ -32,6 +32,26 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 -> R30-1로 RPC 결정, `023_delete_own_entry.sql` 작성(`57-` A), **원격 적용·실증 완료**, 앱 UI는 `57-` C에서 만듦(실기기 확인 대기) | 앱 쪽 해소 | 이 파일 "본인 기록 삭제 UI · stop 시각 (`57-` C)" 절 |
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 
+## U1 메인 (`61-`, 2026-10-25, ui-builder) - 원격 개발 DB 실증 완료, 실기기 미확인
+
+- 파일: 화면 `app/(tabs)/main.tsx` · 컴포넌트 `src/components/main/{MainHeader,MainHero,MainBlocks}.tsx` · 순수 규칙 `src/utils/mainScreen.ts`(온도 표시 5상태·우선순위·배치·B06 조건·KST 날짜 문구) · KST D+N `computeDaysTogetherKst`(`src/utils/relationshipDays.ts`) · 읽기 `src/services/mainApi.ts` · 기기 저장 `src/services/issueSeen.ts` · 훅 `src/hooks/useMainData.ts` · 장막 `src/theme/sky.ts`·`nocturne.ts`(`mainBottomVeil`)·`SkyBackground`(`bottomVeil`) · 뷰어 한 줄 `app/(modals)/magazine-viewer.tsx` · 실증 `scripts/ops/verifyU1Main.ts`(출력 `scripts/ops/out/61-u1-main.txt`, git 제외).
+- 내부 결정(항목당 한 줄):
+  - "활동"은 지우지 않은 대화·기록(`data_entries`)·데이트가 하나라도 있는 것(MASTER 10-7-3 활동 점수는 미확정이라 유무만 본다). 읽기 실패 시 활동 = `저장된 온도 있음`, 프로파일 완비 = true(36.5로 덮지 않는다).
+  - 다음 호 카드는 U3 `NextIssueCard`(서재 D01의 큰 실루엣 카드)를 쓰지 않고 `N-B-Main` 보드의 글래스 카드 `IssueProgressCard`를 새로 만들었다. 진행률(`useLibrary`의 경과율)·재료 수(`materialLines`)·문구 상수는 재사용. 노출 조건은 R32-2(발행 1권 이상 + 초안 있을 때, 0권이면 FIRST ISSUE).
+  - B06 보드의 압축 "NEXT ISSUE" 행(문구 "시작했어요" · 화살표)은 만들지 않고 새 호가 있어도 같은 다음 호 카드를 쓴다(화살표는 D02로 가는 길을 암시하는데 D02는 U5).
+  - B06은 히어로를 바꾸지 않고(보드) 카드 자리를 차지한다. B04 + 새 호처럼 보드에 없는 겹침은 우선순위로 히어로를 정하고 나머지는 카드로 둔다.
+  - 활동이 이미 있으면 "02 FIRST STEP"(첫 대화 남기기)은 그리지 않는다(r69 저장값 없음 상태). "오늘 시작했어요" 칩은 D+1에만(보드 B03).
+  - 36.5° 색은 `GlowNumeral connected={false}`의 `textMute`(위임 문서 지시). **`N-B-Main` B05 보드는 `#C9C1DA`(textSub)** - 둘이 다르다(열린 항목).
+  - 히어로 숫자는 보드의 168pt. `GlowNumeral`이 토큰(-0.05em, 소수부 .42)을 쓰므로 보드(-0.07em, 소수부 52/168)와 약간 다르다. 기념일 숫자는 보드 값(-0.07em) 그대로 직접 그렸다.
+  - 번호 머리글("01")의 번호 색은 `textFaint`가 아니라 `textMute`(textFaint는 비활성 글자 전용).
+  - B05 카드: 라벨 영문 색은 보드의 `#C08A64`가 토큰에 없어 `orchid`로 뒀다(열린 항목, 디자인). 본문은 `descriptionKo`가 전부 null이라 `copyKo` 한 줄 + "MBTI · 애니어그램 N유형". 보드의 "결과 자세히 보기 →"는 온보딩 화면 7(푸터가 온보딩을 이어 감)로 가는 길이라 만들지 않았다.
+  - 아바타는 사진 원천이 없어 mist/orchid 면 두 개(미연결은 점선 빈 슬롯).
+  - `computeDaysTogetherKst`를 더했다. 옛 `computeDaysTogether`(UTC)는 기존 시험이 UTC 기준이라 그대로 두고 메인은 쓰지 않는다(지울지는 PM).
+  - MASTER 9-2 "온도 히어로 보조 문구"(시작 온도 안내 두 문장)는 `N-B-Main` 보드에 자리가 없어 넣지 않았다(열린 항목, 디자인에 자리를 물을 것).
+  - 호 조회가 실패하면 호 칸(새 호·지난 호·다음 호)을 그리지 않는다(0권으로 오해하게 두지 않음).
+  - 시험 데이터(원격 개발, 지우지 않음): 커플 `test-61-empty`(기록 없음)·`test-61-active`(메시지 1), 계정 `test-61-{empty,active}-{a,b}@example.com`, 성격 프로파일(`engine_version` `test-61-*`)을 새 계정 4 + 기존 `test-55-2-photo-a/b`·`test-u2-solo`에 추가.
+- `51-` 실기기 확인에 더할 것: 위 `57-` 10가지 + 서재 -> 속표지 -> 넘김·핀치 줌 -> PDF 열기 + **메인 상태 4가지(B03·B05·B06·B04) + 하늘 장막(위 별이 보이고 아래 카드 글자가 읽힘)**. 특히 하단 장막 `experimental_backgroundImage`, 세로 날짜 회전, 168pt 숫자가 좁은 폭에서 넘치지 않는지.
+
 ## 함수 실행 권한 025 (`60-` 1부, 2026-10-24, db-architect) - 작성만, 원격 미적용·미실행
 
 - 파일: `supabase/migrations/025_function_execute_grants.sql` · `scripts/db/check_025_preapply.sql` · `verify_025_privileges.sql` · `verify_025_owner_run.sql` · `scripts/ops/verifyFunctionGrants.ts`(`ONDOLOG_025_APPLIED=1` 없으면 멈춤).

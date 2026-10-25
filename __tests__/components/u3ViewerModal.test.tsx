@@ -1,6 +1,7 @@
 /**
  * U3 뷰어 시트 시험 - 속표지 -> 읽기 -> 뒤로, 보던 쪽 기억, PDF 내려받기(서명 URL을 시스템에 넘긴다).
  */
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import { Linking } from 'react-native'
 import MagazineViewerModal from '../../app/(modals)/magazine-viewer'
@@ -86,6 +87,12 @@ describe('뷰어 시트', () => {
   it('표지 이미지를 위해 1쪽 서명 URL을 먼저 요청한다', async () => {
     await render(<MagazineViewerModal />)
     expect(mockViewer.ensurePages).toHaveBeenCalledWith(1)
+  })
+
+  it('호를 열면 기기에만 "열어 봤다"고 남긴다(메인 B06용, 사용자·호 단위)', async () => {
+    await AsyncStorage.clear()
+    await render(<MagazineViewerModal />)
+    expect(await AsyncStorage.getItem('ondolog.issueOpened.u1.i1')).toBe('1')
   })
 
   it('[읽기] -> 뷰어, 뷰어의 <- -> 속표지. 뷰어에는 목차 버튼이 없다', async () => {

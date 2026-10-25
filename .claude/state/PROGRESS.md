@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-25 (ui-builder, `61-` U1 메인): 메인 탭을 Nocturne 하늘 위 B01·B03·B04·B05·B06으로 교체(`app/(tabs)/main.tsx`, `src/components/main/`, 순수 규칙 `src/utils/mainScreen.ts`). 하늘 장막 `veilOpacity` .42/.30/.14/0 + 하단 장막 460pt(토큰), 온도 표시 상태 5가지(앱은 계산하지 않고 저장값 읽기만), 상태 우선순위 순수 함수(B05>B04>B06>B03>B01), KST D+N·7일 전 칩·당일 B04, B06은 기기 저장(AsyncStorage, 사용자·호 단위, 뷰어에서 한 줄). 원격 개발 DB 실증 4상태(사용자 권한) 통과, 시험 데이터 `test-61-*` 추가. 게이트 0 / 0 / 1355 · 68(기준 1288 · 64), Python 122. 새 의존성·마이그레이션 없음. 실기기 미확인. 미커밋
+
 2026-10-25 (메인 세션, `60-` 2부 재실행 - ROADMAP r34 R34-1~4): §6 권한 확인 25행 전부 ok(배치 셋 4역할 모두 false). db-architect 위임으로 `verifyFunctionGrants.ts` 수정 - /rpc는 `expire_stories`만(anon·authenticated·service_role), `apply_retention_policy`·`execute_dissolution`은 /rpc 없이 SQL A절(has_function_privilege)로만. 실행 실패 0건. 타입 diff 0(안 씀). ③ 대상 0건 읽은 뒤 소유자 `expire_stories()`=0, cron 3개 그대로, service_role 배치 셋 false. ④ 회귀 실패 0·판정 같음, authenticated 읽기 = 소유자 정책 계산(메시지 302·항목 15·데이트 4). ⑨ 어제 적용 후와 같음. **⑥ 실제 경로(`test-온기` 9월 호 `22f0c5eb`): 생성(service_role 입력 조립) 통과 -> 렌더 실패(`da-opener` featured 기사 첫 stop 사진 0장, img src에 슬롯 표현식 남음) -> 발행 미실행. 권한 오류 아님, 고치지 않음.** 생성이 그 호 코너를 바꿈(date_archive pending->ready, sweet_words skipped->ready). 출력 `scripts/ops/out/60-part2-r34.txt`. 게이트 0 / 0 / 1288·64 / Python 122. 미커밋
   - ⑥ 재실행(같은 날): `test-봄볕` 9월 초안 `0327d498`(featured 첫 stop 사진 1장, 읽기로 확인) - 생성(service_role, 코너 셋 kept_ready) -> 렌더 15쪽 -> 발행 번호 1·is_trial·neon, 코너 셋 published, 열린 경보 0. **⑥ 통과.** 이 호는 이제 발행된 호(55-2 시험 호 ② 소모). 출력은 같은 파일에 덧붙임.
 

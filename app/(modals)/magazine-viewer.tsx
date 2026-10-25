@@ -17,6 +17,7 @@ import { PressScale } from '../../src/components/nocturne/PressScale'
 import { Skeleton } from '../../src/components/nocturne/Skeleton'
 import { useIssueViewer } from '../../src/hooks/useIssueViewer'
 import { useSession } from '../../src/hooks/useSession'
+import { markIssueOpened } from '../../src/services/issueSeen'
 import { useCoupleStore } from '../../src/store/coupleStore'
 import { useViewerStore } from '../../src/store/viewerStore'
 import { fontFamily, nocturne, shape } from '../../src/theme/nocturne'
@@ -38,6 +39,13 @@ export default function MagazineViewerModal() {
   const [pdfFailed, setPdfFailed] = useState(false)
 
   const { issue, ensurePages, pageUrls } = viewer
+
+  // 메인의 "꽂혔어요"(B06)는 이 호를 연 적이 없을 때만 보인다. 연 사실은 기기에만 남긴다(사용자·호 단위, 서버 쓰기 없음).
+  const userId = session?.user.id ?? null
+  const openedIssueId = issue?.id ?? null
+  useEffect(() => {
+    if (userId && openedIssueId) void markIssueOpened(userId, openedIssueId)
+  }, [userId, openedIssueId])
 
   // 속표지: 1쪽(표지) 이미지의 서명 URL을 받는다.
   useEffect(() => {

@@ -19,7 +19,11 @@ export const viewOffsetPt = {
   past: 60,          // 지난 하늘
 } as const
 
-export const veilOpacity = { main: 0.72, pullStart: 0.5, pullRelease: 0.2, sky: 0 } as const
+/**
+ * 장막 투명도(R22-1, 디자인 `Objects-1`·`N-B-Main` 값). 키 이름은 그대로 둔다.
+ * MVP에서 쓰는 값은 `main`뿐이다(끌어내리기·하늘은 출시 후). 메인 전용 하단 장막은 `nocturne.ts`의 `mainBottomVeil`.
+ */
+export const veilOpacity = { main: 0.42, pullStart: 0.3, pullRelease: 0.14, sky: 0 } as const
 
 export const pullGesture = {
   idleMax: 60,        // 여기까지는 일반 오버스크롤

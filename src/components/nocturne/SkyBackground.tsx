@@ -10,7 +10,7 @@
  */
 import type { ReactNode } from 'react'
 import { Image, StyleSheet, View, useWindowDimensions } from 'react-native'
-import { nocturne } from '../../theme/nocturne'
+import { mainBottomVeil, nocturne } from '../../theme/nocturne'
 import { WORLD_HEIGHT_RATIO, veilOpacity, viewOffsetPt } from '../../theme/sky'
 import { BackgroundStars } from './BackgroundStars'
 
@@ -25,6 +25,8 @@ export interface SkyBackgroundProps {
   veil?: number
   /** 배경 별 명멸. 기본 켬(동작 줄이기 시 정지). */
   stars?: boolean
+  /** 메인 전용 하단 장막(460pt). 위 별이 보이고 아래 카드 글자가 읽히게 한다. 기본 끔. */
+  bottomVeil?: boolean
   children?: ReactNode
 }
 
@@ -34,7 +36,7 @@ function veilFor(view: SkyView): number {
   return view === 'past' ? veilOpacity.sky : veilOpacity[view]
 }
 
-export function SkyBackground({ view = 'main', veil, stars = true, children }: SkyBackgroundProps) {
+export function SkyBackground({ view = 'main', veil, stars = true, bottomVeil = false, children }: SkyBackgroundProps) {
   const { width, height } = useWindowDimensions()
   const worldHeight = height * WORLD_HEIGHT_RATIO
 
@@ -57,6 +59,9 @@ export function SkyBackground({ view = 'main', veil, stars = true, children }: S
         testID="sky-veil"
       />
       {stars ? <BackgroundStars /> : null}
+      {bottomVeil ? (
+        <View pointerEvents="none" style={styles.bottomVeil} testID="sky-bottom-veil" />
+      ) : null}
       {children}
     </View>
   )
@@ -67,5 +72,13 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
     backgroundColor: nocturne.ink,
+  },
+  bottomVeil: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: mainBottomVeil.height,
+    experimental_backgroundImage: mainBottomVeil.gradient,
   },
 })

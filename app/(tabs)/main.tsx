@@ -1,329 +1,289 @@
 /**
- * 메인 탭 (Part 9-2).
+ * 메인 탭(U1, `61-`) - 디자인 `N-B-Main`(B01·B03·B04·B05·B06), MASTER 9-2. Nocturne 하늘 위에 커플의 상태에 맞는 화면 하나를 보인다.
  *
- * 연결 상태별로 완전히 다른 화면을 보여준다(문서 원문 두 표 그대로):
- *
- *   커플 연결 | 상단 양측 프로필+커플 닉네임 / 히어로 연애 온도(일 단위
- *     갱신) / 히어로 하단 사귄 일수 D+N / 하단 최근 발행물·매거진 진입점
- *   미연결   | 상단 본인 프로필+빈 슬롯 / 히어로 36.5도 고정 / 중앙
- *     온보딩 결과 요약(연애유형 라벨·애니어그램 코어·간단 설명) /
- *     하단 연인 초대 CTA
- *
- * ⚠️ 이 화면은 두 상태의 콘텐츠 자체가 원문에서부터 다르게 정의돼
- * 있어(위 두 표), 커플 전용 "기능"을 잠가서 보여주는 `<CoupleGate>`의
- * 일반 잠금 카드를 쓰지 않는다 — `<CoupleGate>`는 채팅(진입 즉시 모달),
- * 피드의 통합 뷰처럼 "같은 화면인데 기능 하나가 잠긴" 경우를 위한
- * 것이고, 메인 탭은 애초에 두 화면이 다르다(Part 9-2 원문 설계).
- *
- * 연애 온도:
- *   - 미연결: 36.5 고정(`useCoupleStore`가 이미 이 값으로 초기화·유지).
- *   - 연결: `daily_temperature` 최신 저장값을 읽기만 한다(`coupleStore.
- *     refresh` 참조). 일 배치(Edge Function)가 아직 없어 대부분 null —
- *     이 경우 숫자를 지어내지 않고 문구로 대체한다. Part 9-2 "표시 상태"
- *     표(2026-08-25 확정)에 따라 "아직 온도를 잴 기록이 없어요"를
- *     보여준다 — 시스템 상태("측정 준비 중")가 아니라 유저 행동으로
- *     프레이밍해 채팅 탭 사용을 유도한다(Part 17-2 DNA 일치율이 채팅으로
- *     움직이는 것과 같은 맥락, DECISIONS.md 동일 날짜 항목 참조).
- *
- * 마일스톤 임박 강조는 Part 9-2 "사귄 일수 표시 규격"(2026-08-25 확정)
- * 그대로 구현한다 — 100일 단위/연 단위, 마일스톤 7일 전부터 강조,
- * 당일은 별도 축하 표시(`src/utils/relationshipDays.ts` `getMilestoneStatus`).
- *
- * "하단 최근 발행물 / 다음 발행까지 남은 기간"은 발행 파이프라인이
- * Phase 7~8 범위라 이번엔 최근 발행물 유무만 `issues_public` 뷰로
- * 읽어 매거진 탭 진입점으로 연결한다(CLAUDE.md 절대 규칙 3: `issues`
- * 원본 테이블이 아니라 `issues_public` 뷰만 조회). "다음 발행까지
- * 남은 기간"은 발행 주기 config가 아직 앱에 연결돼 있지 않아 만들지
- * 않는다.
+ * - **앱은 온도를 계산하지 않는다.** `daily_temperature` 저장값을 읽기만 하고(`coupleStore`), 값이 없을 때의 표시
+ *   상태(MASTER 9-2 표 다섯 행)만 고른다(`utils/mainScreen.temperatureDisplay`). 일 배치(M3-3) 전이라 지금은
+ *   연결된 커플이 "아직 온도를 잴 기록이 없어요" 또는 "첫 온도는 기록한 다음 날 나와요"를 본다.
+ * - 상태 우선순위는 순수 함수 하나(`resolveMainState`): 미연결(B05) > 기념일 당일(B04) > 새 호 도착(B06) >
+ *   기록 없음·저장값 없음(B03) > 온도 있음(B01). 히어로·칸 배치는 `layoutMain`.
+ * - 미연결(B05)은 36.5° 고정(발광 없음)과 온보딩 결과 요약, [연인 초대하기](커플 게이트). 연결 전용 본문은
+ *   `<CoupleGate>`로 감싼다(탭은 늘 보인다 - 잠긴 문을 보여 주는 것이 설계).
+ * - MVP에서 뺀 것(MVP 조정표): "끌어내리면 우리의 하늘" 힌트·끌어내리기, "이번 주" 원문 인용 칸, "제작 현황 →" 링크,
+ *   온도 옆 일 단위 증감, "오늘 할 수 있는 일" 칩.
+ * - 새 호 도착(B06): 열어 본 적 없고 `published_at`부터 7일 이내인 호. 열었는지는 기기 저장(`services/issueSeen`).
  */
 import { useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { Button } from '../../src/components/Button'
-import { Numeral } from '../../src/components/Numeral'
-import { PageHeader } from '../../src/components/PageHeader'
-import { ResultCard } from '../../src/components/ResultCard'
-import { useTheme } from '../../src/theme'
-import { MBTI_ENNEAGRAM_PREVALENCE } from '../../src/constants/enneagramPrevalence'
-import type { EnneagramCore } from '../../src/constants/enneagram'
-import type { MbtiType } from '../../src/constants/quizTypes'
-import { useSession } from '../../src/hooks/useSession'
+import { useEffect } from 'react'
+import { ScrollView, StyleSheet, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { CoupleGate } from '../../src/components/CoupleGate'
 import {
-  fetchLatestAssessment,
-  fetchPersonalityProfile,
-  fetchProfile,
-} from '../../src/services/personalityApi'
-import { supabase } from '../../src/services/supabase'
+  FirstStepBlock,
+  InviteButton,
+  IssueProgressCard,
+  LastIssueCard,
+  LoveTypeCard,
+  NewIssueCard,
+} from '../../src/components/main/MainBlocks'
+import { MainHeader } from '../../src/components/main/MainHeader'
+import {
+  ConnectHintRow,
+  DaysRow,
+  MainHero,
+  MilestoneTodayRow,
+  VerticalDate,
+} from '../../src/components/main/MainHero'
+import { RiseIn } from '../../src/components/nocturne/RiseIn'
+import { ScreenFrame } from '../../src/components/nocturne/ScreenFrame'
+import { Skeleton } from '../../src/components/nocturne/Skeleton'
+import { SkyBackground } from '../../src/components/nocturne/SkyBackground'
+import { useLibrary } from '../../src/hooks/useLibrary'
+import { useDisplayNames, useLoveTypeSummary, useMainFacts } from '../../src/hooks/useMainData'
+import { useSession } from '../../src/hooks/useSession'
+import type { PublishedIssue } from '../../src/services/magazineApi'
 import { useCoupleStore } from '../../src/store/coupleStore'
-import { computeDaysTogether, getMilestoneStatus } from '../../src/utils/relationshipDays'
+import { shape } from '../../src/theme/nocturne'
+import {
+  formatKstDateLabel,
+  layoutMain,
+  milestoneChipLabel,
+  pickNewIssueId,
+  temperatureDisplay,
+} from '../../src/utils/mainScreen'
+import { computeDaysTogetherKst, getMilestoneStatus } from '../../src/utils/relationshipDays'
 
-interface DisconnectedSummary {
-  mbti: MbtiType
-  enneagramCore: EnneagramCore
-  loveTypeCode: string
-  isRare: boolean
-}
-
-interface LatestIssue {
-  title: string | null
-  issueNumber: number | null
-}
+/** 머리 위쪽 여백(안전영역 아래). 보드의 머리 위치(위에서 96pt) = 상태 표시줄 47 + 49. */
+const HEADER_TOP_OFFSET = 49
+/** 세로 날짜의 위치 = 히어로 숫자 줄(보드 196pt) - 머리 줄(보드 96pt). */
+const DATE_TOP = 100
 
 export default function MainTab() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { session } = useSession()
+  const userId = session?.user.id ?? null
 
   const status = useCoupleStore((s) => s.status)
   const coupleId = useCoupleStore((s) => s.coupleId)
   const partnerId = useCoupleStore((s) => s.partnerId)
   const nickname = useCoupleStore((s) => s.nickname)
-  const temperature = useCoupleStore((s) => s.temperature)
-  const relationshipStartDate = useCoupleStore((s) => s.relationshipStartDate)
+  const storedTemperature = useCoupleStore((s) => s.temperature)
+  const startDate = useCoupleStore((s) => s.relationshipStartDate)
   const refresh = useCoupleStore((s) => s.refresh)
 
-  const [selfName, setSelfName] = useState<string | null>(null)
-  const [partnerName, setPartnerName] = useState<string | null>(null)
-  const [summary, setSummary] = useState<DisconnectedSummary | null>(null)
-  const [summaryLoading, setSummaryLoading] = useState(false)
-  const [latestIssue, setLatestIssue] = useState<LatestIssue | null>(null)
-  const [issueLoading, setIssueLoading] = useState(false)
+  const connected = status === 'connected'
+  const settled = connected || status === 'disconnected'
 
   useEffect(() => {
-    if (session) refresh(session.user.id)
-  }, [session, refresh])
+    if (userId) void refresh(userId)
+  }, [userId, refresh])
 
-  // 본인 표시 이름
-  useEffect(() => {
-    if (!session) return
-    let cancelled = false
-    fetchProfile(session.user.id).then((p) => {
-      if (!cancelled) setSelfName(p?.display_name ?? null)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [session])
+  const names = useDisplayNames(userId, connected ? partnerId : null)
+  const summary = useLoveTypeSummary(userId, status === 'disconnected')
+  const library = useLibrary(connected ? coupleId : null)
+  const facts = useMainFacts({
+    userId,
+    partnerId: connected ? partnerId : null,
+    coupleId: connected ? coupleId : null,
+    storedTemperature: connected ? storedTemperature : null,
+    issueIds: library.issues.map((i) => i.id),
+  })
 
-  // 상대 표시 이름 (연결 상태에서만)
-  useEffect(() => {
-    if (status !== 'connected' || !partnerId) {
-      setPartnerName(null)
-      return
-    }
-    let cancelled = false
-    fetchProfile(partnerId).then((p) => {
-      if (!cancelled) setPartnerName(p?.display_name ?? null)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [status, partnerId])
+  const bottom = insets.bottom + shape.tabBarGap + shape.tabBarHeight + 24
+  const top = insets.top + HEADER_TOP_OFFSET
+  const now = new Date()
 
-  // 온보딩 결과 요약 (미연결 상태에서만)
-  useEffect(() => {
-    if (status !== 'disconnected' || !session) {
-      setSummary(null)
-      return
-    }
-    let cancelled = false
-    setSummaryLoading(true)
-    ;(async () => {
-      try {
-        const assessment = await fetchLatestAssessment(session.user.id)
-        if (!assessment || cancelled) return
-        const profile = await fetchPersonalityProfile(session.user.id)
-        if (!profile || cancelled) return
-        const effectiveCore = (profile.enneagram_effective ??
-          profile.enneagram_inferred) as EnneagramCore
-        const mbti = assessment.mbti as MbtiType
-        const isRare =
-          MBTI_ENNEAGRAM_PREVALENCE[mbti]?.rare.includes(effectiveCore) ?? false
-        setSummary({
-          mbti,
-          enneagramCore: effectiveCore,
-          loveTypeCode: profile.love_type_code,
-          isRare,
-        })
-      } finally {
-        if (!cancelled) setSummaryLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [status, session])
+  const openIssue = (issue: PublishedIssue) =>
+    router.push({ pathname: '/magazine-viewer', params: { issueId: issue.id } })
 
-  // 최근 발행물 (연결 상태에서만, issues_public 뷰만 조회)
-  useEffect(() => {
-    if (status !== 'connected' || !coupleId) {
-      setLatestIssue(null)
-      return
-    }
-    let cancelled = false
-    setIssueLoading(true)
-    ;(async () => {
-      try {
-        const { data } = await supabase
-          .from('issues_public')
-          .select('title, issue_number')
-          .eq('couple_id', coupleId)
-          .order('published_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        if (cancelled) return
-        setLatestIssue(data ? { title: data.title, issueNumber: data.issue_number } : null)
-      } finally {
-        if (!cancelled) setIssueLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [status, coupleId])
+  const disconnectedBody = (
+    <DisconnectedBody
+      selfName={names.selfName}
+      summary={summary}
+      dateLabel={formatKstDateLabel(now)}
+      onInvite={() => router.push('/couple-gate')}
+    />
+  )
 
-  const { colors, typography, spacing, lines, ink } = useTheme()
+  const ready = connected && facts.hasActivity !== null && !library.loading
 
-  const isConnected = status === 'connected'
-  const daysTogether = isConnected && relationshipStartDate
-    ? computeDaysTogether(relationshipStartDate)
-    : null
-  const milestone = daysTogether !== null ? getMilestoneStatus(daysTogether) : null
+  const days = connected && startDate ? computeDaysTogetherKst(startDate, now) : null
+  const milestone = days !== null ? getMilestoneStatus(days) : null
+  const display = temperatureDisplay({
+    connected,
+    profilesComplete: facts.profilesComplete ?? true,
+    hasActivity: facts.hasActivity ?? false,
+    storedTemperature: connected ? storedTemperature : null,
+  })
+  const newIssueId = pickNewIssueId(library.issues, facts.openedIssueIds, now)
+  const latest: PublishedIssue | null = library.issues[0] ?? null
+  const newIssue = library.issues.find((i) => i.id === newIssueId) ?? null
+  const layout = layoutMain({
+    connected,
+    temperature: display,
+    milestoneToday: milestone?.isToday ?? false,
+    milestoneUpcoming: milestone?.isUpcoming ?? false,
+    hasNewIssue: newIssue !== null,
+    publishedCount: library.issues.length,
+    hasDraft: library.next !== null,
+    hasLastIssueCard: latest !== null,
+  })
+  // 발행된 호·진행을 못 읽었으면(오류) 호 칸은 그리지 않는다 - 0권으로 오해하게 두지 않는다.
+  const blocks = layout.blocks.filter(
+    (b) => !(library.error && (b.key === 'newIssue' || b.key === 'lastIssue' || b.key === 'issueProgress')),
+  )
+  const temperatureValue = display.kind === 'value' || display.kind === 'fixed' ? display.value : 0
 
-  // 연결 여부 조회가 끝나기 전에는 미연결/연결 어느 쪽 레이아웃도
-  // 섣불리 확정하지 않는다(`<CoupleGate>`가 `status === 'unknown' |
-  // 'loading'`일 때 아무것도 렌더링하지 않는 것과 같은 원칙).
-  if (status === 'unknown' || status === 'loading') {
-    return (
-      <SafeAreaView edges={['top']} style={{ backgroundColor: colors.paper, flex: 1 }}>
-        <PageHeader left="메 인" />
-        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.inkFull} size="large" />
-        </View>
-      </SafeAreaView>
-    )
-  }
+  const connectedBody = !ready ? (
+    <ConnectedWait dateLabel={formatKstDateLabel(now)} />
+  ) : (
+    <View style={styles.wrap} testID={`main-state-${layout.state}`}>
+      <RiseIn>
+        <MainHeader connected selfName={names.selfName} partnerName={names.partnerName} nickname={nickname} />
+      </RiseIn>
+      <RiseIn delayMs={80} style={styles.heroGap}>
+        <MainHero
+          hero={layout.hero}
+          connected
+          temperature={temperatureValue}
+          milestoneLabel={milestone?.isToday ? milestone.label : null}
+        />
+      </RiseIn>
+      <VerticalDate label={formatKstDateLabel(now)} top={DATE_TOP} />
+      <RiseIn delayMs={120}>
+        {layout.hero === 'milestone' && milestone?.label ? (
+          <MilestoneTodayRow
+            label={milestone.label}
+            temperature={layout.showTemperatureChip && display.kind === 'value' ? display.value : null}
+          />
+        ) : (
+          <DaysRow
+            days={days}
+            chipLabel={layout.showMilestoneChip ? milestoneChipLabel(milestone) : null}
+            startedToday={days === 1}
+          />
+        )}
+      </RiseIn>
+      <View style={styles.blocks}>
+        {blocks.map((block, index) => (
+          <RiseIn key={block.key} delayMs={160 + index * 40}>
+            {block.key === 'firstStep' && block.number ? (
+              <FirstStepBlock number={block.number} onChat={() => router.push('/chat')} />
+            ) : null}
+            {block.key === 'newIssue' && newIssue ? (
+              <View style={styles.card}>
+                <NewIssueCard
+                  issue={newIssue}
+                  coverUri={newIssue.coverPath ? library.coverUrls[newIssue.coverPath] : undefined}
+                  onOpen={() => openIssue(newIssue)}
+                />
+              </View>
+            ) : null}
+            {block.key === 'lastIssue' && latest ? (
+              <View style={styles.card}>
+                <LastIssueCard
+                  issue={latest}
+                  coverUri={latest.coverPath ? library.coverUrls[latest.coverPath] : undefined}
+                  onOpen={() => openIssue(latest)}
+                />
+              </View>
+            ) : null}
+            {block.key === 'issueProgress' && block.number ? (
+              <View style={styles.card}>
+                <IssueProgressCard
+                  number={block.number}
+                  first={library.issues.length === 0}
+                  next={library.next}
+                />
+              </View>
+            ) : null}
+          </RiseIn>
+        ))}
+      </View>
+    </View>
+  )
 
   return (
-    <SafeAreaView edges={['top']} style={{ backgroundColor: colors.paper, flex: 1 }}>
-      <PageHeader left="메 인" right={daysTogether !== null ? `D+${daysTogether}` : undefined} />
-      <ScrollView
-        contentContainerStyle={{
-          gap: spacing.s7,
-          paddingBottom: spacing.s8,
-          paddingHorizontal: 24,
-        }}
-      >
-        {/* §5-5 온도 히어로 */}
-        <View style={{ alignItems: 'center', gap: spacing.s2, paddingVertical: spacing.s6 }}>
-          <Text style={[typography.kickerEn, { color: colors.inkMute }]}>O U R  T E M P E R A T U R E</Text>
-          {temperature !== null ? (
-            <Numeral value={temperature} suffix="°" style={ink('metric')} />
+    <ScreenFrame>
+      <SkyBackground view="main" bottomVeil>
+        <ScrollView
+          contentContainerStyle={{ paddingTop: top, paddingBottom: bottom, paddingHorizontal: shape.space.screen }}
+          showsVerticalScrollIndicator={false}
+        >
+          {settled ? (
+            <CoupleGate fallback={disconnectedBody}>{connectedBody}</CoupleGate>
           ) : (
-            <Text style={[typography.headline, { color: colors.inkMute, marginTop: spacing.s3 }]}>
-              아직 온도를 잴 기록이 없어요
-            </Text>
+            <ConnectedWait dateLabel={formatKstDateLabel(now)} />
           )}
-          <Text style={[typography.caption, { color: colors.inkMute }]}>
-            {isConnected
-              ? temperature !== null
-                ? '오늘의 온도'
-                : '채팅이 쌓이면 다음 배치에 반영돼요'
-              : '아직 아무 데이터도 없는 평온한 기본 체온이에요'}
-          </Text>
-          {milestone?.isToday && (
-            <Text style={[typography.title, { color: colors.inkFull, marginTop: spacing.s2 }]}>
-              🎉 {milestone.label} 축하해요!
-            </Text>
-          )}
-          {milestone?.isUpcoming && (
-            <Text style={[typography.caption, { color: colors.inkMute, marginTop: spacing.s2 }]}>
-              {milestone.label}까지 {milestone.daysUntil}일 남았어요
-            </Text>
-          )}
-        </View>
-
-        {isConnected ? (
-          <>
-            <View style={{ borderTopColor: colors.rule, borderTopWidth: lines.section, paddingTop: spacing.s5 }}>
-              <ProfileRow selfName={selfName} partnerName={partnerName} nickname={nickname} />
-            </View>
-
-            <View style={{ borderTopColor: colors.rule, borderTopWidth: lines.section, gap: spacing.s3, paddingTop: spacing.s5 }}>
-              <Text style={[typography.title, { color: colors.inkFull }]}>매거진</Text>
-              {issueLoading ? (
-                <ActivityIndicator color={colors.inkFull} />
-              ) : (
-                <Pressable onPress={() => router.push('/magazine')}>
-                  {latestIssue ? (
-                    <>
-                      <Text style={[typography.headline, { color: colors.inkFull }]}>
-                        {latestIssue.issueNumber != null ? `${latestIssue.issueNumber}호 · ` : ''}
-                        {latestIssue.title ?? '제목 없음'}
-                      </Text>
-                      <Text style={[typography.caption, { color: colors.inkMute, marginTop: spacing.s1 }]}>
-                        읽기 →
-                      </Text>
-                    </>
-                  ) : (
-                    <Text style={[typography.caption, { color: colors.inkMute }]}>
-                      아직 발행된 매거진이 없어요
-                    </Text>
-                  )}
-                </Pressable>
-              )}
-            </View>
-          </>
-        ) : (
-          <>
-            <View style={{ borderTopColor: colors.rule, borderTopWidth: lines.section, paddingTop: spacing.s5 }}>
-              <ProfileRow selfName={selfName} partnerName={null} nickname={null} />
-            </View>
-
-            <View style={{ gap: spacing.s3 }}>
-              <Text style={[typography.title, { color: colors.inkFull }]}>온보딩 결과 요약</Text>
-              {summaryLoading || !summary ? (
-                <ActivityIndicator color={colors.inkFull} />
-              ) : (
-                <ResultCard
-                  mbti={summary.mbti}
-                  enneagramCore={summary.enneagramCore}
-                  loveTypeCode={summary.loveTypeCode}
-                  isRare={summary.isRare}
-                />
-              )}
-            </View>
-
-            <View>
-              <Button label="연인 초대하기" onPress={() => router.push('/couple-gate')} />
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SkyBackground>
+    </ScreenFrame>
   )
 }
 
-function ProfileRow({
-  selfName,
-  partnerName,
-  nickname,
-}: {
+/** B05 미연결: 36.5° 고정 · 연결 안내 · 02 MY LOVE TYPE · [연인 초대하기]. */
+function DisconnectedBody(props: {
   selfName: string | null
-  partnerName: string | null
-  nickname: string | null
+  summary: ReturnType<typeof useLoveTypeSummary>
+  dateLabel: string
+  onInvite: () => void
 }) {
-  const { colors, typography, spacing } = useTheme()
+  const layout = layoutMain({
+    connected: false,
+    temperature: temperatureDisplay({ connected: false, profilesComplete: false, hasActivity: false, storedTemperature: null }),
+    milestoneToday: false,
+    milestoneUpcoming: false,
+    hasNewIssue: false,
+    publishedCount: 0,
+    hasDraft: false,
+    hasLastIssueCard: false,
+  })
+  const love = layout.blocks.find((b) => b.key === 'loveType')
   return (
-    <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.s3, justifyContent: 'center' }}>
-      {/* §4-5 "두 사람" — 나는 항상 왼쪽, 상대는 항상 오른쪽. */}
-      <Text style={[typography.title, { color: colors.inkFull }]}>{selfName ?? '나'}</Text>
-      <Text style={[typography.caption, { color: colors.inkMute }]}>{nickname ? `· ${nickname} ·` : '♥'}</Text>
-      {partnerName ? (
-        <Text style={[typography.title, { color: colors.inkFull }]}>{partnerName}</Text>
-      ) : (
-        <Text style={[typography.title, { color: colors.inkFaint }]}>빈 슬롯</Text>
-      )}
+    <View style={styles.wrap} testID="main-state-B05">
+      <RiseIn>
+        <MainHeader connected={false} selfName={props.selfName} partnerName={null} nickname={null} />
+      </RiseIn>
+      <RiseIn delayMs={80} style={styles.heroGap}>
+        <MainHero hero={layout.hero} connected={false} temperature={36.5} milestoneLabel={null} />
+      </RiseIn>
+      <RiseIn delayMs={120}>
+        <ConnectHintRow />
+      </RiseIn>
+      <View style={styles.blocks}>
+        <RiseIn delayMs={160}>
+          <View style={styles.card}>
+            <LoveTypeCard number={love?.number ?? '02'} summary={props.summary} />
+          </View>
+        </RiseIn>
+        <RiseIn delayMs={200} style={styles.invite}>
+          <InviteButton onPress={props.onInvite} />
+        </RiseIn>
+      </View>
+      <VerticalDate label={props.dateLabel} top={DATE_TOP} />
     </View>
   )
 }
+
+/** 연결 여부·연결 뒤 사실을 읽는 동안: 머리와 뼈대. 값을 지어내지 않는다. */
+function ConnectedWait(props: { dateLabel: string }) {
+  return (
+    <View style={styles.wrap} testID="main-wait">
+      <Skeleton width="44%" height={34} />
+      <View style={styles.waitHero}>
+        <Skeleton width="62%" height={34} />
+        <Skeleton width="48%" height={34} />
+      </View>
+      <VerticalDate label={props.dateLabel} top={DATE_TOP} />
+    </View>
+  )
+}
+
+const styles = StyleSheet.create({
+  wrap: { position: 'relative' },
+  heroGap: { marginTop: 44 },
+  blocks: { marginTop: 24, gap: 12 },
+  card: { marginHorizontal: -4 },
+  invite: { marginTop: 24 },
+  waitHero: { marginTop: 80, gap: 12 },
+})
