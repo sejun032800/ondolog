@@ -5,19 +5,23 @@
  * 먼저 `scripts/db/verify_025_privileges.sql`이 모두 ok 인지 본다. 이 스크립트는 **적용된 뒤에만** 돌린다:
  * 적용 전에 돌리면 batch 함수 호출이 실제로 실행될 수 있어서, 환경변수 ONDOLOG_025_APPLIED=1 이 없으면 멈춘다.
  *
- *   ① anon 키로 배치 함수 셋(expire_stories · apply_retention_policy · execute_dissolution)을 /rpc 로 호출 -> 거부(42501) · 데이터 변화 없음
- *   ② 로그인한 시험 계정으로 같은 호출 -> 거부 · 변화 없음
+ *   ① anon 키로 expire_stories 를 /rpc 로 호출 -> 거부(42501) · 데이터 변화 없음.
+ *      apply_retention_policy · execute_dissolution 은 /rpc 로 부르지 않는다(ROADMAP r34 R34-3): 거부는 has_function_privilege 카탈로그 확인으로만 증명한다.
+ *      그 확인은 이 스크립트가 하지 않고 scripts/db/verify_025_privileges.sql A절이 맡는다(public·anon·authenticated·service_role x 배치 셋).
+ *      /rpc 로는 SQL 을 실행할 수 없고 새 DB 함수를 만들 수 없어서, 스크립트는 해당 항목을 "SQL에서 확인" 한 줄로 출력만 한다.
+ *   ② 로그인한 시험 계정: 같다. /rpc 는 expire_stories 하나, 나머지 둘은 SQL A절의 authenticated 열
  *   ⑤ fn_issue_progress · fn_delete_own_entry: authenticated 는 함수에 닿는다(오류가 권한이 아니다) / anon 은 거부.
  *      RLS 헬퍼 is_couple_member: authenticated 동작 / anon 거부
  *   ⑥ service_role: fn_publish_issue 에 존재하지 않는 호 id 를 준다 -> 권한 오류가 아니라 함수 안의 오류(데이터 변화 없음).
- *      authenticated 의 fn_publish_issue -> 거부. service_role 의 배치 함수 -> 거부(025 가 service_role 도 회수)
+ *      authenticated 의 fn_publish_issue -> 거부. service_role 의 expire_stories -> 거부(025 가 service_role 도 회수).
+ *      service_role 의 apply_retention_policy · execute_dissolution 은 /rpc 로 부르지 않는다: SQL A절의 service_role 열(false)로 확인
  *   ⑦ issues_public: anon SELECT 거부 · authenticated INSERT 거부 · authenticated SELECT 동작
  *
  * ③(소유자 실행)·⑧(기본 권한)·⑨(보안 점검 비교)는 SQL/도구로 한다: scripts/db/verify_025_owner_run.sql · verify_025_privileges.sql · get_advisors.
  * ④ RLS 회귀는 기존 스크립트를 다시 돌린다: verifyIssuesGrant.ts(59- B) · verifyU2Delete.ts(57-) + 채팅·피드 읽기 각 1회 (사용법은 각 파일 머리).
  *
- * - **execute_dissolution 은 어떤 권한으로도 실제 실행하지 않는다.** 존재하지 않는 id(영 uuid)로 부르고, 거부 확인만 한다.
- *   (거부되지 않았다면 영 uuid 라 아무 것도 지우지 않지만 FAIL 로 기록한다.) expire_stories · apply_retention_policy 는 거부돼야 정상이다.
+ * - **execute_dissolution · apply_retention_policy 는 어떤 역할로도 /rpc 로 부르지 않는다**(파괴적 배치. 회수가 기대대로 걸리지 않았으면
+ *   거부를 보려던 호출이 실제 데이터를 지운다). 거부 증명은 카탈로그(has_function_privilege)뿐이다. /rpc 거부 확인은 대상이 없어 해가 없는 expire_stories 하나다.
  * - 변화 없음 확인: 호출 전후 stories(미처리) · couples · couple_dissolutions(미실행) · data_entries 행 수를 service_role 로 센다.
  * - 비밀값은 어디에도 쓰지 않는다. 시험 계정은 59- 와 같다(test-55-2-*).
  *
@@ -96,20 +100,14 @@ async function main(): Promise<void> {
   const before = await snapshot()
   line(`[기준 행 수] ${before}`)
 
-  // ① anon -> 배치 함수 셋
-  const batchCalls: Array<[string, (db: Db) => Promise<{ data: unknown; error: { code?: string; message?: string } | null }>]> = [
-    ['expire_stories', (db) => db.rpc('expire_stories')],
-    ['apply_retention_policy', (db) => db.rpc('apply_retention_policy')],
-    ['execute_dissolution(영 uuid)', (db) => db.rpc('execute_dissolution', { p_dissolution_id: ZERO_UUID })],
-  ]
-  for (const [name, call] of batchCalls) {
-    const r = await call(dbAnon)
-    check(`① anon: ${name} -> 거부`, denied(r.error), r.error ? `${r.error.code} ${r.error.message}` : `실행됨(!) data=${JSON.stringify(r.data)}`)
-  }
-  // ② authenticated -> 같은 셋
-  for (const [name, call] of batchCalls) {
-    const r = await call(dbUser)
-    check(`② 로그인 계정: ${name} -> 거부`, denied(r.error), r.error ? `${r.error.code} ${r.error.message}` : `실행됨(!) data=${JSON.stringify(r.data)}`)
+  // ① anon / ② authenticated -> expire_stories 하나만 /rpc 로 부른다 (대상이 없어 해가 없다)
+  const rAnon = await dbAnon.rpc('expire_stories')
+  check('① anon: expire_stories -> 거부', denied(rAnon.error), rAnon.error ? `${rAnon.error.code} ${rAnon.error.message}` : `실행됨(!) data=${JSON.stringify(rAnon.data)}`)
+  const rUser = await dbUser.rpc('expire_stories')
+  check('② 로그인 계정: expire_stories -> 거부', denied(rUser.error), rUser.error ? `${rUser.error.code} ${rUser.error.message}` : `실행됨(!) data=${JSON.stringify(rUser.data)}`)
+  // 파괴적 배치 둘은 부르지 않는다. 카탈로그 확인은 SQL 파일이 한다.
+  for (const role of ['anon', 'authenticated', 'service_role']) {
+    line(`INFO ①②③ ${role}: apply_retention_policy · execute_dissolution 실행 권한 false -> SQL에서 확인 - verify_025_privileges.sql A절 (/rpc 호출 안 함)`)
   }
   const afterBatch = await snapshot()
   check('①② 데이터 변화 없음', afterBatch === before, afterBatch === before ? '행 수 같음' : `전 ${before} / 후 ${afterBatch}`)
@@ -133,6 +131,7 @@ async function main(): Promise<void> {
   check('⑥ service_role: fn_publish_issue 에 닿는다(없는 호 -> 함수 안의 오류, 권한 오류 아님)', !!pub.error && !denied(pub.error), pub.error ? `${pub.error.code} ${pub.error.message}` : '성공(!)')
   const pubUser = await dbUser.rpc('fn_publish_issue', { p_issue_id: ZERO_UUID })
   check('⑥ authenticated: fn_publish_issue -> 거부', denied(pubUser.error), pubUser.error ? `${pubUser.error.code}` : '실행됨(!)')
+  // service_role 의 apply_retention_policy · execute_dissolution 은 /rpc 로 부르지 않는다 (위 INFO 줄, SQL A절)
   const svcBatch = await admin.rpc('expire_stories')
   check('⑥ service_role: expire_stories -> 거부 (025 가 service_role 도 회수)', denied(svcBatch.error), svcBatch.error ? `${svcBatch.error.code}` : `실행됨(!) data=${JSON.stringify(svcBatch.data)}`)
 
