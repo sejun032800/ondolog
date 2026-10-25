@@ -24,6 +24,7 @@ import {
   resolveMbtiFromQuickQuiz,
   type LoveTypeInferenceResult,
 } from '../engine/loveTypeInference'
+import { EMPTY_CONSENT, type ConsentFlags } from '../utils/onboardingRules'
 
 /** DB `gender_type` enum(male/female/other)과 동일해야 한다 — Part 9-1 화면 2. */
 export type Gender = 'male' | 'female' | 'other'
@@ -60,7 +61,15 @@ interface SessionState {
   /** 클라이언트 로컬 순수 함수 산출값 — 서버 호출 없음(Part 9-1 화면 5). */
   result: LoveTypeInferenceResult | null
 
+  // ── 약관 동의(A10) ──
+  /**
+   * 동의 체크 상태. 로그인 화면(A11)이 이 값으로 "동의를 먼저 받았는가"를 판단하고, 로그인 뒤 저장(마케팅 여부)에도 쓴다.
+   * 로그인 인증이 실패해도 그대로 남는다(MASTER 6-5). 메모리에만 있다 - 앱을 닫으면 사라진다.
+   */
+  consent: ConsentFlags
+
   // ── 액션 ──
+  setConsent: (consent: ConsentFlags) => void
   setBasicInfo: (info: BasicInfo) => void
   setName: (name: string) => void
   setGender: (gender: Gender) => void
@@ -89,8 +98,10 @@ const initialState = {
   q4: null,
   q5: null,
   result: null,
+  consent: EMPTY_CONSENT,
 } satisfies Omit<
   SessionState,
+  | 'setConsent'
   | 'setBasicInfo'
   | 'setName'
   | 'setGender'
@@ -103,8 +114,13 @@ const initialState = {
   | 'resetSession'
 >
 
+/** MBTI 네 글자가 바뀌면 비우는 값 - 연애유형 5문항은 유형별로 달라서 이전 답을 쓸 수 없다. */
+const CLEARED_QUIZ = { q1: null, q2: null, q3: null, q4: null, q5: null, result: null } as const
+
 export const useSessionStore = create<SessionState>((set, get) => ({
   ...initialState,
+
+  setConsent: (consent) => set({ consent }),
 
   setBasicInfo: ({ name, gender, birthDate }) =>
     set({ name, gender, birthDate }),
@@ -115,7 +131,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setMbtiKnown: (known) => set({ mbtiKnown: known }),
 
   setMbtiSelfReported: (mbti) =>
-    set({ mbti, mbtiSelfReported: true, quickMbtiAnswers: {} }),
+    set((state) => ({
+      mbti,
+      mbtiSelfReported: true,
+      quickMbtiAnswers: {},
+      ...(state.mbti !== mbti ? CLEARED_QUIZ : {}),
+    })),
 
   setQuickMbtiAnswer: (axis, choice) => {
     const answers = { ...get().quickMbtiAnswers, [axis]: choice }
@@ -131,6 +152,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       quickMbtiAnswers: answers,
       mbti: next.mbti ?? state.mbti,
       mbtiSelfReported: false,
+      // 네 글자가 바뀌면 문항 세트가 달라지므로 5문항 답과 결과를 비운다.
+      ...(next.mbti && next.mbti !== state.mbti ? CLEARED_QUIZ : {}),
     }))
   },
 

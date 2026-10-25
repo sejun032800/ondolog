@@ -123,7 +123,7 @@ export function InviteSheet({ userId, fromChat, onClose, onConnected }: InviteSh
             <>
               <View style={styles.codeBox}>
                 <Text style={styles.kicker}>{INVITE_COPY.myCode}</Text>
-                <Text style={styles.code} testID="invite-code">{code}</Text>
+                <Text style={styles.code} selectable testID="invite-code">{code}</Text>
               </View>
               <PrimaryButton label={INVITE_COPY.share} onPress={shareCode} testID="invite-share" />
               <PressScale onPress={() => { setError(null); setStep('enter') }} accessibilityLabel={INVITE_COPY.enter} style={styles.linkWrap} testID="invite-enter">

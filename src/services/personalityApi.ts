@@ -29,100 +29,25 @@
  */
 
 import { ONBOARDING_STEP } from '../constants/onboardingStep'
-import {
-  computeLoveTypeCode,
-  LOVE_TYPE_ENGINE_VERSION,
-  type LoveTypeInferenceResult,
-} from '../engine/loveTypeInference'
+import { computeLoveTypeCode } from '../engine/loveTypeInference'
 import { supabase } from './supabase'
+import {
+  createProfileAndAssessment as createProfileAndAssessmentCore,
+  type CreateProfileAndAssessmentInput,
+} from './personalityCore'
 import type { Database } from '../types/database'
-import type { MbtiType, QuizChoice } from '../constants/quizTypes'
-import type { Gender } from '../store/sessionStore'
 
 type AssessmentRow = Database['public']['Tables']['personality_assessments']['Row']
 type ProfileRow = Database['public']['Tables']['personality_profiles']['Row']
 
-export interface CreateProfileAndAssessmentInput {
-  userId: string
-  name: string
-  gender: Gender
-  birthDate: string
-  mbti: MbtiType
-  mbtiSelfReported: boolean
-  q1: QuizChoice
-  q2: QuizChoice
-  q3: QuizChoice
-  q4: QuizChoice
-  q5: QuizChoice
-  result: LoveTypeInferenceResult
-  /** 화면 6 "마케팅 정보 수신 동의(선택)" 체크 여부. */
-  marketingAgreed: boolean
-}
+export type { CreateProfileAndAssessmentInput } from './personalityCore'
 
 /**
- * 화면 6 성공 직후 1회 호출. 세이브포인트가 여기서부터 서버로 넘어간다
- * — 이후 앱이 죽어도 화면 7부터 정상 재개할 수 있어야 하므로, 원본
- * 응답(q1~q5)과 산출값을 이 시점에 전부 저장한다.
- *
- * 필수 동의 3종(terms/privacy/ai_usage)은 이 함수가 불리는 시점 자체가
- * "동의 체크 완료 → 소셜 로그인 성공"을 의미하므로 전부 `now()`로
- * 채운다. 호출부(`app/(onboarding)/auth.tsx`)가 `ConsentChecklist`의
- * 필수 항목이 전부 체크된 경우에만 로그인 버튼을 활성화하므로, 동의
- * 없이 이 함수가 호출되는 경로는 없다.
+ * 화면 6 성공 직후 1회 호출(U6 이후: A11 로그인 직후, `useSignupFinalize`). 알맹이는 `personalityCore.ts` -
+ * 앱 전역 `supabase`를 넣어 부른다. 동의 시각·세이브포인트 규칙은 그쪽 주석 그대로다.
  */
-export async function createProfileAndAssessment(
-  input: CreateProfileAndAssessmentInput,
-): Promise<AssessmentRow> {
-  const now = new Date().toISOString()
-
-  const { error: profileError } = await supabase.from('profiles').upsert(
-    {
-      id: input.userId,
-      display_name: input.name,
-      gender: input.gender,
-      birth_date: input.birthDate,
-      mbti: input.mbti,
-      onboarding_step: ONBOARDING_STEP.AUTH,
-      terms_agreed_at: now,
-      privacy_agreed_at: now,
-      ai_usage_agreed_at: now,
-      marketing_agreed_at: input.marketingAgreed ? now : null,
-    },
-    { onConflict: 'id' },
-  )
-  if (profileError) throw profileError
-
-  const { data: assessment, error: assessmentError } = await supabase
-    .from('personality_assessments')
-    .insert({
-      user_id: input.userId,
-      seq: 1,
-      engine_version: LOVE_TYPE_ENGINE_VERSION,
-      mbti: input.mbti,
-      mbti_self_reported: input.mbtiSelfReported,
-      q1: input.q1,
-      q2: input.q2,
-      q3: input.q3,
-      q4: input.q4,
-      q5: input.q5,
-      enneagram_core: input.result.enneagramCore,
-      big_e: input.result.big5.bigE,
-      big_o: input.result.big5.bigO,
-      big_a: input.result.big5.bigA,
-      big_c: input.result.big5.bigC,
-      big_n: input.result.big5.bigN,
-      stern_intimacy: input.result.sternberg.intimacy,
-      stern_passion: input.result.sternberg.passion,
-      stern_commitment: input.result.sternberg.commitment,
-      attach_anxiety: input.result.attachAnxiety,
-      attach_avoidance: input.result.attachAvoidance,
-      attachment: input.result.attachment,
-    })
-    .select()
-    .single()
-  if (assessmentError) throw assessmentError
-
-  return assessment
+export function createProfileAndAssessment(input: CreateProfileAndAssessmentInput): Promise<AssessmentRow> {
+  return createProfileAndAssessmentCore(supabase, input)
 }
 
 /** 화면 7 재진입(세이브포인트 재개) 시 최신 assessment를 읽어온다. */

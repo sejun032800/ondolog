@@ -1,192 +1,130 @@
 /**
- * 화면 6. 회원가입/로그인 (개정판 — 약관 동의 포함).
+ * A11 로그인 수단 - 동의(A10) 다음이다(MASTER 6-1, R24-4). 디자인 `N-A11-Login`.
  *
- * 근거: docs/ONDOLOG_MASTER.md "MASTER Part 9-1 보강 — 화면 6 약관 동의
- *   명세". 기존 "화면 6. 회원가입/로그인" 절을 대체한다.
+ * **동의 없이는 이 화면에 머물 수 없다**: 필수 동의가 빠졌거나 만 14세 미만이거나 생년월일(앞 화면 답)이 없으면 A10으로 되돌린다
+ * (순수 함수 `canEnterLogin`). 로그인 버튼 자체도 같은 조건일 때만 눌린다.
  *
- *   6-1 화면 구성: 1) 소셜 로그인 3종 2) 동의 항목 체크리스트
- *   3) 버튼(필수 항목 전체 체크 시에만 활성화). "동의를 먼저 받고
- *   로그인한다"는 순서 원칙에 따라, 이 화면은 별도의 4번째 CTA를 더
- *   두지 않고 소셜 로그인 버튼 3개 자체를 그 CTA로 쓴다 — 필수 동의가
- *   전부 체크되기 전까지는 3개 버튼이 전부 비활성 상태다. 자세한 근거는
- *   `.claude/state/DECISIONS.md` 2026-08-25 항목 참조.
- *
- * 로그인에 성공하는 순간 이 화면이 화면 2~5의 메모리 데이터를 서버로
- * 귀속시키는 지점이다(profiles + personality_assessments 저장) —
- * 그 뒤에 `resetSession()`으로 메모리를 비운다.
- *
- * 동의 체크박스 상태(`consent`)는 이 화면 컴포넌트가 마운트돼 있는 한
- * (OAuth 인앱 브라우저가 열렸다 돌아오는 동안 포함) 그대로 유지된다 —
- * 6-5 "인증 실패 시: 동의 상태를 세션에 유지하고 재시도 가능하게 한다.
- * 다시 체크하게 만들지 않는다"를 별도 저장 없이 React 로컬 state만으로
- * 충족한다(성공 전까지 이 상태를 리셋하는 코드 경로가 없다).
+ * 카카오 로그인은 **기존 코드**(`signInWithSocialProvider`)를 그대로 쓴다. 구글·애플은 아직 동작하지 않아(Supabase 프로바이더 미설정,
+ * HANDOFF) 보드의 버튼을 **숨겼다**. 로그인에 성공하면 `useSignupFinalize`가 기존 저장 경로로 답과 동의 시각을 저장하고, **저장이 실패하면
+ * 넘어가지 않으며 [다시 시도]가 나온다**(동의·답은 그대로). 로그인 인증이 실패해도 동의 상태는 그대로 남는다(MASTER 6-5).
  */
 import { useRouter } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
-import { Alert, Text, View } from 'react-native'
-import {
-  ConsentChecklist,
-  INITIAL_CONSENT_VALUE,
-  type ConsentValue,
-} from '../../src/components/ConsentChecklist'
-import { Button } from '../../src/components/Button'
-import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { MIN_AGE_YEARS } from '../../src/constants/consent'
-import { useTheme } from '../../src/theme'
+import { useEffect, useState } from 'react'
+import { StyleSheet, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { PrimaryButton } from '../../src/components/nocturne/Buttons'
+import { PressScale } from '../../src/components/nocturne/PressScale'
+import { RiseIn } from '../../src/components/nocturne/RiseIn'
+import { ScreenFrame } from '../../src/components/nocturne/ScreenFrame'
+import { SkyBackground } from '../../src/components/nocturne/SkyBackground'
+import { PushHeader } from '../../src/components/nocturne/ExitHeader'
 import { useSession } from '../../src/hooks/useSession'
-import { createProfileAndAssessment } from '../../src/services/personalityApi'
-import { signInWithSocialProvider, type SocialProvider } from '../../src/services/socialAuth'
+import { useSignupFinalize } from '../../src/hooks/useSignupFinalize'
+import { signInWithSocialProvider } from '../../src/services/socialAuth'
 import { useSessionStore } from '../../src/store/sessionStore'
-import { calculateAge } from '../../src/utils/age'
-
-const PROVIDERS: Array<{ key: SocialProvider; label: string }> = [
-  { key: 'kakao', label: '카카오로 계속하기' },
-  { key: 'google', label: 'Google로 계속하기' },
-  { key: 'apple', label: 'Apple로 계속하기' },
-]
+import { fontFamily, nocturne, shape, type } from '../../src/theme/nocturne'
+import { canEnterLogin } from '../../src/utils/onboardingRules'
 
 export default function AuthScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { session } = useSession()
-  const [pendingProvider, setPendingProvider] = useState<SocialProvider | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const submittedRef = useRef(false)
-  const [consent, setConsent] = useState<ConsentValue>(INITIAL_CONSENT_VALUE)
-
-  const name = useSessionStore((s) => s.name)
-  const gender = useSessionStore((s) => s.gender)
   const birthDate = useSessionStore((s) => s.birthDate)
-  const mbti = useSessionStore((s) => s.mbti)
-  const mbtiSelfReported = useSessionStore((s) => s.mbtiSelfReported)
-  const q1 = useSessionStore((s) => s.q1)
-  const q2 = useSessionStore((s) => s.q2)
-  const q3 = useSessionStore((s) => s.q3)
-  const q4 = useSessionStore((s) => s.q4)
-  const q5 = useSessionStore((s) => s.q5)
-  const result = useSessionStore((s) => s.result)
-  const resetSession = useSessionStore((s) => s.resetSession)
+  const consent = useSessionStore((s) => s.consent)
+  const [kakaoPending, setKakaoPending] = useState(false)
+  const [loginError, setLoginError] = useState(false)
 
-  const hasCompleteSessionData =
-    name.trim().length > 0 &&
-    !!gender &&
-    !!birthDate &&
-    !!mbti &&
-    !!q1 &&
-    !!q2 &&
-    !!q3 &&
-    !!q4 &&
-    !!q5 &&
-    !!result
+  const finalize = useSignupFinalize(session, () => router.replace('/result-detail'))
+  const entryAllowed = canEnterLogin(birthDate, consent, new Date())
 
-  // 6-3 ①: "화면 2에서 수집한 birth_date로 자동 검증한다."
-  const ageEligible = !!birthDate && calculateAge(birthDate, new Date()) >= MIN_AGE_YEARS
-  const requiredConsentChecked = consent.terms && consent.privacy && consent.aiUsage
-  const canProceed = ageEligible && requiredConsentChecked
-
+  // 동의 없이는 로그인 화면에 머물 수 없다. 저장이 끝난 뒤 메모리가 비워진 것은 되돌림 사유가 아니다.
+  const { isFinished } = finalize
   useEffect(() => {
-    if (!session || submittedRef.current) return
+    if (isFinished()) return
+    if (!entryAllowed) router.replace('/consent')
+  }, [entryAllowed, isFinished, router])
 
-    if (!hasCompleteSessionData) {
-      // 세션은 있는데 화면 2~5 메모리 데이터가 없다 — 앱이 중간에 죽었던
-      // 경우 등. 재입력 화면으로 보낸다(index.tsx의 분기와 동일 원칙).
-      return
-    }
-
-    if (!canProceed) {
-      // 이론상 도달하지 않는다 — 로그인 버튼 자체가 canProceed일 때만
-      // 눌린다. 방어적으로 한 번 더 막아 "동의 없이 profiles 레코드가
-      // 생성되지 않는다"(6-6 완료기준)를 이 함수 하나가 아니라 이
-      // 화면도 함께 보장한다.
-      return
-    }
-
-    submittedRef.current = true
-    setSubmitting(true)
-    ;(async () => {
-      try {
-        await createProfileAndAssessment({
-          userId: session.user.id,
-          name,
-          gender: gender!,
-          birthDate: birthDate!,
-          mbti: mbti!,
-          mbtiSelfReported,
-          q1: q1!,
-          q2: q2!,
-          q3: q3!,
-          q4: q4!,
-          q5: q5!,
-          result: result!,
-          marketingAgreed: consent.marketing,
-        })
-        resetSession()
-        router.replace('/result-detail')
-      } catch (e) {
-        submittedRef.current = false
-        Alert.alert('저장에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
-      } finally {
-        setSubmitting(false)
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, hasCompleteSessionData, canProceed])
-
-  const handlePress = async (provider: SocialProvider) => {
-    if (!canProceed) return // 방어적 가드 — 버튼은 이미 비활성 상태다.
-
-    if (provider !== 'kakao') {
-      // Supabase 대시보드에 구글/애플 프로바이더가 아직 설정되지 않았다
-      // (`.claude/state/HANDOFF.md`). 동의 체크 상태는 건드리지 않는다 —
-      // OAuth 호출 자체를 시작하지 않으므로 6-5(실패 시 동의 유지)와
-      // 무관하게 유지된다.
-      Alert.alert('준비 중이에요', '지금은 카카오 로그인만 이용할 수 있어요.')
-      return
-    }
-
-    setPendingProvider(provider)
+  const signInKakao = async () => {
+    if (!entryAllowed || kakaoPending) return
+    setLoginError(false)
+    setKakaoPending(true)
     try {
-      const { cancelled } = await signInWithSocialProvider(provider)
-      if (cancelled) setPendingProvider(null)
-      // 성공 시 onAuthStateChange → useSession → 위 useEffect가 이어받는다.
-    } catch (e) {
-      setPendingProvider(null)
-      Alert.alert(
-        '로그인에 실패했어요',
-        e instanceof Error ? e.message : '잠시 후 다시 시도해주세요.',
-      )
+      const { cancelled } = await signInWithSocialProvider('kakao')
+      if (cancelled) setKakaoPending(false)
+      // 성공하면 onAuthStateChange -> useSession -> useSignupFinalize가 이어받는다.
+    } catch {
+      setKakaoPending(false)
+      setLoginError(true)
     }
   }
 
-  const { colors, typography, spacing } = useTheme()
+  const saving =
+    finalize.status === 'saving' || finalize.isFinished() || (!!session && finalize.status === 'idle' && entryAllowed)
+  const saveFailed = finalize.status === 'failed'
 
   return (
-    <ScreenContainer
-      title="시작하기"
-      subtitle="약관에 동의하고 소셜 계정으로 간편하게 시작해요."
-    >
-      <View style={{ gap: spacing.s3 }}>
-        {PROVIDERS.map((p) => (
-          <Button
-            key={p.key}
-            label={p.label}
-            onPress={() => handlePress(p.key)}
-            loading={pendingProvider === p.key || (submitting && !!session)}
-            disabled={
-              !canProceed ||
-              (pendingProvider !== null && pendingProvider !== p.key) ||
-              (submitting && !!session)
-            }
-          />
-        ))}
-      </View>
+    <ScreenFrame>
+      <SkyBackground view="sky" bottomVeil>
+        <View style={[styles.top, { paddingTop: insets.top + 12 }]}>
+          <PushHeader onBack={() => router.back()} />
+          <Text style={styles.brand}>ONDOLOG</Text>
+        </View>
+        <View style={styles.spacer} />
+        <RiseIn style={[styles.bottom, { paddingBottom: insets.bottom + 44 }]}>
+          <Text style={styles.title}>{'어떤 계정으로\n시작할까요?'}</Text>
+          <Text style={styles.sub}>로그인하면 방금 본 결과가 계정에 저장돼요.</Text>
 
-      {!canProceed && (
-        <Text style={[typography.caption, { color: colors.inkMute, textAlign: 'center' }]}>
-          필수 항목에 모두 동의하면 버튼이 활성화돼요.
-        </Text>
-      )}
-
-      <ConsentChecklist value={consent} onChange={setConsent} ageEligible={ageEligible} />
-    </ScreenContainer>
+          <View style={styles.buttons}>
+            {saveFailed ? (
+              <>
+                <Text style={styles.error} testID="auth-save-error">저장하지 못했어요. 다시 시도해주세요.</Text>
+                <PrimaryButton label="다시 시도" onPress={finalize.retry} testID="auth-retry" />
+              </>
+            ) : saving ? (
+              <PrimaryButton label="저장하는 중이에요" onPress={() => {}} disabled testID="auth-saving" />
+            ) : (
+              <>
+                <PressScale
+                  onPress={signInKakao}
+                  disabled={!entryAllowed || kakaoPending}
+                  accessibilityLabel="카카오로 시작하기"
+                  testID="auth-kakao"
+                  style={[styles.kakao, kakaoPending && styles.kakaoPending]}
+                >
+                  <Text style={styles.kakaoLabel}>카카오로 시작하기</Text>
+                </PressScale>
+                {loginError ? (
+                  <Text style={styles.error} testID="auth-login-error">
+                    로그인하지 못했어요. 잠시 후 다시 시도해주세요.
+                  </Text>
+                ) : null}
+              </>
+            )}
+          </View>
+          <Text style={styles.foot}>동의한 내용은 로그인이 실패해도 그대로 남아요</Text>
+        </RiseIn>
+      </SkyBackground>
+    </ScreenFrame>
   )
 }
+
+const styles = StyleSheet.create({
+  top: { paddingHorizontal: shape.space.screen, gap: 12 },
+  brand: { ...type.caption, fontSize: 12, letterSpacing: 5, color: nocturne.textSub, paddingLeft: 4 },
+  spacer: { flex: 1 },
+  bottom: { paddingHorizontal: shape.space.screen, gap: 28 },
+  title: { ...type.display, fontSize: 30, lineHeight: 40, color: nocturne.text },
+  sub: { ...type.sub, fontSize: 14.5, lineHeight: 23, color: nocturne.textSub, marginTop: -16 },
+  buttons: { gap: 10 },
+  kakao: {
+    height: shape.buttonHeight,
+    borderRadius: shape.radius.button,
+    backgroundColor: nocturne.kakao,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kakaoPending: { opacity: 0.6 },
+  kakaoLabel: { fontFamily: fontFamily.semiBold, fontSize: 15.5, color: nocturne.ink },
+  error: { ...type.sub, color: nocturne.rose, textAlign: 'center' },
+  foot: { ...type.caption, lineHeight: 18, color: nocturne.textMute, textAlign: 'center' },
+})

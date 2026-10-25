@@ -26,11 +26,13 @@
  * 않는다(Phase 7 담당).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../services/supabase'
 import {
   createStory as apiCreateStory,
   fetchMessages,
+  fetchMessagesAfter,
   fetchStories,
   markMessagesRead,
   sendMessage as apiSendMessage,
@@ -57,6 +59,7 @@ import {
 } from '../utils/chatMessages'
 import { entryStoragePath, type PickedPhoto } from '../utils/dateRecord'
 import { generateUuidV4 } from '../utils/uuid'
+import { fillMessageGap } from '../utils/chatGapFill'
 
 const IMAGE_CONTENT_TYPE: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -98,6 +101,8 @@ export function useRealtimeMessages(
   const [stories, setStories] = useState<StoryRow[]>([])
   const [storiesLoading, setStoriesLoading] = useState(true)
   const retryQueueRef = useRef<ChatRetryQueue | null>(null)
+  /** 메우기가 "마지막으로 받은 메시지"를 읽는 자리(구독 콜백이 낡은 상태를 보지 않게). */
+  const messagesRef = useRef<ChatMessage[]>([])
   const [hasQueued, setHasQueued] = useState(false)
   /** 사진 보내기 작업(이 세션 메모리). 성공하면 지운다. */
   const photoJobsRef = useRef<Map<string, { photo: PickedPhoto; sentAt: string }>>(new Map())
@@ -184,9 +189,19 @@ export function useRealtimeMessages(
     }
   }, [coupleId])
 
+  messagesRef.current = messages
+
   // Realtime 구독 — 상대(및 나 자신의 다른 기기)가 보낸 변경을 병합한다.
   useEffect(() => {
     if (!coupleId) return
+
+    const fillGap = () => {
+      void fillMessageGap({
+        getMessages: () => messagesRef.current,
+        fetchAfter: (after) => fetchMessagesAfter(coupleId, after),
+        apply: (update) => setMessages(update),
+      })
+    }
 
     const channel = supabase
       .channel(`messages:${coupleId}`)
@@ -198,13 +213,20 @@ export function useRealtimeMessages(
           setMessages((prev) => mergeMessage(prev, rowToChatMessage(payload.new as MessageRow)))
         },
       )
-      .subscribe()
-      // 재연결 시점에 큐를 비우는 보조 트리거는 더 이상 쓰지 않는다 —
-      // 이제 각 항목의 백오프 타이머(`ChatRetryQueue`)가 유일한 재시도
-      // 스케줄 소스다(구 방식은 메모리 상주 4초 인터벌 + 재연결 트리거
-      // 이중 구조였다).
+      // 실시간은 알림이고 진실은 조회다(R37-3): 구독이 SUBSCRIBED가 될 때(다시 연결될 때도 같은 신호)
+      // 마지막으로 받은 메시지 이후를 조회해 합친다. 같은 메시지가 두 번 와도 mergeMessage가 하나로 만든다.
+      // (재연결 때 큐를 비우는 보조 트리거는 쓰지 않는다 - 재시도는 `ChatRetryQueue`의 백오프 타이머가 맡는다.)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') fillGap()
+      })
+
+    // 앱이 앞으로 돌아올 때도 같은 메우기.
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fillGap()
+    })
 
     return () => {
+      appStateSub.remove()
       supabase.removeChannel(channel)
     }
   }, [coupleId])

@@ -1,32 +1,23 @@
 /**
- * 화면 4. 연애유형 5문항.
+ * A07 연애유형 5문항. 디자인 `N-S-A2-Onboarding`.
  *
- * 근거: docs/ONDOLOG_MASTER.md Part 9-1 화면 4 — "Part 10 전체 참조.
- * MBTI 유형별로 5문항이 다르게 제시된다." 문항 원문은
- * `src/data/onboardingQuestions.ts`(Part 10-3 원문 그대로, 요약·의역 없음).
- *
- * docs/ONDOLOG_DESIGN.md §13-7 화면 4 — "진행 표시는 0 1 / 0 5(kicker-en).
- * 프로그레스 바 금지." `ScreenContainer`의 `title`(display, 큰 헤드라인)
- * 대신 진행 표시 전용의 작은 kicker-en 텍스트를 본문 최상단에 별도로
- * 그린다 — 문서가 명시한 배치를 그대로 따르기 위한 화면 4만의 예외.
+ * 문항 원문은 `src/data/onboardingQuestions.ts`(MASTER 10-3 원문 그대로), 채점은 `sessionStore.computeResult`가 부르는
+ * 기존 엔진(`inferLoveType`, 결정론) 그대로다 - 이 화면은 엔진을 바꾸지 않는다. 저장은 메모리뿐이다.
+ * 하나를 고르면 다음 문항으로, 마지막 문항을 고르면 채점해 결과(A08)로 간다. ←는 이전 문항(첫 문항에서는 앞 화면).
+ * 진행 선은 정지 상태로 그린다(채움 애니메이션 금지).
  */
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { Pressable, Text, View } from 'react-native'
-import { Button } from '../../src/components/Button'
-import { ScreenContainer } from '../../src/components/ScreenContainer'
-import { useTheme } from '../../src/theme'
-import { ONBOARDING_QUESTIONS } from '../../src/data/onboardingQuestions'
+import { StyleSheet, Text, View } from 'react-native'
+import { ChoiceCard } from '../../src/components/onboarding/ChoiceCard'
+import { OnboardingScreen, StepCounter } from '../../src/components/onboarding/OnboardingScreen'
 import type { QuizChoice } from '../../src/constants/quizTypes'
+import { ONBOARDING_QUESTIONS } from '../../src/data/onboardingQuestions'
 import { useSessionStore } from '../../src/store/sessionStore'
-
-function pad2(n: number): string {
-  return String(n).padStart(2, '0')
-}
+import { nocturne, type, withAlpha } from '../../src/theme/nocturne'
 
 export default function LoveQuizScreen() {
   const router = useRouter()
-  const { colors, typography, spacing, radius } = useTheme()
   const mbti = useSessionStore((s) => s.mbti)
   const q1 = useSessionStore((s) => s.q1)
   const q2 = useSessionStore((s) => s.q2)
@@ -51,67 +42,51 @@ export default function LoveQuizScreen() {
 
   const handleSelect = (choice: QuizChoice) => {
     setQuizAnswer(question.q, choice)
-
-    if (isLast) return
-
-    setIndex((i) => Math.min(i + 1, questions.length - 1))
+    if (!isLast) {
+      setIndex(index + 1)
+      return
+    }
+    // 마지막 문항 - 스토어에 방금 고른 답이 들어간 뒤 채점한다(모두 채워졌을 때만 결과가 생긴다).
+    if (computeResult()) router.push('/result-brief')
   }
 
-  const allAnswered = [1, 2, 3, 4, 5].every((q) => answers[q] !== null)
-
   return (
-    <ScreenContainer
-      footer={
-        isLast ? (
-          <Button
-            label="결과 보기"
-            disabled={!allAnswered}
-            onPress={() => {
-              computeResult()
-              router.push('/result-brief')
-            }}
-          />
-        ) : undefined
+    <OnboardingScreen
+      onBack={() => (index > 0 ? setIndex(index - 1) : router.back())}
+      headerRight={<StepCounter current={index + 1} total={questions.length} />}
+      belowHeader={
+        <View
+          style={styles.track}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityValue={{ min: 0, max: questions.length, now: index + 1 }}
+        >
+          <View style={[styles.fill, { width: `${((index + 1) / questions.length) * 100}%` }]} />
+        </View>
       }
+      footer={<Text style={styles.footnote}>정답은 없어요. 가장 가까운 쪽을 골라주세요</Text>}
     >
-      <Text style={[typography.kickerEn, { color: colors.inkMute }]}>
-        {pad2(index + 1).split('').join(' ')} / {pad2(questions.length).split('').join(' ')}
-      </Text>
-
-      <Text style={[typography.headline, { color: colors.inkFull, marginTop: spacing.s3 }]}>
-        {question.prompt}
-      </Text>
-
-      <View style={{ gap: spacing.s3 }}>
-        {question.options.map((opt) => {
-          const isSelected = selected === opt.choice
-          return (
-            <Pressable
-              key={opt.choice}
-              onPress={() => handleSelect(opt.choice)}
-              style={{
-                backgroundColor: isSelected ? colors.inkFull : colors.paperAlt,
-                borderColor: colors.rule,
-                borderRadius: radius.touch,
-                borderWidth: 1,
-                padding: spacing.s4,
-              }}
-            >
-              <Text style={[typography.bodySerif, { color: isSelected ? colors.paper : colors.inkFull }]}>
-                {opt.text}
-              </Text>
-            </Pressable>
-          )
-        })}
+      <Text style={styles.prompt} testID="quiz-prompt">{question.prompt}</Text>
+      <View style={styles.cards}>
+        {question.options.map((opt) => (
+          <ChoiceCard
+            key={opt.choice}
+            letter={opt.choice}
+            label={opt.text}
+            selected={selected === opt.choice}
+            onPress={() => handleSelect(opt.choice)}
+            testID={`quiz-option-${opt.choice}`}
+          />
+        ))}
       </View>
-
-      {index > 0 && (
-        <Pressable onPress={() => setIndex((i) => Math.max(0, i - 1))} hitSlop={8}>
-          <Text style={[typography.caption, { color: colors.inkMute, textAlign: 'center' }]}>
-            이전 질문
-          </Text>
-        </Pressable>
-      )}
-    </ScreenContainer>
+    </OnboardingScreen>
   )
 }
+
+const styles = StyleSheet.create({
+  track: { height: 2, borderRadius: 2, backgroundColor: withAlpha(nocturne.text, 0.1) },
+  fill: { height: 2, borderRadius: 2, backgroundColor: nocturne.text },
+  prompt: { ...type.display, color: nocturne.text, marginTop: 8 },
+  cards: { marginTop: 32, gap: 12 },
+  footnote: { ...type.sub, color: nocturne.textMute, textAlign: 'center' },
+})

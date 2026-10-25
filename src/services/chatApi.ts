@@ -68,6 +68,22 @@ export async function fetchMessages(coupleId: string, limit = 200): Promise<Mess
   return data ?? []
 }
 
+/**
+ * 실시간 메우기(R37-3) - `afterSentAt` 이상의 메시지를 시간순으로 읽는다(같은 시각 포함 - 같은 메시지는 병합이 하나로 만든다).
+ * null이면 처음 로드와 같다.
+ */
+export async function fetchMessagesAfter(
+  coupleId: string,
+  afterSentAt: string | null,
+  limit = 500,
+): Promise<MessageRow[]> {
+  let query = supabase.from('messages').select('*').eq('couple_id', coupleId).is('deleted_at', null)
+  if (afterSentAt) query = query.gte('sent_at', afterSentAt)
+  const { data, error } = await query.order('sent_at', { ascending: true }).limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
 /** 완료 기준 3 — 발신자 자신의 메시지는 갱신 대상에서 제외한다. */
 export async function markMessagesRead(
   coupleId: string,

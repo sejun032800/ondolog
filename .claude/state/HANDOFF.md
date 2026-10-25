@@ -33,6 +33,27 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## 사진 큐 · U6 온보딩 1부 (`63-`, 2026-10-25, ui-builder) - 원격 개발 DB 실증 완료(저장 경로), 실기기 미확인
+
+- 파일: §0 `src/utils/chatGapFill.ts`·`src/hooks/useRealtimeMessages.ts`·`src/services/chatApi.ts`(`fetchMessagesAfter`)·`src/components/couple/InviteSheet.tsx`(`selectable`). §1 화면 `app/index.tsx`·`app/(onboarding)/{basic-info,mbti,love-quiz,result-brief,consent,underage,auth}.tsx`·`app/(modals)/legal-document.tsx`, 컴포넌트 `src/components/onboarding/`, 규칙 `src/utils/onboardingRules.ts`(+`age.ts`의 `calculateAgeKst`), 훅 `src/hooks/useSignupFinalize.ts`, 저장 알맹이 `src/services/personalityCore.ts`, 토큰 `nocturne.kakao`, 실증 `scripts/ops/verifyU6Signup.ts`.
+- 내부 결정(항목당 한 줄):
+  - §0 a(사진 영속 큐)는 `expo-file-system`이 없어 시작하지 않았다 - 사진은 여전히 이 세션 메모리 작업이다(Storage 경로는 이미 `client_msg_id`에서 정해져 재시도해도 같은 파일). 의존성 추가 허가가 나면 다음 지시서에서.
+  - 메우기는 `sent_at >= 마지막 서버 메시지`(같은 시각 포함)로 읽고 `mergeMessage`가 하나로 합친다. 조회는 최대 500건 한 번(그 이상 놓치면 다음 신호 때 이어서). 처음 로드(`fetchMessages`)의 `limit 200`이 오름차순이라 **가장 오래된 200건**을 읽는 점은 건드리지 않았다(알려진 한계, 대화가 200건을 넘으면 메우기가 그 이후를 채운다).
+  - A02의 "이미 계정이 있어요" 링크는 두지 않았다 - 동의(A10)가 로그인 앞이어야 하므로(MASTER 6-1) 동의 없이 로그인으로 가는 길이 된다. 새 기기에서 다시 로그인하는 길은 PM 결정 필요(아래 규칙 12 동작 참고).
+  - A11의 구글·애플 버튼은 숨겼다(프로바이더 미설정). 카카오 버튼 색은 보드 값 `#FEE500`을 `nocturne.kakao` 토큰으로 두었다.
+  - A08은 공유·이미지 저장 버튼을 숨기고 "더 자세히 보기 ->"(글자 링크)만 둔다. A08 -> A10(`/consent`)으로 간다. A09는 M3-6.
+  - A10 항목 ① 만 14세는 체크 칸이 아니라 자동 판정 표시(`생년월일로 확인함`). 만 14세 미만은 A10에 들어오면 A13으로 `replace`. [처음으로]는 메모리를 비우고 `/`로.
+  - 보드 A10의 AI 활용 항목 설명 한 줄("대화·사진·메모가 잡지를 만드는 데 쓰이고, 이때 외부 AI로 전송돼요")은 MASTER 6-3 ④의 두 요지와 같아 보드대로 넣었다. 보드 A12의 문장("무엇이 쓰이나요" 등)은 넣지 않았고 A12는 `legalDocuments.ts`의 지금 문장을 그대로 보인다. 보드 A13의 "정보는 저장하지 않았어요"는 사실(메모리뿐 + [처음으로]가 비움)이라 넣었다.
+  - 동의 체크 상태는 `sessionStore.consent`(메모리)에 둔다. 로그인 인증이 실패해도 그대로 남는다(MASTER 6-5).
+  - MBTI 네 글자가 바뀌면 `sessionStore`가 5문항 답과 결과를 비운다(문항 세트가 유형별로 달라서). 엔진은 안 바꿨다.
+  - 로그인 뒤 저장 실패는 화면에 "저장하지 못했어요" + [다시 시도]. 자동 재시도 없음. `createProfileAndAssessment`를 `personalityCore.ts`로 옮겼다(클라이언트를 인자로 - `chatCore.ts`와 같은 방식, 앱은 `personalityApi`가 전역 `supabase`를 넣어 부른다, 동작 같음).
+  - 앱 첫 화면(A01·A02)만 이미 로그인된 세션을 복원하느라 `auth.getSession`·`onAuthStateChange`를 부른다(기기 안 세션 읽기). A03~A13은 서버 클라이언트를 한 번도 부르지 않는다(시험). 세션이 없으면 프로필 조회도 없다.
+  - 화면 머리는 네이티브 헤더가 아니라 화면이 그리는 ←(`PushHeader`)다. `(onboarding)/_layout.tsx`에서 새 화면만 `headerShown: false` + ink 바탕, 옛 화면(result-detail·invite·start-date)은 옛 헤더 그대로.
+- **규칙 12 동작(바꾸지 않음)**: `createProfileAndAssessment`는 profiles upsert(동의 시각 세 칸이 이 호출 시각으로 덮임, `onboarding_step`이 0으로 되돌아감, 이름·생년월일·MBTI 덮임) 뒤 assessment insert를 하는데 `unique(user_id, seq)` 때문에 **이미 답이 있는 계정이면 insert가 23505로 실패**한다 -> 화면은 저장 실패로 보이고 [다시 시도]가 같은 실패를 되풀이한다. 새 기기에서 기존 계정으로 로그인하는 길(그리고 insert는 성공했는데 응답이 끊긴 뒤의 재시도)은 PM 결정이 필요하다. 실증 출력 `scripts/ops/out/63-u6-signup.txt`.
+- 시험 데이터(원격 개발, 지우지 않음): 계정 `test-63-signup-<시각>@example.com`(실행마다 새로 생김) + 그 프로필·assessment.
+- 로그인 뒤로 이어지는 기존(옛 테마) 화면: A14~A18 자리 `result-detail`·`invite`, A19 자리 `start-date`. 2부에서 교체.
+- `51-` 실기기 확인: 지금 19가지 + **"온보딩 1부 끝까지(스플래시 -> 기본정보 -> MBTI -> 5문항 -> 결과 -> 동의 -> 카카오 로그인 -> 계정 생성, 앱을 중간에 닫았다 열면 처음부터 = 답 소멸까지 함께)" 1가지 = 20가지.** "비행기 모드에서 사진 보내고 앱 재시작 -> 이어 보내기"는 §0 a를 하지 않아 지금은 확인할 수 없다(a를 하면 21가지). `51-` 문서 본문은 저장소에 없어(`prompts/phase-7`에 51- 파일 없음) 목록 파일에는 더하지 못했다.
+
 ## U4 채팅 (`62-`, 2026-10-25, ui-builder) - 원격 개발 DB 실증 완료, 실기기 미확인
 
 - 파일: 화면 `app/(tabs)/chat.tsx` · 시트 `app/(modals)/{couple-gate,story-viewer,photo-viewer}.tsx` · 컴포넌트 `src/components/chat/{ChatTop,Messages,Composer}.tsx`·`src/components/couple/InviteSheet.tsx`·`src/components/CoupleGate.tsx`(Nocturne으로 교체) · 서버 알맹이 `src/services/chatCore.ts`(저장소 클라이언트를 인자로 받는다 - 빈 본문 거부·사진 올리기·서명·스토리 생성)와 앱용 얇은 껍데기 `chatApi.ts` · 훅 `useSignedMedia`·`useRealtimeMessages`(`sendPhoto`·`hasQueued`·`postStory(photo)` 추가) · 메모리 저장 `src/store/chatViewerStore.ts` · 규칙 `src/utils/chatMessages.ts`(`isBlankBody`·`canSendBody` = 보내기 막음의 단 하나의 함수, 날짜·시각 글자) · 실증 `scripts/ops/verifyU4Chat.ts`(출력 `scripts/ops/out/62-u4-chat.txt`, git 제외). 지운 파일: 옛 `src/components/{ChatBubble,ChatDateDivider,StoryStrip}.tsx`.

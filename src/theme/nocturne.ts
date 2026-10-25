@@ -48,6 +48,9 @@ export const nocturne = {
   /** B05 연애유형 영문 라벨 전용(R36-4, 디자인 `N-B-Main` 값). 다른 글자에 쓰지 않는다. */
   ember: '#C08A64',
 
+  /** A11 카카오 로그인 버튼 면 전용(카카오 브랜드색, 디자인 `N-A11-Login` 값). 다른 곳에 쓰지 않는다. */
+  kakao: '#FEE500',
+
   // 종이(발행물 세계)
   paper: '#F1ECE4',
   paperInk: '#2A2530',

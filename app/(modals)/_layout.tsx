@@ -26,6 +26,8 @@ export default function ModalsLayout() {
       {/* 채팅 시트: 스토리 보기(F03)·사진 크게 보기(F06) - 손잡이 + ✕를 직접 그린다. */}
       <Stack.Screen name="story-viewer" options={{ headerShown: false }} />
       <Stack.Screen name="photo-viewer" options={{ headerShown: false }} />
+      {/* 약관 전문(A12) - A10의 [보기]가 여는 시트. 손잡이 + ✕를 직접 그린다. */}
+      <Stack.Screen name="legal-document" options={{ headerShown: false }} />
       <Stack.Screen name="biometric-consent" options={{ title: '생체정보 동의' }} />
       <Stack.Screen name="reference-photo" options={{ title: '대표사진 등록' }} />
       {/* 데이트 기록 쓰기(E11)·사진 더하기(E10) - 시트가 손잡이 + ✕ 머리를 직접 그린다. */}

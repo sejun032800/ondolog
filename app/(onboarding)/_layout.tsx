@@ -10,6 +10,14 @@
  */
 import { Stack } from 'expo-router'
 import { useTheme } from '../../src/theme'
+import { nocturne } from '../../src/theme/nocturne'
+
+/**
+ * U6 1부로 Nocturne 화면이 된 라우트 - 머리(←)와 바탕을 화면이 직접 그린다. 네이티브 헤더가 없다.
+ * 순서(MASTER 6-1): result-brief(A08) -> consent(A10) -> auth(A11 로그인) -> result-detail. 만 14세 미만은 consent에서 underage(A13)로.
+ * 약관 전문(A12)은 `(modals)/legal-document`.
+ */
+const NOCTURNE_SCREEN = { headerShown: false, contentStyle: { backgroundColor: nocturne.ink } } as const
 
 export default function OnboardingLayout() {
   const { colors, typography } = useTheme()
@@ -29,14 +37,13 @@ export default function OnboardingLayout() {
         contentStyle: { backgroundColor: colors.paper },
       }}
     >
-      <Stack.Screen name="basic-info" options={{ title: '기본 정보' }} />
-      <Stack.Screen name="mbti" options={{ title: 'MBTI' }} />
-      <Stack.Screen name="love-quiz" options={{ title: '연애유형 질문' }} />
-      <Stack.Screen name="result-brief" options={{ title: '결과 미리보기' }} />
-      <Stack.Screen
-        name="auth"
-        options={{ title: '회원가입 · 로그인', headerBackVisible: true }}
-      />
+      <Stack.Screen name="basic-info" options={NOCTURNE_SCREEN} />
+      <Stack.Screen name="mbti" options={NOCTURNE_SCREEN} />
+      <Stack.Screen name="love-quiz" options={NOCTURNE_SCREEN} />
+      <Stack.Screen name="result-brief" options={NOCTURNE_SCREEN} />
+      <Stack.Screen name="consent" options={NOCTURNE_SCREEN} />
+      <Stack.Screen name="underage" options={NOCTURNE_SCREEN} />
+      <Stack.Screen name="auth" options={NOCTURNE_SCREEN} />
       <Stack.Screen
         name="result-detail"
         options={{ title: '나의 연애유형', headerBackVisible: false }}

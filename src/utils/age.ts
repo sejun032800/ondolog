@@ -11,6 +11,8 @@
  * 아니다 — 나이는 정의상 오늘 날짜에 의존해야 의미가 있다.
  */
 
+import { kstToday } from './magazine'
+
 /** ISO 'YYYY-MM-DD' 문자열에서 만 나이를 계산한다. */
 export function calculateAge(birthDateIso: string, referenceDate: Date): number {
   const [year, month, day] = birthDateIso.split('-').map(Number)
@@ -26,5 +28,21 @@ export function calculateAge(birthDateIso: string, referenceDate: Date): number 
     age -= 1
   }
 
+  return age
+}
+
+/**
+ * KST 날짜 기준 만 나이(온보딩 A10 ① 만 14세 자동 판정, R37-6). 기기 시간대와 무관하다 -
+ * 오늘은 `kstToday(now)`(UTC+9의 달력 날짜), 생일 당일이면 그 해의 만 나이로 오른다.
+ * 형식이 틀리면 던진다(`calculateAge`와 같다).
+ */
+export function calculateAgeKst(birthDateIso: string, now: Date): number {
+  const [year, month, day] = birthDateIso.split('-').map(Number)
+  if (!year || !month || !day) {
+    throw new Error(`유효하지 않은 생년월일 형식입니다: ${birthDateIso}`)
+  }
+  const [ty, tm, td] = kstToday(now).split('-').map(Number)
+  let age = ty - year
+  if (tm < month || (tm === month && td < day)) age -= 1
   return age
 }
