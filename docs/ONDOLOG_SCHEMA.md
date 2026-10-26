@@ -310,6 +310,7 @@ create table public.personality_profiles (
   attachment          attachment_type not null,
 
   -- 3자 코드 (예: 'MSF'). 코어 변경 시 애플리케이션이 재계산해 갱신
+  --   (ROADMAP R40-4: 실효 코어 + 애착으로 다시 계산 — 오버라이드와 같은 UPDATE에서. `65-`까지는 재계산하지 않았다)
   love_type_code      char(3) not null,
 
   retest_used         boolean not null default false,
@@ -1714,6 +1715,42 @@ public.fn_delete_own_entry(p_entry_id uuid) returns boolean
 
 ---
 
+## 9-F. 커플 연결 (마이그레이션 026 — ROADMAP R40-2·3, `66-`)
+
+**발견(`65-` 원격 실증).** 앱의 초대 코드 입력이 `couples`를 직접 UPDATE했다. Postgres는 UPDATE의 WHERE·RETURNING에 SELECT 정책을 적용하므로,
+아직 구성원이 아닌 B에게 대기 행이 보이지 않아 **오류 없이 0행 갱신** — 사용자 권한으로는 연결이 한 번도 성립하지 않았다(기존 시험 커플은 `service_role`로 만들었다).
+SELECT 정책을 넓혀 대기 행을 보이게 하면 모든 초대 코드가 노출되므로 그렇게 고치지 않는다.
+
+**함께 찾은 구멍(PM 검토).** §10의 `couples_update`·`couples_insert`는 구성원이 **연결 칸을 마음대로** 쓸 수 있게 열려 있다 — `user_a`가 `user_b_id`에 아무 사용자를 넣고
+`status = 'active'`로 바꾸거나, 처음부터 그렇게 INSERT할 수 있다(동의 없는 강제 연결). `subscription_tier`도 INSERT에서 정할 수 있다.
+
+```sql
+public.<연결 함수>(p_invite_code text) returns uuid   -- 이름은 db-architect
+  language plpgsql  security definer  set search_path = ''
+  -- 실행 권한: public·anon·service_role 회수, authenticated만 (§10-0 클라이언트 RPC)
+```
+
+| 항목 | 규칙 |
+|---|---|
+| 확인 순서 | 로그인(아니면 `28000`) → 코드 정규화(대문자·공백 제거) → `status = 'pending'`·`user_b_id is null`·만료 전인 행을 **`for update`로 잠금** → 없거나 만료·이미 사용 = **같은 오류 하나**(`P0002`, "invalid invite code" — 어느 경우인지 구분해 주지 않는다) → 자기 코드면 `22023`("own invite code") → 부르는 사람·초대한 사람 각각 **`active`·`dissolving` 커플에 속하면** `23505`("already in a couple") |
+| 직렬화 | 두 사람의 `profiles` 행을 id 순서로 `for update` 잠근 뒤 위를 확인한다 — 같은 사람이 두 코드를 동시에 쓰는 경합을 막는다 |
+| 동작 | 그 행에 `user_b_id = auth.uid()`, `status = 'active'`, `connected_at = now()`. **부르는 사람이 `user_a`인 다른 `pending` 행은 지운다**(아직 데이터가 붙지 않은 빈 초대 — 남기면 열/열 교차 이중 소속이 된다). 초대한 사람의 다른 `pending` 행은 고유 인덱스상 없다 |
+| 반환 | 커플 id |
+| 멱등 | 이미 이 사람이 `user_b`인 같은 코드의 `active` 행이면 그 id를 그대로 돌려준다(응답만 끊긴 재시도) |
+| 테이블 이름 | 본문에 `public.` 접두사(9-E의 관례) |
+
+**직접 쓰기 회수(같은 026).**
+
+| 대상 | 바꾸는 것 |
+|---|---|
+| `couples` UPDATE | 테이블 단위 UPDATE를 회수하고 **앱이 실제로 쓰는 칸만 칸 단위로 부여**(사귄 날짜 3칸·`nickname`·`reference_photo_path` 등 — 앱 코드에서 찾아 목록을 마이그레이션 주석에 적는다). **`user_a_id`·`user_b_id`·`status`·`connected_at`·`dissolved_at`·`invite_code`·`subscription_tier`는 클라이언트가 UPDATE하지 못한다.** `magazine_theme` 잠금은 M4-5 그대로(§9-C-8, 알려진 구멍) |
+| `couples_update` 정책 | `(user_b_id is null and status = 'pending')` 가지를 지운다 — 연결은 함수만 한다 |
+| `couples_insert` 정책 | `with check`에 `user_b_id is null and status = 'pending' and subscription_tier = 'free'`를 더한다(초대 발급만 허용) |
+
+**실증(2부, 사용자 세션 — R40-5).** A 발급 → B 함수 호출 → `active`·`connected_at`·B의 다른 대기 행 삭제 / 자기 코드 `22023` / 없는 코드·만료·사용된 코드 같은 `P0002` / 이미 커플 `23505` / 재호출 같은 id / A가 직접 `user_b_id`·`status` UPDATE 거부 / `user_b_id`를 채운 INSERT 거부. 권한: anon false · authenticated true · service_role false · `prosecdef` true · `search_path` 고정. 보안 점검은 원문 JSON(R34-4).
+
+---
+
 ## 10. RLS (Row Level Security)
 
 ### 10-0. 함수 실행 권한 원칙 (2026-10-24, 마이그레이션 025 — ROADMAP R33-1)
@@ -1726,7 +1763,7 @@ public.fn_delete_own_entry(p_entry_id uuid) returns boolean
 | **배치 전용**(pg_cron이 부르는 것) | `public`·`anon`·`authenticated`·**`service_role`** 모두 회수(025). pg_cron은 작업 소유자(`postgres`) 권한으로 돈다. Edge Function이 REST로 부르게 되면 그 지시서에서 `service_role`에 명시 부여 |
 | **트리거 전용**(`tg_set_updated_at` 등) | 모두 회수 — 트리거는 `EXECUTE`를 검사하지 않는다 |
 | **RLS 헬퍼**(`is_couple_member`·`is_entry_visible`·`partner_id`·`current_couple_id`) | `authenticated`만(`service_role`도 회수 — RLS를 건너뛰므로 부를 일이 없다) |
-| **클라이언트 RPC**(`fn_issue_progress`·`fn_delete_own_entry`) | `authenticated`만 |
+| **클라이언트 RPC**(`fn_issue_progress`·`fn_delete_own_entry`·커플 연결 함수 — 026, §9-F) | `authenticated`만 |
 | **발행·생성 경로**(`fn_publish_issue` 등) | `service_role`만(기존 그대로) |
 | **anon이 불러야 하는 함수** | 없는 것이 기본값. 필요하면 마이그레이션에 이유를 적고 하나씩 부여 |
 
