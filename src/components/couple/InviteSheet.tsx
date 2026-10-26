@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native'
 import { getOrCreateInvite, redeemInviteCode } from '../../services/coupleApi'
+import { ConnectCoupleError } from '../../services/coupleConnectCore'
 import { fontFamily, nocturne, shape, withAlpha } from '../../theme/nocturne'
 import { GhostButton, PrimaryButton } from '../nocturne/Buttons'
 import { PressScale } from '../nocturne/PressScale'
@@ -27,7 +28,6 @@ export const INVITE_COPY = {
   back: '← 뒤로',
   codePlaceholder: '코드를 입력해주세요',
   issueFailed: '코드를 만들지 못했어요. 다시 시도해주세요.',
-  redeemFailed: '연결할 수 없어요. 코드를 다시 확인해주세요. 만료됐거나 이미 연결된 코드일 수 있어요.',
   redeemError: '연결하지 못했어요. 다시 시도해주세요.',
 } as const
 
@@ -82,14 +82,10 @@ export function InviteSheet({ userId, fromChat, onClose, onConnected }: InviteSh
     setBusy(true)
     setError(null)
     try {
-      const couple = await redeemInviteCode(userId, value)
-      if (!couple) {
-        setError(INVITE_COPY.redeemFailed)
-        return
-      }
+      await redeemInviteCode(userId, value)
       onConnected()
-    } catch {
-      setError(INVITE_COPY.redeemError)
+    } catch (e) {
+      setError(e instanceof ConnectCoupleError ? e.message : INVITE_COPY.redeemError)
     } finally {
       setBusy(false)
     }

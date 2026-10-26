@@ -36,6 +36,8 @@ jest.mock('../../src/services/photoPicker', () => ({ pickPhotos: (...a: unknown[
 let mockChat: UseRealtimeMessagesResult
 jest.mock('../../src/hooks/useRealtimeMessages', () => ({ useRealtimeMessages: () => mockChat }))
 
+import { ConnectCoupleError } from '../../src/services/coupleConnectCore'
+
 const mockGetOrCreate = jest.fn()
 const mockRedeem = jest.fn()
 jest.mock('../../src/services/coupleApi', () => ({
@@ -189,13 +191,13 @@ describe('F02 초대 시트', () => {
   })
 
   it('쓸 수 없는 코드면 시트 안에 이유를 적는다', async () => {
-    mockRedeem.mockResolvedValue(null)
+    mockRedeem.mockRejectedValue(new ConnectCoupleError({ code: '23505' }))
     await render(<InviteSheet userId="u1" onClose={() => {}} onConnected={() => {}} />)
     await fireEvent.press(screen.getByTestId('invite-enter'))
     await fireEvent.changeText(screen.getByTestId('invite-input'), 'ZZZZZZ')
     await fireEvent.press(screen.getByTestId('invite-connect'))
     await act(async () => {})
-    expect(screen.getByTestId('invite-error')).toBeTruthy()
+    expect(screen.getByTestId('invite-error').props.children).toBe('이미 다른 사람과 연결된 코드는 쓸 수 없어요')
   })
 })
 

@@ -33,6 +33,25 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## 커플 연결 앱 전환 (`66-` 1부, 2026-10-26, ui-builder) - 원격 미실행, 실기기 미확인
+
+- 내부 결정: A18 오류 문구 - 보드에는 "이미 다른 사람과 연결된 코드는 쓸 수 없어요"(23505) 하나뿐이라 그 원문을 쓰고, P0002는 기존 앱 문구 "연결할 수 없어요. 코드를 다시 확인해주세요.", 22023은 보드에 문구가 없어 자리표시자 "내가 만든 코드는 쓸 수 없어요"(PM 확인 필요).
+- 내부 결정: `redeemInviteCode` 반환을 `CoupleRow | null`에서 `CoupleRow`(실패는 `ConnectCoupleError` 던짐)로 바꿨다. RPC는 id만 돌려줘 연결 뒤 구성원으로서 행을 읽는다. 호출 화면 셋(A18 `invite.tsx` · `InviteSheet` · `InvitePanel`)의 null 분기를 오류 처리로 교체.
+- 내부 결정: `src/types/database.ts`에는 아직 `fn_connect_couple`이 없다(생성 파일, 026 적용 뒤 재생성). 그동안 `ConnectDb`(rpc만 가진 좁은 타입)로 호출. 재생성 뒤 캐스트 제거 가능.
+- 내부 결정: `love_type_code`는 저장(오버라이드와 같은 UPDATE) + 표시(A14 · 메인이 실효 코어 + 애착으로 엔진 함수를 다시 계산) 양쪽. 이미 잘못 저장된 원격 시험 데이터(RHF)도 화면에서는 맞게 보인다. 저장값은 다음 오버라이드 때 바로잡힌다.
+- 내부 결정: 실증 스크립트 출력 `66-u6-part2.txt`, 시험 계정 접두 `test-66-`, 23505 확인용 계정 C 추가(초대 코드만 만든다). 초대 발급 · 사귄 날짜 저장 두 질의는 여전히 미러(앱 전역 supabase에 묶임).
+- 생성 칸 전수: `004_personality.sql:63 personality_profiles.enneagram_effective` 하나뿐. 클라이언트 쓰기에서 쓴 곳은 `personalityApi.ts` `ensurePersonalityProfile` 한 곳(고침). 스크립트의 대체 경로(effective 제외 재삽입) 삭제.
+- 026 파일에서 고칠 점은 보이지 않음.
+
+## 커플 연결 026 (`66-` 1부, 2026-10-26, db-architect) - 작성만, 원격 미적용·미실행
+- 파일: `supabase/migrations/026_couple_connect.sql` · `scripts/db/check_026_preapply.sql`(적용 전) · `scripts/db/verify_026_privileges.sql`(적용 뒤, 18행) · `scripts/ops/verifyCoupleConnect.ts`(실증 1~11, 출력 `scripts/ops/out/66-couple-connect.txt`, `ONDOLOG_026_APPLIED=1` 없으면 멈춤). 보안 점검 기준선 `scripts/ops/out/66-security-baseline.json`.
+- 내부 결정: 함수 이름 `fn_connect_couple(p_invite_code text) returns uuid`. `invite_expires_at` null = "만료 없음"(앱 발급 INSERT가 이 칸을 안 채움 - 사람 결정 R40). 앱이 쓰는 UPDATE 칸 다섯(`relationship_start_date`·`start_date_set_by`·`start_date_confirmed_by`·`nickname`·`reference_photo_path`)만 authenticated에 부여, `magazine_theme`은 부여 안 함(M4-5).
+- 내부 결정: 원격은 anon·authenticated에 테이블 단위 UPDATE가 있었다(읽기 조회로 확인) -> 테이블 단위를 먼저 회수하고 칸 단위도 함께 회수한 뒤 다섯 칸 부여. 정책은 `alter policy`로 바꾼다(SELECT 정책 무변경).
+- 내부 결정: 직렬화는 초대한 사람을 먼저 읽어(잠금 없이) 두 profiles 행을 id 순으로 잠그고, 잠근 뒤 같은 조건으로 행을 `for update`로 다시 잡는다. 멱등 확인은 잠금 앞뒤 두 번.
+- 로컬 확인: PGlite(임시 폴더, 저장소 무변경)에 최소 스키마(005 couples + 기존 정책 + 원격과 같은 anon/authenticated 권한) 위로 026을 적용해 §9-F 경우를 확인했다(전부 기대대로). 두 SQL 파일도 같은 곳에서 실행(verify의 16번 FAIL은 최소 스키마의 profiles에 RLS가 없어서 - 하네스 한정).
+- 사람이 할 일: 앱 쪽(`redeemInviteCode` -> rpc, `coupleApi.ts` 6~11줄 주석)은 ui-builder 몫. 앱을 먼저 바꾸고 026을 적용한다(적용하면 옛 직접 UPDATE가 거부됨). 적용 순서: 연결 확인 -> `check_026_preapply.sql` -> `npx supabase migration list` -> `npx supabase db push --dry-run` -> `npx supabase db push` -> `verify_026_privileges.sql`(전부 ok) -> `verifyCoupleConnect.ts run` -> 보안 점검 비교 -> `npx supabase gen types typescript --linked > src/types/database.ts`(함수 1개 추가 예상).
+- 알려진 것: 초대 코드 입력 횟수 제한 없음(M4). `scripts/ops`의 service_role INSERT는 정책과 무관(고치지 않음).
+
 ## 큐 재개 시점 · U6 온보딩 2부 (`65-`, 2026-10-25, ui-builder) - 원격 실증 미실행(자동 모드 분류기가 원격 쓰기를 막음), 실기기 미확인
 
 - 큐 재개(§0): 텍스트 큐 · 사진 큐 인스턴스를 `src/services/chatQueueHub.ts`(싱글턴 `chatQueueHub`) 한 곳이 갖는다. 루트 `useChatQueueResume`(`app/_layout.tsx`)이 로그인 + 커플 연결 확인 후 `attach`, AppState `active`에서 `kick`, 로그아웃·미연결에서 `detach`(타이머만 멈춤, 기기 저장은 안 지움). 채팅 탭 훅도 같은 `attach`를 부르고(같은 키면 무동작) `subscribe`로 화면 상태만 받는다 - 탭 진입 시 재개는 남았고 한 곳(허브)에서 관리된다. 같은 항목 동시 시도 0: 사진 큐는 원래 `inflight`가 있었고 텍스트 큐(`chatRetryQueue.ts`)에 같은 `inflight`를 새로 넣었다.

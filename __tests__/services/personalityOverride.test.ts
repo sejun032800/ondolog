@@ -56,14 +56,13 @@ beforeEach(() => {
 })
 
 describe('overrideEnneagramCore', () => {
-  it('override · count · updated_at 셋만 쓴다 - 추론값과 생성 칸(effective)은 쓰지 않는다', async () => {
+  it('override · count · updated_at · love_type_code 넷만 쓴다 - 추론값과 생성 칸(effective)은 쓰지 않는다', async () => {
     const row = await overrideEnneagramCore(fakeDb(), 'u1', 5)
     expect(updates).toHaveLength(1)
-    expect(Object.keys(updates[0]).sort()).toEqual(['enneagram_override', 'override_count', 'override_updated_at'])
+    expect(Object.keys(updates[0]).sort()).toEqual(['enneagram_override', 'love_type_code', 'override_count', 'override_updated_at'])
     expect(row.enneagram_override).toBe(5)
     expect(row.enneagram_inferred).toBe(1) // 원본 추론값 보관
     expect(row.enneagram_effective).toBe(5) // 서버가 계산
-    expect(row.love_type_code).toBe('KLE') // 라벨 코드도 건드리지 않는다
     expect(row.attachment).toBe('secure')
   })
 

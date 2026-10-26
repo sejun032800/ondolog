@@ -29,11 +29,11 @@
  */
 
 import { ONBOARDING_STEP } from '../constants/onboardingStep'
-import { computeLoveTypeCode } from '../engine/loveTypeInference'
 import { supabase } from './supabase'
 import { advanceOnboardingStep } from './onboardingStepCore'
 import {
   createProfileAndAssessment as createProfileAndAssessmentCore,
+  ensurePersonalityProfileCore,
   overrideEnneagramCore as overrideEnneagramCoreCore,
   type CreateProfileAndAssessmentInput,
 } from './personalityCore'
@@ -80,42 +80,21 @@ export async function fetchPersonalityProfile(
 }
 
 /**
- * 화면 7 "저장: personality_profiles 정식 생성". 이미 있으면 그대로
- * 반환한다(재진입 시 중복 생성 방지).
+ * 화면 7 "저장: personality_profiles 정식 생성". 이미 있으면 그대로 반환한다(재진입 시 중복 생성 방지).
+ * 알맹이는 `personalityCore.ensurePersonalityProfileCore`(생성 칸 `enneagram_effective`는 쓰지 않는다).
  */
 export async function ensurePersonalityProfile(
   userId: string,
   assessment: AssessmentRow,
 ): Promise<ProfileRow> {
-  const existing = await fetchPersonalityProfile(userId)
-  if (existing) return existing
-
-  const loveTypeCode = computeLoveTypeCode(
-    assessment.enneagram_core as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9,
-    assessment.attachment,
-  )
-
-  const { data, error } = await supabase
-    .from('personality_profiles')
-    .insert({
-      user_id: userId,
-      active_assessment_id: assessment.id,
-      enneagram_inferred: assessment.enneagram_core,
-      enneagram_effective: assessment.enneagram_core,
-      attachment: assessment.attachment,
-      love_type_code: loveTypeCode,
-    })
-    .select()
-    .single()
-  if (error) throw error
-
-  await updateOnboardingStep(userId, ONBOARDING_STEP.RESULT)
-  return data
+  const { row, created } = await ensurePersonalityProfileCore(supabase, userId, assessment)
+  if (created) await updateOnboardingStep(userId, ONBOARDING_STEP.RESULT)
+  return row
 }
 
 /**
  * 화면 7 "결과와 달라요"(A16) - 애니어그램 코어만 오버라이드. 무제한, 원본 추론값(enneagram_inferred)은 건드리지 않는다.
- * 알맹이는 `personalityCore.overrideEnneagramCore`(쓰는 칸 셋 - override · count · updated_at).
+ * 알맹이는 `personalityCore.overrideEnneagramCore`(쓰는 칸 넷 - override · count · updated_at · love_type_code).
  */
 export function overrideEnneagramCore(
   userId: string,

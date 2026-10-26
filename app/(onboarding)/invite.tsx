@@ -27,6 +27,7 @@ import {
   markInviteDoneAwaitingStartDate,
   redeemInviteCode,
 } from '../../src/services/coupleApi'
+import { ConnectCoupleError } from '../../src/services/coupleConnectCore'
 import { fontFamily, nocturne, shape, type, withAlpha } from '../../src/theme/nocturne'
 
 const INVITE_POLL_MS = 4000
@@ -44,7 +45,6 @@ const INVITE_SCREEN_COPY = {
   enterTitle: '받은 코드를\n입력해주세요',
   enterHint: '이미 다른 사람과 연결된 코드는 쓸 수 없어요',
   connect: '연결하기',
-  redeemFailed: '연결할 수 없어요. 코드를 다시 확인해주세요.',
   redeemError: '연결하지 못했어요. 다시 시도해주세요.',
   issueFailed: '코드를 만들지 못했어요. 다시 시도해주세요.',
   stepFailed: '처리하지 못했어요. 다시 시도해주세요.',
@@ -152,14 +152,10 @@ export default function InviteScreen() {
     setBusy(true)
     setError(null)
     try {
-      const couple = await redeemInviteCode(userId, entered)
-      if (!couple) {
-        setError(INVITE_SCREEN_COPY.redeemFailed)
-        return
-      }
+      await redeemInviteCode(userId, entered)
       await goConnected()
-    } catch {
-      setError(INVITE_SCREEN_COPY.redeemError)
+    } catch (e) {
+      setError(e instanceof ConnectCoupleError ? e.message : INVITE_SCREEN_COPY.redeemError)
     } finally {
       setBusy(false)
     }

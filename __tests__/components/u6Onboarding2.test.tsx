@@ -52,6 +52,8 @@ const mockRedeem = jest.fn()
 const mockMarkInviteDone = jest.fn()
 const mockCompleteWithoutCouple = jest.fn()
 const mockFetchCouple = jest.fn()
+import { ConnectCoupleError } from '../../src/services/coupleConnectCore'
+
 const mockSaveStart = jest.fn()
 const mockSetOrConfirm = jest.fn()
 const mockMarkStartDone = jest.fn()
@@ -318,14 +320,14 @@ describe('A18 초대 코드 입력', () => {
     expect(screen.getByTestId('invite-enter-hint').props.children).toBe('이미 다른 사람과 연결된 코드는 쓸 수 없어요')
   })
 
-  it('무효 코드(자기 코드 · 이미 연결된 코드)는 기존 함수가 null을 돌려주고, 안내만 보이며 넘어가지 않는다', async () => {
-    mockRedeem.mockResolvedValue(null)
+  it('무효 코드(자기 코드 · 이미 연결된 코드)는 연결 함수가 오류를 던지고, 보드 문구만 보이며 넘어가지 않는다', async () => {
+    mockRedeem.mockRejectedValue(new ConnectCoupleError({ code: 'P0002' }))
     await openEnter()
     await fireEvent.changeText(screen.getByTestId('invite-input'), 'P4N8XQ')
     await fireEvent.press(screen.getByTestId('invite-connect'))
     await act(async () => {})
     expect(mockRedeem).toHaveBeenCalledWith('me', 'P4N8XQ')
-    expect(screen.getByTestId('invite-error')).toBeTruthy()
+    expect(screen.getByTestId('invite-error').props.children).toBe('연결할 수 없어요. 코드를 다시 확인해주세요.')
     expect(mockMarkInviteDone).not.toHaveBeenCalled()
     expect(mockReplace).not.toHaveBeenCalled()
   })

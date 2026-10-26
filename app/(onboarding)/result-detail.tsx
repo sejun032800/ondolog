@@ -27,6 +27,7 @@ import { PressScale } from '../../src/components/nocturne/PressScale'
 import { ScreenFrame } from '../../src/components/nocturne/ScreenFrame'
 import { SoftCard } from '../../src/components/nocturne/GlassCard'
 import type { EnneagramCore } from '../../src/constants/enneagram'
+import { computeLoveTypeCode } from '../../src/engine/loveTypeInference'
 import { ENNEAGRAM_CORE_EN, ENNEAGRAM_CORE_KO, LOVE_TYPE_LABEL_BY_CODE } from '../../src/constants/loveTypeLabels'
 import { COMPATIBILITY_START_TEMPERATURE_NOTICE } from '../../src/constants/resultDetailCopy'
 import { useResultDetail } from '../../src/hooks/useResultDetail'
@@ -73,7 +74,8 @@ export default function ResultDetailScreen() {
 
   const { assessment, profile } = state
   const effectiveCore = (profile.enneagram_effective ?? profile.enneagram_inferred) as EnneagramCore
-  const label = LOVE_TYPE_LABEL_BY_CODE[profile.love_type_code]
+  const loveTypeCode = computeLoveTypeCode(effectiveCore, profile.attachment) // 실효 코어 기준(R40-4)
+  const label = LOVE_TYPE_LABEL_BY_CODE[loveTypeCode]
   const candidates = profile.enneagram_override
     ? []
     : getEnneagramCandidates(assessment.q1, profile.enneagram_inferred as EnneagramCore)
@@ -156,10 +158,10 @@ export default function ResultDetailScreen() {
     >
       <View style={styles.head}>
         <Text style={styles.labelEn} testID="detail-label-en">
-          {label?.labelEn ?? profile.love_type_code}
+          {label?.labelEn ?? loveTypeCode}
         </Text>
         <Text style={styles.labelKo} testID="detail-label-ko">
-          {label?.labelKo ?? profile.love_type_code}
+          {label?.labelKo ?? loveTypeCode}
         </Text>
         <Text style={styles.meta} testID="detail-meta">
           {assessment.mbti} {'·'} 애니어그램 {effectiveCore}

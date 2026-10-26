@@ -2,13 +2,11 @@
  * 화면 8(연인 초대) + 화면 +(사귄 날짜 입력) 서버 API.
  *
  * 근거: docs/ONDOLOG_MASTER.md Part 9-1 화면 8/화면 +.
- * RLS: `supabase/migrations/012_rls_policies.sql`
- *   couples_insert: user_a_id = auth.uid()만 허용
- *   couples_update: 본인 행이거나, (user_b_id is null and status='pending')인
- *     행 — 초대 코드로 "빈 슬롯에 들어가는" 참여를 이 정책 하나로 허용한다.
- *     참여자는 사전에 그 행을 SELECT할 권한이 없어도(본인 행이 아니므로)
- *     UPDATE ... WHERE invite_code = ? 는 성립한다(RLS는 갱신 시점에
- *     해당 행에 대해서만 USING을 평가한다).
+ * RLS: `supabase/migrations/012_rls_policies.sql` + 026
+ *   couples_insert: 초대 발급만 허용(user_a_id = auth.uid() · user_b_id null · pending · free).
+ *   couples_update: 구성원 본인 행만, 앱이 쓰는 다섯 칸(사귄 날짜 · 확인자 · 닉네임 · 기준 사진)만.
+ *   대기 행(pending, user_b_id null)은 구성원이 아니면 SELECT로 보이지 않는다 - 정책을 넓히면 모든 초대 코드가 노출되므로 넓히지 않는다.
+ *   그래서 **연결은 026 `fn_connect_couple` RPC만 한다**(`redeemInviteCode`). 앱은 `user_b_id` · `status` · `connected_at`을 직접 쓰지 않는다.
  *
  * 초대 코드 자체는 채점 로직이 아니므로(CLAUDE.md 절대 규칙 2는 연애유형
  * 채점에만 적용) 무작위 생성을 써도 결정론 계약을 위반하지 않는다.
@@ -17,6 +15,7 @@
 import { ONBOARDING_STEP } from '../constants/onboardingStep'
 import { supabase } from './supabase'
 import { advanceOnboardingStep } from './onboardingStepCore'
+import { connectCouple, type ConnectDb } from './coupleConnectCore'
 import type { Database } from '../types/database'
 import { isStartDateSelectable, isValidNickname, normalizeNickname } from '../utils/coupleStart'
 
@@ -71,25 +70,12 @@ export async function getOrCreateInvite(userId: string): Promise<InviteStatus> {
 }
 
 /**
- * "상대 코드 입력" — 상대가 발급한 코드로 빈 슬롯에 들어간다.
- * 무효/만료/이미 연결된 코드는 매칭되는 행이 없어 null을 반환한다
- * (AC: "코드 중복 불가, 이미 연결된 유저 코드 무효").
+ * "상대 코드 입력" - 026 연결 함수(`fn_connect_couple`)를 부른다. 성공하면 연결된 커플 행을 읽어 돌려준다(이제 구성원이라 읽힌다).
+ * 실패는 `ConnectCoupleError`(message = A18 문구): 무효/만료/이미 쓴 코드 · 자기 코드 · 이미 커플.
  */
-export async function redeemInviteCode(
-  userId: string,
-  code: string,
-): Promise<CoupleRow | null> {
-  const nowIso = new Date().toISOString()
-
-  const { data, error } = await supabase
-    .from('couples')
-    .update({ user_b_id: userId, status: 'active', connected_at: nowIso })
-    .eq('invite_code', code.toUpperCase())
-    .eq('status', 'pending')
-    .is('user_b_id', null)
-    .neq('user_a_id', userId) // 자기 자신의 코드로는 참여 불가(DB chk_not_self와 이중 방어)
-    .select()
-    .maybeSingle()
+export async function redeemInviteCode(_userId: string, code: string): Promise<CoupleRow> {
+  const coupleId = await connectCouple(supabase as unknown as ConnectDb, code)
+  const { data, error } = await supabase.from('couples').select('*').eq('id', coupleId).single()
   if (error) throw error
   return data
 }

@@ -17,6 +17,7 @@ import {
   redeemInviteCode,
   type InviteStatus,
 } from '../services/coupleApi'
+import { ConnectCoupleError } from '../services/coupleConnectCore'
 
 interface InvitePanelProps {
   userId: string
@@ -62,17 +63,13 @@ export function InvitePanel({ userId, onConnected, onSkip }: InvitePanelProps) {
     if (enteredCode.trim().length === 0) return
     setRedeeming(true)
     try {
-      const couple = await redeemInviteCode(userId, enteredCode.trim())
-      if (!couple) {
-        Alert.alert(
-          '연결할 수 없어요',
-          '코드를 다시 확인해주세요. 만료됐거나 이미 연결된 코드일 수 있어요.',
-        )
-        return
-      }
+      await redeemInviteCode(userId, enteredCode.trim())
       onConnected()
     } catch (e) {
-      Alert.alert('연결에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
+      Alert.alert(
+        e instanceof ConnectCoupleError ? '연결할 수 없어요' : '연결에 실패했어요',
+        e instanceof Error ? e.message : '다시 시도해주세요.',
+      )
     } finally {
       setRedeeming(false)
     }

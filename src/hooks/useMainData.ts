@@ -6,6 +6,7 @@
 import { useFocusEffect } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import type { EnneagramCore } from '../constants/enneagram'
+import { computeLoveTypeCode } from '../engine/loveTypeInference'
 import type { MbtiType } from '../constants/quizTypes'
 import { fetchHasActivity, fetchProfilesComplete } from '../services/mainApi'
 import { loadOpenedIssueIds } from '../services/issueSeen'
@@ -79,10 +80,11 @@ export function useLoveTypeSummary(userId: string | null, enabled: boolean): Lov
         if (!assessment || cancelled) return
         const profile = await fetchPersonalityProfile(userId)
         if (!profile || cancelled) return
+        const enneagramCore = (profile.enneagram_effective ?? profile.enneagram_inferred) as EnneagramCore
         setSummary({
           mbti: assessment.mbti as MbtiType,
-          enneagramCore: (profile.enneagram_effective ?? profile.enneagram_inferred) as EnneagramCore,
-          loveTypeCode: profile.love_type_code,
+          enneagramCore,
+          loveTypeCode: computeLoveTypeCode(enneagramCore, profile.attachment), // 실효 코어 기준(R40-4)
         })
       } catch {
         if (!cancelled) setSummary(null)

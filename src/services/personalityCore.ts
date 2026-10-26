@@ -9,7 +9,12 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ONBOARDING_STEP } from '../constants/onboardingStep'
-import { LOVE_TYPE_ENGINE_VERSION, type LoveTypeInferenceResult } from '../engine/loveTypeInference'
+import {
+  LOVE_TYPE_ENGINE_VERSION,
+  computeLoveTypeCode,
+  type LoveTypeInferenceResult,
+} from '../engine/loveTypeInference'
+import type { EnneagramCore } from '../constants/enneagram'
 import type { MbtiType, QuizChoice } from '../constants/quizTypes'
 import type { Database } from '../types/database'
 
@@ -125,10 +130,45 @@ export async function createProfileAndAssessment(
 type ProfileRow = Database['public']['Tables']['personality_profiles']['Row']
 
 /**
+ * A14 - `personality_profiles` 정식 생성. 이미 있으면 그대로 돌려준다(`created: false`).
+ *
+ * **쓰는 칸**: user_id · active_assessment_id · enneagram_inferred · attachment · love_type_code. `enneagram_effective`는 서버가
+ * `coalesce(override, inferred)`로 계산하는 생성 칸(004, `generated always`)이라 **넣지 않는다**(넣으면 거부되어 A14가 막힌다 - `65-` 실증).
+ */
+export async function ensurePersonalityProfileCore(
+  db: PersonalityDb,
+  userId: string,
+  assessment: AssessmentRow,
+): Promise<{ row: ProfileRow; created: boolean }> {
+  const { data: existing, error: readError } = await db
+    .from('personality_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (existing) return { row: existing, created: false }
+
+  const { data, error } = await db
+    .from('personality_profiles')
+    .insert({
+      user_id: userId,
+      active_assessment_id: assessment.id,
+      enneagram_inferred: assessment.enneagram_core,
+      attachment: assessment.attachment,
+      love_type_code: computeLoveTypeCode(assessment.enneagram_core as EnneagramCore, assessment.attachment),
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return { row: data, created: true }
+}
+
+/**
  * A16 "결과와 달라요" - 애니어그램 코어만 오버라이드한다. 무제한(횟수 제한 없음).
  *
- * **쓰는 칸은 `enneagram_override` · `override_count` · `override_updated_at` 셋뿐이다.** 원본 추론값(`enneagram_inferred`)은 건드리지
- * 않아 둘 다 보관된다(MASTER 9-1 화면 7). `enneagram_effective`는 `coalesce(override, inferred)`로 서버가 계산하는 생성 칸이라
+ * **쓰는 칸은 `enneagram_override` · `override_count` · `override_updated_at` · `love_type_code` 넷뿐이다.** 원본 추론값(`enneagram_inferred`)은
+ * 건드리지 않아 둘 다 보관된다(MASTER 9-1 화면 7). `love_type_code`는 **같은 UPDATE에서** 새 실효 코어(= 방금 고른 코어) 약어 + 애착 약어로 다시
+ * 쓴다(R40-4, MASTER 10-5-4) - 계산은 엔진 `computeLoveTypeCode`다. `enneagram_effective`는 `coalesce(override, inferred)`로 서버가 계산하는 생성 칸이라
  * 클라이언트가 쓰지 않는다(쓰면 거부된다). 빅5 · 스턴버그 · 애착은 `personality_assessments`에 있어 이 함수가 읽지도 쓰지도 않는다.
  */
 export async function overrideEnneagramCore(
@@ -150,6 +190,7 @@ export async function overrideEnneagramCore(
       enneagram_override: newCore,
       override_count: current.override_count + 1,
       override_updated_at: new Date().toISOString(),
+      love_type_code: computeLoveTypeCode(newCore, current.attachment),
     })
     .eq('user_id', userId)
     .select()
