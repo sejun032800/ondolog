@@ -1725,14 +1725,14 @@ SELECT 정책을 넓혀 대기 행을 보이게 하면 모든 초대 코드가 �
 `status = 'active'`로 바꾸거나, 처음부터 그렇게 INSERT할 수 있다(동의 없는 강제 연결). `subscription_tier`도 INSERT에서 정할 수 있다.
 
 ```sql
-public.<연결 함수>(p_invite_code text) returns uuid   -- 이름은 db-architect
+public.fn_connect_couple(p_invite_code text) returns uuid   -- 026 (66- 1부)
   language plpgsql  security definer  set search_path = ''
   -- 실행 권한: public·anon·service_role 회수, authenticated만 (§10-0 클라이언트 RPC)
 ```
 
 | 항목 | 규칙 |
 |---|---|
-| 확인 순서 | 로그인(아니면 `28000`) → 코드 정규화(대문자·공백 제거) → `status = 'pending'`·`user_b_id is null`·만료 전인 행을 **`for update`로 잠금** → 없거나 만료·이미 사용 = **같은 오류 하나**(`P0002`, "invalid invite code" — 어느 경우인지 구분해 주지 않는다) → 자기 코드면 `22023`("own invite code") → 부르는 사람·초대한 사람 각각 **`active`·`dissolving` 커플에 속하면** `23505`("already in a couple") |
+| 확인 순서 | 로그인(아니면 `28000`) → 코드 정규화(대문자·공백 제거) → `status = 'pending'`·`user_b_id is null`·만료 전(`invite_expires_at is null or invite_expires_at > now()` — **null은 만료 없음**, R41-2)인 행을 **`for update`로 잠금** → 없거나 만료·이미 사용 = **같은 오류 하나**(`P0002`, "invalid invite code" — 어느 경우인지 구분해 주지 않는다) → 자기 코드면 `22023`("own invite code") → 부르는 사람·초대한 사람 각각 **`active`·`dissolving` 커플에 속하면** `23505`("already in a couple") |
 | 직렬화 | 두 사람의 `profiles` 행을 id 순서로 `for update` 잠근 뒤 위를 확인한다 — 같은 사람이 두 코드를 동시에 쓰는 경합을 막는다 |
 | 동작 | 그 행에 `user_b_id = auth.uid()`, `status = 'active'`, `connected_at = now()`. **부르는 사람이 `user_a`인 다른 `pending` 행은 지운다**(아직 데이터가 붙지 않은 빈 초대 — 남기면 열/열 교차 이중 소속이 된다). 초대한 사람의 다른 `pending` 행은 고유 인덱스상 없다 |
 | 반환 | 커플 id |
@@ -1743,11 +1743,42 @@ public.<연결 함수>(p_invite_code text) returns uuid   -- 이름은 db-archit
 
 | 대상 | 바꾸는 것 |
 |---|---|
-| `couples` UPDATE | 테이블 단위 UPDATE를 회수하고 **앱이 실제로 쓰는 칸만 칸 단위로 부여**(사귄 날짜 3칸·`nickname`·`reference_photo_path` 등 — 앱 코드에서 찾아 목록을 마이그레이션 주석에 적는다). **`user_a_id`·`user_b_id`·`status`·`connected_at`·`dissolved_at`·`invite_code`·`subscription_tier`는 클라이언트가 UPDATE하지 못한다.** `magazine_theme` 잠금은 M4-5 그대로(§9-C-8, 알려진 구멍) |
+| `couples` UPDATE | 테이블 단위 UPDATE를 회수하고 **앱이 실제로 쓰는 다섯 칸만 칸 단위로 부여** — `relationship_start_date`·`start_date_set_by`·`start_date_confirmed_by`·`nickname`·`reference_photo_path`(R41-2, `66-` 조사). **`user_a_id`·`user_b_id`·`status`·`connected_at`·`dissolved_at`·`invite_code`·`subscription_tier`는 클라이언트가 UPDATE하지 못한다.** `magazine_theme` 잠금은 M4-5 그대로(§9-C-8, 알려진 구멍) |
 | `couples_update` 정책 | `(user_b_id is null and status = 'pending')` 가지를 지운다 — 연결은 함수만 한다 |
 | `couples_insert` 정책 | `with check`에 `user_b_id is null and status = 'pending' and subscription_tier = 'free'`를 더한다(초대 발급만 허용) |
 
 **실증(2부, 사용자 세션 — R40-5).** A 발급 → B 함수 호출 → `active`·`connected_at`·B의 다른 대기 행 삭제 / 자기 코드 `22023` / 없는 코드·만료·사용된 코드 같은 `P0002` / 이미 커플 `23505` / 재호출 같은 id / A가 직접 `user_b_id`·`status` UPDATE 거부 / `user_b_id`를 채운 INSERT 거부. 권한: anon false · authenticated true · service_role false · `prosecdef` true · `search_path` 고정. 보안 점검은 원문 JSON(R34-4).
+
+---
+
+## 9-G. 연결 해제 · 탈퇴 · 재검사 · 칸 단위 쓰기 (마이그레이션 027 — ROADMAP R42-6 · R43-1~6, `68-`)
+
+**발견(PM 검토, R42-6).** ① `couple_dissolutions`의 INSERT·UPDATE가 클라이언트에 열려 있어 `purge_scheduled_at`(7일 유예)과 `executed_at`을 클라이언트가 정한다.
+② `profiles_update`는 자기 행의 **모든 칸**을 연다(`deleted_at`·`purge_scheduled_at`·동의 시각·`birth_date`·`onboarding_step`). ③ 026 뒤 클라이언트는 `couples.status`를 못 써서 `dissolving`을 세울 길이 없다.
+④ 재검사가 INSERT와 UPDATE 두 번으로 나뉘어 사이에서 끊기면 영구히 막힌다(`67-`).
+
+**함수 (모두 `security definer` · `set search_path = ''` · 본문 `public.` 접두사 · 실행 권한 `authenticated`만, §10-0 클라이언트 RPC)** — 이름은 db-architect
+
+| 함수 | 규칙 |
+|---|---|
+| 해제 요청 | 로그인 → 내 `active` 커플 잠금(없으면 `P0002`) → 이미 진행 중인 해제가 있으면 `23505` → `couple_dissolutions` INSERT(`initiated_by` = 나, **`purge_scheduled_at = now() + interval '7 days'` — 서버가 정한다**) → `couples.status = 'dissolving'`. 해제 id 반환 |
+| 해제 취소 | 개시자만(`42501`) · `executed_at is null`·`cancelled_at is null`인 것만 → `cancelled_at = now()`, `couples.status = 'active'`. 멱등 |
+| 탈퇴 요청 | 로그인 → `profiles.deleted_at = now()`, `purge_scheduled_at = now() + 7 days`. **커플이 `active`면 같은 트랜잭션에서 해제 요청**(사유 = 기존 enum의 탈퇴 값). 이미 요청됐으면 그대로 반환(멱등) |
+| 탈퇴 취소 | 유예 중이면 `deleted_at`·`purge_scheduled_at`을 null로, 탈퇴로 생긴 해제가 있으면 함께 취소 |
+| 재검사 완료 | 한 트랜잭션: `retest_used = false`인지 잠그고 확인(아니면 `23505`, "retest already used") → assessment `seq = 2` INSERT → `personality_profiles`의 `active_assessment_id`·추론값·애착·`love_type_code` 갱신, 오버라이드 null, `retest_used = true` → **`profiles.mbti`도 새 검사 값으로**. 결과 값(채점)은 클라이언트가 계산해 넘긴다(결정론 엔진, 절대 규칙 2). **이미 `seq = 2` 행이 있고 `retest_used = false`면 그 행으로 마저 끝낸다**(`67-` 이전 방식으로 끊긴 상태 복구) |
+
+**직접 쓰기 회수**
+
+| 대상 | 바꾸는 것 |
+|---|---|
+| `couple_dissolutions` | INSERT·UPDATE 정책 삭제, 테이블 권한 회수. SELECT는 그대로(상대도 진행 중 해제를 본다) |
+| `profiles` UPDATE | 테이블 단위 회수 → **앱이 쓰는 칸만** 칸 단위 부여(`display_name`·`gender`·`marketing_agreed_at`·`onboarding_step` 등 — 앱 코드에서 찾아 목록을 주석에). **`deleted_at`·`purge_scheduled_at`·`terms/privacy/ai_usage_agreed_at`·`birth_date`는 부여하지 않는다** |
+| `profiles.onboarding_step` | 칸은 열어 두되 **BEFORE UPDATE 트리거가 감소를 거부**(`22023`) — R38-3의 "되돌리지 않음"을 서버가 강제 |
+| `profiles` INSERT | `with check`에 `deleted_at is null and purge_scheduled_at is null` 추가 |
+| `personality_profiles` UPDATE | 칸 단위 — 오버라이드 경로가 쓰는 칸만(`enneagram_override`·`override_updated_at`·`override_count`·`love_type_code`). **`retest_used`·`active_assessment_id`·추론값·애착은 재검사 함수만** |
+| `personality_profiles` INSERT | `with check`에 `retest_used = false` 추가 |
+
+**실증(2부, 사용자 세션 — R42-4).** 해제 요청 → `dissolving` · 유예 7일(서버 시각 기준 ±1분) / 클라이언트가 `purge_scheduled_at`을 넣는 INSERT·UPDATE 거부 / 상대가 진행 중 해제를 봄 / 상대가 취소 시도 `42501` / 개시자 취소 → `active` / 탈퇴 요청 → 프로필 두 칸 + 커플 해제 / 탈퇴 취소 → 원상 / `deleted_at`·동의 시각·`birth_date` 직접 UPDATE 거부 / `onboarding_step` 감소 `22023`·증가 허용 / 재검사 함수: 정상 · 두 번째 `23505` · 끊긴 상태 복구 · `profiles.mbti` 갱신 / `retest_used` 직접 UPDATE 거부 / 마케팅 동의 켜기·끄기(칸 단위로 허용). 권한·보안 점검 원문 JSON(R34-4).
 
 ---
 
@@ -1763,7 +1794,7 @@ public.<연결 함수>(p_invite_code text) returns uuid   -- 이름은 db-archit
 | **배치 전용**(pg_cron이 부르는 것) | `public`·`anon`·`authenticated`·**`service_role`** 모두 회수(025). pg_cron은 작업 소유자(`postgres`) 권한으로 돈다. Edge Function이 REST로 부르게 되면 그 지시서에서 `service_role`에 명시 부여 |
 | **트리거 전용**(`tg_set_updated_at` 등) | 모두 회수 — 트리거는 `EXECUTE`를 검사하지 않는다 |
 | **RLS 헬퍼**(`is_couple_member`·`is_entry_visible`·`partner_id`·`current_couple_id`) | `authenticated`만(`service_role`도 회수 — RLS를 건너뛰므로 부를 일이 없다) |
-| **클라이언트 RPC**(`fn_issue_progress`·`fn_delete_own_entry`·커플 연결 함수 — 026, §9-F) | `authenticated`만 |
+| **클라이언트 RPC**(`fn_issue_progress`·`fn_delete_own_entry`·`fn_connect_couple`(026, §9-F)·해제/탈퇴/재검사 함수(027, §9-G)) | `authenticated`만 |
 | **발행·생성 경로**(`fn_publish_issue` 등) | `service_role`만(기존 그대로) |
 | **anon이 불러야 하는 함수** | 없는 것이 기본값. 필요하면 마이그레이션에 이유를 적고 하나씩 부여 |
 
