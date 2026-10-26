@@ -1,176 +1,96 @@
 /**
- * 설정 탭 — Part 11-2: "설정 | 미연결 시: 전면 진입 가능".
- * docs/ONDOLOG_DESIGN.md §13-6 구성 — 그룹 제목 kicker-ko, 항목 title,
- * 값 caption + `→`, 행 높이 56.
+ * H01 · H02 설정 목록 - 설정 탭. 디자인 `N-H01-Settings` · `N-S-H1-Settings`(H02).
  *
- * "화면 · 테마" 행은 §7 "수동: 설정 탭에서 라이트/다크/시스템"을 실제로
- * 구현한다(`useTheme().setMode`) — 탭할 때마다 시스템→라이트→다크→시스템
- * 순으로 순환한다. 그 외 "계정" 그룹은 Phase 3 범위(로그아웃)만 유지한다
- * — 프로필 편집·연결 계정 표시 등은 아직 구현되지 않은 기능이라 값 없는
- * 자리표시 행을 새로 만들지 않는다(문서에 없는 기능 임의 추가 금지).
+ * 목록 표는 `src/utils/settingsRules.ts`의 `SETTINGS_GROUPS`다 - **이번에 갈 곳이 있는 항목만** 있다(프로필 · 연결된 계정 · 연인 ·
+ * 커플 닉네임 · 성격 프로필 · 개인정보 & 약관). 보드에 있지만 갈 곳이 없는 항목(구독 · 사진 & 데이터 · 알림 · 데이터 내려받기 ·
+ * 앱 정보 · 문의 · 빠진 지면 기본값 · 생체정보 · OUR SKY · 발행물 테마)과 [연결 해제] · [회원 탈퇴]는 `HIDDEN_SETTINGS_ITEMS`에 이유와 함께 적고 그리지 않는다.
+ * 누르면 빈 화면이 나오는 행은 없다. 미연결이어도 5개 탭은 모두 보이고 이 탭은 전부 열린다(MASTER 11-2) -
+ * "연인" 행은 "연결 전"으로 보이고, 눌러서 열리는 커플 화면이 잠긴 문(`CoupleGate`)을 보인다.
  *
- * "개인정보 & 약관" 그룹(Phase 6 첫 단계 추가분): docs/ONDOLOG_MASTER.md
- * "MASTER 보강 — 생체정보(얼굴 인식) 별도 동의" "설정 탭 — 동의 관리
- * (Part 9-6 보강)". 탭하면 `/biometric-consent`가 현재 동의 상태를 보고
- * 스스로 관리 모드로 렌더링한다(이 화면은 상태 표시만 하고 철회 로직을
- * 직접 갖지 않는다).
- *
- * "사진 & 데이터" 그룹(Phase 6 대표사진 등록 추가분): MASTER.md Part 9-6
- * "사진 & 데이터 | 사진 앱 연동 on/off, 대표사진(개인/커플) 등록·교체,
- * 스캔 진행률" 중 "대표사진 등록·교체"만 구현한다 — 나머지 둘(연동
- * on/off, 스캔 진행률)은 화면 B/C 이후 단계(사진 라이브러리 권한·백그라운드
- * 스캔)가 있어야 의미가 생겨 아직 자리표시 행을 만들지 않는다.
+ * 값은 읽기뿐이다(이름 · 로그인 방식 · 연인 이름과 D+N · 닉네임 · 성격 영문 라벨). 쓰는 것은 하위 화면이 한다.
+ * 탭 바는 떠 있는 섬이라 화면 아래에 그만큼 띄운다.
  */
-import { useEffect } from 'react'
 import { useRouter } from 'expo-router'
-import { Pressable, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { PageHeader } from '../../src/components/PageHeader'
+import { useEffect } from 'react'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { ListGroup, ListRow } from '../../src/components/nocturne/ListGroup'
+import { ScreenFrame } from '../../src/components/nocturne/ScreenFrame'
 import { useSession } from '../../src/hooks/useSession'
-import { supabase } from '../../src/services/supabase'
+import { useSettingsSummary } from '../../src/hooks/useSettingsSummary'
 import { useCoupleStore } from '../../src/store/coupleStore'
-import { useProfileStore } from '../../src/store/profileStore'
-import { useTheme, type ThemeMode } from '../../src/theme'
-import { isBiometricConsentActive } from '../../src/utils/biometricConsent'
-
-const THEME_MODE_LABEL: Record<ThemeMode, string> = {
-  system: '시스템 설정',
-  light: '라이트',
-  dark: '다크',
-}
-
-const NEXT_MODE: Record<ThemeMode, ThemeMode> = {
-  system: 'light',
-  light: 'dark',
-  dark: 'system',
-}
+import { nocturne, shape, type } from '../../src/theme/nocturne'
+import { computeDaysTogetherKst } from '../../src/utils/relationshipDays'
+import { SETTINGS_GROUPS, socialProviderLabel, type SettingsItemKey } from '../../src/utils/settingsRules'
 
 export default function SettingsTab() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { session } = useSession()
-  const resetCouple = useCoupleStore((s) => s.reset)
-  const biometricStatus = useProfileStore((s) => s.status)
-  const biometricConsentAt = useProfileStore((s) => s.biometricConsentAt)
-  const biometricConsentRevokedAt = useProfileStore((s) => s.biometricConsentRevokedAt)
-  const referencePhotoPath = useProfileStore((s) => s.referencePhotoPath)
-  const refreshProfile = useProfileStore((s) => s.refresh)
-  const resetProfile = useProfileStore((s) => s.reset)
-  const { colors, typography, spacing, lines, mode, setMode } = useTheme()
+  const userId = session?.user.id ?? null
+  const coupleStatus = useCoupleStore((s) => s.status)
+  const partnerId = useCoupleStore((s) => s.partnerId)
+  const nickname = useCoupleStore((s) => s.nickname)
+  const startDate = useCoupleStore((s) => s.relationshipStartDate)
+  const refreshCouple = useCoupleStore((s) => s.refresh)
+  const summary = useSettingsSummary(userId, partnerId)
 
   useEffect(() => {
-    if (session) refreshProfile(session.user.id)
-  }, [session, refreshProfile])
+    if (userId) void refreshCouple(userId)
+  }, [userId, refreshCouple])
 
-  const biometricAgreed = isBiometricConsentActive(biometricConsentAt, biometricConsentRevokedAt)
-  const biometricValueLabel =
-    biometricStatus === 'loaded' ? (biometricAgreed ? '동의함' : '미동의') : '—'
-  const referencePhotoValueLabel =
-    biometricStatus === 'loaded' ? (referencePhotoPath ? '등록됨' : '미등록') : '—'
+  const connected = coupleStatus === 'connected'
+  const days = connected && startDate ? computeDaysTogetherKst(startDate) : null
+  const partnerValue = connected
+    ? [summary.partnerName, days !== null ? `D+${days}` : null].filter(Boolean).join(' · ')
+    : coupleStatus === 'disconnected'
+      ? '연결 전'
+      : ''
+
+  const values: Record<SettingsItemKey, string> = {
+    profile: summary.displayName ?? '',
+    social: socialProviderLabel(session?.user.app_metadata?.provider as string | undefined),
+    partner: partnerValue,
+    nickname: connected ? (nickname ?? '') : '',
+    personality: summary.loveTypeLabelEn ?? '',
+    privacy: '',
+  }
 
   return (
-    <SafeAreaView edges={['top']} style={{ backgroundColor: colors.paper, flex: 1 }}>
-      <PageHeader left="설 정" />
-      <View style={{ paddingHorizontal: 24, paddingTop: spacing.s6 }}>
-        <Text style={[typography.kickerKo, { color: colors.inkFull, marginBottom: spacing.s2 }]}>
-          계 정
+    <ScreenFrame>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + shape.tabBarGap + shape.tabBarHeight + 24 },
+        ]}
+      >
+        <Text style={styles.title} accessibilityRole="header">
+          설정
         </Text>
-        <View style={{ borderTopColor: colors.rule, borderTopWidth: lines.section }}>
-          <Pressable
-            onPress={async () => {
-              resetCouple()
-              resetProfile()
-              await supabase.auth.signOut()
-            }}
-            style={{
-              alignItems: 'center',
-              borderBottomColor: colors.rule,
-              borderBottomWidth: lines.hairline,
-              flexDirection: 'row',
-              height: 56,
-              justifyContent: 'space-between',
-            }}
-          >
-            <Text style={[typography.title, { color: colors.inkFull }]}>로그아웃</Text>
-            <Text style={[typography.caption, { color: colors.inkMute }]}>→</Text>
-          </Pressable>
-        </View>
-
-        <Text
-          style={[typography.kickerKo, { color: colors.inkFull, marginBottom: spacing.s2, marginTop: spacing.s7 }]}
-        >
-          화 면
-        </Text>
-        <View style={{ borderTopColor: colors.rule, borderTopWidth: lines.section }}>
-          <Pressable
-            onPress={() => setMode(NEXT_MODE[mode])}
-            style={{
-              alignItems: 'center',
-              borderBottomColor: colors.rule,
-              borderBottomWidth: lines.hairline,
-              flexDirection: 'row',
-              height: 56,
-              justifyContent: 'space-between',
-            }}
-          >
-            <Text style={[typography.title, { color: colors.inkFull }]}>테마</Text>
-            <Text style={[typography.caption, { color: colors.inkMute }]}>
-              {THEME_MODE_LABEL[mode]} →
-            </Text>
-          </Pressable>
-        </View>
-
-        <Text
-          style={[typography.kickerKo, { color: colors.inkFull, marginBottom: spacing.s2, marginTop: spacing.s7 }]}
-        >
-          개인정보 & 약관
-        </Text>
-        <View style={{ borderTopColor: colors.rule, borderTopWidth: lines.section }}>
-          <Pressable
-            onPress={() => router.push('/biometric-consent')}
-            testID="settings-biometric-consent-row"
-            style={{
-              alignItems: 'center',
-              borderBottomColor: colors.rule,
-              borderBottomWidth: lines.hairline,
-              flexDirection: 'row',
-              height: 56,
-              justifyContent: 'space-between',
-            }}
-          >
-            <Text style={[typography.title, { color: colors.inkFull }]}>
-              생체정보(얼굴 인식) 동의
-            </Text>
-            <Text style={[typography.caption, { color: colors.inkMute }]}>
-              {biometricValueLabel} →
-            </Text>
-          </Pressable>
-        </View>
-
-        <Text
-          style={[typography.kickerKo, { color: colors.inkFull, marginBottom: spacing.s2, marginTop: spacing.s7 }]}
-        >
-          사진 & 데이터
-        </Text>
-        <View style={{ borderTopColor: colors.rule, borderTopWidth: lines.section }}>
-          <Pressable
-            onPress={() => router.push('/reference-photo')}
-            testID="settings-reference-photo-row"
-            style={{
-              alignItems: 'center',
-              borderBottomColor: colors.rule,
-              borderBottomWidth: lines.hairline,
-              flexDirection: 'row',
-              height: 56,
-              justifyContent: 'space-between',
-            }}
-          >
-            <Text style={[typography.title, { color: colors.inkFull }]}>대표사진 등록·교체</Text>
-            <Text style={[typography.caption, { color: colors.inkMute }]}>
-              {referencePhotoValueLabel} →
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-    </SafeAreaView>
+        {SETTINGS_GROUPS.map((group) => (
+          <View key={group.kicker} style={styles.section}>
+            <Text style={styles.kicker}>{group.kicker}</Text>
+            <ListGroup>
+              {group.items.map((item) => (
+                <ListRow
+                  key={item.key}
+                  label={item.label}
+                  value={values[item.key]}
+                  onPress={() => router.push(item.href as never)}
+                  testID={`settings-row-${item.key}`}
+                />
+              ))}
+            </ListGroup>
+          </View>
+        ))}
+      </ScrollView>
+    </ScreenFrame>
   )
 }
+
+const styles = StyleSheet.create({
+  content: { paddingHorizontal: shape.space.screen },
+  title: { ...type.display, color: nocturne.text },
+  section: { marginTop: 32, gap: 12 },
+  kicker: { ...type.kicker, color: nocturne.textMute, paddingHorizontal: 4 },
+})

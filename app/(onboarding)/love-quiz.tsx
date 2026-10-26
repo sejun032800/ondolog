@@ -3,21 +3,29 @@
  *
  * 문항 원문은 `src/data/onboardingQuestions.ts`(MASTER 10-3 원문 그대로), 채점은 `sessionStore.computeResult`가 부르는
  * 기존 엔진(`inferLoveType`, 결정론) 그대로다 - 이 화면은 엔진을 바꾸지 않는다. 저장은 메모리뿐이다.
- * 하나를 고르면 다음 문항으로, 마지막 문항을 고르면 채점해 결과(A08)로 간다. ←는 이전 문항(첫 문항에서는 앞 화면).
+ * 하나를 고르면 다음 문항으로, 마지막 문항을 고르면 채점해 결과(A08)로 간다. **재검사(`?retest=1`, `67-`)**에서는 A08 대신 바로 저장한다
+ * (`useRetestFinalize` - 새 assessment 행 + 한 번의 UPDATE) - 성공하면 설정 > 성격 프로필(H05)로, 실패하면 이 화면에서 글자로 알리고 다시 시도하게 한다. ←는 이전 문항(첫 문항에서는 앞 화면).
  * 진행 선은 정지 상태로 그린다(채움 애니메이션 금지).
  */
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { ChoiceCard } from '../../src/components/onboarding/ChoiceCard'
 import { OnboardingScreen, StepCounter } from '../../src/components/onboarding/OnboardingScreen'
+import { PrimaryButton } from '../../src/components/nocturne/Buttons'
 import type { QuizChoice } from '../../src/constants/quizTypes'
 import { ONBOARDING_QUESTIONS } from '../../src/data/onboardingQuestions'
+import { useRetestFinalize } from '../../src/hooks/useRetestFinalize'
+import { useSession } from '../../src/hooks/useSession'
 import { useSessionStore } from '../../src/store/sessionStore'
 import { nocturne, type, withAlpha } from '../../src/theme/nocturne'
 
 export default function LoveQuizScreen() {
   const router = useRouter()
+  const params = useLocalSearchParams<{ retest?: string }>()
+  const retest = params?.retest === '1'
+  const { session } = useSession()
+  const finalize = useRetestFinalize()
   const mbti = useSessionStore((s) => s.mbti)
   const q1 = useSessionStore((s) => s.q1)
   const q2 = useSessionStore((s) => s.q2)
@@ -29,8 +37,8 @@ export default function LoveQuizScreen() {
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
-    if (!mbti) router.replace('/mbti')
-  }, [mbti, router])
+    if (!mbti) router.replace((retest ? '/mbti?retest=1' : '/mbti') as never)
+  }, [mbti, router, retest])
 
   if (!mbti) return null
 
@@ -47,7 +55,33 @@ export default function LoveQuizScreen() {
       return
     }
     // 마지막 문항 - 스토어에 방금 고른 답이 들어간 뒤 채점한다(모두 채워졌을 때만 결과가 생긴다).
-    if (computeResult()) router.push('/result-brief')
+    if (!computeResult()) return
+    if (retest) void saveRetest()
+    else router.push('/result-brief')
+  }
+
+  const goBackToPersonality = () => router.dismissTo('/settings-personality' as never)
+
+  const saveRetest = async () => {
+    const userId = session?.user.id
+    if (!userId) return
+    if (await finalize.run(userId)) goBackToPersonality()
+  }
+
+  if (retest && (finalize.phase === 'saving' || finalize.phase === 'error')) {
+    const saving = finalize.phase === 'saving'
+    return (
+      <OnboardingScreen
+        title={saving ? '결과를 저장하고 있어요' : (finalize.errorMessage ?? '저장하지 못했어요. 다시 시도해주세요.')}
+        footer={
+          saving ? undefined : finalize.retryable ? (
+            <PrimaryButton label="다시 시도" onPress={saveRetest} testID="retest-retry" />
+          ) : (
+            <PrimaryButton label="돌아가기" onPress={goBackToPersonality} testID="retest-back" />
+          )
+        }
+      />
+    )
   }
 
   return (

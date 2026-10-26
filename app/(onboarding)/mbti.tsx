@@ -4,8 +4,11 @@
  * MASTER 9-1 화면 3: 어느 길이든 **네 글자 하나로 모인다**(`sessionStore.mbti`). 저장은 메모리뿐이다.
  * 간이 4문항의 글은 MASTER 9-1 화면 3 표의 초안 원문 그대로, A/B -> 글자 매핑은 `quickMbti.ts`(스토어가 쓴다).
  * 한 화면 라우트 안에서 세 모드(choose · known · unknown)를 오간다 - ←는 모드를 한 단계씩 되돌린다.
+ *
+ * **재검사(`?retest=1`, `67-`)**: 설정 > 성격 프로필(H05)의 [5문항 다시 하기]가 같은 화면을 다시 쓴다. 다음 화면만 `love-quiz?retest=1`로 이어 간다 -
+ * 로그인 이후라 이 값들도 메모리뿐이고(저장은 마지막 문항 뒤 `useRetestFinalize`).
  */
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { ChoiceCard } from '../../src/components/onboarding/ChoiceCard'
@@ -70,6 +73,8 @@ function lettersFromMbti(mbti: MbtiType | null, selfReported: boolean): Partial<
 
 export default function MbtiScreen() {
   const router = useRouter()
+  const params = useLocalSearchParams<{ retest?: string }>()
+  const retest = params?.retest === '1'
   const mbtiKnown = useSessionStore((s) => s.mbtiKnown)
   const setMbtiKnown = useSessionStore((s) => s.setMbtiKnown)
   const storeMbti = useSessionStore((s) => s.mbti)
@@ -82,7 +87,7 @@ export default function MbtiScreen() {
   const [questionIndex, setQuestionIndex] = useState(0)
   const [letters, setLetters] = useState<Partial<Record<Axis, string>>>(() => lettersFromMbti(storeMbti, selfReported))
 
-  const goNext = () => router.push('/love-quiz')
+  const goNext = () => router.push((retest ? '/love-quiz?retest=1' : '/love-quiz') as never)
 
   if (mode === 'choose') {
     return (

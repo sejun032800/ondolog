@@ -10,8 +10,10 @@ import type { EnneagramCore } from '../constants/enneagram'
 import {
   ensurePersonalityProfile,
   fetchLatestAssessment,
+  fetchPersonalityProfile,
   overrideEnneagramCore,
 } from '../services/personalityApi'
+import { fetchAssessmentById } from '../services/settingsApi'
 import type { Database } from '../types/database'
 
 export type AssessmentRow = Database['public']['Tables']['personality_assessments']['Row']
@@ -30,7 +32,16 @@ export interface UseResultDetailResult {
   override: (core: EnneagramCore) => Promise<boolean>
 }
 
-export function useResultDetail(userId: string | null): UseResultDetailResult {
+/**
+ * `mode`
+ *   - `onboarding`(기본): 가입 길 - 최신 검사를 읽고, 프로필 행이 없으면 처음 한 번 만든다(만들 때 진행 단계를 올린다).
+ *   - `settings`(`67-`): 설정 > 성격 프로필 - **읽기만 한다**. 프로필 행을 만들지 않고(진행 단계를 건드리지 않는다), 지금 쓰고 있는 검사
+ *     (`active_assessment_id`, 재검사 뒤에는 새 행)를 읽는다. 프로필이 없으면 `missing`이다.
+ */
+export function useResultDetail(
+  userId: string | null,
+  mode: 'onboarding' | 'settings' = 'onboarding',
+): UseResultDetailResult {
   const [state, setState] = useState<ResultDetailState>({ status: 'loading' })
   const [nonce, setNonce] = useState(0)
 
@@ -40,6 +51,14 @@ export function useResultDetail(userId: string | null): UseResultDetailResult {
     setState({ status: 'loading' })
     ;(async () => {
       try {
+        if (mode === 'settings') {
+          const existing = await fetchPersonalityProfile(userId)
+          if (cancelled) return
+          const active = existing ? await fetchAssessmentById(existing.active_assessment_id) : null
+          if (cancelled) return
+          setState(existing && active ? { status: 'ready', assessment: active, profile: existing } : { status: 'missing' })
+          return
+        }
         const assessment = await fetchLatestAssessment(userId)
         if (cancelled) return
         if (!assessment) {
@@ -55,7 +74,7 @@ export function useResultDetail(userId: string | null): UseResultDetailResult {
     return () => {
       cancelled = true
     }
-  }, [userId, nonce])
+  }, [userId, nonce, mode])
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
 

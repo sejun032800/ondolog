@@ -33,6 +33,26 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## U7 설정 필수 1부 (`67-`, 2026-10-26, ui-builder) - 원격 실증 스크립트 작성만(실행은 사람), 실기기 미확인
+
+내부 결정(항목당 한 줄):
+- 설정 하위 화면 경로는 R18-2대로 루트 Stack 평면 파일: `settings-profile` · `settings-couple` · `settings-personality` · `settings-privacy`(`app/settings/` 디렉터리는 탭 `/settings`와 겹쳐 피했다). 확인 시트(H06)는 `RetestConfirm` 모달.
+- 목록 표는 `src/utils/settingsRules.ts` `SETTINGS_GROUPS`(갈 곳 있는 항목만) + `HIDDEN_SETTINGS_ITEMS`(숨긴 것과 이유). 보드의 OUR SKY 토글 · 발행물 테마 · 마케팅 토글 · 사진 바꾸기 · 옛 테마 행도 숨겼다(지시서 범위 밖 · 저장할 칸 없음).
+- 옛 설정 탭의 생체정보 동의 · 대표사진 행도 숨겼다(지시서가 H12 · H07을 숨기라고 함). `(modals)/biometric-consent` · `reference-photo` 화면은 남아 있으나 **설정에서 들어갈 길이 없다 - 동의 철회 길을 PM이 확인할 것(MASTER 철회 가능 원칙).**
+- A20 재표시: 탭 레이아웃 `useStartDateRecheck` - 탭이 열릴 때와 앱 복귀(AppState active)마다 내 커플 행을 읽어 `needsStartDateConfirm`이 참이면 `start-date?recheck=1`을 푸시(같은 값은 한 번만). 그 길은 `start_date_confirmed_by`만 쓰고 `onboarding_step`은 쓰지 않으며 `dismissTo('/main')`으로 돌아간다.
+- A20 화면에 보드 문장 "날짜가 다르면 설정 > 커플에서 함께 고칠 수 있어요"를 넣었다(H04가 생겨 사실이 됨). `u6Onboarding2.test.tsx`의 "그 문장이 없다" 단언 한 줄을 "있다"로 바꿨다.
+- 재검사 길은 A04~A07(`mbti`·`love-quiz`)에 `?retest=1`만 얹어 재사용: 메모리(`sessionStore`)에서 풀고, 마지막 문항 뒤 A08 대신 `useRetestFinalize` -> `settingsCore.retestPersonality` -> 성공하면 `dismissTo('/settings-personality')`. 화면에 새 결과 화면은 만들지 않았다(H05 카드가 새 결과).
+- 재검사 새 행 키: `personality_assessments`의 `unique (user_id, seq)`(`004_personality.sql` 37행) + `seq in (1, 2)`(8행). 재검사는 `seq = 2` 고정 - 이미 2번째 행이 있으면 `23505`이고 **이 경로에서 실패**(`RetestError('duplicate')`, 프로필 UPDATE 안 함). 가입 저장의 "23505 = 성공"은 `createProfileAndAssessment` 안에만 있다.
+- 재검사의 `personality_profiles` UPDATE는 `.eq('retest_used', false)`를 걸어 다른 기기가 먼저 썼다면 0행 -> 실패. `override_count` · `override_updated_at`은 쓰지 않는다(이력 보존). `enneagram_effective`는 생성 칸이라 쓰지 않는다.
+- **알려진 한계(PM 판단 필요)**: INSERT는 성공했는데 그 뒤 UPDATE가 실패하면(앱 종료 · 네트워크) `retest_used`는 false로 남고 seq 2 행이 이미 있어, 다음 재검사는 `23505`로 영영 막힌다(assessment DELETE 정책 없음). 복구 경로는 서버 함수(027 계열)가 필요하다.
+- `profiles.mbti`는 재검사 때 고치지 않는다(`profiles`는 이름 · 성별만 쓰는 표). 앱은 MBTI를 최신 assessment에서 읽어 영향이 없다.
+- A14 · A16 설정 모드(`result-detail?source=settings`): `useResultDetail(userId, 'settings')`는 읽기만 하고(프로필 행을 만들지 않아 `onboarding_step`을 올리지 않음), `active_assessment_id`의 검사를 읽는다. `?view=override`면 A16부터, 저장하면 `router.back()`.
+- H05 카드는 `MBTI · 애니어그램 N`까지 - 보드의 애착 이름("안정형")은 MASTER 10-5-3과 어긋나 넣지 않았다. H11의 "AI 데이터 활용 동의 - 동의함" 값 표시도 읽기 전용 값을 새로 만들지 않으려 빼고 "AI 활용 안내" 한 줄로 했다. 보드 H11의 "무료에서는 3개월이 지난 사진을…" 안내는 구독(H08)이 없는 지금 사실이 아니라 뺐다.
+- H03 성별은 3칸 선택(남/여/기타)으로 고칠 수 있다(보드에 성별이 있어서). 프로필 사진 원(아바타)과 "사진 바꾸기"는 그리지 않았다.
+- H04 사귄 날짜 입력 아래 "저장하면 상대가 다음에 앱에 들어올 때 날짜를 확인해요" 한 줄은 이 작업이 쓴 문장(보드에 없음) - 디자인 세션 확인 요청.
+- 로그아웃 뒤 `router.replace('/')`로 시작 화면에 간다(옛 설정 탭은 세션만 끊고 이동하지 않았다). 큐 저장은 지우지 않는다.
+- `personalityCore.ts`에 `buildAssessmentInsert`(가입 seq 1과 재검사 seq 2가 같은 모양)를 뽑아 냈다 - 동작 같음(`personalityCore.test` 통과).
+
 ## 커플 연결 앱 전환 (`66-` 1부, 2026-10-26, ui-builder) - 원격 미실행, 실기기 미확인
 
 - 내부 결정: A18 오류 문구 - 보드에는 "이미 다른 사람과 연결된 코드는 쓸 수 없어요"(23505) 하나뿐이라 그 원문을 쓰고, P0002는 기존 앱 문구 "연결할 수 없어요. 코드를 다시 확인해주세요.", 22023은 보드에 문구가 없어 자리표시자 "내가 만든 코드는 쓸 수 없어요"(PM 확인 필요).

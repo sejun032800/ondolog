@@ -40,6 +40,41 @@ export interface CreateProfileAndAssessmentInput {
   marketingAgreed: boolean
 }
 
+/**
+ * `personality_assessments` 한 행의 넣을 값 - 가입 저장(seq 1)과 재검사(seq 2, `settingsCore`)가 같은 모양을 쓴다.
+ * 채점 결과(`result`)는 엔진 출력 그대로이고, 이 함수는 계산하지 않는다.
+ */
+export function buildAssessmentInsert(
+  userId: string,
+  seq: 1 | 2,
+  input: Pick<CreateProfileAndAssessmentInput, 'mbti' | 'mbtiSelfReported' | 'q1' | 'q2' | 'q3' | 'q4' | 'q5' | 'result'>,
+) {
+  return {
+    user_id: userId,
+    seq,
+    engine_version: LOVE_TYPE_ENGINE_VERSION,
+    mbti: input.mbti,
+    mbti_self_reported: input.mbtiSelfReported,
+    q1: input.q1,
+    q2: input.q2,
+    q3: input.q3,
+    q4: input.q4,
+    q5: input.q5,
+    enneagram_core: input.result.enneagramCore,
+    big_e: input.result.big5.bigE,
+    big_o: input.result.big5.bigO,
+    big_a: input.result.big5.bigA,
+    big_c: input.result.big5.bigC,
+    big_n: input.result.big5.bigN,
+    stern_intimacy: input.result.sternberg.intimacy,
+    stern_passion: input.result.sternberg.passion,
+    stern_commitment: input.result.sternberg.commitment,
+    attach_anxiety: input.result.attachAnxiety,
+    attach_avoidance: input.result.attachAvoidance,
+    attachment: input.result.attachment,
+  }
+}
+
 /** Postgres 유니크 제약 위반 - "이미 들어 있다"는 뜻이라 이 저장 경로에서는 성공이다. */
 const UNIQUE_VIOLATION = '23505'
 
@@ -85,30 +120,7 @@ export async function createProfileAndAssessment(
 
   const { data: assessment, error: assessmentError } = await db
     .from('personality_assessments')
-    .insert({
-      user_id: input.userId,
-      seq: 1,
-      engine_version: LOVE_TYPE_ENGINE_VERSION,
-      mbti: input.mbti,
-      mbti_self_reported: input.mbtiSelfReported,
-      q1: input.q1,
-      q2: input.q2,
-      q3: input.q3,
-      q4: input.q4,
-      q5: input.q5,
-      enneagram_core: input.result.enneagramCore,
-      big_e: input.result.big5.bigE,
-      big_o: input.result.big5.bigO,
-      big_a: input.result.big5.bigA,
-      big_c: input.result.big5.bigC,
-      big_n: input.result.big5.bigN,
-      stern_intimacy: input.result.sternberg.intimacy,
-      stern_passion: input.result.sternberg.passion,
-      stern_commitment: input.result.sternberg.commitment,
-      attach_anxiety: input.result.attachAnxiety,
-      attach_avoidance: input.result.attachAvoidance,
-      attachment: input.result.attachment,
-    })
+    .insert(buildAssessmentInsert(input.userId, 1, input))
     .select()
     .single()
   if (assessmentError) {

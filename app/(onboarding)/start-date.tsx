@@ -10,10 +10,14 @@
  * (`saveStartDateAndNickname`). 진행 단계 COMPLETE는 `markStartDateOnboardingComplete`(= `advanceOnboardingStep`)로만 올린다.
  * 둘이 거의 동시에 A19에서 다른 날짜를 넣으면 늦은 쪽은 확인만 되고, 그때 적용된 날짜를 A20으로 보여 준다.
  *
- * 보드와 다르게 한 곳(65- 보고): A20의 "날짜가 다르면 설정 > 커플에서 함께 고칠 수 있어요"는 넣지 않았다 - 그 설정 기능이 앱에 없다(MASTER에도 없다).
+ * A20의 "날짜가 다르면 설정 > 커플에서 함께 고칠 수 있어요"(보드 문장)는 `67-`에서 넣었다 - 설정 > 커플(H04)이 생겨 이제 사실이다.
+ *
+ * **재표시 길(`?recheck=1`, `67-`)**: 상대가 설정 > 커플에서 사귄 날짜를 고치면(`start_date_set_by` = 상대, `start_date_confirmed_by` = null)
+ * 내가 다음에 앱에 들어올 때 탭 레이아웃의 `useStartDateRecheck`가 이 화면을 연다. 이미 온보딩을 마친 사람이라 **진행 단계(`onboarding_step`)는
+ * 쓰지 않는다** - 확인(`start_date_confirmed_by`)만 기록하고 메인으로 돌아간다. 이 길에는 A19(입력)가 없다.
  * 날짜는 피커 대신 "YYYY.MM.DD" 입력이다(새 의존성 없음, A03 생년월일과 같은 방식).
  */
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { OnboardingScreen } from '../../src/components/onboarding/OnboardingScreen'
@@ -40,6 +44,7 @@ import {
   withIga,
 } from '../../src/utils/coupleStart'
 import { computeDaysTogetherKst } from '../../src/utils/relationshipDays'
+import { needsStartDateConfirm } from '../../src/utils/settingsRules'
 
 const COPY = {
   subtitle: '두 가지만 정하면 시작이에요',
@@ -53,6 +58,7 @@ const COPY = {
   start: '시작하기',
   confirmSubtitle: '먼저 정한 날짜로 시작해요',
   confirm: '확인했어요',
+  confirmNote: '날짜가 다르면 설정 > 커플에서 함께 고칠 수 있어요',
   saveFailed: '저장하지 못했어요. 다시 시도해주세요.',
   loadFailed: '불러오지 못했어요. 다시 시도해주세요.',
   retry: '다시 시도',
@@ -66,6 +72,8 @@ type Phase =
 
 export default function StartDateScreen() {
   const router = useRouter()
+  const params = useLocalSearchParams<{ recheck?: string }>()
+  const recheck = params?.recheck === '1'
   const { session, loading: sessionLoading } = useSession()
   const userId = session?.user.id ?? null
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' })
@@ -95,6 +103,9 @@ export default function StartDateScreen() {
     }
   }
 
+  /** 재표시 길에서 나간다 - 메인(탭)으로 돌아간다. */
+  const leaveRecheck = () => router.dismissTo('/main')
+
   useEffect(() => {
     if (!userId) return
     let cancelled = false
@@ -116,6 +127,15 @@ export default function StartDateScreen() {
         }
         const row = await fetchCouple(couple.coupleId)
         if (cancelled) return
+        if (recheck) {
+          // 재표시 길 - 확인할 것이 남아 있을 때만 A20. 아니면 할 일이 없다(진행 단계는 건드리지 않는다).
+          if (needsStartDateConfirm(row, userId)) {
+            setPhase({ kind: 'confirm', date: row.relationship_start_date as string, nickname: row.nickname })
+          } else {
+            leaveRecheck()
+          }
+          return
+        }
         if (row.relationship_start_date && row.start_date_set_by !== userId) {
           setPhase({ kind: 'confirm', date: row.relationship_start_date, nickname: row.nickname })
           return
@@ -157,7 +177,8 @@ export default function StartDateScreen() {
       try {
         // 기존 규칙: 이미 날짜가 있으면 확인만 기록한다(`start_date_confirmed_by`).
         await setOrConfirmStartDate(coupleId, userId, phase.date)
-        await finish(userId)
+        if (recheck) leaveRecheck()
+        else await finish(userId)
       } catch {
         setError(COPY.saveFailed)
       } finally {
@@ -189,6 +210,9 @@ export default function StartDateScreen() {
             {`오늘 D+${days}${phase.nickname ? ` · ${phase.nickname}` : ''}`}
           </Text>
         </View>
+        <Text style={[styles.confirmNote, styles.confirmNoteGap]} testID="start-confirm-note">
+          {COPY.confirmNote}
+        </Text>
       </OnboardingScreen>
     )
   }
@@ -324,6 +348,8 @@ const styles = StyleSheet.create({
   },
   hint: { ...type.sub, color: nocturne.textMute },
   error: { ...type.sub, color: nocturne.textSub, textAlign: 'center' },
+  confirmNote: { ...type.sub, color: nocturne.textMute },
+  confirmNoteGap: { marginTop: 24 },
   sinceCard: {
     marginTop: 32,
     alignItems: 'center',

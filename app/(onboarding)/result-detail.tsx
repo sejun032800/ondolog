@@ -9,9 +9,12 @@
  * 보드와 다르게 한 곳(65- 보고): 고정 문장은 MASTER 문장 그대로(`resultDetailCopy.ts`) · 애착 유형 이름("안정형" 등)은 쓰지 않는다(MASTER 10-5-3) ·
  * ⑤ 애착 묶음을 보드에 없지만 둔다(MASTER 화면 7) · 공유 버튼은 없다(A09 공유 카드는 M3-6) · A16 부제는 스턴버그까지 적는다(MASTER).
  *
+ * **설정 모드(`?source=settings`, `67-`)**: 설정 > 성격 프로필(H05)이 같은 화면을 다시 연다 - `?view=override`면 A16부터 시작한다. 읽기만 하고(프로필 행을 만들지 않는다),
+ * 지금 쓰고 있는 검사(재검사 뒤에는 새 행)를 보인다. "다음"(초대로 가는 버튼)은 없고 ←로 H05에 돌아온다. 오버라이드 저장 규칙은 그대로다(`overrideEnneagramCore`).
+ *
  * 진행 단계(`onboarding_step`)는 이 화면이 직접 쓰지 않는다 - 프로필 행을 처음 만들 때 `ensurePersonalityProfile`가 `advanceOnboardingStep`으로 올린다.
  */
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { OnboardingScreen } from '../../src/components/onboarding/OnboardingScreen'
@@ -39,10 +42,13 @@ const ALL_CORES: EnneagramCore[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 export default function ResultDetailScreen() {
   const router = useRouter()
+  const params = useLocalSearchParams<{ source?: string; view?: string }>()
+  const fromSettings = params?.source === 'settings'
+  const startsInOverride = fromSettings && params?.view === 'override'
   const { session, loading: sessionLoading } = useSession()
   const userId = session?.user.id ?? null
-  const { state, reload, override } = useResultDetail(userId)
-  const [view, setView] = useState<'detail' | 'override'>('detail')
+  const { state, reload, override } = useResultDetail(userId, fromSettings ? 'settings' : 'onboarding')
+  const [view, setView] = useState<'detail' | 'override'>(startsInOverride ? 'override' : 'detail')
   const [picked, setPicked] = useState<EnneagramCore | null>(null)
   const [saving, setSaving] = useState(false)
   const [overrideError, setOverrideError] = useState(false)
@@ -59,10 +65,11 @@ export default function ResultDetailScreen() {
     const missing = state.status === 'missing'
     return (
       <OnboardingScreen
+        onBack={fromSettings ? () => router.back() : undefined}
         title={missing ? '결과를 찾을 수 없어요' : '결과를 불러오지 못했어요'}
-        subtitle={missing ? '처음부터 다시 진행해주세요.' : '잠시 뒤에 다시 시도해주세요.'}
+        subtitle={missing ? (fromSettings ? '아직 저장된 결과가 없어요.' : '처음부터 다시 진행해주세요.') : '잠시 뒤에 다시 시도해주세요.'}
         footer={
-          missing ? (
+          missing && fromSettings ? undefined : missing ? (
             <PrimaryButton label="처음부터 다시" onPress={() => router.replace('/basic-info')} testID="detail-restart" />
           ) : (
             <PrimaryButton label="다시 시도" onPress={reload} testID="detail-retry" />
@@ -91,8 +98,9 @@ export default function ResultDetailScreen() {
       setOverrideError(false)
       const ok = await override(selected)
       setSaving(false)
-      if (ok) setView('detail')
-      else setOverrideError(true)
+      if (!ok) setOverrideError(true)
+      else if (startsInOverride) router.back() // 설정에서 곧바로 연 길 - 저장하면 H05로 돌아간다.
+      else setView('detail')
     }
     return (
       <OnboardingScreen
@@ -100,7 +108,8 @@ export default function ResultDetailScreen() {
         onBack={() => {
           setPicked(null)
           setOverrideError(false)
-          setView('detail')
+          if (startsInOverride) router.back()
+          else setView('detail')
         }}
         title={'나에게 더 가까운\n코어를 골라주세요'}
         subtitle="코어만 바뀌어요. 빅5 · 스턴버그 · 애착 결과는 그대로예요."
@@ -146,13 +155,14 @@ export default function ResultDetailScreen() {
   return (
     <OnboardingScreen
       key="detail"
+      onBack={fromSettings ? () => router.back() : undefined}
       footer={
         <>
           {/* MASTER 9-1 화면 7 ⑥ 하단 고정 문장 - 글자 그대로. 단정하는 문장은 두지 않는다. */}
           <Text style={styles.notice} testID="compatibility-start-notice">
             {COMPATIBILITY_START_TEMPERATURE_NOTICE}
           </Text>
-          <PrimaryButton label="다음" onPress={() => router.push('/invite')} testID="detail-next" />
+          {fromSettings ? null : <PrimaryButton label="다음" onPress={() => router.push('/invite')} testID="detail-next" />}
         </>
       }
     >

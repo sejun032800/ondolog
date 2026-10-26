@@ -12,8 +12,11 @@
  */
 import { Tabs } from 'expo-router'
 import { TabBar } from '../../src/components/nocturne/TabBar'
+import { useStartDateRecheck } from '../../src/hooks/useStartDateRecheck'
 
 export default function TabsLayout() {
+  // 상대가 고친 사귄 날짜가 있으면 A20을 다시 보인다(`67-`).
+  useStartDateRecheck()
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="main" options={{ title: '메인' }} />

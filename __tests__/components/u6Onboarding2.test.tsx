@@ -440,8 +440,8 @@ describe('A20 상대가 정한 날짜 확인', () => {
     expect(screen.getByTestId('start-since-date').props.children).toBe('2025.12.27')
     expect(screen.getByTestId('start-since-sub').props.children).toMatch(/^오늘 D\+\d+ · 늘봄$/)
     expect(screen.getByText('서영이 날짜를\n먼저 정했어요')).toBeTruthy()
-    // 보드의 "설정 > 커플에서 고칠 수 있어요"는 그 기능이 없어 넣지 않았다.
-    expect(screen.queryByText(/설정 > 커플/)).toBeNull()
+    // 보드의 "설정 > 커플에서 고칠 수 있어요" - 설정 > 커플(H04, `67-`)이 생겨 이제 사실이라 넣었다(`65-`에서는 그 기능이 없어 뺐다).
+    expect(screen.getByText('날짜가 다르면 설정 > 커플에서 함께 고칠 수 있어요')).toBeTruthy()
   })
 
   it('[확인했어요]는 입력 없이 기존 규칙(확인만)으로 부르고 진행 단계를 마무리해 메인으로 간다', async () => {
