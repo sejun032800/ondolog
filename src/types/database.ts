@@ -1388,6 +1388,7 @@ export type Database = {
         Returns: undefined
       }
       expire_stories: { Args: never; Returns: number }
+      fn_connect_couple: { Args: { p_invite_code: string }; Returns: string }
       fn_delete_own_entry: { Args: { p_entry_id: string }; Returns: boolean }
       fn_issue_progress: {
         Args: never

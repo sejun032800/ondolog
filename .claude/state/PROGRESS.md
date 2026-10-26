@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-26 (메인 세션, `66-` 2부): 026 원격 개발 적용 확인(사람이 적용) · `verify_026_privileges.sql` 18행 전부 ok · service_role 커플 INSERT(연결 칸 포함)는 026 뒤에도 통과(되돌림 시험, 남은 행 0) · 실증 둘(사람 실행) `66-couple-connect.txt` ①~⑪ 실패 0 · `66-u6-part2.txt` 실패 0(가입 -> A14 -> A16 love_type_code RHF->INF->LLF -> A17 -> A18 연결 -> 5-C 23505 -> A19 -> A20 -> 큐 재개 객체·행 각 1) · 보안 점검은 기준선 대비 `fn_connect_couple` 1건만 추가 · 타입 재생성 diff +1(`fn_connect_couple`)만. **원격 `test-65-서영`의 love_type_code는 RHF 그대로(override 9 -> LLF여야 함) - 이번 실증은 새 `test-66-` 계정이라 바로잡지 않음.** 게이트 tsc 0 / 0 / jest 1560 · 87, Python 122. 미커밋
+
 2026-10-26 (ui-builder, `66-` 1부 앱): `redeemInviteCode`를 026 `fn_connect_couple` RPC로 전환(`src/services/coupleConnectCore.ts`, 오류 P0002·22023·23505 -> A18 문구, 직접 UPDATE 0, 틀린 주석 정정), A14 결함 수정(`generated always` 칸은 `enneagram_effective` 하나, 쓰던 곳은 `ensurePersonalityProfile` 한 곳 -> `ensurePersonalityProfileCore`가 안 넣음), A16이 같은 UPDATE에서 `love_type_code`를 엔진 `computeLoveTypeCode`로 재계산 + A14·메인 라벨은 실효 코어 기준으로 계산, `verifyU6Part2.ts` 결함 수정(단계 실행기·null·RPC·대체 경로 삭제, 출력 `66-u6-part2.txt`). **원격 쓰기·스크립트 실행 없음(026 미적용).** 게이트 tsc 0 / 0, jest 1560 · 87(기준 1551 · 85), Python 122. `src/engine` diff 0. 미커밋
 
 2026-10-26 (db-architect, `66-` 1부): 마이그레이션 026 커플 연결 - `fn_connect_couple(text)`(definer, search_path 비움, authenticated만) + couples UPDATE 테이블 단위 회수·다섯 칸만 부여 + `couples_update` pending 가지 삭제 + `couples_insert` 초대 발급만 허용. 작성·로컬(PGlite) 확인만, 원격 미적용·미실증. 확인 SQL 2개 · `verifyCoupleConnect.ts` 작성. 보안 기준선 `66-security-baseline.json`.

@@ -278,17 +278,18 @@ async function main(): Promise<void> {
     check(waiting.data?.status === 'pending', 'A의 대기 확인(4초 폴링과 같은 읽기): 아직 pending')
   })
 
+  async function redeem(acc: { id: string; client: Db }, c: string): Promise<{ id: string | null; kind: string | null; code: string | null }> {
+    try {
+      return { id: await connectCouple(acc.client as ConnectDb, c), kind: null, code: null }
+    } catch (e) {
+      if (e instanceof ConnectCoupleError) return { id: null, kind: e.kind, code: e.code }
+      throw e
+    }
+  }
+
   // ═══ 5. A18: B가 코드 입력 (026 RPC, B의 사용자 세션) ═════════════════════
   await stage('s5', ['s4'], async () => {
     line('═══ 5. A18 초대 코드 입력 (connectCouple = redeemInviteCode가 부르는 함수, 사용자 세션) ═══')
-    async function redeem(acc: { id: string; client: Db }, c: string): Promise<{ id: string | null; kind: string | null; code: string | null }> {
-      try {
-        return { id: await connectCouple(acc.client as ConnectDb, c), kind: null, code: null }
-      } catch (e) {
-        if (e instanceof ConnectCoupleError) return { id: null, kind: e.kind, code: e.code }
-        throw e
-      }
-    }
     const own = await redeem(A, code)
     check(own.kind === 'own' && own.code === '22023', `자기 코드 -> 22023 own (${own.code ?? own.id})`)
     const bogus = await redeem(B, 'ZZZZZZ')
@@ -303,21 +304,45 @@ async function main(): Promise<void> {
     check(afterConnect?.status === 'active' && afterConnect?.user_b_id === B.id && !!afterConnect?.connected_at && afterConnect?.id === coupleId, 'couples: active · user_b=B · connected_at 있음 · 함수가 돌려준 id와 같다')
     const again = await redeem(B, code)
     check(again.id === coupleId, `같은 사람이 같은 코드를 다시 넣으면 같은 id(멱등): ${again.id ?? again.code}`)
-    // 이미 커플인 B가 다른 사람의 코드를 쓰면 23505
+    await show('A18 연결 직후')
+  })
+
+  // ═══ 5-C. 이미 커플인 B가 다른 사람의 코드를 쓰면 23505 ═══════════════════════
+  // 하위 확인: 실패는 세지만(FAIL) 6~9단계는 막지 않는다 - 그 단계들은 s5(B 연결 성공)에만 기댄다. 이 단계는 s6~s9의 needs에 없다.
+  await stage('s5c', ['s5'], async () => {
+    line('═══ 5-C. 이미 커플인 B가 다른 코드 -> 23505 (하위 확인) ═══')
     const C = await newAccount('c')
+    // C도 앱 가입 경로(createProfileAndAssessment)로 프로필을 만든 뒤 초대 코드를 발급한다.
+    const answers = { q1: 'A', q2: 'B', q3: 'C', q4: 'A', q5: 'B' } as const
+    const saved = await createProfileAndAssessment(C.client as PersonalityDb, {
+      userId: C.id,
+      name: 'test-66-세번째',
+      gender: 'male',
+      birthDate: '2000-01-01',
+      mbti: 'INFJ',
+      mbtiSelfReported: true,
+      ...answers,
+      result: inferLoveType({ mbti: 'INFJ', ...answers }),
+      marketingAgreed: false,
+    })
+    check(!!saved && saved.seq === 1, `C 가입 저장: assessment seq ${saved?.seq ?? '-'}`)
     let codeC = ''
     for (let attempt = 0; attempt < 5 && !codeC; attempt++) {
-      const c = generateInviteCode()
-      const ins = await C.client.from('couples').insert({ user_a_id: C.id, invite_code: c }).select().maybeSingle()
+      const ins = await C.client.from('couples').insert({ user_a_id: C.id, invite_code: generateInviteCode() }).select().maybeSingle()
       if (!ins.error && ins.data) codeC = ins.data.invite_code
+      else if (ins.error?.code === '23505') line(`  C 코드 발급 재시도(코드 충돌) ${attempt + 1}`)
+      else {
+        // 원인을 남긴다. 출력은 line()을 거쳐 기존 가림 목록(secrets)을 지난다.
+        line(`  C 초대 코드 발급 오류: code=${ins.error?.code ?? '-'} message=${ins.error?.message ?? '0행(오류 없이 행이 안 돌아옴)'}`)
+        break
+      }
     }
-    if (codeC) {
-      const taken = await redeem(B, codeC)
-      check(taken.kind === 'already' && taken.code === '23505', `이미 커플인 B가 다른 코드 -> 23505 already (${taken.code ?? taken.id})`)
-    } else {
+    if (!codeC) {
       check(false, '시험 계정 C의 초대 코드를 만들지 못했다 - 23505 확인 불가')
+      return
     }
-    await show('A18 연결 직후')
+    const taken = await redeem(B, codeC)
+    check(taken.kind === 'already' && taken.code === '23505', `이미 커플인 B가 다른 코드 -> 23505 already (${taken.code ?? taken.id})`)
   })
 
   // ═══ 6. 연결 뒤 양쪽 진행 단계 INVITE ═════════════════════════════════════

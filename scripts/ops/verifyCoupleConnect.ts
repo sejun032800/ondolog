@@ -107,7 +107,18 @@ async function main(): Promise<void> {
     const v = await c.auth.verifyOtp({ email, token: link.data.properties.email_otp, type: 'email' })
     if (v.error) throw new Error(`로그인 실패(${label}): ${v.error.message}`)
     secrets.push(v.data.session?.access_token ?? '', v.data.session?.refresh_token ?? '')
-    const p = await c.from('profiles').insert({ id: ids[label], display_name: `test-66-${label}`, gender: 'other', birth_date: '1995-01-01' })
+    // 앱 가입 경로(personalityCore.createProfileAndAssessment)의 profiles insert와 같은 칸: 017 이후 terms · privacy 동의 시각은 NOT NULL에 default 없음.
+    // (그 함수는 검사 답 5개까지 요구해서 부르지 않고, profiles 칸만 같게 넣는다. 이 시험은 profiles 행만 있으면 된다.)
+    const now = new Date().toISOString()
+    const p = await c.from('profiles').insert({
+      id: ids[label],
+      display_name: `test-66-${label}`,
+      gender: 'other',
+      birth_date: '1995-01-01',
+      terms_agreed_at: now,
+      privacy_agreed_at: now,
+      ai_usage_agreed_at: now,
+    })
     if (p.error) throw new Error(`프로필 생성 실패(${label}): ${errText(p.error)}`)
     dbs[label] = c
   }
