@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 데이트 아카이브 ② 타임라인</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="da-timeline">
+  <div class="ab col run">
+    <span class="kk-ko">데이트 아카이브 · 기사 <span data-slot="@da.articleNo">01</span></span>
+    <span class="kk-ko"><span data-slot="@da.startTime">14:20</span> – <span data-slot="@da.endTime">20:05</span></span>
+  </div>
+  <div class="ab col" style="top:60px;bottom:110px" data-repeat="payload.articles[i].stops">
+    <div style="display:flex;gap:45px;padding-bottom:36px">
+      <div style="width:68px;flex:none">
+        <span style="font-size:12.7px;font-weight:500;letter-spacing:.08em;display:block"
+              data-slot=".time">14:20</span>
+        <span style="font-size:11.5px;display:block;margin-top:10px" data-optional><span
+              data-slot=".placeName">홍대 CGV</span></span>
+        <span class="lbl" style="display:block;margin-top:12px">사진 <span data-slot=".photos.length">1</span></span>
+      </div>
+      <div style="flex:1">
+
+        <!-- 사진 — photos 개수가 배치를 결정한다(§3-1). 렌더러가 변형 하나만 남긴다 -->
+        <div data-variant="photos-0"></div>
+        <div class="ph" data-variant="photos-1" style="height:242px">
+          <img data-src=".photos[0].path" src="../images/sample/da_01.jpg" alt=""></div>
+        <div data-variant="photos-2" style="display:flex;gap:14px;height:230px">
+          <div class="ph" style="flex:1"><img data-src=".photos[0].path" src="../images/sample/da_02.jpg" alt=""></div>
+          <div class="ph" style="flex:1"><img data-src=".photos[1].path" src="../images/sample/da_03.jpg" alt=""></div>
+        </div>
+        <div data-variant="photos-3">
+          <div class="ph" style="height:174px"><img data-src=".photos[0].path" src="../images/sample/da_04.jpg" alt=""></div>
+          <div style="display:flex;gap:14px;height:117px;margin-top:14px">
+            <div class="ph" style="flex:1"><img data-src=".photos[1].path" src="../images/sample/da_05.jpg" alt=""></div>
+            <div class="ph" style="flex:1"><img data-src=".photos[2].path" src="../images/sample/da_06.jpg" alt=""></div>
+          </div>
+        </div>
+
+        <!-- 주인공 활자 — 유저 메모. 있으면 aiCaption은 반드시 null(§2-2) -->
+        <div data-if=".userNotes" style="margin-top:24px">
+          <p class="mb" style="margin:0;font-size:16.7px;line-height:29px"
+             data-slot=".userNotes[0].text">스파이더맨 봤다.<br>서영이는 중간에 졸았음</p>
+          <span class="note" style="display:block;margin-top:14px">— <span
+                data-slot=".userNotes[0].authorName">세준</span>의 메모</span>
+        </div>
+        <!-- 보조 활자 — AI 캡션. 크기 1.6배 · 명도 2단계 낮춤 -->
+        <div data-if=".aiCaption" style="margin-top:22px">
+          <span style="font-size:8.8px;letter-spacing:.1em;color:var(--sub);display:block">AI 캡션</span>
+          <p style="margin:9px 0 0;font-size:10.9px;line-height:1.6;color:var(--sub)"
+             data-slot=".aiCaption">영화가 끝나고 근처에서 저녁</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ab col" style="bottom:62px;display:flex;justify-content:space-between">
+    <span class="note" data-slot="@da.route">홍대 CGV → OO식당 → 연남동 OO카페</span>
+    <span class="note" data-slot="@da.totals">사진 11장 · 메모 2</span>
+  </div>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">0 4</div>
+</body>
+</html>

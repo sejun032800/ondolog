@@ -1,0 +1,9 @@
+/* hip — 기존 발행물 실측(ONDOLOG_Corners_hip_digital.pdf p11)
+   R24-1 정정: 바탕은 #EAF8F0(밝음). #07110D는 이 테마의 잉크이지 바탕이 아니다. */
+html[data-theme="hip"]{
+  --bg:#EAF8F0; --ink:#07110D; --sub:#4C6659; --acc:#0E5C3F;
+  --hair:#0E5C3F; --rule:#C3DFD1;
+  --onPhoto:#EAF8F0;
+  /* 상단 바 — PDF 셰이딩 객체에서 그대로. 기획서 양식 네온그린 팔레트와 일치 */
+  --bar:linear-gradient(90deg,#0E5C3F 0%,#42E695 45%,#2BFF9E 72%,#17EAD9 100%);
+}

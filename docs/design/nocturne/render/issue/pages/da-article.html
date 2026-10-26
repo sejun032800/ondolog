@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 데이트 아카이브 ④ 두 번째 기사</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="da-article">
+  <div class="ab col run">
+    <span class="kk-ko">데이트 아카이브 · 기사 <span data-slot="@da.articleNo">02</span></span>
+    <span class="kk-ko" data-if="payload.articles[i].recalled">그때 그 시절</span>
+  </div>
+  <div class="ab ph" style="left:0;right:0;top:60px;height:348px">
+    <img data-src="payload.articles[i].stops[0].photos[0].path" src="../images/sample/sw_open.jpg" alt="">
+  </div>
+
+  <div class="ab col" style="top:440px;display:flex;align-items:center;gap:16px">
+    <span data-if="payload.articles[i].recalled"
+          style="font-size:10px;font-weight:500;letter-spacing:.06em;color:var(--acc);
+          border:.8px solid var(--acc);border-radius:11px;padding:4px 12px">그때 그 시절</span>
+    <span class="kk" style="font-size:9.1px">Article <span data-slot="@da.articleOrdinalEn">Two</span> · <span data-slot="@da.articleDate">2025.08.20</span></span>
+  </div>
+
+  <div class="ab col" style="top:480px">
+    <h1 class="h-art clamp2" style="font-size:26px;line-height:38px"
+        data-slot="payload.articles[i].title">일 년 전 오늘, 성수동에서</h1>
+    <div style="height:.6px;background:var(--hair);margin-top:26px"></div>
+  </div>
+
+  <div class="ab" style="left:var(--mX);top:566px;width:380px">
+    <!-- R26-4 — anniversary만 "N년 전 이맘때". 나머지는 빈 값이라 라벨째 빠진다 -->
+    <span style="display:block" data-optional>
+      <span class="lbl" style="display:block">다시 실은 이유</span>
+      <span class="note" style="display:block;margin-top:9px"
+            data-slot="payload.articles[i].recallReason">1년 전 이맘때</span>
+    </span>
+    <span class="lbl" style="display:block;margin-top:30px">그날 거친 곳</span>
+    <span class="note" style="display:block;margin-top:9px" data-slot="@da.articleRoute">성수동 서점 → 성수동 골목</span>
+  </div>
+
+  <div class="ab" style="left:491px;right:var(--mX);top:560px">
+    <span class="lbl" style="display:block">그날의 기록</span>
+    <div style="display:flex;gap:40px;margin-top:20px">
+      <span style="flex:1"><span class="num" data-slot="@da.articlePhotoCount">6</span>
+        <span class="lbl" style="display:block;margin-top:9px">사진</span></span>
+      <span style="flex:1"><span class="num" data-slot="@da.articleNoteCount">0</span>
+        <span class="lbl" style="display:block;margin-top:9px">메모</span></span>
+    </div>
+    <div style="display:flex;gap:40px;margin-top:26px">
+      <span style="flex:1"><span class="num" data-slot="@da.articleStopCount">1</span>
+        <span class="lbl" style="display:block;margin-top:9px">경유지</span></span>
+      <span style="flex:1"><span class="num" data-slot="@da.articleCaptionCount">2</span>
+        <span class="lbl" style="display:block;margin-top:9px">AI 캡션</span></span>
+    </div>
+  </div>
+
+  <div class="ab col" style="top:760px" data-optional>
+    <span class="lbl" style="display:block;margin-bottom:16px" data-slot="@da.articlePhotoNote">그날 남은 사진 6장 중 3장</span>
+    <div style="display:flex;gap:17px" data-repeat="@da.articlePhotos">
+      <div style="flex:1">
+        <div class="ph" style="height:150px"><img data-src=".path" src="../images/sample/p_park0.jpg" alt=""></div>
+        <span class="cap" style="display:block" data-optional><span data-slot=".caption">AI 캡션 · 서점 앞에서</span></span>
+      </div>
+    </div>
+  </div>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">0 4</div>
+</body>
+</html>

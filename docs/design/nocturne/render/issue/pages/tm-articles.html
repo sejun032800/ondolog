@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 이달의 우리 ② 소기사</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="tm-articles">
+  <div class="ab col run">
+    <span class="kk-ko">이달의 우리</span>
+    <span class="kk-ko">소기사 <span data-slot="payload.articles.length">4</span>편</span>
+  </div>
+  <!-- articles 개수가 그리드를 결정한다(§3-4). 렌더러가 변형 하나만 남긴다.
+       제목 높이 고정 — 1줄/2줄이 섞여도 본문 시작선이 어긋나지 않게 -->
+  <style>
+    .art-title{min-height:48px}
+    [data-variant="grid-2"] .art-ph{height:333px}
+    [data-variant="grid-3"] .art-ph{height:234px}
+    [data-variant="grid-4"] .art-ph{height:204px}
+  </style>
+
+  <div class="ab col" style="top:60px;bottom:120px">
+    <div data-variant="grid-2" style="display:flex;gap:26px" data-repeat="payload.articles">
+      <div class="art" style="flex:1">
+        <div class="ph art-ph" data-optional><img data-src=".photo" src="../images/sample/tm_01.jpg" alt=""></div>
+        <span class="kk" style="display:block;font-size:9.1px;color:var(--acc);margin-top:16px"
+              data-slot=".seq">01</span>
+        <h3 class="mb clamp2 art-title" style="margin:10px 0 0;font-size:15px;line-height:24px;
+            font-weight:400" data-slot=".title">처음 가본 세 곳</h3>
+        <p class="body-sub clamp4" style="margin:12px 0 0;font-size:11.5px"
+           data-slot=".body">성수동의 작은 서점, 연남동 골목의 카페, 그리고 이름을 아직 적지 않은 식당. 세 곳 모두 두 사람이 이전 호에 남긴 적 없는 장소입니다.</p>
+        <span class="note" style="display:block;margin-top:14px;font-size:9.6px"
+              data-slot=".evidence">근거 · 신규 방문 5곳 · 사진 34장</span>
+      </div>
+    </div>
+    <div data-variant="grid-3" style="display:flex;gap:22px" data-repeat="payload.articles">
+      <div class="art" style="flex:1">
+        <div class="ph art-ph" data-optional><img data-src=".photo" src="../images/sample/tm_01.jpg" alt=""></div>
+        <span class="kk" style="display:block;font-size:9.1px;color:var(--acc);margin-top:16px"
+              data-slot=".seq">01</span>
+        <h3 class="mb clamp2 art-title" style="margin:10px 0 0;font-size:15px;line-height:24px;
+            font-weight:400" data-slot=".title">처음 가본 세 곳</h3>
+        <p class="body-sub clamp4" style="margin:12px 0 0;font-size:11.5px"
+           data-slot=".body">성수동의 작은 서점, 연남동 골목의 카페, 그리고 이름을 아직 적지 않은 식당. 세 곳 모두 두 사람이 이전 호에 남긴 적 없는 장소입니다.</p>
+        <span class="note" style="display:block;margin-top:14px;font-size:9.6px"
+              data-slot=".evidence">근거 · 신규 방문 5곳 · 사진 34장</span>
+      </div>
+    </div>
+    <div data-variant="grid-4" style="display:flex;flex-wrap:wrap;gap:34px 26px" data-repeat="payload.articles">
+      <div class="art" style="flex:0 0 calc(50% - 13px)">
+        <div class="ph art-ph" data-optional><img data-src=".photo" src="../images/sample/tm_01.jpg" alt=""></div>
+        <span class="kk" style="display:block;font-size:9.1px;color:var(--acc);margin-top:16px"
+              data-slot=".seq">01</span>
+        <h3 class="mb clamp2 art-title" style="margin:10px 0 0;font-size:15px;line-height:24px;
+            font-weight:400" data-slot=".title">처음 가본 세 곳</h3>
+        <p class="body-sub clamp4" style="margin:12px 0 0;font-size:11.5px"
+           data-slot=".body">성수동의 작은 서점, 연남동 골목의 카페, 그리고 이름을 아직 적지 않은 식당. 세 곳 모두 두 사람이 이전 호에 남긴 적 없는 장소입니다.</p>
+        <span class="note" style="display:block;margin-top:14px;font-size:9.6px"
+              data-slot=".evidence">근거 · 신규 방문 5곳 · 사진 34장</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ab col" style="bottom:62px">
+    <div class="rule" style="margin-bottom:16px"></div>
+    <span class="body-sub" data-optional><span data-slot="payload.closing">9월에는 아직 가보지 않은 동네가 두 사람의 지도에 남아 있습니다.</span></span>
+  </div>
+  <div class="ab folio folio-r" style="right:var(--mX)" data-slot="@page">0 4</div>
+</body>
+</html>

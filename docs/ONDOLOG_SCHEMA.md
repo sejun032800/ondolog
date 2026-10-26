@@ -1765,6 +1765,7 @@ public.fn_connect_couple(p_invite_code text) returns uuid   -- 026 (66- 1부)
 | 해제 취소 | 개시자만(`42501`) · `executed_at is null`·`cancelled_at is null`인 것만 → `cancelled_at = now()`, `couples.status = 'active'`. 멱등 |
 | 탈퇴 요청 | 로그인 → `profiles.deleted_at = now()`, `purge_scheduled_at = now() + 7 days`. **커플이 `active`면 같은 트랜잭션에서 해제 요청**(사유 = 기존 enum의 탈퇴 값). 이미 요청됐으면 그대로 반환(멱등) |
 | 탈퇴 취소 | 유예 중이면 `deleted_at`·`purge_scheduled_at`을 null로, 탈퇴로 생긴 해제가 있으면 함께 취소 |
+| (027 확정) | **탈퇴로 생긴 해제(사유 `withdrawal`)는 해제 취소 함수로 되돌릴 수 없다**(`22023`) — 탈퇴 취소로만. 탈퇴와 해제는 한 묶음이다(R44-4) |
 | 재검사 완료 | 한 트랜잭션: `retest_used = false`인지 잠그고 확인(아니면 `23505`, "retest already used") → assessment `seq = 2` INSERT → `personality_profiles`의 `active_assessment_id`·추론값·애착·`love_type_code` 갱신, 오버라이드 null, `retest_used = true` → **`profiles.mbti`도 새 검사 값으로**. 결과 값(채점)은 클라이언트가 계산해 넘긴다(결정론 엔진, 절대 규칙 2). **이미 `seq = 2` 행이 있고 `retest_used = false`면 그 행으로 마저 끝낸다**(`67-` 이전 방식으로 끊긴 상태 복구) |
 
 **직접 쓰기 회수**
@@ -1777,6 +1778,9 @@ public.fn_connect_couple(p_invite_code text) returns uuid   -- 026 (66- 1부)
 | `profiles` INSERT | `with check`에 `deleted_at is null and purge_scheduled_at is null` 추가 |
 | `personality_profiles` UPDATE | 칸 단위 — 오버라이드 경로가 쓰는 칸만(`enneagram_override`·`override_updated_at`·`override_count`·`love_type_code`). **`retest_used`·`active_assessment_id`·추론값·애착은 재검사 함수만** |
 | `personality_profiles` INSERT | `with check`에 `retest_used = false` 추가 |
+| `personality_assessments` INSERT (**028**, R44-3) | `with check`에 `seq = 1` 추가 — 재검사 행(`seq = 2`)은 재검사 함수만 만든다. 027에서 열려 있던 구멍(앱이 `seq 2`를 직접 넣으면 복구 경로가 그 값으로 끝남) |
+
+**027 원격 적용·실증 (2026-10-26, `68-`)** — 22건 중 21 통과. ⑱ 재검사 복구는 원격 `love_type_labels` 0행으로 `P0002` → 028(R44-3).
 
 **실증(2부, 사용자 세션 — R42-4).** 해제 요청 → `dissolving` · 유예 7일(서버 시각 기준 ±1분) / 클라이언트가 `purge_scheduled_at`을 넣는 INSERT·UPDATE 거부 / 상대가 진행 중 해제를 봄 / 상대가 취소 시도 `42501` / 개시자 취소 → `active` / 탈퇴 요청 → 프로필 두 칸 + 커플 해제 / 탈퇴 취소 → 원상 / `deleted_at`·동의 시각·`birth_date` 직접 UPDATE 거부 / `onboarding_step` 감소 `22023`·증가 허용 / 재검사 함수: 정상 · 두 번째 `23505` · 끊긴 상태 복구 · `profiles.mbti` 갱신 / `retest_used` 직접 UPDATE 거부 / 마케팅 동의 켜기·끄기(칸 단위로 허용). 권한·보안 점검 원문 JSON(R34-4).
 

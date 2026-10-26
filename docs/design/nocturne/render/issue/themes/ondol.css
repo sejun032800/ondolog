@@ -1,0 +1,6 @@
+/* ondol — 기존 발행물 실측(ONDOLOG_Corners_ondol_digital.pdf p11) */
+html[data-theme="ondol"]{
+  --bg:#F0EBDE; --ink:#1F1B18; --sub:#8E8474; --acc:#6B6055;
+  --hair:#6B6055; --rule:#CFC6B4;
+  --onPhoto:#F0EBDE;
+}

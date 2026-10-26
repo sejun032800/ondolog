@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 다정한 말들 오프너</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="sw-opener">
+  <div class="ab col run">
+    <span class="kk-ko">다정한 말들</span>
+    <span class="kk-ko"></span>
+  </div>
+  <!-- 침묵면(§3-3). @sw.openerPhoto 가 비면 렌더러가 type-only 를 남긴다.
+       사진이 없을 때 밝은 활자를 밝은 바탕에 두지 않기 위한 변형이다. -->
+  <div data-variant="with-photo">
+    <div class="ab ph" style="left:0;right:0;top:60px;height:1063px">
+      <img data-src="@sw.openerPhoto" src="../images/sample/sw_open.jpg" alt="">
+    </div>
+    <div class="ab" style="left:0;right:0;bottom:0;height:420px;
+         background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.28))"></div>
+    <div class="ab col" style="bottom:120px;color:var(--onPhoto)">
+      <h1 class="mb" style="font-size:30px;line-height:44px;font-weight:300"
+          data-slot="header.title">이달의 다정한 말들</h1>
+      <span style="display:block;margin-top:18px;font-size:11px;letter-spacing:.04em;opacity:.78">
+        <span data-optional>다정 지수 <span data-slot="payload.warmthIndex">72</span> · </span><span
+            data-slot="header.periodLabel">2026년 8월</span></span>
+    </div>
+  </div>
+
+  <div data-variant="type-only">
+    <div class="ab col" style="top:300px">
+      <div class="rule-heavy" style="width:120px;height:2px;background:var(--acc)"></div>
+      <h1 class="mb" style="margin-top:40px;font-size:40px;line-height:60px;font-weight:300;
+          color:var(--ink)" data-slot="header.title">이달의 다정한 말들</h1>
+      <span class="lbl" style="display:block;margin-top:26px">
+        <span data-optional>다정 지수 <span data-slot="payload.warmthIndex">72</span> · </span><span
+            data-slot="header.periodLabel">2026년 8월</span></span>
+    </div>
+  </div>
+  <div class="ab folio folio-r" style="right:var(--mX)" data-slot="@page">0 4</div>
+</body>
+</html>
