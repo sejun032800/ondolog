@@ -62,7 +62,32 @@ interface Write {
 class FakeDb {
   tables: Record<string, Row[]> = {}
   writes: Write[] = []
+  rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = []
+  failNextRpc: { code: string } | null = null
+  rpcRecovered = false
   failNextInsert: { code: string } | null = null
+
+  /** 027 fn_complete_retest의 효과를 흉내낸다(서버 쪽 한 트랜잭션) - 앱의 직접 쓰기 기록(`writes`)에는 남지 않는다. */
+  rpc(fn: string, args: Record<string, unknown>) {
+    this.rpcCalls.push({ fn, args })
+    if (this.failNextRpc) {
+      const error = this.failNextRpc
+      this.failNextRpc = null
+      return Promise.resolve({ data: null, error })
+    }
+    const assessments = (this.tables.personality_assessments ??= [])
+    const row = { id: `a${assessments.length + 1}`, user_id: ME, seq: 2, mbti: args.p_mbti, attachment: args.p_attachment, enneagram_core: args.p_enneagram_core }
+    assessments.push(row)
+    Object.assign(this.tables.personality_profiles[0], {
+      active_assessment_id: row.id,
+      enneagram_inferred: args.p_enneagram_core,
+      attachment: args.p_attachment,
+      enneagram_override: null,
+      love_type_code: args.p_love_type_code,
+      retest_used: true,
+    })
+    return Promise.resolve({ data: [{ out_assessment_id: row.id, out_recovered: this.rpcRecovered }], error: null })
+  }
 
   from(table: string) {
     const db = this
@@ -106,6 +131,7 @@ class FakeDb {
       delete: () => ((op = 'delete'), api),
       eq: (k: string, v: unknown) => (filters.push((r) => r[k] === v), api),
       or: () => api,
+      is: () => api,
       in: () => api,
       order: () => api,
       limit: () => api,
@@ -121,6 +147,7 @@ const mockSignOut = jest.fn(async () => ({ error: null }))
 jest.mock('../../src/services/supabase', () => ({
   supabase: {
     from: (table: string) => mockDb.from(table),
+    rpc: (fn: string, args: Record<string, unknown>) => mockDb.rpc(fn, args),
     auth: { signOut: () => mockSignOut() },
   },
 }))
@@ -195,27 +222,15 @@ function connectStore() {
 
 /** 쓰는 칸 표(R42-6) - 이 시험이 보는 쓰기가 이 밖에 닿으면 실패한다. */
 const ALLOWED_UPDATE_COLUMNS: Record<string, string[]> = {
-  profiles: ['display_name', 'gender'],
+  profiles: ['display_name', 'gender', 'marketing_agreed_at'],
   couples: ['relationship_start_date', 'start_date_set_by', 'start_date_confirmed_by', 'nickname'],
-  personality_profiles: [
-    'active_assessment_id',
-    'enneagram_inferred',
-    'attachment',
-    'enneagram_override',
-    'love_type_code',
-    'retest_used',
-    'override_count',
-    'override_updated_at',
-  ],
+  personality_profiles: ['enneagram_override', 'love_type_code', 'override_count', 'override_updated_at'],
 }
 
 function expectWritesInsideTable() {
   for (const w of mockDb.writes) {
     expect(w.op).not.toBe('delete')
-    if (w.op === 'insert') {
-      expect(w.table).toBe('personality_assessments')
-      continue
-    }
+    expect(w.op).not.toBe('insert')
     expect(ALLOWED_UPDATE_COLUMNS[w.table]).toBeDefined()
     for (const c of Object.keys(w.payload ?? {})) expect(ALLOWED_UPDATE_COLUMNS[w.table]).toContain(c)
   }
@@ -355,25 +370,29 @@ describe('H03 프로필', () => {
     removeItem.mockRestore()
   })
 
-  it('회원 탈퇴 · 사진 바꾸기는 그리지 않는다', async () => {
+  it('[회원 탈퇴]는 탈퇴 요청 화면으로 간다 - 사진 바꾸기는 그리지 않는다', async () => {
     await render(<SettingsProfileScreen />)
     await settle()
-    expect(screen.queryByText('회원 탈퇴')).toBeNull()
+    await fireEvent.press(screen.getByTestId('profile-withdraw'))
+    expect(mockPush).toHaveBeenCalledWith('/settings-withdraw')
     expect(screen.queryByText('사진 바꾸기')).toBeNull()
+    expect(mockDb.writes).toEqual([])
   })
 })
 
 // ── H04 커플 ──
 
 describe('H04 커플', () => {
-  it('연결 상태와 사귄 날짜 · 닉네임 줄이 보이고 [연결 해제]는 없다', async () => {
+  it('연결 상태와 사귄 날짜 · 닉네임 줄이 보이고 [연결 해제]는 확인 화면으로 간다', async () => {
     await render(<SettingsCoupleScreen />)
     await settle()
     expect(screen.getByTestId('couple-status').props.children).toBe('서영과 연결됨')
     expect(screen.getByTestId('couple-since').props.children).toMatch(/^D\+\d+ · 2025\.12\.27부터$/)
     expect(screen.getByText('2025.12.27 →')).toBeTruthy()
     expect(screen.getByText('늘봄 →')).toBeTruthy()
-    expect(screen.queryByText(/연결 해제/)).toBeNull()
+    await fireEvent.press(screen.getByTestId('couple-unlink'))
+    expect(mockPush).toHaveBeenCalledWith('/settings-unlink')
+    expect(mockDb.writes).toEqual([])
   })
 
   it('사귄 날짜를 고치면 한 번의 UPDATE에 날짜 · set_by = 나 · confirmed_by = null이 같이 들어간다', async () => {
@@ -602,56 +621,63 @@ describe('재검사 길', () => {
     expect(mockPush).toHaveBeenCalledWith('/love-quiz?retest=1')
   })
 
-  it('A07 마지막 문항 뒤 새 assessment를 INSERT하고 이전 행은 그대로, 프로필은 한 번의 UPDATE, 그리고 H05로 돌아간다', async () => {
+  it('A07 마지막 문항 뒤 함수 한 번을 부르고(테이블 직접 쓰기 0), H05로 돌아간다', async () => {
     mockParams = { retest: '1' }
     useSessionStore.getState().setMbtiSelfReported('INFJ')
     const before = { ...mockDb.tables.personality_assessments[0] }
     await render(<LoveQuizScreen />)
     await answerAll()
-    const inserts = mockDb.writes.filter((w) => w.op === 'insert')
-    const updates = mockDb.writes.filter((w) => w.op === 'update')
-    expect(inserts).toHaveLength(1)
-    expect(inserts[0].payload).toMatchObject({ user_id: ME, seq: 2, mbti: 'INFJ' })
-    expect(updates).toHaveLength(1)
-    expect(Object.keys(updates[0].payload ?? {}).sort()).toEqual(
-      ['active_assessment_id', 'attachment', 'enneagram_inferred', 'enneagram_override', 'love_type_code', 'retest_used'].sort(),
-    )
-    expect(updates[0].payload).toMatchObject({ enneagram_override: null, retest_used: true })
-    expect(mockDb.writes.some((w) => w.op === 'delete')).toBe(false)
-    expect(mockDb.tables.personality_assessments).toHaveLength(2)
+    expect(mockDb.rpcCalls).toHaveLength(1)
+    expect(mockDb.rpcCalls[0].fn).toBe('fn_complete_retest')
+    expect(mockDb.rpcCalls[0].args).toMatchObject({ p_mbti: 'INFJ', p_q1: 'A', p_q5: 'A' })
+    expect(mockDb.writes).toEqual([])
     expect(mockDb.tables.personality_assessments[0]).toEqual(before)
-    expect(mockDb.tables.personality_profiles[0].active_assessment_id).toBe(mockDb.tables.personality_assessments[1].id)
+    expect(mockDb.tables.personality_profiles[0]).toMatchObject({ retest_used: true, enneagram_override: null })
     expectWritesInsideTable()
     expect(mockDismissTo).toHaveBeenCalledWith('/settings-personality')
     expect(mockPush).not.toHaveBeenCalledWith('/result-brief') // A08 간략 결과로 가지 않는다
     expect(useSessionStore.getState().q1).toBeNull() // 메모리 답은 비운다
   })
 
-  it('재검사 INSERT의 23505는 실패다 - 프로필은 그대로이고, 돌아가기만 보인다(다시 시도 없음)', async () => {
+  it('함수가 23505(이미 사용)로 답하면 이미 사용 처리 - 돌아가기만 보인다(다시 시도 없음)', async () => {
     mockParams = { retest: '1' }
     useSessionStore.getState().setMbtiSelfReported('INFJ')
-    mockDb.failNextInsert = { code: '23505' }
+    mockDb.failNextRpc = { code: '23505' }
     await render(<LoveQuizScreen />)
     await answerAll()
-    expect(screen.getByText('이미 재검사 기록이 있어요.')).toBeTruthy()
+    expect(screen.getByText('재검사는 계정당 한 번이에요.')).toBeTruthy()
     expect(screen.queryByTestId('retest-retry')).toBeNull()
     expect(screen.getByTestId('retest-back')).toBeTruthy()
-    expect(mockDb.writes.filter((w) => w.op === 'update')).toEqual([])
+    expect(mockDb.writes).toEqual([])
     expect(mockDb.tables.personality_profiles[0].retest_used).toBe(false)
     expect(mockDismissTo).not.toHaveBeenCalled()
   })
 
-  it('다른 오류로 실패하면 [다시 시도]가 있고, 다시 누르면 같은 답으로 저장한다', async () => {
+  it('다른 오류로 실패하면 [다시 시도]가 있고, 다시 누르면 같은 답으로 함수를 다시 부른다', async () => {
     mockParams = { retest: '1' }
     useSessionStore.getState().setMbtiSelfReported('INFJ')
-    mockDb.failNextInsert = { code: '08006' }
+    mockDb.failNextRpc = { code: '08006' }
     await render(<LoveQuizScreen />)
     await answerAll()
     expect(screen.getByText('저장하지 못했어요. 다시 시도해주세요.')).toBeTruthy()
     await fireEvent.press(screen.getByTestId('retest-retry'))
     await settle()
-    expect(mockDb.tables.personality_assessments).toHaveLength(2)
+    expect(mockDb.rpcCalls).toHaveLength(2)
+    expect(mockDb.rpcCalls[1].args).toEqual(mockDb.rpcCalls[0].args)
     expect(mockDb.tables.personality_profiles[0].retest_used).toBe(true)
+    expect(mockDismissTo).toHaveBeenCalledWith('/settings-personality')
+  })
+
+  it('끊긴 상태를 함수가 기존 행으로 마저 끝냈으면(recovered) 안내 화면을 먼저 보이고, [확인]으로 H05로 간다', async () => {
+    mockParams = { retest: '1' }
+    useSessionStore.getState().setMbtiSelfReported('INFJ')
+    mockDb.rpcRecovered = true
+    await render(<LoveQuizScreen />)
+    await answerAll()
+    expect(screen.getByTestId('retest-recovered-note')).toBeTruthy()
+    expect(mockDismissTo).not.toHaveBeenCalled()
+    expect(mockReplace).not.toHaveBeenCalled() // 비워진 메모리를 "처음부터"로 오해해 되돌리지 않는다
+    await fireEvent.press(screen.getByTestId('retest-recovered-ok'))
     expect(mockDismissTo).toHaveBeenCalledWith('/settings-personality')
   })
 
@@ -667,7 +693,7 @@ describe('재검사 길', () => {
 // ── H11 ──
 
 describe('H11 개인정보 & 약관', () => {
-  it('개인정보 처리방침 · 이용약관 · AI 활용 안내가 A12 약관 시트를 연다 - 생체정보 · 내려받기 · 마케팅 줄은 없다', async () => {
+  it('개인정보 처리방침 · 이용약관 · AI 활용 안내가 A12 약관 시트를 연다 - 생체정보 · 내려받기 줄은 없다', async () => {
     await render(<SettingsPrivacyScreen />)
     expect(screen.getByText('개인정보 처리방침')).toBeTruthy()
     for (const [id, key] of [
@@ -681,7 +707,6 @@ describe('H11 개인정보 & 약관', () => {
     }
     expect(screen.queryByText(/생체정보/)).toBeNull()
     expect(screen.queryByText(/내려받기/)).toBeNull()
-    expect(screen.queryByText(/마케팅/)).toBeNull()
     expect(mockDb.writes).toEqual([])
   })
 })

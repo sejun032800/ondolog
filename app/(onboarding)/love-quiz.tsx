@@ -8,7 +8,7 @@
  * 진행 선은 정지 상태로 그린다(채움 애니메이션 금지).
  */
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { ChoiceCard } from '../../src/components/onboarding/ChoiceCard'
 import { OnboardingScreen, StepCounter } from '../../src/components/onboarding/OnboardingScreen'
@@ -35,10 +35,28 @@ export default function LoveQuizScreen() {
   const setQuizAnswer = useSessionStore((s) => s.setQuizAnswer)
   const computeResult = useSessionStore((s) => s.computeResult)
   const [index, setIndex] = useState(0)
+  const [recoveredNotice, setRecoveredNotice] = useState(false)
+  /** 재검사 저장 중 - 성공하면 메모리 답이 비워지는데, 그것을 "처음부터"로 오해해 되돌리지 않는다. */
+  const savingRef = useRef(false)
 
   useEffect(() => {
-    if (!mbti) router.replace((retest ? '/mbti?retest=1' : '/mbti') as never)
-  }, [mbti, router, retest])
+    if (!mbti && !recoveredNotice && !savingRef.current) router.replace((retest ? '/mbti?retest=1' : '/mbti') as never)
+  }, [mbti, router, retest, recoveredNotice])
+
+  const goBackToPersonality = () => router.dismissTo('/settings-personality' as never)
+
+  if (retest && recoveredNotice) {
+    return (
+      <OnboardingScreen
+        title={'이전에 하던 재검사를 마저 저장했어요'}
+        footer={<PrimaryButton label="확인" onPress={goBackToPersonality} testID="retest-recovered-ok" />}
+      >
+        <Text style={styles.recoveredNote} testID="retest-recovered-note">
+          방금 답한 내용과 저장된 결과가 다를 수 있어요. 성격 프로필에서 확인해주세요.
+        </Text>
+      </OnboardingScreen>
+    )
+  }
 
   if (!mbti) return null
 
@@ -60,12 +78,15 @@ export default function LoveQuizScreen() {
     else router.push('/result-brief')
   }
 
-  const goBackToPersonality = () => router.dismissTo('/settings-personality' as never)
-
   const saveRetest = async () => {
     const userId = session?.user.id
     if (!userId) return
-    if (await finalize.run(userId)) goBackToPersonality()
+    // 복구된 경우(끊겼던 재검사를 서버가 마저 끝냄)에는 알림 화면을 먼저 보인다 - 저장된 결과가 방금 답한 것과 다를 수 있다.
+    savingRef.current = true
+    const done = await finalize.run(userId)
+    if (!done) savingRef.current = false
+    if (done === 'recovered') setRecoveredNotice(true)
+    else if (done) goBackToPersonality()
   }
 
   if (retest && (finalize.phase === 'saving' || finalize.phase === 'error')) {
@@ -122,5 +143,6 @@ const styles = StyleSheet.create({
   fill: { height: 2, borderRadius: 2, backgroundColor: nocturne.text },
   prompt: { ...type.display, color: nocturne.text, marginTop: 8 },
   cards: { marginTop: 32, gap: 12 },
+  recoveredNote: { ...type.body, color: nocturne.textSub },
   footnote: { ...type.sub, color: nocturne.textMute, textAlign: 'center' },
 })

@@ -7,6 +7,7 @@ import {
   performLogout as performLogoutCore,
   retestPersonality as retestPersonalityCore,
   updateCoupleNickname as updateCoupleNicknameCore,
+  updateMarketingConsent as updateMarketingConsentCore,
   updateProfileBasics as updateProfileBasicsCore,
   updateStartDateByMe as updateStartDateByMeCore,
   type RetestInput,
@@ -27,6 +28,9 @@ export const updateCoupleNickname = (coupleId: string, nickname: string) =>
   updateCoupleNicknameCore(supabase, coupleId, nickname)
 
 export const retestPersonality = (userId: string, input: RetestInput) => retestPersonalityCore(supabase, userId, input)
+
+export const updateMarketingConsent = (userId: string, agreed: boolean) =>
+  updateMarketingConsentCore(supabase, userId, agreed)
 
 export const performLogout = (resetMemory: () => void) =>
   performLogoutCore({ resetMemory, signOut: () => supabase.auth.signOut() })

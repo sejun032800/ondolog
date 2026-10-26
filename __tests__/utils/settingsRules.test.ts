@@ -20,7 +20,7 @@ describe('설정 목록 표', () => {
   it('숨긴 항목은 목록에 없다', () => {
     for (const hidden of HIDDEN_SETTINGS_ITEMS) expect(labels).not.toContain(hidden.label)
     expect(HIDDEN_SETTINGS_ITEMS.map((h) => h.label)).toEqual(
-      expect.arrayContaining(['구독', '알림', '앱 정보 · 문의', '데이터 내려받기 · 삭제', '[연결 해제]', '[회원 탈퇴]', '생체정보(얼굴 인식) 동의']),
+      expect.arrayContaining(['구독', '알림', '앱 정보 · 문의', '데이터 내려받기 · 삭제', '생체정보(얼굴 인식) 동의']),
     )
   })
 

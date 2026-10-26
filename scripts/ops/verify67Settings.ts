@@ -1,6 +1,8 @@
 /**
  * U7 설정 필수 1부 실증 (`67-`) - 원격 **개발** DB에서 두 시험 계정이 각자 **사용자 권한**으로 설정 탭의 쓰기 경로를 앱과 같은 함수로 부른다 (Deno 전용).
  *
+ * `68-` 주: 재검사(⑤ · ⑥)는 027 `fn_complete_retest` 함수 호출로 바뀌어 **027 적용 뒤에만** 맞다(적용 전 원격에는 함수가 없다). 나머지 단계는 `verify68Regression.ts`가 027 뒤 기준으로 따로 본다.
+ *
  * **이 파일은 쓰기만 하고 실행하지 않는다(R42-4).** 실행은 사람이 한다 - 에이전트는 원격에 아무것도 쓰지 않았다.
  *
  * 대상 커플: `test-66-` 두 계정 커플(`66-` 실증이 A20까지 끝낸 active 커플, 가장 최근 것). 사용자 세션을 얻지 못하거나 쓸 만한 커플이 없으면
@@ -38,6 +40,7 @@ import {
   updateCoupleNickname,
   updateProfileBasics,
   updateStartDateByMe,
+  type RetestDb,
   type SettingsDb,
 } from '../../src/services/settingsCore.ts'
 import { addDays, kstToday } from '../../src/utils/magazine.ts'
@@ -372,16 +375,16 @@ async function main(): Promise<void> {
     check(ppBefore.retest_used === false, '재검사 전 retest_used = false')
     const input = { mbti: 'ENFP' as const, mbtiSelfReported: true, q1: 'C' as const, q2: 'C' as const, q3: 'A' as const, q4: 'C' as const, q5: 'A' as const }
     const result = inferLoveType(input)
-    const { assessment, profile } = await retestPersonality(A.client as SettingsDb, A.id, { ...input, result })
+    const { assessmentId } = await retestPersonality(A.client as unknown as RetestDb, A.id, { ...input, result }) // 68-: 027 fn_complete_retest 호출 하나
     const asAfter = await assessments(A.id)
-    check(asAfter.length === 2 && asAfter[1].seq === 2 && asAfter[1].id === assessment.id, `assessment ${asAfter.length}행, 새 행 seq ${asAfter[1]?.seq ?? '-'}`)
+    check(asAfter.length === 2 && asAfter[1].seq === 2 && asAfter[1].id === assessmentId, `assessment ${asAfter.length}행, 새 행 seq ${asAfter[1]?.seq ?? '-'}`)
     check(JSON.stringify(asAfter[0]) === JSON.stringify(asBefore[0]), '이전 assessment 행이 JSON 그대로(지워지지도 고쳐지지도 않았다)')
     const ppAfter = await ppRow(A.id)
-    check(ppAfter?.active_assessment_id === assessment.id, 'active_assessment_id = 새 행')
+    check(ppAfter?.active_assessment_id === assessmentId, 'active_assessment_id = 새 행')
     check(ppAfter?.enneagram_override === null, `enneagram_override = null (이전 ${ppBefore.enneagram_override ?? 'null'})`)
     check(ppAfter?.enneagram_inferred === result.enneagramCore && ppAfter?.attachment === result.attachment, `추론 코어 ${result.enneagramCore} · 애착 ${result.attachment} = 새 결과`)
     check(ppAfter?.enneagram_effective === result.enneagramCore, `실효 코어(서버 생성 칸) = 새 추론값 ${ppAfter?.enneagram_effective ?? '-'}`)
-    check(ppAfter?.love_type_code === computeLoveTypeCode(result.enneagramCore, result.attachment) && profile.love_type_code === ppAfter?.love_type_code, `love_type_code = 새 결과 기준: ${ppBefore.love_type_code} -> ${ppAfter?.love_type_code}`)
+    check(ppAfter?.love_type_code === computeLoveTypeCode(result.enneagramCore, result.attachment), `love_type_code = 새 결과 기준: ${ppBefore.love_type_code} -> ${ppAfter?.love_type_code}`)
     check(ppAfter?.retest_used === true, 'retest_used = true')
     const changed = ppAfter ? changedColumns(ppBefore, ppAfter, ['updated_at', 'enneagram_effective']) : ['(읽기 실패)']
     const allowed = ['active_assessment_id', 'enneagram_inferred', 'attachment', 'enneagram_override', 'love_type_code', 'retest_used']
@@ -402,7 +405,7 @@ async function main(): Promise<void> {
     // 앱 쓰기 함수도 같은 판정으로 서버에 아무것도 보내기 전에 거절한다.
     let kind = ''
     try {
-      await retestPersonality(A.client as SettingsDb, A.id, {
+      await retestPersonality(A.client as unknown as RetestDb, A.id, {
         mbti: 'INFJ',
         mbtiSelfReported: true,
         q1: 'A',

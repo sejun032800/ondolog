@@ -74,9 +74,6 @@ export const HIDDEN_SETTINGS_ITEMS: readonly { label: string; reason: string }[]
   { label: '앱 정보 · 문의', reason: 'H19 - 지시서 범위 밖' },
   { label: '매거진 - 빠진 지면 기본값', reason: 'H18 - 지시서 범위 밖' },
   { label: '생체정보(얼굴 인식) 동의', reason: 'H12 - 지시서가 숨기라고 함(설정 목록 · H11 모두)' },
-  { label: '마케팅 정보 수신', reason: 'H11 보드 토글 - 동의 시각 칸을 써야 해서 지시서 쓰는 칸 밖' },
-  { label: '[연결 해제]', reason: 'H14 - `68-`' },
-  { label: '[회원 탈퇴]', reason: 'H16 - `68-`' },
   { label: '사진 바꾸기', reason: 'H03 보드 - 지시서 범위 밖(프로필 사진 칸 없음)' },
   { label: '테마(라이트/다크)', reason: '옛 화면 항목 - 보드에 없음' },
 ]

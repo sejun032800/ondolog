@@ -33,6 +33,31 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## U7 해제 · 탈퇴 앱 (`68-` 1부, 2026-10-26, ui-builder) - 원격 미적용(027 대기), 회귀 스크립트 작성만, 실기기 미확인
+- 내부 결정: **연결 해제 문구**는 보드 · MASTER에 없어 H16 보드 형식으로 `연결 해제합니다`로 정함(`src/utils/dissolution.ts` `UNLINK_PHRASE`) - PM이 다른 문구를 원하면 한 줄. 탈퇴 문구는 보드 `탈퇴합니다`.
+- 내부 결정: **상대가 해제를 처음 보는 곳** = 탭이 열릴 때 · 앱 복귀 때 `useDissolutionNotice`가 상대(개시자 아님)에게 커플 화면(`/settings-couple`)을 한 번 푸시(해제 id당 앱을 켠 동안 한 번). 설정 > 연인 줄로 언제든 다시 본다. 푸시 알림 없음.
+- 내부 결정: 상대 쪽 유예 화면은 보드가 없어 개시자 화면에서 [취소]를 뺀 형태 + 문장만 상대 시점(`서영님이 연결 해제를 요청했어요`, 탈퇴로 생긴 해제는 `탈퇴를 요청했어요`). 탈퇴로 생긴 해제(reason = withdrawal)는 개시자 화면에도 [취소]를 두지 않는다(027 22023, 탈퇴 취소로만 되돌림).
+- 내부 결정: 탈퇴 유예 화면(`withdraw-cancel`)은 보드가 없어 H14 유예 화면 형식 + [로그아웃] 보조 버튼(나갈 길이 없으면 갇힘 - 보드에 없는 추가이니 PM 확인). 취소 뒤 `resolveResumePath`로 원래 진행 단계.
+- 내부 결정: 해제 요청 화면은 보드가 없어 `settings-unlink` 한 화면 안에서 안내 -> 문구 입력 두 단계(H04 힌트 · H14 · H16 문장 재사용). PDF 저장 안내 줄은 매거진 탭으로 간다(`pdf_print_path` 참조 없음).
+- 내부 결정: 재검사 복구(`out_recovered = true`)는 안내 화면 `이전에 하던 재검사를 마저 저장했어요 / 방금 답한 내용과 저장된 결과가 다를 수 있어요` + [확인] -> H05.
+- 내부 결정: 남은 날짜는 서버 `purge_scheduled_at`의 KST 달력 날짜 차이(요청 직후 7일), 0이면 `오늘`. 보드의 "밤 12시"는 서버 값(요청 시각 + 7일)과 맞지 않아 날짜만 쓴다.
+- 내부 결정: H16 보드의 "남는 것" 두 줄 · "연결도 함께 해제돼요"는 커플일 때만 그린다.
+- 생체정보 진입점(§5): 조사 0-a대로 앱 코드에 `biometric-consent` · `reference-photo`로 가는 router 호출 · 링크가 없어 숨길 것이 없었다(화면 파일 그대로, 딥링크로만 닿음).
+- `src/types/database.ts` Functions에 027 함수 5개를 수동으로 더함(생성 파일이라 원격 적용 뒤 타입 재생성하면 같은 모양으로 덮인다). `scripts/ops/verify67Settings.ts`의 재검사 단계는 새 함수 시그니처로 맞췄고 **027 적용 뒤에만** 맞다.
+- 열린 문제(027 파일 - 고치지 않음): `fn_complete_retest` 복구 경로는 원격 `love_type_labels`가 0행이라 라벨 시드 전에는 P0002(db-architect 보고와 같음). 앱은 그 경우 `failed`(다시 시도)로 보인다.
+- `51-` 실기기 확인에 더할 것: 25가지 + "연결 해제 요청 -> 양쪽 유예 화면 -> 개시자 취소" + "회원 탈퇴 -> 유예 중 다시 로그인 -> 탈퇴 취소" = **27가지**.
+
+## 해제 · 탈퇴 · 재검사 027 (`68-` 1부, 2026-10-26, db-architect) - 작성만, 원격 미적용 · 미실행
+- 내부 결정(SCHEMA 9-G 표에 없던 것, 마이그레이션 주석에도 있음): 함수 이름 `fn_request_dissolution` · `fn_cancel_dissolution(uuid)` · `fn_request_withdrawal` · `fn_cancel_withdrawal` · `fn_complete_retest(21인자)`, 트리거 함수 `tg_profiles_onboarding_step_guard`.
+- 해제 요청은 couples를 active · dissolving에서 잠근다 - 진행 중 해제가 있으면 23505, 아니면 active가 아닐 때 P0002(표 그대로 active만 잠그면 재요청이 23505가 아니라 P0002가 된다).
+- 해제 취소: 개시자 확인(42501)이 멱등 확인보다 앞, 이미 취소됨은 조용히 반환, 이미 실행됨은 22023, **탈퇴로 생긴 해제(reason withdrawal)는 22023으로 거부**(탈퇴는 그대로인데 커플만 active로 돌아가는 불일치 방지 - 탈퇴 취소 몫). PM 확인 필요.
+- 탈퇴 요청: 커플이 dissolving이면 새 해제를 만들지 않는다. 반환 = purge_scheduled_at. 탈퇴 취소: 유예가 끝났으면(purge_scheduled_at <= now) 22023, 탈퇴로 생긴 진행 중 해제만 취소하고 직접 요청한 unlink 해제는 둔다.
+- 재검사 반환 = (out_assessment_id, out_recovered). out_recovered true = 기존 seq 2 행으로 마저 끝냄(인자 무시). 복구 경로의 love_type_code는 `love_type_labels`(enneagram_core, attachment)에서 읽는다 - **원격 개발 love_type_labels가 0행이라(016은 적용 기록 있음) 복구 경로는 라벨을 다시 넣기 전에는 P0002.** 정상 경로는 라벨 표를 읽지 않는다. 재검사는 `override_count` · `override_updated_at`을 건드리지 않는다(옛 앱 코드와 같음).
+- `personality_assessments`의 INSERT 정책은 그대로라 클라이언트가 seq 2를 직접 넣을 수 있다(그 뒤 함수 복구 경로가 그 값으로 끝낸다). 9-G가 요구하지 않아 안 막았다.
+- `marketing_agreed_at`은 칸 단위로 열었지만 앱이 UPDATE하는 곳은 아직 없다(설정 화면 몫).
+- 앱 쪽 전환(ui-builder 몫): `src/services/settingsCore.ts` `retestPersonality`(직접 INSERT + UPDATE) -> `fn_complete_retest`. 027 적용 뒤 옛 UPDATE는 거부된다. 해제 · 탈퇴 화면은 함수 호출.
+- 조사: 생체동의 화면(`biometric-consent` · `reference-photo`)으로 가는 앱 내 진입점 코드는 없다(파일 기반 라우트라 딥링크로만 닿음). 생성 파이프라인은 MBTI를 읽지 않는다. `generateIssue.ts:155`가 active만 허용, `fn_publish_issue`도 active만(022:123). `scripts/ops`에서 onboarding_step을 낮추는 곳 없음.
+
 ## U7 설정 필수 1부 (`67-`, 2026-10-26, ui-builder) - 원격 실증 스크립트 작성만(실행은 사람), 실기기 미확인
 
 내부 결정(항목당 한 줄):

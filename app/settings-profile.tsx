@@ -5,7 +5,7 @@
  * **생년월일은 읽기 전용**이다 - 가입 때 만 14세 확인을 거친 값이라 입력도 쓰기 호출도 없다. 연결된 소셜 계정은 읽기로 보여 준다.
  * [로그아웃]은 메모리 스토어를 비우고 세션을 끝낸다. 기기에 저장된 채팅 큐는 지우지 않는다(R39-5 b, `performLogout`).
  *
- * 보드에서 뺀 것(지시서 범위 밖): 프로필 사진 "사진 바꾸기"(프로필 사진 칸 없음), [회원 탈퇴](`68-`).
+ * [회원 탈퇴]는 `68-`에서 되살렸다(`settings-withdraw`). 보드에서 뺀 것(지시서 범위 밖): 프로필 사진 "사진 바꾸기"(프로필 사진 칸 없음).
  */
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
@@ -18,6 +18,7 @@ import { useSession } from '../src/hooks/useSession'
 import { fetchProfile } from '../src/services/personalityApi'
 import { performLogout, updateProfileBasics } from '../src/services/settingsApi'
 import { useCoupleStore } from '../src/store/coupleStore'
+import { useDissolutionStore } from '../src/store/dissolutionStore'
 import { useProfileStore } from '../src/store/profileStore'
 import { fontFamily, nocturne, shape, type } from '../src/theme/nocturne'
 import { dotDate, DISPLAY_NAME_MAX, GENDER_OPTIONS, isValidDisplayName, socialProviderLabel } from '../src/utils/settingsRules'
@@ -33,6 +34,7 @@ const COPY = {
   birthLabel: '생년월일',
   socialLabel: '연결된 계정',
   logout: '로그아웃',
+  withdraw: '회원 탈퇴',
   saveFailed: '저장하지 못했어요. 다시 시도해주세요.',
   loadFailed: '불러오지 못했어요. 다시 시도해주세요.',
   nameInvalid: `이름은 1자 이상 ${DISPLAY_NAME_MAX}자 이하로 써주세요`,
@@ -44,6 +46,7 @@ export default function SettingsProfileScreen() {
   const userId = session?.user.id ?? null
   const resetCouple = useCoupleStore((s) => s.reset)
   const resetProfile = useProfileStore((s) => s.reset)
+  const resetDissolution = useDissolutionStore((s) => s.reset)
 
   const [loaded, setLoaded] = useState<{ name: string; gender: Gender; birthDate: string } | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -105,6 +108,7 @@ export default function SettingsProfileScreen() {
       await performLogout(() => {
         resetCouple()
         resetProfile()
+        resetDissolution()
       })
     } finally {
       router.replace('/')
@@ -175,6 +179,7 @@ export default function SettingsProfileScreen() {
 
       <ListGroup>
         <ListRow label={COPY.logout} onPress={logout} testID="profile-logout" />
+        <ListRow label={COPY.withdraw} onPress={() => router.push('/settings-withdraw' as never)} testID="profile-withdraw" />
       </ListGroup>
 
       {error ? (

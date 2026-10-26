@@ -7,27 +7,25 @@
  *   profiles               display_name · gender                                        (`updateProfileBasics`)
  *   couples                relationship_start_date · start_date_set_by · start_date_confirmed_by   (`updateStartDateByMe`)
  *   couples                nickname                                                     (`updateCoupleNickname`)
- *   personality_assessments  재검사 새 행 INSERT(seq 2)                                   (`retestPersonality`)
- *   personality_profiles   active_assessment_id · enneagram_inferred · attachment · enneagram_override · love_type_code · retest_used
- *                                                                                       (`retestPersonality`, 한 번의 UPDATE)
+ *   profiles               marketing_agreed_at                                          (`updateMarketingConsent`, 켜기 = 지금 · 끄기 = null)
+ *   재검사(`retestPersonality`)는 테이블을 직접 쓰지 않는다 - 027 `fn_complete_retest` 함수 호출 하나다(`68-`).
  *
- * `deleted_at` · `purge_scheduled_at` · 동의 시각 · `birth_date` · `onboarding_step` · `couple_dissolutions`는 이 파일이 쓰지 않는다.
+ * `deleted_at` · `purge_scheduled_at` · 다른 동의 시각 · `birth_date` · `onboarding_step` · `couple_dissolutions` ·
+ * `retest_used` · `active_assessment_id` · `enneagram_inferred` · `attachment`는 이 파일이 쓰지 않는다.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { computeLoveTypeCode } from '../engine/loveTypeInference'
+import { LOVE_TYPE_ENGINE_VERSION, computeLoveTypeCode } from '../engine/loveTypeInference'
 import type { EnneagramCore } from '../constants/enneagram'
 import type { Database } from '../types/database'
 import { isStartDateSelectable, isValidNickname, normalizeNickname } from '../utils/coupleStart'
 import { canRetest, isValidDisplayName } from '../utils/settingsRules'
-import { buildAssessmentInsert, type CreateProfileAndAssessmentInput } from './personalityCore'
+import type { CreateProfileAndAssessmentInput } from './personalityCore'
 
 export type SettingsDb = Pick<SupabaseClient<Database>, 'from'>
 
 type Gender = Database['public']['Enums']['gender_type']
 type CoupleRow = Database['public']['Tables']['couples']['Row']
 type ProfileRow = Database['public']['Tables']['profiles']['Row']
-type AssessmentRow = Database['public']['Tables']['personality_assessments']['Row']
-type PersonalityProfileRow = Database['public']['Tables']['personality_profiles']['Row']
 
 const UNIQUE_VIOLATION = '23505'
 
@@ -87,21 +85,30 @@ export async function updateCoupleNickname(db: SettingsDb, coupleId: string, nic
   return data
 }
 
+// ── H11 마케팅 수신 ──
+
+/** 켜기 = `marketing_agreed_at = 지금`, 끄기 = `null`. 이 칸만 쓴다(027이 칸 단위로 연 일곱 칸 중 하나). 반환 = 저장된 값. */
+export async function updateMarketingConsent(
+  db: SettingsDb,
+  userId: string,
+  agreed: boolean,
+  now: Date = new Date(),
+): Promise<string | null> {
+  const value = agreed ? now.toISOString() : null
+  const { error } = await db.from('profiles').update({ marketing_agreed_at: value }).eq('id', userId)
+  if (error) throw error
+  return value
+}
+
 // ── H05 · H06 재검사 ──
 
-export type RetestErrorKind = 'already-used' | 'duplicate' | 'failed'
+export type RetestErrorKind = 'already-used' | 'failed'
 
 /** 재검사 실패. `message`는 화면이 그대로 보일 수 있는 글이다. */
 export class RetestError extends Error {
   readonly kind: RetestErrorKind
   constructor(kind: RetestErrorKind) {
-    super(
-      kind === 'already-used'
-        ? '재검사는 계정당 한 번이에요.'
-        : kind === 'duplicate'
-          ? '이미 재검사 기록이 있어요.'
-          : '저장하지 못했어요. 다시 시도해주세요.',
-    )
+    super(kind === 'already-used' ? '재검사는 계정당 한 번이에요.' : '저장하지 못했어요. 다시 시도해주세요.')
     this.name = 'RetestError'
     this.kind = kind
   }
@@ -113,59 +120,64 @@ export type RetestInput = Pick<
 >
 
 export interface RetestOutcome {
-  assessment: AssessmentRow
-  profile: PersonalityProfileRow
+  assessmentId: string
+  /**
+   * true면 이전에 끊긴 재검사의 기존 행으로 서버가 마저 끝낸 것이다 - 저장된 결과가 방금 답한 것과 다를 수 있다.
+   * (결과 값은 서버가 그 행에서 읽는다. 앱은 인자의 결과가 쓰이지 않았다는 사실만 안다.)
+   */
+  recovered: boolean
 }
 
+/** 재검사 함수 호출에 필요한 저장소 모양(`rpc` + 사전 읽기용 `from`). */
+export type RetestDb = Pick<SupabaseClient<Database>, 'from' | 'rpc'>
+
+const FN_COMPLETE_RETEST = 'fn_complete_retest'
+
 /**
- * 재검사 한 번(계정당 1회, MASTER 9-6).
+ * 재검사 한 번(계정당 1회, MASTER 9-6) - **027 `fn_complete_retest` 함수 호출 하나**로 끝낸다(새 행 INSERT + 프로필 갱신 + mbti가 한 트랜잭션).
+ * 채점은 결정론 엔진이 이미 했고(절대 규칙 2) 결과를 인자로 넘긴다. 앱은 `personality_assessments` · `personality_profiles`를 직접 쓰지 않는다.
  *
- *   1. 프로필을 읽어 `retest_used`가 true면 **서버로 아무것도 보내지 않고** 거부한다(`canRetest`가 버튼 비활성과 같은 판정).
- *   2. **새 assessment 행**을 `seq = 2`로 INSERT한다. 이전 행은 지우지도 고치지도 않는다(원본 보존, RLS도 UPDATE · DELETE가 없다).
- *      `unique (user_id, seq)`(004_personality.sql 37행)라 이미 2번째 행이 있으면 `23505`가 난다 - **이 경로에서 23505는 실패다**
- *      (가입 저장의 "이미 저장됨 = 성공"은 `personalityCore.createProfileAndAssessment` 안에만 있다). 실패하면 프로필은 건드리지 않는다.
- *   3. `personality_profiles`를 **한 번의 UPDATE**로 고친다: active_assessment_id = 새 행 · enneagram_inferred · attachment = 새 결과 ·
- *      enneagram_override = null(새 검사가 새 추론값이다) · love_type_code = 새 실효 코어(= 새 추론값) + 애착으로 재계산(엔진 함수) ·
- *      retest_used = true. `retest_used = false` 조건을 함께 걸어, 그 사이 다른 기기가 먼저 썼다면 0행이 되어 실패로 본다.
- *
- * `override_count` · `override_updated_at`은 쓰지 않는다(이전 오버라이드 이력 그대로). `enneagram_effective`는 서버가 계산하는 생성 칸이라 쓰지 않는다.
+ *   1. 프로필을 읽어 `retest_used`가 true면 **서버로 아무것도 보내지 않고** 거부한다(`canRetest`, 버튼 비활성과 같은 판정).
+ *   2. 함수를 부른다. `23505` = 이미 사용(`already-used`). 그 밖의 오류는 `failed`.
+ *   3. 함수가 `out_recovered = true`를 돌려주면 끊겼던 상태를 기존 행으로 마저 끝낸 것이다(`recovered`).
  */
-export async function retestPersonality(db: SettingsDb, userId: string, input: RetestInput): Promise<RetestOutcome> {
+export async function retestPersonality(db: RetestDb, userId: string, input: RetestInput): Promise<RetestOutcome> {
   const { data: current, error: readError } = await db
     .from('personality_profiles')
-    .select('*')
+    .select('retest_used')
     .eq('user_id', userId)
     .maybeSingle()
-  if (readError) throw new RetestError('failed')
-  if (!current) throw new RetestError('failed')
+  if (readError || !current) throw new RetestError('failed')
   if (!canRetest(current)) throw new RetestError('already-used')
 
-  const { data: assessment, error: insertError } = await db
-    .from('personality_assessments')
-    .insert(buildAssessmentInsert(userId, 2, input))
-    .select()
-    .single()
-  if (insertError || !assessment) {
-    throw new RetestError(insertError?.code === UNIQUE_VIOLATION ? 'duplicate' : 'failed')
-  }
-
-  const { data: profile, error: updateError } = await db
-    .from('personality_profiles')
-    .update({
-      active_assessment_id: assessment.id,
-      enneagram_inferred: input.result.enneagramCore,
-      attachment: input.result.attachment,
-      enneagram_override: null,
-      love_type_code: computeLoveTypeCode(input.result.enneagramCore as EnneagramCore, input.result.attachment),
-      retest_used: true,
-    })
-    .eq('user_id', userId)
-    .eq('retest_used', false)
-    .select()
-    .single()
-  if (updateError || !profile) throw new RetestError('failed')
-
-  return { assessment, profile }
+  const r = input.result
+  const { data, error } = await db.rpc(FN_COMPLETE_RETEST, {
+    p_mbti: input.mbti,
+    p_mbti_self_reported: input.mbtiSelfReported,
+    p_q1: input.q1,
+    p_q2: input.q2,
+    p_q3: input.q3,
+    p_q4: input.q4,
+    p_q5: input.q5,
+    p_enneagram_core: r.enneagramCore,
+    p_big_o: r.big5.bigO,
+    p_big_c: r.big5.bigC,
+    p_big_e: r.big5.bigE,
+    p_big_a: r.big5.bigA,
+    p_big_n: r.big5.bigN,
+    p_stern_intimacy: r.sternberg.intimacy,
+    p_stern_passion: r.sternberg.passion,
+    p_stern_commitment: r.sternberg.commitment,
+    p_attach_anxiety: r.attachAnxiety,
+    p_attach_avoidance: r.attachAvoidance,
+    p_attachment: r.attachment,
+    p_engine_version: LOVE_TYPE_ENGINE_VERSION,
+    p_love_type_code: computeLoveTypeCode(r.enneagramCore as EnneagramCore, r.attachment),
+  })
+  if (error) throw new RetestError(error.code === UNIQUE_VIOLATION ? 'already-used' : 'failed')
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row || typeof row.out_assessment_id !== 'string') throw new RetestError('failed')
+  return { assessmentId: row.out_assessment_id, recovered: row.out_recovered === true }
 }
 
 // ── 로그아웃 ──

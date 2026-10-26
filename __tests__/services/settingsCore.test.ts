@@ -8,18 +8,21 @@
  *   - 쓰는 칸 목록 밖의 칸에 쓰기 0 (호출 기록으로) - `deleted_at` · `purge_scheduled_at` · 동의 시각 · `birth_date` · `onboarding_step` · `couple_dissolutions`
  *   - 사귄 날짜 수정은 한 번의 UPDATE에 날짜 · `set_by` = 나 · `confirmed_by` = null · 미래 날짜 불가
  *   - 닉네임 0자 · 21자 거부, 1자 · 20자 허용
- *   - 재검사 1회: 새 assessment INSERT(seq 2) · 이전 행 삭제 0 · 한 번의 UPDATE에 칸 전부 · 두 번째는 서버로 안 보냄 · INSERT의 23505는 실패(UPDATE 0)
+ *   - 재검사(`68-`): 함수 `fn_complete_retest` 호출 하나(테이블 직접 쓰기 0) · 이미 썼으면 서버로 안 보냄 · 23505 = 이미 사용 · 복구 표시
+ *   - 마케팅 토글: 켜기 = 시각 · 끄기 = null · 이 칸 하나만
  *   - 로그아웃 뒤 채팅 큐 저장 유지
  */
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   RetestError,
   performLogout,
+  updateMarketingConsent,
   retestPersonality,
   updateCoupleNickname,
   updateProfileBasics,
   updateStartDateByMe,
   type RetestInput,
+  type RetestDb,
   type SettingsDb,
 } from '../../src/services/settingsCore'
 import { chatQueueStorageKey } from '../../src/utils/chatQueue'
@@ -32,25 +35,26 @@ interface Write {
   op: 'insert' | 'update' | 'delete'
   payload: Row | null
 }
+interface RpcCall {
+  fn: string
+  args: Record<string, unknown>
+}
 
 /** 쓰는 칸 표(R42-6) - 테이블별로 쓸 수 있는 칸. INSERT는 새 행이라 칸 전체가 새 값이다(personality_assessments만 허용). */
 const ALLOWED_UPDATE_COLUMNS: Record<string, string[]> = {
-  profiles: ['display_name', 'gender'],
+  profiles: ['display_name', 'gender', 'marketing_agreed_at'],
   couples: ['relationship_start_date', 'start_date_set_by', 'start_date_confirmed_by', 'nickname'],
-  personality_profiles: [
-    'active_assessment_id',
-    'enneagram_inferred',
-    'attachment',
-    'enneagram_override',
-    'love_type_code',
-    'retest_used',
-  ],
 }
-const ALLOWED_INSERT_TABLES = ['personality_assessments']
+const ALLOWED_INSERT_TABLES: string[] = []
 
 class FakeDb {
   tables: Record<string, Row[]> = { profiles: [], couples: [], personality_assessments: [], personality_profiles: [] }
   writes: Write[] = []
+  rpcCalls: RpcCall[] = []
+  /** 다음 rpc를 이 오류로 실패시킨다. */
+  failNextRpc: { code: string } | null = null
+  /** 다음 rpc가 복구(기존 행으로 마저 끝냄)로 답한다. */
+  rpcRecovered = false
   /** 다음 INSERT를 이 오류로 실패시킨다. */
   failNextInsert: { code: string } | null = null
   /** UPDATE가 0행에 닿게 한다(조건 불일치). */
@@ -113,12 +117,27 @@ class FakeDb {
       eq: (k: string, v: unknown) => (filters.push((r) => r[k] === v), api),
       single: () => run(),
       maybeSingle: () => run(),
+      then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => run().then(resolve, reject),
     }
     return api
   }
 
+  rpc(fn: string, args: Record<string, unknown>) {
+    this.rpcCalls.push({ fn, args })
+    if (this.failNextRpc) {
+      const error = this.failNextRpc
+      this.failNextRpc = null
+      return Promise.resolve({ data: null, error })
+    }
+    return Promise.resolve({ data: [{ out_assessment_id: 'a2', out_recovered: this.rpcRecovered }], error: null })
+  }
+
   asDb(): SettingsDb {
     return this as unknown as SettingsDb
+  }
+
+  asRetestDb(): RetestDb {
+    return this as unknown as RetestDb
   }
 }
 
@@ -223,75 +242,88 @@ describe('H04 커플 닉네임 1~20자', () => {
   })
 })
 
-describe('H06 재검사 - 계정당 1회', () => {
-  it('새 assessment(seq 2)를 INSERT하고, 이전 행은 지우지도 고치지도 않는다', async () => {
-    const before = { ...db.tables.personality_assessments[0] }
-    const { assessment } = await retestPersonality(db.asDb(), 'me', retestInput())
-    const inserts = db.writes.filter((w) => w.op === 'insert')
-    expect(inserts).toHaveLength(1)
-    expect(inserts[0].table).toBe('personality_assessments')
-    expect(inserts[0].payload).toMatchObject({ user_id: 'me', seq: 2, mbti: 'INFJ' })
-    expect(db.writes.filter((w) => w.op === 'delete')).toEqual([])
-    expect(db.tables.personality_assessments).toHaveLength(2)
-    expect(db.tables.personality_assessments[0]).toEqual(before) // 이전 행 그대로
-    expect(assessment.seq).toBe(2)
+describe('H06 재검사 - 계정당 1회, 함수 호출 하나', () => {
+  it('fn_complete_retest를 한 번 부르고 테이블 직접 쓰기는 0이다', async () => {
+    const out = await retestPersonality(db.asRetestDb(), 'me', retestInput())
+    expect(db.rpcCalls).toHaveLength(1)
+    expect(db.rpcCalls[0].fn).toBe('fn_complete_retest')
+    expect(db.writes).toEqual([])
+    expect(out).toEqual({ assessmentId: 'a2', recovered: false })
   })
 
-  it('personality_profiles는 한 번의 UPDATE로 칸 전부를 고친다 - override는 null, love_type_code는 새 결과 기준', async () => {
+  it('채점 결과는 엔진 출력 그대로 인자로 넘긴다 - love_type_code도 엔진 함수로 만든다', async () => {
     const r = result()
-    const { assessment } = await retestPersonality(db.asDb(), 'me', retestInput())
-    const updates = db.writes.filter((w) => w.op === 'update')
-    expect(updates).toHaveLength(1)
-    expect(updates[0].table).toBe('personality_profiles')
-    expect(updates[0].payload).toEqual({
-      active_assessment_id: assessment.id,
-      enneagram_inferred: r.enneagramCore,
-      attachment: r.attachment,
-      enneagram_override: null,
-      love_type_code: r.loveTypeCode,
-      retest_used: true,
+    await retestPersonality(db.asRetestDb(), 'me', retestInput())
+    expect(db.rpcCalls[0].args).toMatchObject({
+      p_mbti: 'INFJ',
+      p_mbti_self_reported: true,
+      p_q1: 'A',
+      p_q5: 'A',
+      p_enneagram_core: r.enneagramCore,
+      p_attachment: r.attachment,
+      p_love_type_code: r.loveTypeCode,
+      p_attach_anxiety: r.attachAnxiety,
+      p_attach_avoidance: r.attachAvoidance,
     })
-    expect(db.tables.personality_profiles[0]).toMatchObject({ retest_used: true, enneagram_override: null })
   })
 
-  it('두 번째 재검사는 서버로 아무것도 보내지 않는다(버튼 비활성과 같은 판정)', async () => {
-    await retestPersonality(db.asDb(), 'me', retestInput())
-    db.writes.length = 0
-    await expect(retestPersonality(db.asDb(), 'me', retestInput())).rejects.toMatchObject({ kind: 'already-used' })
+  it('같은 입력은 같은 인자를 만든다(결정론)', async () => {
+    await retestPersonality(db.asRetestDb(), 'me', retestInput())
+    db.tables.personality_profiles[0].retest_used = false
+    await retestPersonality(db.asRetestDb(), 'me', retestInput())
+    expect(db.rpcCalls[1].args).toEqual(db.rpcCalls[0].args)
+  })
+
+  it('이미 썼으면(retest_used) 서버로 아무것도 보내지 않는다(버튼 비활성과 같은 판정)', async () => {
+    db.tables.personality_profiles[0].retest_used = true
+    await expect(retestPersonality(db.asRetestDb(), 'me', retestInput())).rejects.toMatchObject({ kind: 'already-used' })
+    expect(db.rpcCalls).toEqual([])
     expect(db.writes).toEqual([])
   })
 
-  it('재검사 INSERT의 23505는 실패다 - 성공으로 삼키지 않고 프로필도 건드리지 않는다', async () => {
-    db.failNextInsert = { code: '23505' }
-    await expect(retestPersonality(db.asDb(), 'me', retestInput())).rejects.toMatchObject({
+  it('함수의 23505는 이미 사용으로 처리한다', async () => {
+    db.failNextRpc = { code: '23505' }
+    await expect(retestPersonality(db.asRetestDb(), 'me', retestInput())).rejects.toMatchObject({
       name: 'RetestError',
-      kind: 'duplicate',
+      kind: 'already-used',
     })
-    expect(db.writes.filter((w) => w.op === 'update')).toEqual([])
-    expect(db.tables.personality_profiles[0]).toMatchObject({ retest_used: false, enneagram_override: 9 })
   })
 
-  it('같은 키(seq 2)가 이미 있으면 진짜 제약이 23505를 내고 그것도 실패다', async () => {
-    db.tables.personality_assessments.push({ id: 'a2', user_id: 'me', seq: 2 })
-    await expect(retestPersonality(db.asDb(), 'me', retestInput())).rejects.toMatchObject({ kind: 'duplicate' })
-    expect(db.writes.filter((w) => w.op === 'update')).toEqual([])
+  it('다른 오류는 실패(다시 시도 가능)다', async () => {
+    db.failNextRpc = { code: '08006' }
+    await expect(retestPersonality(db.asRetestDb(), 'me', retestInput())).rejects.toMatchObject({ kind: 'failed' })
   })
 
-  it('INSERT가 다른 오류로 실패해도 프로필은 그대로다', async () => {
-    db.failNextInsert = { code: '08006' }
-    await expect(retestPersonality(db.asDb(), 'me', retestInput())).rejects.toMatchObject({ kind: 'failed' })
-    expect(db.writes.filter((w) => w.op === 'update')).toEqual([])
-  })
-
-  it('UPDATE가 0행에 닿으면(다른 기기가 먼저 썼다) 실패다', async () => {
-    db.updateMatchesNothing = true
-    await expect(retestPersonality(db.asDb(), 'me', retestInput())).rejects.toBeInstanceOf(RetestError)
+  it('끊긴 상태를 함수가 기존 행으로 마저 끝내면 recovered = true로 알린다', async () => {
+    db.rpcRecovered = true
+    await expect(retestPersonality(db.asRetestDb(), 'me', retestInput())).resolves.toEqual({
+      assessmentId: 'a2',
+      recovered: true,
+    })
   })
 
   it('프로필 행이 없으면 아무것도 보내지 않는다', async () => {
     db.tables.personality_profiles.length = 0
-    await expect(retestPersonality(db.asDb(), 'me', retestInput())).rejects.toBeInstanceOf(RetestError)
-    expect(db.writes).toEqual([])
+    await expect(retestPersonality(db.asRetestDb(), 'me', retestInput())).rejects.toBeInstanceOf(RetestError)
+    expect(db.rpcCalls).toEqual([])
+  })
+})
+
+describe('H11 마케팅 수신 - marketing_agreed_at 한 칸', () => {
+  const now = new Date('2026-10-26T03:00:00Z')
+
+  it('켜기 = 지금 시각, 끄기 = null - 이 칸만 UPDATE', async () => {
+    expect(await updateMarketingConsent(db.asDb(), 'me', true, now)).toBe(now.toISOString())
+    expect(await updateMarketingConsent(db.asDb(), 'me', false, now)).toBeNull()
+    expect(db.writes).toEqual([
+      { table: 'profiles', op: 'update', payload: { marketing_agreed_at: now.toISOString() } },
+      { table: 'profiles', op: 'update', payload: { marketing_agreed_at: null } },
+    ])
+  })
+
+  it('저장이 실패하면 던진다(화면이 되돌린다)', async () => {
+    db.failNextUpdate = { code: '08006' }
+    await expect(updateMarketingConsent(db.asDb(), 'me', true, now)).rejects.toBeTruthy()
   })
 })
 
@@ -301,7 +333,8 @@ describe('쓰는 칸 목록 밖에 쓰기 0', () => {
     await updateProfileBasics(db.asDb(), 'me', { displayName: '새이름', gender: 'female' })
     await updateStartDateByMe(db.asDb(), 'c1', 'me', '2025-11-01', now)
     await updateCoupleNickname(db.asDb(), 'c1', '별빛')
-    await retestPersonality(db.asDb(), 'me', retestInput())
+    await updateMarketingConsent(db.asDb(), 'me', true, now)
+    await retestPersonality(db.asRetestDb(), 'me', retestInput())
 
     expect(db.writes.length).toBeGreaterThan(0)
     for (const w of db.writes) {
@@ -321,19 +354,22 @@ describe('쓰는 칸 목록 밖에 쓰기 0', () => {
     await updateProfileBasics(db.asDb(), 'me', { displayName: '새이름', gender: 'female' })
     await updateStartDateByMe(db.asDb(), 'c1', 'me', '2025-11-01', now)
     await updateCoupleNickname(db.asDb(), 'c1', '별빛')
-    await retestPersonality(db.asDb(), 'me', retestInput())
+    await updateMarketingConsent(db.asDb(), 'me', true, now)
+    await retestPersonality(db.asRetestDb(), 'me', retestInput())
     const forbidden = [
       'deleted_at',
       'purge_scheduled_at',
       'terms_agreed_at',
       'privacy_agreed_at',
       'ai_usage_agreed_at',
-      'marketing_agreed_at',
       'biometric_consent_at',
       'birth_date',
       'onboarding_step',
       'enneagram_effective',
       'status',
+      'retest_used',
+      'active_assessment_id',
+      'enneagram_inferred',
     ]
     for (const w of db.writes) for (const c of forbidden) expect(Object.keys(w.payload ?? {})).not.toContain(c)
     expect(db.writes.map((w) => w.table)).not.toContain('couple_dissolutions')

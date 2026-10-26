@@ -1388,7 +1388,43 @@ export type Database = {
         Returns: undefined
       }
       expire_stories: { Args: never; Returns: number }
+      fn_cancel_dissolution: {
+        Args: { p_dissolution_id: string }
+        Returns: undefined
+      }
+      fn_cancel_withdrawal: { Args: never; Returns: undefined }
+      fn_complete_retest: {
+        Args: {
+          p_attach_anxiety: number
+          p_attach_avoidance: number
+          p_attachment: Database["public"]["Enums"]["attachment_type"]
+          p_big_a: number
+          p_big_c: number
+          p_big_e: number
+          p_big_n: number
+          p_big_o: number
+          p_enneagram_core: number
+          p_engine_version: string
+          p_love_type_code: string
+          p_mbti: string
+          p_mbti_self_reported: boolean
+          p_q1: Database["public"]["Enums"]["quiz_choice"]
+          p_q2: Database["public"]["Enums"]["quiz_choice"]
+          p_q3: Database["public"]["Enums"]["quiz_choice"]
+          p_q4: Database["public"]["Enums"]["quiz_choice"]
+          p_q5: Database["public"]["Enums"]["quiz_choice"]
+          p_stern_commitment: number
+          p_stern_intimacy: number
+          p_stern_passion: number
+        }
+        Returns: {
+          out_assessment_id: string
+          out_recovered: boolean
+        }[]
+      }
       fn_connect_couple: { Args: { p_invite_code: string }; Returns: string }
+      fn_request_dissolution: { Args: never; Returns: string }
+      fn_request_withdrawal: { Args: never; Returns: string }
       fn_delete_own_entry: { Args: { p_entry_id: string }; Returns: boolean }
       fn_issue_progress: {
         Args: never

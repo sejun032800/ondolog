@@ -12,11 +12,14 @@
  */
 import { Tabs } from 'expo-router'
 import { TabBar } from '../../src/components/nocturne/TabBar'
+import { useDissolutionNotice } from '../../src/hooks/useDissolutionNotice'
 import { useStartDateRecheck } from '../../src/hooks/useStartDateRecheck'
 
 export default function TabsLayout() {
   // 상대가 고친 사귄 날짜가 있으면 A20을 다시 보인다(`67-`).
   useStartDateRecheck()
+  // 상대가 연결 해제를 요청했으면 앱 안에서 알린다(`68-`, 푸시 없음).
+  useDissolutionNotice()
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="main" options={{ title: '메인' }} />
