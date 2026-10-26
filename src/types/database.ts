@@ -1403,8 +1403,8 @@ export type Database = {
           p_big_e: number
           p_big_n: number
           p_big_o: number
-          p_enneagram_core: number
           p_engine_version: string
+          p_enneagram_core: number
           p_love_type_code: string
           p_mbti: string
           p_mbti_self_reported: boolean
@@ -1423,8 +1423,6 @@ export type Database = {
         }[]
       }
       fn_connect_couple: { Args: { p_invite_code: string }; Returns: string }
-      fn_request_dissolution: { Args: never; Returns: string }
-      fn_request_withdrawal: { Args: never; Returns: string }
       fn_delete_own_entry: { Args: { p_entry_id: string }; Returns: boolean }
       fn_issue_progress: {
         Args: never
@@ -1439,6 +1437,8 @@ export type Database = {
         }[]
       }
       fn_publish_issue: { Args: { p_issue_id: string }; Returns: undefined }
+      fn_request_dissolution: { Args: never; Returns: string }
+      fn_request_withdrawal: { Args: never; Returns: string }
       is_couple_member: { Args: { p_couple_id: string }; Returns: boolean }
       is_entry_visible: {
         Args: { p_access_locked: boolean; p_couple_id: string }
