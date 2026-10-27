@@ -1,0 +1,83 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>ONDOLOG — R31 앱 보드 수정</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0A0814;color:#F3EFF7;
+     font-family:Pretendard,'Apple SD Gothic Neo','Noto Sans KR',sans-serif}
+.bd{padding:60px;display:flex;gap:56px;align-items:flex-start}
+.cn{width:560px;flex:none;display:flex;flex-direction:column;gap:26px;padding-top:6px}
+.cn h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-.01em}
+.kick{font-size:11px;font-weight:700;letter-spacing:.32em;color:#9C93B4}
+.cn h4{margin:0 0 9px;font-size:12px;font-weight:600;letter-spacing:.06em;color:#9C93B4}
+.cn p{margin:0 0 8px;font-size:13px;line-height:21px;color:#C9C1DA}
+.cn ul{margin:0;padding-left:17px}
+.cn li{font-size:13px;line-height:21px;color:#C9C1DA;margin-bottom:5px}
+.cn b{color:#F3EFF7;font-weight:600}
+code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#E7D9C3}
+.hl{height:1px;background:rgba(243,239,247,.12)}
+.sec{display:flex;flex-direction:column;gap:9px}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;
+     color:#B9A2F0;border:1px solid rgba(185,162,240,.45);border-radius:999px;padding:3px 10px}
+.was{color:#8E8796;text-decoration:line-through}
+.now{color:#F4B9C8;font-weight:600}
+
+/* 패널 */
+.row{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.pc{display:flex;flex-direction:column;gap:12px;width:390px}
+.lb{font-size:13px;color:#C9C1DA}.lb b{color:#F3EFF7}
+.lb i{font-style:normal;color:#9C93B4}
+.ph{width:390px;height:844px;border-radius:30px;overflow:hidden;position:relative;
+    background:#0A0814;box-shadow:0 26px 70px rgba(0,0,0,.6);flex:none;
+    border:1px solid rgba(243,239,247,.07)}
+.ab{position:absolute}
+.cap{font-size:12px;line-height:18px;color:#9C93B4}
+.cap em{font-style:normal;color:#E3A0C8}
+
+/* 앱 공통 */
+.sb{top:0;left:0;right:0;height:50px}
+.mu{color:#9C93B4}.fa{color:#6E6688}.li{color:#B9A2F0}.or{color:#E3A0C8}.mo{color:#E7D9C3}
+.card{background:#14111F;border:1px solid rgba(243,239,247,.07);border-radius:18px}
+.art{background:linear-gradient(145deg,#3A2A46,#53384F 42%,#6E4A52 78%,#8A5A58)}
+.art2{background:linear-gradient(160deg,#243049,#3C3A5C 48%,#5B4668)}
+.art3{background:linear-gradient(140deg,#4B3A2E,#6E5540 55%,#8A6B4C)}
+.ov{font-size:11px;font-weight:600;color:#F3EFF7;background:rgba(10,8,20,.78);
+    border:1px solid rgba(243,239,247,.16);border-radius:999px;
+    display:flex;align-items:center;justify-content:center}
+/* 종이 */
+.paper{background:#EDE8E0;color:#2A2530}
+.pmute{color:#6B6370}
+</style></head><body><div class="bd">
+<div class="cn">
+  <div class="sec">
+    <span class="kick">APP BOARD · patch8 · R44</span>
+    <h1>말투를 해요체로</h1>
+    <p>PM 회신(10/26)대로 확정 문장 두 곳을 해요체로 바꿨어요.
+       <b>자리·크기·색·조건은 그대로</b>예요 — 글자만 바뀌어요.</p>
+  </div>
+  <div class="hl"></div>
+
+  <div class="sec">
+    <h4>A15 상세 결과 — 하단 한 줄</h4>
+    <p class="was">연인과 연결하면 이 궁합이 두 사람의 시작 온도에 반영됩니다.</p>
+    <p class="now">연인과 연결하면 이 궁합이 두 사람의 시작 온도에 반영돼요.</p>
+  </div>
+  <div class="hl"></div>
+
+  <div class="sec">
+    <h4>B01 시작 온도 보조 문구</h4>
+    <p class="was">온도가 잘 맞는 유형일수록 시작 온도가 조금 높습니다.<br>나머지는 두 사람이 만들어갑니다.</p>
+    <p class="now">온도가 잘 맞는 유형일수록 시작 온도가 조금 높아요.<br>나머지는 두 사람이 만들어가요.</p>
+    <p>노출 조건은 patch7 그대로예요 — 연결 + 양쪽 성격 프로파일 + 저장된 온도.
+       셋 중 하나라도 없으면 블록째 빠져요.</p>
+  </div>
+  <div class="hl"></div>
+
+  <div class="sec">
+    <h4>이제 앱 전체가 해요체예요</h4>
+    <p>이 둘이 앱에 남아 있던 마지막 합니다체였어요.
+       <b>발행물은 그대로 합니다체</b>예요 — 지면과 앱은 말투가 다릅니다.
+       앱은 곁에서 말을 걸고, 지면은 기록으로 남아요.</p>
+  </div>
+</div>
+<div class="row">
+<div class="pc"><div class="lb"><b>A15</b> 상세 결과 — <i>하단 한 줄</i></div><div class="ph"><div class="ab" style="left:0;right:0;top:40px;display:flex;align-items:center;justify-content:center"><span class="mu" style="position:absolute;left:22px;font-size:17px">←</span><span style="font-size:14.5px;font-weight:600"></span></div><div class="ab card" style="left:22px;right:22px;top:92px;padding:22px 20px"><span class="mu" style="font-size:10.5px;font-weight:700;letter-spacing:.26em">온 도 차 가  있 는  유 형</span><p class="body-sub" style="margin:12px 0 0;font-size:12.5px;line-height:21px">온도차가 있다는 건 안 맞는다는 뜻이 아닙니다. 조금 더 신경 쓰면 되는 지점이 있다는 뜻입니다.</p></div><div class="ab" style="left:22px;right:22px;top:250px"><div style="display:flex;gap:16px;align-items:flex-start;padding:14px 0;border-bottom:.6px solid rgba(243,239,247,.09)"><span style="width:72px;flex:none;font-size:12.5px;font-weight:700;letter-spacing:.04em">8 IRON</span><span><span style="display:block;font-size:13px">원칙 대 힘</span><span class="fa" style="display:block;font-size:11.5px;line-height:18px;margin-top:5px">누가 옳은지보다 무엇을 원하는지를 먼저 말해보세요</span></span></div><div style="display:flex;gap:16px;align-items:flex-start;padding:14px 0"><span style="width:72px;flex:none;font-size:12.5px;font-weight:700;letter-spacing:.04em">6 OATH</span><span><span style="display:block;font-size:13px">둘 다 불안을 규칙으로 다스림</span><span class="fa" style="display:block;font-size:11.5px;line-height:18px;margin-top:5px">규칙을 하나 정할 때마다 하나씩 내려놓아 보세요</span></span></div></div><div class="ab" style="left:22px;right:22px;top:470px;padding-left:12px;border-left:2px solid rgba(185,162,240,.5)"><span class="fa" style="display:block;font-size:11.5px;line-height:19px;text-decoration:line-through;opacity:.5">연인과 연결하면 이 궁합이 두 사람의 시작 온도에 반영됩니다.</span><span style="display:block;margin-top:10px;font-size:12px;line-height:20px;color:#C9C1DA">연인과 연결하면 이 궁합이 두 사람의 <b style="color:#F3EFF7">시작 온도에 반영돼요.</b></span></div><div class="ab" style="left:22px;right:22px;bottom:40px;height:54px;border-radius:999px;background:#F3EFF7;color:#14111F;font-weight:700;font-size:14.5px;display:flex;align-items:center;justify-content:center">다음</div></div><div class="cap">자리·크기·색은 그대로. <em>말투만</em> 바뀌어요.</div></div><div class="pc"><div class="lb"><b>B01</b> 시작 온도 보조 문구 — <i>해요체</i></div><div class="ph"><div class="ab" style="left:0;right:0;top:0;bottom:0;background:radial-gradient(120% 60% at 50% 8%,#241B3C,#140F24 55%,#0A0814)"></div><div class="ab" style="left:22px;top:58px;display:flex;align-items:center;gap:10px"><span style="width:26px;height:26px;border-radius:999px;background:linear-gradient(140deg,#8FA6D8,#C9A7CE)"></span><span style="font-size:13px;font-weight:600">늘봄</span><span class="fa" style="font-size:11px">세준 · 서영</span></div><div class="ab mu" style="left:22px;top:128px;font-size:10.5px;font-weight:700;letter-spacing:.3em">01 OUR TEMPERATURE</div><div class="ab" style="left:22px;top:150px;display:flex;align-items:flex-end"><span style="font-size:76px;font-weight:300;line-height:1;color:#F4B9C8;text-shadow:0 0 28px rgba(244,185,200,.45)">38</span><span style="font-size:30px;font-weight:300;color:#F4B9C8">.2°</span></div><div class="ab" style="left:22px;right:22px;top:258px;padding-left:12px;border-left:2px solid rgba(185,162,240,.5)"><span style="font-size:12px;line-height:21px;color:#C9C1DA">온도가 잘 맞는 유형일수록 시작 온도가 조금 <b style="color:#F3EFF7">높아요.</b><br>나머지는 두 사람이 <b style="color:#F3EFF7">만들어가요.</b></span></div><div class="ab" style="left:34px;right:22px;top:322px"><span class="fa" style="font-size:11px;line-height:18px;text-decoration:line-through;opacity:.5">…시작 온도가 조금 높습니다. / 나머지는 두 사람이 만들어갑니다.</span></div><div class="ab" style="left:22px;top:364px;display:flex;gap:10px;align-items:center"><span style="font-size:12.5px;font-weight:600">D+298</span><span style="font-size:11px;color:#E3A0C8;background:rgba(227,160,200,.14);border-radius:999px;padding:4px 10px">300일 · 2일 남았어요</span></div><div class="ab card" style="left:22px;right:22px;top:420px;height:150px"></div></div><div class="cap">두 줄 모두 <em>해요체</em>로. 자리·괘선·조건은 patch7 그대로예요.</div></div></div></div></body></html>
