@@ -33,6 +33,13 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## description_ko 029 (`70-` 1부 이어서, 2026-10-27, db-architect) - 작성만, 원격 미적용 · 미실증
+- 029 는 `update … where code` 36줄만(멱등). 문구는 `docs/ONDOLOG_36_descriptions.md` 에서 `**` 만 뺀 것 = 020 과 글자 단위 같음(jest 가 셋을 대조).
+- 원격 `schema_migrations` 에는 적용 시각 칸이 없다(version · statements · name). 시각 비교 대신 statements 와 파일 비교(공백 · `;` 제거 md5)만 썼다.
+- 로컬 확인은 PGlite(저장소 밖 임시 폴더) - `014_cron.sql` 은 pg_cron 이 없어 하네스에서만 실패(스텁으로 대체), 나머지 001~029 통과.
+- 사람 순서: `check_029_preapply.sql` -> `supabase db push` -> `verify_029_privileges.sql`(10번 = 적용 전 9번) -> `verifyDescriptions70.ts` -> get_advisors 저장 -> `compareSecurity.ts`. 명령은 `scripts/ops/out/70-run.ps1`.
+- 타입 재생성: `description_ko` 는 이미 `database.ts` 에 있어 스키마 변경 0 기대(새 칸 · 테이블 없음).
+
 ## 연애유형 라벨 028 (`69-` 1부, 2026-10-27, db-architect) - 작성만, 원격 미적용 · 미실증
 
 - 028 = `love_type_labels` 36행 upsert + `assessments_insert` with check `seq = 1`. 원격 적용 · 실증은 사람(규칙 6).
