@@ -33,6 +33,16 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## 연애유형 라벨 028 (`69-` 1부, 2026-10-27, db-architect) - 작성만, 원격 미적용 · 미실증
+
+- 028 = `love_type_labels` 36행 upsert + `assessments_insert` with check `seq = 1`. 원격 적용 · 실증은 사람(규칙 6).
+- 내부 결정: 시드 파일은 없었다(원인은 "적용된 016 을 나중에 고친 것"). 016 은 고치지 않고 두며, 016 · 028 · MASTER 10-5-2 · `loveTypeLabels.ts` 가 같은 36행인지 `__tests__/constants/loveTypeLabelsSeed.test.ts` 가 대조한다(③ 의 "대조 시험" 쪽 선택, 공용 파서 `scripts/ops/labelsMaster.ts`).
+- 내부 결정: 028 은 description_ko 를 건드리지 않는다. **원격 description_ko 는 36행 전부 null 로 남는다**(020 이 0건 갱신된 채) - 채우려면 020 의 UPDATE 를 새 마이그레이션(029 후보)으로 다시 내야 한다. 이번 범위 밖, PM 판단 필요.
+- 내부 결정: 보안 점검 비교는 `scripts/ops/securityCompare.ts`(순수) + `compareSecurity.ts`(Deno CLI), 경고 이름 + 대상 이름 기준. `verifyDissolution68.ts` 의 `compare` 는 고치지 않았다(028 뒤에는 이 CLI 를 쓴다).
+- 알림: `verifyDissolution68.ts` ⑱ 의 준비(사용자 세션 seq 2 INSERT)는 028 적용 뒤에는 거부된다 - 그 시나리오는 `verifyLabels69.ts` ②(service_role 준비)가 대체한다. 68 스크립트를 028 뒤에 다시 돌리지 않는다.
+- 앱(`src/` · `app/`)은 이 표를 읽지 않고 상수 `LOVE_TYPE_LABELS` 를 쓴다. 표를 읽는 곳은 027 `fn_complete_retest` 복구 경로뿐(표가 비면 P0002).
+- 사람 순서: `check_028_preapply.sql`(11번 값 적어 두기) -> `supabase db push` -> `verify_028_privileges.sql`(13번이 11번과 같은지) -> `verifyLabels69.ts` -> get_advisors 저장 -> `compareSecurity.ts`.
+
 ## U7 해제 · 탈퇴 앱 (`68-` 1부, 2026-10-26, ui-builder) - 원격 미적용(027 대기), 회귀 스크립트 작성만, 실기기 미확인
 - 내부 결정: **연결 해제 문구**는 보드 · MASTER에 없어 H16 보드 형식으로 `연결 해제합니다`로 정함(`src/utils/dissolution.ts` `UNLINK_PHRASE`) - PM이 다른 문구를 원하면 한 줄. 탈퇴 문구는 보드 `탈퇴합니다`.
 - 내부 결정: **상대가 해제를 처음 보는 곳** = 탭이 열릴 때 · 앱 복귀 때 `useDissolutionNotice`가 상대(개시자 아님)에게 커플 화면(`/settings-couple`)을 한 번 푸시(해제 id당 앱을 켠 동안 한 번). 설정 > 연인 줄로 언제든 다시 본다. 푸시 알림 없음.
