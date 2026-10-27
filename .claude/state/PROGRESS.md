@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-10-27 (메인 세션, `69-` 2부): 028 원격 개발 적용 확인(사람이 적용, schema_migrations 028) · `verify_028_privileges.sql` 13행 전부 ok(라벨 36 · 내용 md5 `7e985f9d…` · with check `((user_id = auth.uid()) AND (seq = 1))` · 13번 지문 = 적용 전 11번) · 028 실증(사람 실행) `69-labels.txt` 실패 0(① 36행 MASTER 대조 불일치 0 ② ⑱ 복구 out_recovered true · 기존 seq 2 값 7/avoidant/ESFP · RHS · 재호출 23505 ③ seq 2 42501 · seq 1 통과) · 보안 점검 `69-security-after.json` vs `68-security-after.json` `compareSecurity.ts` 어긋남 0 · 타입 재생성 스키마 diff 0(BOM만, 파일 안 씀) · 게이트 tsc 0 / 0 · jest 1681 · 94(`69-jest.txt`) · Python 122. 미커밋
+
 2026-10-27 (메인 세션, `69-` 1부): 끊긴 db-architect 위임을 이어 받아 다시 위임 · 완료. 검증: 금지 대상 diff 0 · ref 누출 0 · 앱의 service_role 0. 적용 전 확인 `check_028_preapply.sql` 원격 읽기 전용 11행 전부 OK(라벨 0 / 0, seq 2 행 3, 지문 `63828cca… / efbf02b7… / efd28a67… / 27108c5a… / 08de964d…`). 게이트 재실행 tsc 0 / 0 · jest 1681 · 94(첫 실행 1건 실패, 이름 미기록, 재실행 통과) · Python 122. **원격 미적용 · 미실증, 2부는 사람의 적용 알림 뒤.** 미커밋
 
 2026-10-27 (db-architect, `69-` 1부): 마이그레이션 028 - `love_type_labels` 36행 시드(MASTER 10-5-2 글자 대조 불일치 0, `on conflict (code) do update`, description_ko 는 안 건드림) + `assessments_insert` with check 에 `seq = 1`(재검사 행은 `fn_complete_retest`만). 원인: 016 이 처음 적용된 뒤(2026-08-24) 36행 INSERT 를 같은 파일에 나중에 채워(08-31) 원격에는 한 번도 안 들어감(020 의 description_ko 도 0건). 작성 · 로컬(PGlite) 001~028 확인만, **원격 미적용 · 미실증**. 확인 SQL 2개 · 실증 `verifyLabels69.ts` · 비교 `compareSecurity.ts` 작성. 보안 기준선 `69-security-baseline.json`(= 027 뒤 `68-security-after.json`과 이름 기준 변화 0). 게이트 tsc 0 / 0 / jest 1681 · 94, Python 122. 미커밋
