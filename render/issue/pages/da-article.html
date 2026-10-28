@@ -14,7 +14,7 @@
 <body class="da-article">
   <div class="ab col run">
     <span class="kk-ko">데이트 아카이브 · 기사 <span data-slot="@da.articleNo">02</span></span>
-    <span class="kk-ko">그때 그 시절</span>
+    <span class="kk-ko" data-if="payload.articles[i].recalled">그때 그 시절</span>
   </div>
   <div class="ab ph" style="left:0;right:0;top:60px;height:348px">
     <img data-src="payload.articles[i].stops[0].photos[0].path" src="../images/sample/sw_open.jpg" alt="">
@@ -24,7 +24,7 @@
     <span data-if="payload.articles[i].recalled"
           style="font-size:10px;font-weight:500;letter-spacing:.06em;color:var(--acc);
           border:.8px solid var(--acc);border-radius:11px;padding:4px 12px">그때 그 시절</span>
-    <span class="kk" style="font-size:9.1px">Article Two · <span data-slot="@da.articleDate">2025.08.20</span></span>
+    <span class="kk" style="font-size:9.1px">Article <span data-slot="@da.articleOrdinalEn">Two</span> · <span data-slot="@da.articleDate">2025.08.20</span></span>
   </div>
 
   <div class="ab col" style="top:480px">
@@ -61,7 +61,7 @@
   </div>
 
   <div class="ab col" style="top:760px" data-optional>
-    <span class="lbl" style="display:block;margin-bottom:16px">그날 남은 사진 중 세 장</span>
+    <span class="lbl" style="display:block;margin-bottom:16px" data-slot="@da.articlePhotoNote">그날 남은 사진 6장 중 3장</span>
     <div style="display:flex;gap:17px" data-repeat="@da.articlePhotos">
       <div style="flex:1">
         <div class="ph" style="height:150px"><img data-src=".path" src="../images/sample/p_park0.jpg" alt=""></div>

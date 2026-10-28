@@ -1,9 +1,12 @@
-# `render/issue/` v1.1.1 — 발행물 조판 템플릿
+# `render/issue/` v1.2.2 — 발행물 조판 템플릿
 
 ONDOLOG 발행물의 지면 틀이다. **이 HTML이 곧 렌더 템플릿**이고, 렌더 코드는
 구조를 고치지 않고 `data-*` 표시만 채운다. 지면을 고치면 이 묶음을 다시 넘겨 덮어쓰면 된다.
 
 - 기준: `ONDOLOG_MASTER.md` 9-5, `ONDOLOG_CORNER_LAYOUT.md`, **`ONDOLOG_CORNER_CONTENT.md`**, ROADMAP r25(R25-1~8), P1 보드(patch2), 남은 6테마 × 19면 PDF
+- **v1.2.2에서 바뀐 것:** `55-3` 지시서 대조용 두 가지 — `tools/resolve.js`의 `data-width`가 **값 없음·범위 밖이면 요소를 지운다**(PM 규칙에 맞춤) · §8이 48개 **전수 목록** · `.gitignore` 추가
+- **v1.2.1에서 바뀐 것:** R44 — `tm-articles`의 사진을 **붙이지 않는다**(§11 ②). 사진이 없으면 한 단으로 내린다
+- **v1.2에서 바뀐 것:** §10이 대조표다. 사실과 어긋나던 표시 7건 · 원문에서 줄 수 제한 제거 · `data-width` 표시 추가 · 임시 7건 확정(§11)
 - **v1.1.1에서 바뀐 것:** R26-4(재소환 사유 표기) · R26-5(`@da.lead` 집계 기준)를 §9-②에 반영. `tools/__pycache__` 제거. 지면 구조는 `da-article`의 사유 줄 하나만 바뀌었다 — 라벨을 `data-optional` 안으로 넣었다
 - **v1.1에서 바뀐 것:** 코너 안 슬롯 이름을 `CORNER_CONTENT`에 맞춰 전부 다시 판정했다 — §9 대조표. 사진 자리에 `data-optional`. 다정한 말들 오프너에 변형 2종. `tools/` 추가
 - 범위: **MVP 지면만.** 연애 DNA(M3) · 연애리그(출시 후) · 참여형 코너는 없다
@@ -41,8 +44,23 @@ ONDOLOG 발행물의 지면 틀이다. **이 HTML이 곧 렌더 템플릿**이�
 | `data-optional` | 안의 슬롯 값이 **전부** 비면 요소째 지운다. **`data-slot`(글자)과 `data-src`(사진 경로)를 모두 센다** — 사진 틀은 `data-src`밖에 없다 |
 | `data-if="경로"` | 값이 참일 때만 남긴다 |
 | `data-variant="이름"` | 같은 부모 아래 변형. 렌더러가 하나만 남긴다 |
+| `data-width="경로"` | 값(0~100)을 그 요소의 `width:%`로. **막대·게이지는 데이터가 폭을 정한다** — 지면에 박힌 폭은 사실과 어긋난다(R29-1). **값이 없거나 범위 밖이면 그 요소를 지운다** — 렌더를 실패시키지 않는다. 박힌 폭을 남기면 고치려던 결함이 그대로 남는다 |
+
+### 문법 — 이대로 읽는다
+
+- **`data-repeat`는 컨테이너에 붙는다.** 첫 자식이 항목 틀이고, 나머지 자식은 견본이라 지운다
+- **`data-variant`는 같은 부모 아래 형제끼리 한 묶음**이다. 하나만 남기고 나머지는 지운다
+- **경로 문법** — `[0]`처럼 숫자 첨자 · `[featured]`(`featured: true`인 항목 하나) ·
+  `[i]`(지금 그리는 기사) · `.length`(배열 길이). 항목 안의 경로는 `.`으로 시작한다
+- **처리한 표시 속성은 출력에서 지우지 않는다.** `base.css`가
+  `[data-repeat=".turns"] > *:nth-child(even)` · `[data-variant="grid-4"] .art-ph`처럼
+  **선택자로 쓴다.** 지우면 들여쓰기와 사진 높이가 사라진다
+- **글자 하나짜리 배열**(`@note.notUsed` · `@note.emptyCorners`)은 항목 틀 요소의 **글자 자체**가 값이다.
+  안에 `data-slot`이 없다
+- **값 안의 줄바꿈은 `<br>`**로 넣는다. `\n`은 HTML에서 공백이 된다
 
 **해석 순서가 중요하다.** `variant` → `repeat` → `if` → `optional` 순으로 처리한다.
+`data-width`는 `optional` 다음에 적용한다 — 지워질 요소의 폭을 계산할 이유가 없다.
 `repeat`을 먼저 돌리면 지워질 변형 안에서도 항목이 복제되고, `if`를 나중에 돌리면
 `optional` 판정이 이미 지워질 가지의 빈 슬롯에 걸린다.
 
@@ -85,6 +103,7 @@ ONDOLOG 발행물의 지면 틀이다. **이 HTML이 곧 렌더 템플릿**이�
 |---|---|---|
 | `da-timeline.html` | `photos-0` `photos-1` `photos-2` `photos-3` | `stops[j].photos.length` (4 이상이면 상위 3장만 → `photos-3`) |
 | `tm-articles.html` | `grid-2` `grid-3` `grid-4` | `payload.articles.length` |
+| `da-opener.html` | `with-photo` `type-only` | `@da.openerPhoto`가 비면 `type-only`. 대표 기사 전체 stop에 사진이 하나도 없을 때다 |
 | `sw-opener.html` | `with-photo` `type-only` | `@sw.openerPhoto`가 비면 `type-only`. 사진 없는 지면에 밝은 활자를 두지 않기 위한 것이다 |
 
 **AI가 고르는 게 아니라 개수가 결정한다**(§3-1). `grid-4`는 2×2,
@@ -183,25 +202,25 @@ CSS의 `.clamp1~4`는 안전망이지 대책이 아니다.
 3. **`.evidence`(tm-articles) 한 줄 조립**은 `CORNER_LAYOUT` §3-4 규칙을 렌더러가 수행한다.
    지면은 완성된 한 줄을 받는다.
 
-## 8. 파일
+## 8. 파일 — 48개
 
-```
-render/issue/
-  README.md
-  base.css              공통 판면·활자·잉크 역할·안전망
-  themes/
-    basic.css hip.css neon.css lovely.css night.css ondol.css   (CSS 변수만)
-  pages/*.html          지면 13종 (A4 한 면)
-  tools/                참고용 — 슬롯 해석기 · 지면 감사기. 조판에는 쓰이지 않는다
-  tools/README.md       이 두 가지는 꼭 — 해석 순서 · overset 검사
-  fonts/
-    Pretendard-Regular/Medium/Bold.otf
-    MaruBuri-ExtraLight/Light/Regular/SemiBold.otf
-    LICENSES.md
-  images/sample/        견본 사진. 커플 사진은 data-src로 들어온다 — 배포 때 지워도 된다
-```
+반입 뒤 **개수와 이름을 이 표로 대조**한다. 글롭이 아니라 전부 적었다.
+
+| 자리 | 개수 | 파일 |
+|---|---|---|
+| `(루트)` | 3 | `.gitignore` · `README.md` · `base.css` |
+| `pages` | 13 | `back.html` · `contents.html` · `cover-photo.html` · `cover-type.html` · `da-article.html` · `da-opener.html` · `da-places.html` · `da-timeline.html` · `note.html` · `sw-opener.html` · `sw-quotes.html` · `tm-articles.html` · `tm-lead.html` |
+| `themes` | 6 | `basic.css` · `hip.css` · `lovely.css` · `neon.css` · `night.css` · `ondol.css` |
+| `tools` | 5 | `README.md` · `audit.py` · `preview.py` · `resolve.js` · `sweep.py` |
+| `fonts` | 8 | `LICENSES.md` · `MaruBuri-ExtraLight.otf` · `MaruBuri-Light.otf` · `MaruBuri-Regular.otf` · `MaruBuri-SemiBold.otf` · `Pretendard-Bold.otf` · `Pretendard-Medium.otf` · `Pretendard-Regular.otf` |
+| `images/sample` | 13 | `back.jpg` · `contents.jpg` · `cover.jpg` · `da_01.jpg` · `da_02.jpg` · `da_03.jpg` · `da_04.jpg` · `da_05.jpg` · `da_06.jpg` · `da_open.jpg` · `p_park0.jpg` · `sw_open.jpg` · `tm_01.jpg` |
+| **합계** | **48** | 디렉터리 항목은 세지 않는다 — `unzip -l`의 합계는 디렉터리 8개를 포함한다 |
+
+> **v1.1.1 → v1.2.1에서는 파일이 늘거나 줄지 않았다**(모두 기존 파일 안의 변경).
+> **v1.2.2에서 `.gitignore` 하나만 늘었다**(47 → 48). **지울 잔여 파일은 없다** — 덮어쓰면 끝이다.
 
 장식 이미지는 쓰지 않는다. `images/`에 있는 것은 전부 미리보기용 견본이다.
+`images/sample/`은 렌더 결과에 들어가면 안 된다.
 
 ---
 
@@ -292,3 +311,158 @@ render/issue/
 `— 세준이 남긴 메모` → **`— 세준의 메모`**.
 앞 형태는 이름의 받침에 따라 조사가 달라져(…이/…가) 렌더러가 한국어 문법을 판정해야 합니다.
 `의`는 받침과 무관해서 이름을 그대로 끼우면 됩니다. 뜻은 같습니다.
+
+---
+
+## 10. v1.1.1 → v1.2 바뀐 것
+
+### 사실과 어긋나던 표시 (요청 §1·§2)
+
+| # | 지면 | v1.1.1 | v1.2 |
+|---|---|---|---|
+| 1 | `note` | 출처 막대 폭이 `42%`로 박혀 있었다 | `data-width="@note.ratioPeople"` · `"@note.ratioOndolog"`. **두 칸 모두** 데이터가 폭을 정한다 |
+| 2 | `da-article` | 러닝헤드의 "그때 그 시절"이 고정 | `data-if="payload.articles[i].recalled"`로 감쌌다. **배지(본문)는 v1.1.1부터 이미 조건부였다** — 고정이던 건 러닝헤드다 |
+| 3 | `da-article` | "Article Two" 고정 | `Article <span data-slot="@da.articleOrdinalEn">` |
+| 4 | `da-article` | "그날 남은 사진 중 세 장" 고정 | `data-slot="@da.articlePhotoNote"`. 사진이 없으면 블록째 빠진다(`data-optional`) |
+| 5 | `da-opener` | "Article One" 고정 | `Article <span data-slot="@da.featuredOrdinalEn">` |
+| 6 | `da-opener` | 첫 stop에 사진이 없으면 빈 자리 | `@da.openerPhoto`(대표 기사 **전체 stop** 중 첫 사진) + `with-photo`/`type-only` 변형 |
+| 7 | `sw-opener` | `data-optional`이 기간까지 감싸 라벨이 남았다 | 다정 지수 부분만 감싼다. 지수가 없으면 `"2026년 8월"`만 남는다 |
+
+### 새 이름
+
+| 이름 | 계산 방법 |
+|---|---|
+| `@da.featuredOrdinalEn` · `@da.articleOrdinalEn` | 영문 서수 — `One` `Two` `Three` `Four` `Five`. 여섯째부터는 숫자(`6`). 대표 기사도 **실제 순번**을 쓴다(첫 기사가 아닐 수 있다) |
+| `@da.openerPhoto` | 대표 기사 `stops[].photos[]`를 순서대로 편 뒤 **첫 사진**(§3-1 폴백). 하나도 없으면 빈 값 → `type-only` |
+| `@da.articlePhotoNote` | 실린 수 < 전체 수면 `"그날 남은 사진 {전체}장 중 {실린}장"`, 같으면 `"그날 남은 사진 {실린}장"`. 0이면 빈 값 → 블록 삭제 |
+
+### v1.2.1 (R44)
+
+- `tm-articles` 소기사 사진을 **붙이지 않는다**. 사진이 없으면 **한 단**으로 내린다 — §11 ②
+- 앱 말투는 해요체로 정해졌다(R44). **발행물은 그대로 합니다체다** — 지면과 앱은 말투가 다르다
+
+### 그 밖
+
+- **원문에서 줄 수 제한을 뺐다** — §12
+- **`data-width` 표시를 계약에 더했다** — §2
+- **임시 7건을 확정했다** — §11
+- 문법 6가지를 §2에 명시했다 — 특히 **처리한 표시 속성을 지우지 않는다**(CSS가 선택자로 쓴다)
+
+---
+
+## 11. 임시로 정해져 있던 7건 — 확정
+
+개발이 `55-2`에서 임시로 정한 것들이다. 아래로 확정한다.
+
+### ① `@toc.desc` — 목차 항목의 설명 줄
+
+**코너가 담은 것을 종류와 개수로 적는다. 형용사를 쓰지 않는다.**
+
+| 코너 | 틀 |
+|---|---|
+| 데이트 아카이브 | `화보 · {periodLabel의 달}의 {dateCount}번의 하루 · 기사 {articles.length}편` |
+| 다정한 말들 | `인용 · 원문 그대로` |
+| 이달의 우리 | `기사 · {theme.headline} · 소기사 {articles.length}편` |
+
+목차는 **읽기 전에 재료를 알리는 자리**다(§3-0의 발행 노트와 같은 역할).
+"특별한"·"따뜻한" 같은 말이 들어가면 읽기도 전에 평가가 된다.
+
+### ② `tm-articles`의 `.photo` 원천 — **붙이지 않는다**(R44)
+
+**`Evidence`에 `path`가 생기기 전까지 소기사에 사진을 붙이지 않는다.**
+사진 틀에는 `data-optional`이 걸려 있어 원천이 비면 틀째 빠진다.
+
+> 처음에는 "근거가 사진인 기사에만, 그 달의 미사용 사진으로" 제안했다.
+> **PM이 바로잡았다** — 그 원칙대로라면 미사용 사진으로 대신해서도 안 된다.
+> 어느 사진인지 모르면서 붙이면 그 기사를 찍은 사진처럼 읽히는 건 똑같다.
+
+`CORNER_CONTENT` §5 `Evidence`에 `type: 'photo'`일 때의 `path?: string`이 생기면
+그 사진을 그대로 쓴다. 그때 이 항목을 다시 연다.
+
+**사진이 없으면 격자를 버리고 한 단으로 내린다.** 2단 격자는 사진이 있어야 성립한다 —
+활자만으로는 판면의 절반도 못 채운다(§0-3b "여백이 콘텐츠를 대신하게 된다").
+한 단에서는 제목 20px, 본문 6줄까지, 기사 사이에 가는 괘선이 들어간다.
+`data-variant`는 그대로 고르되(`grid-2/3/4`), 사진이 없으면 CSS가 한 단으로 바꾼다.
+
+### ③ 시각 표기 — `14:20`
+
+24시간 · 두 자리 : 두 자리 · 콜론. 자정은 `00:00`.
+`@da.startTime` · `@da.endTime` · `.time` 모두 같다.
+
+> 타임라인에서 시각이 **세로로 정렬**돼야 한다. "오후 2시 20분"은 자릿수가 들쭉날쭉해 축이 흔들린다.
+
+### ④ `.seq` 표기 — `01`
+
+두 자리, 앞에 0. `seq`가 0부터면 +1 해서 쓴다.
+
+> 지면의 다른 번호가 모두 두 자리다 — 폴리오 `0 4`, 세 물음 `01`, 장소 목록 `01`. 리듬을 맞춘다.
+
+### ⑤ 근거(evidence) 날짜 표기 — `08.22`
+
+월.일, 각 두 자리. **연도는 적지 않는다** — 한 달치 호라 연·월이 자명하다.
+**예외: 재소환 기사**(다른 해)는 `2025.08.20`처럼 연도를 붙인다.
+
+### ⑥ 캡션 접두 — 접두사를 쓰지 않는다
+
+`AI 캡션`은 **별도 줄의 라벨**로 두고 문장 앞에 붙이지 않는다(타임라인이 이미 그렇다).
+`da-article`의 사진 캡션도 같다 — 라벨 한 줄 + 문장 한 줄.
+**유저 메모에는 라벨이 없다.** 기본값이 사람이고, 표시는 AI가 쓴 쪽에만 붙는다(§0-4 잉크 3단계와 같은 원리).
+
+### ⑦ 폴리오 형식 — `0 4`
+
+두 자리 + 글자 사이 `.3em`. 쪽 번호는 **표지를 뺀 본문 기준 1부터**.
+**표지 2종과 뒤표지에는 폴리오가 없다.**
+
+---
+
+## 12. 원문은 자르지 않는다 (R29-3 · MASTER 9-5 r67)
+
+**두 사람이 쓴 문장에는 줄 수 제한을 두지 않는다.** 잘린 원문은 원문이 아니다.
+
+| 자르지 않는 것 (제한 없음) | 어디 |
+|---|---|
+| `.userNotes[].text` | `da-timeline` |
+| `.turns[].text` | `sw-quotes` |
+| `payload.sub[].text` | `sw-quotes` |
+| `evidence.excerpt`(조립된 `.evidence` 줄 안) | `tm-articles` |
+| `@cover.quote` 이 달의 말 | 표지 2종 |
+
+| 안전망을 남긴 것 (`.clamp*`) | 왜 |
+|---|---|
+| `@cover.headline` · `payload.theme.headline` · 기사 제목 | 온도록이 썼다 |
+| `.aiCaption` · `@da.lead` · `@da.routeHeadline` · `.context` · `closingQuestions[].text` · 소기사 본문 | 온도록이 썼다 |
+| `@back.closing` | 고정 문구 |
+
+**긴 원문은 렌더러가 지면을 나눠 받는다.** 나눌 수 없는 자리에서 넘치면 렌더가 실패하고 운영자가 본다.
+**표지의 이 달의 말**은 자리를 그대로 두고, 규격에 들어가지 않으면 렌더러가 **줄째 지운다.**
+
+### 원문이 길 때 지면이 버티는 높이 — 실측
+
+**`sw-quotes` 인용 블록 가용 높이**
+
+| 그 면의 단문 개수 | 가용 높이 |
+|---|---|
+| 0~2개 | **844px** |
+| 3개 이상 | **781px** |
+
+**대화 하나가 차지하는 높이** (정황 + 출처 + 턴들)
+
+| 턴 수 | 12자 | 30자 | 60자 | 100자 | 160자 |
+|---|---|---|---|---|---|
+| 1 | 177 | 177 | 199 | 221 | 243 |
+| 2 | 241 | 241 | 285 | 329 | 372 |
+| 3 | 305 | 305 | 371 | 436 | 502 |
+| 4 | 369 | 369 | 456 | 544 | 631 |
+
+인용 폭 118mm에서 **한 줄이 약 35자**다. 35자마다 22px씩 늘어난다고 보면 된다.
+**합이 가용 높이를 넘으면 대화 단위로 다음 면에 넘긴다** — 한 대화를 두 면에 쪼개지 않는다.
+`main` 2개 × 4턴 × 160자(1262px)는 한 면에 들어가지 않는다.
+
+**`da-timeline` stop 하나**(사진 1장 + 메모)
+
+| 메모 길이 | 20자 | 50자 | 100자 | 200자 |
+|---|---|---|---|---|
+| 높이 | 361 | 390 | 419 | 506 |
+
+§5의 분할 기준표는 **메모 50자 안팎**을 기준으로 잰 값이다.
+메모가 길면 위 증가분(50자마다 약 29px)을 더해 판단한다.

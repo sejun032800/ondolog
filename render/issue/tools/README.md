@@ -33,6 +33,9 @@ python3 tools/preview.py   # 미리보기 PNG
 
 ## `__pycache__`
 
-세 스크립트 모두 첫 줄에 `sys.dont_write_bytecode = True`를 둬서 `tools/`에 캐시를 남기지 않는다.
-v1.1 묶음에 `__pycache__`가 섞여 들어간 것은 이것이 없어서였다. 저장소의 `.gitignore`에도
-`__pycache__/` 한 줄을 두기를 권한다.
+세 스크립트 모두 첫 줄에 `sys.dont_write_bytecode = True`를 둔다. 다만 **이 플래그는 그 모듈 자신을
+막지 못한다** — 다른 스크립트가 `from preview import ...`처럼 불러 쓰면 `preview.cpython-*.pyc`가 생긴다.
+파이썬이 .pyc를 쓰는 시점이 모듈 본문 실행보다 **앞**이기 때문이다.
+
+그래서 `render/issue/.gitignore`를 함께 둔다(v1.2.2). 임시 스크립트로 이 도구들을 불러 쓸 때는
+그쪽 **첫 줄**에도 `import sys; sys.dont_write_bytecode = True`를 두면 아예 생기지 않는다.

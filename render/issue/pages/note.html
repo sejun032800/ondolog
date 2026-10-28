@@ -40,11 +40,14 @@
   <div class="ab col" style="top:520px;display:flex;flex-direction:column;gap:12px">
     <span class="lbl" style="font-weight:700">문장의 출처</span>
     <div style="display:flex;height:30px;border:.6px solid var(--ink)">
-      <div style="width:42%;background:var(--ink);color:var(--bg);font-size:12px;font-weight:700;
-           display:flex;align-items:center;padding-left:12px">두 사람 <span data-slot="@note.ratioPeople">42%</span></div>
-      <div style="flex:1;background:repeating-linear-gradient(45deg,var(--rule) 0 1px,transparent 1px 6px);
+      <div data-width="@note.ratioPeople" style="width:42%;background:var(--ink);color:var(--bg);
+           font-size:12px;font-weight:700;display:flex;align-items:center;padding-left:12px;
+           min-width:0;overflow:hidden;white-space:nowrap">두 사람 <span
+           data-slot="@note.ratioPeople">42%</span></div>
+      <div data-width="@note.ratioOndolog" style="width:58%;background:repeating-linear-gradient(45deg,var(--rule) 0 1px,transparent 1px 6px);
            font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:flex-end;
-           padding-right:12px">온도록 <span data-slot="@note.ratioOndolog">58%</span></div>
+           padding-right:12px;min-width:0;overflow:hidden;white-space:nowrap">온도록 <span
+           data-slot="@note.ratioOndolog">58%</span></div>
     </div>
     <span class="note">두 사람이 쓴 문장 <span data-slot="@note.sentencesPeople">31개</span> · 온도록이 쓴 문장 <span data-slot="@note.sentencesOndolog">43개</span> · 집계 수치는 세지 않음</span>
   </div>

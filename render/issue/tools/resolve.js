@@ -41,5 +41,22 @@ window.__resolve = (cfg) => {
     if (!filled) el.remove();
   });
 
+  // 3b. slot — 미리보기에서 몇 개만 실제 값으로 바꿔 본다(렌더러는 전부 바꾼다)
+  document.querySelectorAll("[data-slot]").forEach(el => {
+    const v = (cfg.text || {})[el.dataset.slot];
+    if (v != null) el.textContent = v;
+  });
+
+  // 4. width — 값(0~100)을 width:% 로. optional 다음에 적용한다.
+  //    값이 없거나(null·undefined) 숫자가 아니거나 범위 밖이면 **그 요소를 지운다**.
+  //    박힌 폭을 남기면 안 된다 — 그게 v1.2가 고친 결함이다(R29-1).
+  document.querySelectorAll("[data-width]").forEach(el => {
+    const raw = (cfg.width || {})[el.dataset.width];
+    const v = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
+    if (!Number.isFinite(v) || v < 0 || v > 100) { el.remove(); return; }
+    el.style.width = v + "%";
+    el.style.flex = "none";
+  });
+
   return document.querySelectorAll("[data-repeat] > *").length;
 };

@@ -20,6 +20,19 @@
        제목 높이 고정 — 1줄/2줄이 섞여도 본문 시작선이 어긋나지 않게 -->
   <style>
     .art-title{min-height:48px}
+    /* 사진이 빠지면(Evidence.path 생기기 전까지) 활자만 남는다 — R44.
+       빈 지면이 되지 않도록 활자를 키우고 행을 판면 전체로 벌린다(§0-3b) */
+    /* 사진이 없으면 격자를 버리고 한 단으로 내린다.
+       2단 격자는 사진이 있어야 성립한다 — 활자만으로는 판면의 절반도 못 채운다(§0-3b) */
+    [data-variant]:not(:has(.art-ph)){display:block !important;height:100%}
+    [data-variant]:not(:has(.art-ph)) .art{width:auto !important;flex:none !important;
+        max-width:var(--bodyW);padding-bottom:34px;margin-bottom:30px;
+        border-bottom:.6px solid var(--rule)}
+    [data-variant]:not(:has(.art-ph)) .art:last-child{border-bottom:none}
+    [data-variant]:not(:has(.art-ph)) > .art > .kk{margin-top:0 !important}
+    [data-variant]:not(:has(.art-ph)) .art-title{font-size:20px;line-height:32px;min-height:0}
+    [data-variant]:not(:has(.art-ph)) .art-body{font-size:12.5px;line-height:1.72;
+        margin-top:14px;-webkit-line-clamp:6}
     [data-variant="grid-2"] .art-ph{height:333px}
     [data-variant="grid-3"] .art-ph{height:234px}
     [data-variant="grid-4"] .art-ph{height:204px}
@@ -33,7 +46,7 @@
               data-slot=".seq">01</span>
         <h3 class="mb clamp2 art-title" style="margin:10px 0 0;font-size:15px;line-height:24px;
             font-weight:400" data-slot=".title">처음 가본 세 곳</h3>
-        <p class="body-sub clamp4" style="margin:12px 0 0;font-size:11.5px"
+        <p class="body-sub clamp4 art-body" style="margin:12px 0 0;font-size:11.5px"
            data-slot=".body">성수동의 작은 서점, 연남동 골목의 카페, 그리고 이름을 아직 적지 않은 식당. 세 곳 모두 두 사람이 이전 호에 남긴 적 없는 장소입니다.</p>
         <span class="note" style="display:block;margin-top:14px;font-size:9.6px"
               data-slot=".evidence">근거 · 신규 방문 5곳 · 사진 34장</span>
@@ -46,7 +59,7 @@
               data-slot=".seq">01</span>
         <h3 class="mb clamp2 art-title" style="margin:10px 0 0;font-size:15px;line-height:24px;
             font-weight:400" data-slot=".title">처음 가본 세 곳</h3>
-        <p class="body-sub clamp4" style="margin:12px 0 0;font-size:11.5px"
+        <p class="body-sub clamp4 art-body" style="margin:12px 0 0;font-size:11.5px"
            data-slot=".body">성수동의 작은 서점, 연남동 골목의 카페, 그리고 이름을 아직 적지 않은 식당. 세 곳 모두 두 사람이 이전 호에 남긴 적 없는 장소입니다.</p>
         <span class="note" style="display:block;margin-top:14px;font-size:9.6px"
               data-slot=".evidence">근거 · 신규 방문 5곳 · 사진 34장</span>
@@ -59,7 +72,7 @@
               data-slot=".seq">01</span>
         <h3 class="mb clamp2 art-title" style="margin:10px 0 0;font-size:15px;line-height:24px;
             font-weight:400" data-slot=".title">처음 가본 세 곳</h3>
-        <p class="body-sub clamp4" style="margin:12px 0 0;font-size:11.5px"
+        <p class="body-sub clamp4 art-body" style="margin:12px 0 0;font-size:11.5px"
            data-slot=".body">성수동의 작은 서점, 연남동 골목의 카페, 그리고 이름을 아직 적지 않은 식당. 세 곳 모두 두 사람이 이전 호에 남긴 적 없는 장소입니다.</p>
         <span class="note" style="display:block;margin-top:14px;font-size:9.6px"
               data-slot=".evidence">근거 · 신규 방문 5곳 · 사진 34장</span>
