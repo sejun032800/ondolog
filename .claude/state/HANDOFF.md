@@ -52,7 +52,14 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 - 원문 `clipped`: 검사가 잘린 요소의 `data-slot`을 남기고(`slot`), `.userNotes[0].text`·`.text`·`.evidence`·`@cover.quote`(와 표제가 이 달의 말인 표지의 `@cover.headline`)가 잘렸으면 `render_issue`가 업로드 전에 멈춘다. 온도록 문장이 잘린 것은 `audit.json`의 `recordedClipped`에 기록. v1.2.2 지면에는 원문 칸에 clamp가 없어 실제 렌더에서는 원문 clipped가 0이다.
 - 출력: 렌더·시드 출력에서 프로젝트 ref 줄을 뺐다(`접속 대상: 개발 프로젝트 ondolog - 확인됨`). deno 발행 출력은 `55-3-run.ps1`의 필터가 ref를 지운다.
 - 시험 호: `render/seed_render_tests.py`에 세트 인수(`run 55-3`)를 더했다(`55-2` 세트는 기본값 그대로). 4권 = photos(basic)·opener(night)·long(ondol)·overlong(ondol, 렌더가 멈춰야 함). 저장 스키마는 Deno로 12개 모두 통과. 로컬은 `render/local_volumes.py`(출력 `render/out/55-3-local/`, git 무시).
-- Python 시험: 122 → 173 (`scripts/ops/out/55-3-python-tests.txt`). 기존 시험 변경 - `test_clipped_text_is_recorded`(인용 turn이 `clamp3`에 잘려 `clipped`를 기대) → 둘로 나눔: 온도록 문장(이달의 우리 표제)이 넘치면 `clipped` **기록**, 원문 칸이 잘리면 **실패**(`original_clipped`) + 한 대화가 한 면을 넘으면 `ComposeError`; `Order`의 쪽 번호 시험 둘과 `ThisMonth.test_evidence_line_rules`는 확정값(쪽 번호 · `09.12`)으로 갱신.
+- Python 시험: 122 → 173 → 186 (`scripts/ops/out/55-3-python-r48.txt`, R48 추가 수정 뒤; 173은 `55-3-python-tests.txt`). 기존 시험 변경 - `test_clipped_text_is_recorded`(인용 turn이 `clamp3`에 잘려 `clipped`를 기대) → 둘로 나눔: 온도록 문장(이달의 우리 표제)이 넘치면 `clipped` **기록**, 원문 칸이 잘리면 **실패**(`original_clipped`) + 한 대화가 한 면을 넘으면 `ComposeError`; `Order`의 쪽 번호 시험 둘과 `ThisMonth.test_evidence_line_rules`는 확정값(쪽 번호 · `09.12`)으로 갱신.
+
+R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 거리:
+
+- 임시 ①: `da-article` 히어로 원천(첫 구간 첫 사진)이 없으면 `ComposeError`(호 · 몇 번째 기사 · 사유) -> 렌더 `멈춤`. ②: 사진 캡션 = 그 구간의 첫 유저 메모(첫 사진에만), AI 캡션 안 실음. 이에 따라 비대표 기사 사진 아래 메모도 오프너 메모 수(재소환 제외) · 발행 노트 게재 수(재소환 포함)에 세고 "싣지 않은 것"에서 뺀다. ③ safe 위반은 기록만(기존 동작) ④ 날짜 표기 현 값 유지. v1.2.3에서 디자인이 확정하면 `compose.article_photos`만 고친다.
+- R48-6: `data-width` 문자열 `34%`는 요소 제거. 발행 노트 막대는 지면이 폭과 글자를 같은 경로로 맡기므로 `PageSpec.widths`(경로 -> 숫자)를 따로 건넨다(`resolve.js`의 `cfg.width` / `cfg.text` 분리와 같은 역할). 디자인이 막대를 다른 경로로 나누면 이 매핑은 필요 없어진다. 이 해석이 PM 뜻과 다르면 `slot_fill.fill(widths=)` · `compose._note_values` 두 곳.
+- R48-4 결과: 긴 타임라인 메모(400자 둘) 호에서 어림 944px < 상자 953px라 한 면에 몰렸으나 실제 구간 합 1060px(내용 1061px) - 지면 검사는 `overset`(필요 1061 / 가용 953) · `text-overlap`을 `audit.json`에 기록만 하고 렌더는 통과(exit 0). 렌더를 멈추는 건 ComposeError · 원문 clipped · PDF 쪽 수 · 이미지 가로뿐. **못 잡음 - 고치지 않았다, 관문 판단은 PM.** 어림 규칙은 메모 50자마다 29px, 실제는 한 줄(약 32자)마다 29px이라 메모가 길수록 어림이 작다. 로컬 `render/out/55-3-local/vol4-timeline-overflow/overflow.txt`.
+- 시드 `test-55-3-memo`는 `55-3-run.ps1` 3)에서 렌더만 하고 5) 발행에는 넣지 않는다. 실행은 사람.
 
 막힌 슬롯 - 지면 HTML을 고쳐야 한다(`render/issue/`는 고치지 않았다 - 디자인 세션 몫):
 

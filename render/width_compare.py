@@ -37,16 +37,18 @@ SIX_CASES: list = [
     ('-5(범위 밖)', -5, 66),
     ('문자열', 'abc', 66),
 ]
-# 여섯 경우 밖의 확인: 숫자 글자는 둘 다 받는다. `34%`는 개발 쪽만 받는다 - 지면이 같은 경로로 `34%` 글자도 채우기 때문이다.
+# 여섯 경우에 이어서: 숫자 글자는 둘 다 받고, `34%` 문자열은 둘 다 요소를 지운다(R48-6 - 이전에는 개발 쪽만 받았다).
 EXTRA_CASES: list = [
     ('숫자 글자 "34"', '34', 66),
-    ('"34%"(개발만 받음)', '34%', 66),
+    ('"34%" 문자열', '34%', 66),
     ('경계 0과 100', 0, 100),
 ]
 
 
 def mine(people: Any, ondolog: Any) -> dict:
-    html = fill(NOTE_HTML.read_text(encoding='utf-8'), None, {'note': {'ratioPeople': people, 'ratioOndolog': ondolog}})
+    # 디자인 쪽 `cfg.width`와 같이 폭 값을 따로 건넨다(글자 값은 `computed`)
+    html = fill(NOTE_HTML.read_text(encoding='utf-8'), None, {'note': {'ratioPeople': people, 'ratioOndolog': ondolog}},
+                widths={PEOPLE: people, ONDOLOG: ondolog})
     soup = BeautifulSoup(html, 'html.parser')
     out = {}
     for key, path in (('people', PEOPLE), ('ondolog', ONDOLOG)):

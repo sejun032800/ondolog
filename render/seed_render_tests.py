@@ -12,6 +12,8 @@
   ② `test-55-3-opener`   night 대표 기사 첫 stop에 사진이 없다 - 오프너가 다음 stop 사진으로 폴백
   ③ `test-55-3-long`     ondol 160자 4턴 대화 둘(인용 2면) + 긴 메모 - 렌더가 통과해야 한다
   ④ `test-55-3-overlong` ondol ③에 한 면을 넘는 대화 하나를 더한 것 - **렌더가 멈춰야 한다**(자르지 않는다, R29-3)
+  ⑤ `test-55-3-memo`     basic 긴 타임라인 메모(400자) 둘 - 높이 어림이 실제보다 작아 한 면에 몰린다(R48-4). **렌더만 한다, 발행하지 않는다**.
+                         지면 검사가 넘침을 렌더 실패로 잡는지 보려는 호다(잡든 못 잡든 결과를 그대로 본다)
 
 규칙 (R13-7 · 54와 같다): 이름에 `test`. 개발 프로젝트가 아니면 쓰기 전에 멈춘다. **만든 행·파일은 목록으로 남기고 지우지 않는다**
 (`render/out/seed-<세트>.json`). service_role 키는 환경변수로만 읽고 어디에도 쓰지 않는다. 계정에는 비밀번호가 없다.
@@ -57,6 +59,7 @@ SETS = {
         ('opener', 'night', 'test-봄볕-55-3', fx.opener_fallback_scenario, (1200, 1600)),
         ('long', 'ondol', 'test-온기-55-3', fx.long_original_scenario, (1200, 1600)),
         ('overlong', 'ondol', 'test-긴말-55-3', lambda theme: fx.long_original_scenario(theme, with_overlong=True), (1200, 1600)),
+        ('memo', 'basic', 'test-55-3-memo', fx.timeline_overflow_scenario, (1200, 1600)),
     ],
 }
 DEFAULT_SET = '55-2'

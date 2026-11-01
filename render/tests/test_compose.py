@@ -352,8 +352,10 @@ class Lead(unittest.TestCase):
         self.assertEqual(art['articleStopCount'], 2)
         self.assertEqual(art['articleCaptionCount'], 1)
         self.assertEqual([p['path'] for p in art['articlePhotos']], [fx.dest('e08'), fx.dest('e09'), fx.dest('e10')])
-        self.assertEqual(art['articlePhotos'][0]['caption'], '서점에서 책을 골랐다')
-        self.assertEqual(art['articlePhotos'][1]['caption'], '')
+        # R48-3 ② - 캡션은 유저 메모만(AI 캡션 '서점에서 책을 골랐다'는 싣지 않는다). 메모는 그 구간의 첫 사진에만
+        self.assertEqual(art['articlePhotos'][0]['caption'], '')
+        self.assertEqual(art['articlePhotos'][1]['caption'], '오래 걸었다.')
+        self.assertEqual(art['articlePhotos'][2]['caption'], '')
 
     def test_places_are_capped_and_the_rest_is_reported_as_not_posted(self):
         stops = [fx.stop(i, f'{10 + i}:00', f'장소{i}', [fx.photo(f'z{i}')], [], '캡션') for i in range(12)]
@@ -378,12 +380,12 @@ class Sentences(unittest.TestCase):
         comp = compose(fx.photo_scenario())
         summary = comp.report['sentences']
         by = summary['byKind']
-        # 두 사람: 대표 기사 타임라인에 실린 메모 둘(2문장 + 줄바꿈 2문장) · 인용 turn 문장 6 · sub 2 · 근거 발췌(15자 이하) 1
-        self.assertEqual(by['people:userNotes'], 2 + 2)
+        # 두 사람: 대표 기사 타임라인에 실린 메모 둘(2문장 + 줄바꿈 2문장) + 비대표 기사 사진 아래 메모 하나(R48-3 ②) · 인용 turn 문장 6 · sub 2 · 근거 발췌(15자 이하) 1
+        self.assertEqual(by['people:userNotes'], 2 + 2 + 1)
         self.assertEqual(by['people:turns'], 2 + 2 + 1 + 1)
         self.assertEqual(by['people:sub'], 2)
         self.assertEqual(by['people:evidenceExcerpt'], 1)    # '연남동 또 가자' 한 개 - 긴 발췌는 지면에 날짜만
-        self.assertEqual(summary['people'], 4 + 6 + 2 + 1)
+        self.assertEqual(summary['people'], 5 + 6 + 2 + 1)
         self.assertEqual(by['ondolog:fixedFrame'], 2 + 1 + 1)  # @da.lead 2문장 · @da.routeHeadline · @back.closing
         self.assertEqual(by['ondolog:context'], 2)
         self.assertEqual(by['ondolog:closingQuestions'], 3 + 1)  # 질문 3 + suggestion의 basis 1
@@ -430,7 +432,7 @@ class Note(unittest.TestCase):
     def test_not_used_lists_what_the_layout_left_out(self):
         notes = page(compose(fx.photo_scenario()), 'note').computed['note']['notUsed']
         self.assertIn('사진 1장 — 한 구간에 3장까지 싣습니다', notes)         # 연남동 카페 4장 중 1장
-        self.assertIn('메모 1개 — 대표가 아닌 기사에는 개수만 적습니다', notes)
+        self.assertNotIn('메모 1개 — 대표가 아닌 기사에는 개수만 적습니다', notes)   # R48-3 ② - 그 메모는 사진 아래에 실렸다
         self.assertIn('근거 사진 1장 — 이달의 우리에는 개수만 적습니다', notes)
 
     def test_nothing_left_out_says_so(self):

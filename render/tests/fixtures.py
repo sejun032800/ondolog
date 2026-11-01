@@ -288,3 +288,19 @@ def long_original_scenario(theme: str = 'ondol', with_overlong: bool = False) ->
     long_memo = exact_text('창가 자리에서 오래 이야기했다 해가 질 때까지 앉아 있었다', 120)
     da['payload']['articles'][0]['stops'][0]['userNotes'] = [memo(long_memo)]
     return {'theme': theme, 'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2), base['corners'][2]]}
+
+
+def timeline_overflow_scenario(theme: str = 'basic', memo_chars: int = 400) -> dict:
+    """R48-4 - 긴 타임라인 메모(200자 이상)로 **높이 어림이 실제보다 작게** 나와 한 면에 몰리는 호.
+    대표 기사 구간 둘: 사진 1장 + 긴 메모, 사진 없음 + 긴 메모. 어림(`stop_height`)은 메모 50자마다 29px을 더하지만 실제 지면은 한 줄(약 32자)마다 29px이라
+    메모가 길수록 어림이 작아진다. 어림 합이 953px 안이라 한 면에 같이 놓이고, 실제로는 판면을 넘는다. 렌더가 이 넘침을 실패로 잡는지 보려는 시험 호다."""
+    base = many_photos_scenario(theme)
+    da = base['corners'][0]['content']
+    seeds = ('창가 자리에 앉아 오래 이야기했다 해가 질 때까지 아무 말 없이 있어도 좋았다',
+             '골목을 따라 걷다가 문 닫은 가게 앞에서 한참을 서 있었다 그날의 공기가 오래 남았다')
+    featured = da['payload']['articles'][0]
+    featured['stops'] = [
+        stop(0, '14:20', '연남동 카페', [photo('e02', 1200, 1600)], [memo(exact_text(seeds[0], memo_chars))], None),
+        stop(1, '17:40', '경의선숲길', [], [memo(exact_text(seeds[1], memo_chars), B)], None),
+    ]
+    return {'theme': theme, 'corners': [corner_row('date_archive', da, seq=1), base['corners'][1], base['corners'][2]]}

@@ -299,7 +299,7 @@ def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
     if spec.stem not in templates:
         raise StopError(f'지면 HTML이 없다 ({spec.stem})')
     html = fill(templates[spec.stem], spec.corner, spec.computed, spec.bind,
-                chooser=lambda names, scope: choose_variant(spec, names, scope))
+                chooser=lambda names, scope: choose_variant(spec, names, scope), widths=spec.widths)
     html, n = re.subn(r'(<html\b[^>]*\bdata-theme=")[^"]*(")', rf'\g<1>{theme}\g<2>', html, count=1)
     if n != 1:
         raise StopError(f'지면에 <html data-theme>가 없다 ({spec.stem})')

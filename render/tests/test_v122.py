@@ -22,8 +22,8 @@ import fixtures as fx  # noqa: E402
 import render_issue as r  # noqa: E402
 import width_compare  # noqa: E402
 from compose import (  # noqa: E402
-    ComposeError, compose_issue, conversation_height, hhmm, mmdd_or_ymd, ordinal_en, pack_quotes, photo_note, split_timeline,
-    stop_height, text_lines,
+    ComposeError, caption_memo_count, compose_issue, conversation_height, hhmm, mmdd_hhmm, mmdd_or_ymd, ordinal_en, pack_quotes, photo_note,
+    split_timeline, stop_height, text_lines,
 )
 from page_audit import original_clipped  # noqa: E402
 from slot_fill import fill, parse_width  # noqa: E402
@@ -65,9 +65,9 @@ def one_article_scenario(photos=3, notes=False, caption='캡션', recalled_secon
 
 class Width(unittest.TestCase):
     def test_parse_width(self):
-        for good, want in [(0, 0), (100, 100), (34, 34), (33.5, 33.5), ('34', 34), (' 34 ', 34), ('34%', 34), ('0', 0)]:
+        for good, want in [(0, 0), (100, 100), (34, 34), (33.5, 33.5), ('34', 34), (' 34 ', 34), ('0', 0)]:
             self.assertEqual(parse_width(good), want, good)
-        for bad in [None, '', '  ', 'abc', 120, -5, 100.01, '120', '-5', True, False, float('nan'), float('inf'), [], {}, '3 4']:
+        for bad in [None, '', '  ', 'abc', 120, -5, 100.01, '120', '-5', True, False, float('nan'), float('inf'), [], {}, '3 4', '34%', '0%', ' 34% ']:
             self.assertIsNone(parse_width(bad), bad)
 
     def test_width_replaces_the_fixed_width_and_keeps_other_declarations(self):
@@ -116,6 +116,7 @@ class Width(unittest.TestCase):
         spec = pages(comp, 'note')[0]
         spec.computed['note']['ratioPeople'] = ''
         spec.computed['note']['ratioOndolog'] = ''
+        spec.widths = {}
         html = r.fill_page(spec, comp.theme, TEMPLATES)
         self.assertNotIn('data-width', html)
         self.assertNotIn('두 사람 0%', html)
@@ -157,12 +158,13 @@ class Bindings(unittest.TestCase):
         art = pages(comp, 'da-article')[0].computed['da']
         self.assertEqual(art['articlePhotoNote'], '그날 남은 사진 6장 중 3장')
         self.assertIn('그날 남은 사진 6장 중 3장', filled(comp, 'da-article'))
-        bare = fx.article('2025-09-20', '다시', '합정동', [fx.stop(0, '12:00', 'B', [], [fx.memo('메모')], None)], recalled=True, reason='anniversary')
-        feat = fx.article('2026-09-12', '대표', '연남동', [fx.stop(0, '10:00', 'A', [fx.photo('a')], [], '캡션')], featured=True)
-        comp = compose({'theme': 'basic', 'corners': [fx.corner_row('date_archive', fx.date_archive([feat, bare]))]})
-        html = filled(comp, 'da-article')
+        # 사진이 하나도 없는 기사는 R48-3 ①로 지면을 짜지 않는다(`R48Temporary`). 여기서는 사진 목록이 빈 값일 때 블록이 지워지는 것만 본다
+        spec = pages(comp, 'da-article')[0]
+        spec.computed['da']['articlePhotos'] = []
+        spec.computed['da']['articlePhotoNote'] = ''
+        html = r.fill_page(spec, comp.theme, TEMPLATES)
         self.assertNotIn('그날 남은 사진', html)
-        self.assertNotIn(' src="', html)           # 블록 안 사진이 없다(히어로 사진 틀은 이 시험의 대상이 아니다 - 막힌 슬롯 목록)
+        self.assertEqual(html.count(' src="'), 1)   # 히어로 사진 하나뿐 - 블록 안 사진이 없다
 
     def test_opener_photo_is_the_first_photo_of_all_stops(self):
         comp = compose(fx.opener_fallback_scenario())
@@ -442,20 +444,122 @@ class LeadEqualsNote(unittest.TestCase):
                     for a in c['content']['payload']['articles'] if a.get('recalled') is True for p in article_photos(a)}
         outside = recalled | {comp.report['coverPhoto'], comp.report['contentsPhoto'], comp.report['backPhoto'], comp.report['swOpenerPhoto']}
         self.assertTrue(rest <= outside, rest - outside)
-        self.assertEqual(lead_memos, note_memos)                                                # 재소환·비대표의 메모는 어느 쪽에도 없다
+        recalled_captions = caption_memo_count([a for c in scenario['corners'] if c['corner_type'] == 'date_archive'
+                                                for a in c['content']['payload']['articles'] if a.get('recalled') is True])
+        self.assertEqual(lead_memos + recalled_captions, note_memos)                           # 노트 = 오프너 + 재소환 기사 사진 아래 메모(R48-3 ②)
         return lead_photos, lead_memos, len(rest), note_photos, note_memos
 
     def test_cap_exceeded_non_featured_memos_and_recalled(self):
         photos, memos, rest, note_p, note_m = self.check(self.many())
         self.assertEqual(photos, 3 + 1 + 3)        # 대표 구간 3장 + 1장, 비대표 기사 6장 중 3장 (재소환 2장은 오프너 밖)
-        self.assertEqual(memos, 2)                 # 대표 타임라인에 실린 구간 둘 - 비대표 메모 둘 · 재소환 메모는 뺀다 / 한 구간의 둘째 메모는 지면에 없다
+        # 대표 타임라인에 실린 구간 둘 + 비대표 기사 사진 아래 메모 하나(첫 사진, R48-3 ②) - 재소환 메모는 오프너에서 뺀다 / 한 구간의 둘째 메모는 지면에 없다
+        self.assertEqual(memos, 3)
         self.assertEqual(rest, 2)
-        self.assertEqual((note_p, note_m), (9, 2))
+        self.assertEqual((note_p, note_m), (9, 4))   # 노트는 재소환 기사 사진 아래 메모(옛 메모)도 센다
 
     def test_all_scenarios(self):
         for sc in (fx.photo_scenario(), fx.type_scenario(), fx.skipped_scenario(), fx.many_photos_scenario(), fx.opener_fallback_scenario(),
                    fx.opener_type_only_scenario(), fx.long_original_scenario()):
             self.check(sc)
+
+
+# ---------------------------------------------------------------------------
+# 디자인 v1.2.3 전 임시 규칙 (R48-3) · data-width 문자열 (R48-6)
+# ---------------------------------------------------------------------------
+
+def two_articles(second_stops, featured_stops=None):
+    feat = fx.article('2026-09-12', '대표', '연남동',
+                      featured_stops or [fx.stop(0, '10:00', 'A', [fx.photo('a0')], [], '캡션')], featured=True)
+    second = fx.article('2026-09-21', '둘째 기사', '성수동', second_stops)
+    return {'theme': 'basic', 'corners': [fx.corner_row('date_archive', fx.date_archive([feat, second]))]}
+
+
+class R48Temporary(unittest.TestCase):
+    def test_hero_photo_source_missing_stops_the_render_with_a_reason(self):
+        # 첫 구간에 사진이 없다 - 뒤 구간에 사진이 있어도 지면의 히어로는 첫 구간의 첫 사진 하나뿐이라 원천이 없다
+        sc = two_articles([fx.stop(0, '13:00', 'B', [], [fx.memo('메모')], None), fx.stop(1, '15:00', 'C', [fx.photo('c0')], [], '캡션')])
+        with self.assertRaises(ComposeError) as ctx:
+            compose(sc)
+        msg = str(ctx.exception)
+        self.assertIn('히어로 사진 원천이 없다', msg)
+        self.assertIn('2번째 기사(둘째 기사)', msg)
+        self.assertIn(fx.ISSUE, msg)
+
+    def test_hero_photo_source_missing_also_fails_a_recalled_article_and_no_blank_frame_is_ever_made(self):
+        sc = two_articles([fx.stop(0, '12:00', 'B', [], [], '캡션')])
+        sc['corners'][0]['content']['payload']['articles'][1].update(recalled=True, recallReason='anniversary')
+        with self.assertRaises(ComposeError):
+            compose(sc)
+
+    def test_featured_article_without_photos_is_not_affected(self):
+        comp = compose(fx.opener_type_only_scenario())        # 대표 기사 사진 없음(type-only 오프너) - 히어로 규칙은 da-article에만 걸린다
+        self.assertEqual(len(pages(comp, 'da-article')), 1)
+
+    def test_caption_is_the_users_memo_never_the_ai_caption(self):
+        memo_text = '서점에서 책을 골랐다.\n둘이서 한 권씩.'
+        sc = two_articles([fx.stop(0, '13:00', 'B', [fx.photo('b0'), fx.photo('b1')], [fx.memo(memo_text)], None),
+                           fx.stop(1, '15:00', 'C', [fx.photo('c0')], [], '이 문장은 온도록 캡션')])
+        comp = compose(sc)
+        photos = pages(comp, 'da-article')[0].computed['da']['articlePhotos']
+        self.assertEqual([p['caption'] for p in photos], [memo_text, '', ''])      # 원문 그대로 · 같은 구간 둘째 사진에는 되풀이하지 않는다 · AI 캡션은 싣지 않는다
+        html = filled(comp, 'da-article')
+        self.assertIn('서점에서 책을 골랐다.', html)
+        self.assertNotIn('이 문장은 온도록 캡션', html)
+        self.assertNotIn('AI 캡션 ·', html)
+        self.assertEqual(html.count('class="cap"'), 1)                               # 메모 없는 사진의 캡션 줄은 지워진다
+        # 문장 출처: 사진 아래 메모는 두 사람의 문장이고 온도록 캡션 문장은 세지 않는다
+        self.assertTrue(any(s['source'] == 'date_archive.article.photoCaption' and s['who'] == 'people' for s in comp.sentences))
+        self.assertFalse(any(s['source'] == 'date_archive.article.photoCaption' and s['who'] == 'ondolog' for s in comp.sentences))
+
+    def test_a_drawing_note_is_not_a_caption(self):
+        drawing = {'authorId': 'u1', 'authorName': fx.A, 'type': 'drawing', 'path': fx.dest('dr1')}
+        sc = two_articles([fx.stop(0, '13:00', 'B', [fx.photo('b0')], [drawing], None)])
+        comp = compose(sc)
+        self.assertEqual([p['caption'] for p in pages(comp, 'da-article')[0].computed['da']['articlePhotos']], [''])
+
+    def test_caption_memos_are_counted_where_they_are_shown(self):
+        sc = two_articles([fx.stop(0, '13:00', 'B', [fx.photo('b0')], [fx.memo('첫 메모'), fx.memo('둘째 메모')], None)])
+        comp = compose(sc, {'messages': 1, 'photos': 1, 'dates': 1, 'memos': 1})
+        self.assertEqual(comp.report['leadCounts']['memos'], 1)                      # 비대표 기사 사진 아래의 첫 메모 하나
+        rows = {m['label']: m['used'] for m in pages(comp, 'note')[0].computed['note']['materials']}
+        self.assertEqual(rows['메모'], '1개')
+        self.assertIn('메모 1개 — 대표가 아닌 기사에는 개수만 적습니다', pages(comp, 'note')[0].computed['note']['notUsed'])   # 싣지 못한 둘째 메모
+
+    def test_safe_findings_never_fail_the_render(self):
+        # ③ bottom:62px 계열 safe 위반은 기록만 한다 - 렌더를 멈추는 건 잘린 원문(clipped)뿐이다
+        findings = [{'k': 'safe', 't': 'ONDOLOG', 'box': [68, 1040, 200, 1060]}, {'k': 'overset', 't': 'ab', 'need': 1100, 'have': 953}]
+        self.assertEqual(original_clipped(findings), [])
+
+    def test_attribution_and_places_date_formats_are_unchanged(self):
+        # ④ 지금 값 유지: `.attribution.at` = `MM.DD HH:MM` · `@da.places .date` = `MM.DD`
+        self.assertEqual(mmdd_hhmm('2026-08-11T23:40:00+09:00'), '08.11 23:40')
+        comp = compose(fx.photo_scenario())
+        self.assertEqual(pages(comp, 'da-places')[0].computed['da']['places'][0]['date'], '09.12')
+        quotes = pages(comp, 'sw-quotes')[-1].corner['payload']['sub']
+        self.assertEqual(quotes[0]['attribution']['at'], '09.11 23:40')
+
+
+class DataWidthStrings(unittest.TestCase):
+    def test_percent_string_removes_the_element_like_resolve_js(self):
+        for value in ('34%', ' 34% ', '0%'):
+            html = fill('<p><span data-width="@w" style="width:42%">bar</span><i>kept</i></p>', None, {'w': value})
+            self.assertNotIn('bar', html, value)
+            self.assertIn('kept', html)
+
+    def test_width_and_text_are_given_separately(self):
+        # 폭은 숫자로, 글자는 `34%`로 - 같은 경로를 함께 쓰는 발행 노트의 막대가 그대로 선다
+        html = fill('<div data-width="@w" style="width:42%"><span data-slot="@w">42%</span></div>', None, {'w': '34%'}, widths={'@w': 34})
+        soup = BeautifulSoup(html, 'html.parser')
+        self.assertIn('width:34%', soup.div['style'])
+        self.assertEqual(soup.span.get_text(), '34%')
+
+    def test_note_page_bars_come_from_numbers_not_from_the_percent_text(self):
+        comp = compose(fx.photo_scenario(), {'messages': 1, 'photos': 1, 'dates': 1, 'memos': 1})
+        spec = pages(comp, 'note')[0]
+        people = int(spec.computed['note']['ratioPeople'].rstrip('%'))
+        self.assertEqual(spec.widths, {'@note.ratioPeople': people, '@note.ratioOndolog': 100 - people})
+        spec.widths = {}                                                              # 숫자 폭을 빼면 `34%` 글자로는 막대를 세우지 않는다
+        self.assertNotIn('data-width', r.fill_page(spec, comp.theme, TEMPLATES))
 
 
 # ---------------------------------------------------------------------------
@@ -494,9 +598,11 @@ class Browser(unittest.TestCase):
         rows = {row['case']: row for row in width_compare.compare(width_compare.EXTRA_CASES)}
         self.assertTrue(rows['숫자 글자 "34"']['same'])
         self.assertTrue(rows['경계 0과 100']['same'])
-        # 지면이 같은 경로로 `34%` 글자도 채우므로 개발 쪽만 받는다 - 알려진 차이
-        self.assertEqual(rows['"34%"(개발만 받음)']['dev']['people'], '34%')
-        self.assertIsNone(rows['"34%"(개발만 받음)']['design']['people'])
+        # R48-6 - `34%` 문자열은 디자인 resolve.js처럼 요소를 지운다(대조 기준 하나)
+        row = rows['"34%" 문자열']
+        self.assertTrue(row['same'], row)
+        self.assertEqual(row['dev'], {'people': None, 'ondolog': '66%'})
+        self.assertEqual(row['design'], {'people': None, 'ondolog': '66%'})
 
     def test_tm_articles_single_column_fits_the_page_with_longest_bodies(self):
         for n in (2, 3, 4):

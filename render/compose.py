@@ -91,6 +91,7 @@ class PageSpec:
     computed: dict = field(default_factory=dict)  # `@이름` 값
     bind: dict = field(default_factory=dict)   # `[i]`·`[featured]`
     corner_type: Optional[str] = None
+    widths: dict = field(default_factory=dict)  # `data-width` 경로 -> 숫자 폭(0~100). 디자인 `resolve.js`의 `cfg.width`와 같은 역할 - 글자(`34%`)와 따로 맡긴다 (R48-6)
 
 
 @dataclass
@@ -308,15 +309,27 @@ def shown_photos_of_stop(stop: dict) -> list:
 
 
 def article_photos(article: dict) -> list:
-    """README §9 `@da.articlePhotos` - 그 기사의 사진을 편 뒤 상위 3장. 항목: path · caption(그 사진이 속한 stop의 aiCaption)."""
+    """README §9 `@da.articlePhotos` - 그 기사의 사진을 편 뒤 상위 3장. 항목: path · caption.
+
+    **임시 규칙 R48-3 ②(디자인 v1.2.3 전까지)**: 캡션에는 AI 캡션을 싣지 않고 유저 메모만 싣는다 - 지면에 라벨 줄이 없어 AI 문장이 두 사람의 글처럼 읽히기 때문이다.
+    캡션 = 그 사진이 속한 stop의 첫 유저 메모(원문 그대로). 같은 메모를 사진마다 되풀이하지 않으려고 그 stop의 첫 사진에만 붙인다. 메모가 없으면 빈 값(줄이 지워진다).
+    """
     out = []
     for stop in as_list(article.get('stops')):
         if not isinstance(stop, dict):
             continue
+        memos = memo_notes(stop)
+        caption = memos[0]['text'] if memos else ''
         for photo in as_list(stop.get('photos')):
             if isinstance(photo, dict) and isinstance(photo.get('path'), str):
-                out.append({'path': photo['path'], 'caption': stop.get('aiCaption') or ''})
+                out.append({'path': photo['path'], 'caption': caption})
+                caption = ''
     return out[:ARTICLE_PHOTOS]
+
+
+def caption_memo_count(articles: list) -> int:
+    """기사들의 사진 아래에 실린 유저 메모 수(R48-3 ②) - 오프너 문장과 발행 노트가 같이 쓴다."""
+    return sum(1 for a in articles for p in article_photos(a) if p['caption'])
 
 
 def first_photo_path(article: dict) -> Optional[str]:
@@ -458,6 +471,12 @@ class _Builder:
             raise ComposeError(f"호 {self.issue.get('id')}: {e}") from None
         kept_stops = [s for p in tl_pages for s in p]
 
+        # 임시 규칙 R48-3 ①(디자인 v1.2.3 전까지): da-article 히어로는 첫 stop의 첫 사진 하나뿐이고 폴백이 없다 - 원천이 없으면 빈 틀을 싣지 않고 렌더를 멈춘다
+        for i, a in enumerate(articles):
+            if i != fi and first_photo_path(a) is None:
+                raise ComposeError(f"호 {self.issue.get('id')}: 데이트 아카이브 {i + 1}번째 기사({str(a.get('title') or '')[:20]})의 히어로 사진 원천이 없다 "
+                                   f'(첫 구간의 첫 사진 - 지면에 폴백이 없다. 디자인 v1.2.3 전 임시 규칙 R48-3 ①)')
+
         # 실린 사진 - 지면 순서(오프너 -> 타임라인 -> 기사). 오프너 사진은 대표 기사 전체 stop의 첫 사진이다(§10)
         opener_photo = first_photo_any(art)
         self.show(opener_photo)
@@ -477,7 +496,10 @@ class _Builder:
         lead_stops = [s for a in this_period for s in as_list(a.get('stops')) if isinstance(s, dict)]
         lead_photo_paths = shown_lead_photos(kept_stops, [a for i, a in enumerate(articles) if i != fi and a.get('recalled') is not True])
         lead_photos = len(lead_photo_paths)
-        lead_notes = shown_memo_count(kept_stops)
+        # 메모 = 대표 기사 타임라인에 실린 메모 + 비대표 기사 사진 아래에 실린 메모(R48-3 ②, 재소환 기사 것은 뺀다)
+        other_articles = [a for i, a in enumerate(articles) if i != fi]
+        lead_notes = shown_memo_count(kept_stops) + caption_memo_count([a for a in other_articles if a.get('recalled') is not True])
+        self.caption_memo_total = caption_memo_count(other_articles)   # 발행 노트의 게재 수는 재소환 기사의 것도 센다
         self.lead_photo_paths = lead_photo_paths
         self.lead_memo_count = lead_notes
         region_part = f"{', '.join(regions)}, " if regions else ''
@@ -591,12 +613,9 @@ class _Builder:
             }}
             pages.append(PageSpec('da-article', v, computed, {'featured': fi, 'i': i}, 'date_archive'))
             self.say('ondolog', 'headline', 'date_archive.article.title', a.get('title'))
-            seen_caption = set()
-            for si, s in enumerate(a_stops):
-                if any(p['path'] in {x['path'] for x in as_list(s.get('photos')) if isinstance(x, dict)}
-                       for p in article_photos(a)) and not is_blank(s.get('aiCaption')) and si not in seen_caption:
-                    seen_caption.add(si)
-                    self.say('ondolog', 'aiCaption', 'date_archive.article.photoCaption', s.get('aiCaption'))
+            for p in a_photos:   # R48-3 ②: 사진 아래 캡션은 유저 메모다(AI 캡션은 싣지 않는다)
+                if p['caption']:
+                    self.say('people', 'userNotes', 'date_archive.article.photoCaption', p['caption'])
         return pages
 
     # -- 다정한 말들 -----------------------------------------------------------
@@ -790,6 +809,7 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
 
     note = _note_values(b, pages)
     pages[note_index].computed.update({'note': note})
+    pages[note_index].widths = dict(getattr(b, 'note_widths', {}))
 
     report = dict(b.report)
     report.update({
@@ -902,9 +922,11 @@ def _note_values(b: _Builder, pages: list) -> dict:
     total = people + ondolog
     # 반올림은 .5를 올린다(파이썬 `round`의 은행가 반올림을 쓰지 않는다)
     ratio_people = int(people * 100 / total + 0.5) if total > 0 else None   # 문장이 하나도 없으면 비율도 없다(막대는 지면에서 지워진다)
+    # 막대 폭은 글자(`34%`)와 따로 숫자로 맡긴다 - `data-width`는 `34%` 글자를 받지 않는다(R48-6, 디자인 resolve.js와 같다)
+    b.note_widths = ({'@note.ratioPeople': ratio_people, '@note.ratioOndolog': 100 - ratio_people} if ratio_people is not None else {})
 
     mats = b.materials
-    memo_used = shown_memo_count(getattr(b, 'timeline_kept', []))
+    memo_used = shown_memo_count(getattr(b, 'timeline_kept', [])) + getattr(b, 'caption_memo_total', 0)
     chat_used = 0
     if 'sweet_words' in b.ready:
         p = as_dict(b.ready['sweet_words'].get('payload'))
@@ -956,6 +978,7 @@ def _note_values(b: _Builder, pages: list) -> dict:
                 other_memos += len(memo_notes(as_dict(s)))
         if other_photos:
             not_used.append(f'사진 {other_photos}장 — 대표가 아닌 기사에는 {ARTICLE_PHOTOS}장까지 싣습니다')
+        other_memos = max(0, other_memos - getattr(b, 'caption_memo_total', 0))   # 사진 아래에 실린 메모(R48-3 ②)는 싣지 않은 것이 아니다
         if other_memos:
             not_used.append(f'메모 {other_memos}개 — 대표가 아닌 기사에는 개수만 적습니다')
         if getattr(b, 'omitted_places', 0):

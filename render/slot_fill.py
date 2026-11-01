@@ -8,7 +8,7 @@
     data-optional 안의 슬롯 값(`data-slot`·`data-src` 모두)이 전부 비면 요소째 지운다
     data-slot     요소의 글자를 값으로 바꾼다(줄바꿈은 `<br>`)
     data-src      `<img>`의 `src`를 사진 경로로 바꾼다 (`data-src="."`는 반복 항목 자체가 경로)
-    data-width    값(0~100)을 그 요소의 `width:%`로 바꾼다(55-3, README v1.2.2 §2). 값이 없거나 범위 밖이거나 숫자가 아니면 **그 요소를 지운다** -
+    data-width    값(0~100)을 그 요소의 `width:%`로 바꾼다(55-3, README v1.2.2 §2). 값이 없거나 범위 밖이거나 숫자가 아니면(`"34%"` 포함) **그 요소를 지운다** -
                   렌더를 실패시키지 않는다. 박힌 폭을 남기면 고치려던 결함(R29-1)이 그대로 남는다.
 
 해석 순서는 **variant -> repeat -> if -> optional -> width**이다(README §2, R25-2). 한 요소 안에서도, 요소와 자손 사이에서도 이 순서다.
@@ -61,10 +61,11 @@ def is_truthy(value: Any) -> bool:
 class Context:
     """경로 해석에 필요한 세 뿌리: 코너 봉투 · 코너 밖 값 · 번호 묶음."""
 
-    def __init__(self, corner: Any = None, computed: Any = None, bind: Optional[dict] = None) -> None:
+    def __init__(self, corner: Any = None, computed: Any = None, bind: Optional[dict] = None, widths: Optional[dict] = None) -> None:
         self.corner = corner
         self.computed = computed if computed is not None else {}
         self.bind = bind or {}
+        self.widths = widths or {}   # `data-width` 경로 -> 숫자 폭. 디자인 resolve.js의 `cfg.width`(글자 `cfg.text`와 따로)와 같은 역할
 
 
 _SEGMENT = re.compile(r'^([^\[\]]*)((?:\[[^\[\]]+\])*)$')
@@ -118,14 +119,15 @@ def resolve(path: str, scope: Any, ctx: Context) -> Any:
     return current
 
 
-_WIDTH_TEXT = re.compile(r'^\d+(?:\.\d+)?%?$')
+_WIDTH_TEXT = re.compile(r'^\d+(?:\.\d+)?$')
 
 
 def parse_width(value: Any) -> Optional[float]:
     """`data-width` 값 -> 0~100 숫자. 없거나(None) 숫자가 아니거나 범위 밖이면 None(그 요소를 지운다).
 
-    숫자 또는 숫자 글자(`34`·`34%`)만 받는다. 글자 뒤의 `%`는 받는다 - 지면의 같은 경로(`@note.ratioPeople`)가 폭과 `34%` 글자를 함께 맡기 때문이다
-    (디자인 `resolve.js`는 폭과 글자를 따로 받아 이 경우가 없다). 그 밖의 글자(`abc`)·`True`·`NaN`·빈 글자는 숫자가 아니다.
+    숫자 또는 숫자 글자(`34`)만 받는다. `34%` 같은 문자열은 받지 않는다 - 요소를 지운다(R48-6, 디자인 `resolve.js`의 `Number("34%")`는 NaN이라 같다).
+    그 밖의 글자(`abc`)·`True`·`NaN`·빈 글자도 숫자가 아니다. 지면이 폭과 `34%` 글자를 같은 경로로 맡기는 자리(`@note.ratioPeople`)는
+    호출부가 폭을 `widths`로 따로 숫자로 건넨다(`resolve.js`의 `cfg.width` / `cfg.text` 분리와 같다).
     """
     if isinstance(value, bool) or value is None:
         return None
@@ -269,7 +271,8 @@ class SlotFiller:
         # 5. width: optional 다음이다 - 지워질 요소의 폭을 계산할 이유가 없다. 값이 없으면 그 요소를 지운다(실패 아님).
         #    지운 요소 안의 슬롯은 부모의 optional 판정에 이미 세어졌다(`resolve.js`도 optional 다음에 지운다).
         if el.has_attr('data-width'):
-            percent = parse_width(resolve(el['data-width'], scope, self.ctx))
+            path = el['data-width'].strip()
+            percent = parse_width(self.ctx.widths[path] if path in self.ctx.widths else resolve(path, scope, self.ctx))
             if percent is None:
                 el.decompose()
             else:
@@ -324,16 +327,17 @@ class SlotFiller:
 
 
 def fill(html: str, corner: Any = None, computed: Optional[dict] = None, bind: Optional[dict] = None,
-         chooser: Optional[VariantChooser] = None) -> str:
+         chooser: Optional[VariantChooser] = None, widths: Optional[dict] = None) -> str:
     """HTML 문자열 + 데이터 -> 채워진 HTML 문자열. 지면 구조는 건드리지 않는다.
 
     corner    코너 봉투(`header`·`payload`). 접두 없는 경로의 뿌리
     computed  코너 밖 값(`@이름`)
     bind      `[i]`·`[featured]` 같은 이름 있는 배열 번호
     chooser   변형을 고르는 함수 - 기준은 README §3(호출부가 안다)
+    widths    `data-width` 경로 -> 숫자 폭(0~100). 있으면 그 경로의 폭은 이 값을 쓴다(글자와 따로 - `resolve.js`의 `cfg.width`)
     """
     soup = BeautifulSoup(html, 'html.parser')
-    filler = SlotFiller(Context(corner, computed, bind), chooser)
+    filler = SlotFiller(Context(corner, computed, bind, widths), chooser)
     for child in [c for c in soup.children if isinstance(c, Tag)]:
         filler.handle(child, corner)
     return str(soup)
