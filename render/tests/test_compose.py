@@ -339,22 +339,23 @@ class Lead(unittest.TestCase):
     def test_places_questions_and_article_values(self):
         comp = compose(fx.photo_scenario())
         places = page(comp, 'da-places').computed['da']
-        self.assertEqual(places['routeSummary'], '2개 지역 · 6개 장소')
+        self.assertEqual(places['routeSummary'], '2개 지역 · 5개 장소')   # 재소환 기사의 장소는 이번 달 경로에 넣지 않는다 (R50-3)
         self.assertEqual(places['routeHeadline'], '9월에 두 사람이 그린 지도')
         self.assertEqual(places['places'][0], {'date': '09.12', 'placeName': '홍대입구역'})
         self.assertEqual([q['type'] for q in page(comp, 'da-places').corner['payload']['articles'][0]['closingQuestions']], ['평가', '회상', '제안'])
         art = page(comp, 'da-article').computed['da']
         self.assertEqual(art['articleNo'], '02')
         self.assertEqual(art['articleDate'], '2026.09.21')
-        self.assertEqual(art['articleRoute'], '성수동 서점')  # placeName null인 stop은 건너뛴다
+        self.assertEqual(art['articleRoute'], '성수동 서점 → 이름을 남기지 않은 곳')  # placeName null인 stop도 목록에 싣고 센다 (R50-3)
         self.assertEqual(art['articlePhotoCount'], 3)
         self.assertEqual(art['articleNoteCount'], 1)
         self.assertEqual(art['articleStopCount'], 2)
-        self.assertEqual(art['articleCaptionCount'], 1)
+        self.assertEqual(art['articleCaptionCount'], '')   # 지면에 실린 AI 캡션이 없다 -> 칸째 뺀다 (R50-4)
         self.assertEqual([p['path'] for p in art['articlePhotos']], [fx.dest('e08'), fx.dest('e09'), fx.dest('e10')])
-        # R48-3 ② - 캡션은 유저 메모만(AI 캡션 '서점에서 책을 골랐다'는 싣지 않는다). 메모는 그 구간의 첫 사진에만
-        self.assertEqual(art['articlePhotos'][0]['caption'], '')
-        self.assertEqual(art['articlePhotos'][1]['caption'], '오래 걸었다.')
+        # R48-3 ② · R50-4 - 캡션은 유저 메모만(AI 캡션 '서점에서 책을 골랐다'는 싣지 않는다). 메모는 기사의 첫 사진 아래 하나, 쓴 사람과 함께
+        self.assertEqual(art['articlePhotos'][0]['caption'], '오래 걸었다.')
+        self.assertEqual(art['articlePhotos'][0]['authorName'], fx.A)
+        self.assertEqual(art['articlePhotos'][1]['caption'], '')
         self.assertEqual(art['articlePhotos'][2]['caption'], '')
 
     def test_places_are_capped_and_the_rest_is_reported_as_not_posted(self):
@@ -417,7 +418,8 @@ class Note(unittest.TestCase):
         comp = compose(fx.photo_scenario(), {'messages': 0, 'photos': 14, 'dates': 3, 'memos': 0})
         rows = page(comp, 'note').computed['note']['materials']
         self.assertEqual([r_['label'] for r_ in rows], ['데이트', '사진'])
-        self.assertEqual(rows[1], {'label': '사진', 'collected': '14장', 'used': f'{len(comp.shown_photos)}장'})
+        # 이번 기간 기사로 실린 사진만 센다 - 재소환 기사의 사진은 따로다 (R50-2)
+        self.assertEqual(rows[1], {'label': '사진', 'collected': '14장', 'used': f'{len(comp.report["leadPhotoPaths"])}장'})
         self.assertEqual(rows[0]['used'], '2번')  # 재소환을 뺀 이번 기간 데이트
 
     def test_without_materials_there_is_no_row(self):
@@ -430,7 +432,7 @@ class Note(unittest.TestCase):
         self.assertEqual(row, {'label': '대화', 'collected': '120개', 'used': '인용 6개'})
 
     def test_not_used_lists_what_the_layout_left_out(self):
-        notes = page(compose(fx.photo_scenario()), 'note').computed['note']['notUsed']
+        notes = page(compose(fx.photo_scenario(), {'messages': 120, 'photos': 20, 'dates': 3, 'memos': 4}), 'note').computed['note']['notUsed']
         self.assertIn('사진 1장 — 한 구간에 3장까지 싣습니다', notes)         # 연남동 카페 4장 중 1장
         self.assertNotIn('메모 1개 — 대표가 아닌 기사에는 개수만 적습니다', notes)   # R48-3 ② - 그 메모는 사진 아래에 실렸다
         self.assertIn('근거 사진 1장 — 이달의 우리에는 개수만 적습니다', notes)
@@ -450,7 +452,7 @@ class Note(unittest.TestCase):
 
     def test_note_has_no_adjectives_it_only_names_and_counts(self):
         # 평가어가 들어가지 않는다(CORNER_LAYOUT §3-0) - 노트가 만드는 모든 글을 훑는다
-        note = page(compose(fx.photo_scenario(), {'messages': 5, 'photos': 9, 'dates': 3, 'memos': 4}), 'note').computed['note']
+        note = page(compose(fx.photo_scenario(), {'messages': 120, 'photos': 20, 'dates': 3, 'memos': 4}), 'note').computed['note']
         text = ' '.join(note['notUsed'] + note['emptyCorners'])
         for word in ('풍성', '아쉽', '훌륭', '많은', '적은', '다정', '좋은'):
             self.assertNotIn(word, text)
@@ -487,16 +489,17 @@ class Back(unittest.TestCase):
         comp = compose(fx.photo_scenario())
         back = page(comp, 'back').computed
         self.assertEqual(back['back']['closing'], '9월의 온도를\n여기에 두고 갑니다')
-        self.assertEqual(back['back']['nextMonth'], 'October 2026')
+        self.assertNotIn('nextMonth', back['back'])      # R50-5 - 다음 호를 약속하는 표시는 없다
         self.assertEqual(back['issue']['names'], 'test-세준 · test-서영')
         self.assertEqual(back['issue']['month'], '9월호')
         self.assertEqual(back['issue']['period'], '9월 1일 ~ 9월 30일')
 
-    def test_december_rolls_over_to_january(self):
+    def test_no_next_issue_promise_in_any_month(self):
         issue = {**fx.ISSUE_ROW, 'period_start': '2026-12-01', 'period_end': '2026-12-31'}
         sc = fx.photo_scenario()
         comp = compose_issue(issue, {**fx.COUPLE_ROW}, NAMES, sc['corners'], None)
-        self.assertEqual(page(comp, 'back').computed['back']['nextMonth'], 'January 2027')
+        self.assertNotIn('nextMonth', page(comp, 'back').computed['back'])
+        self.assertEqual(page(comp, 'back').computed['back']['closing'], '12월의 온도를\n여기에 두고 갑니다')
 
 
 class Coverage(unittest.TestCase):
@@ -509,7 +512,7 @@ class Coverage(unittest.TestCase):
         seen = set()
         for scenario in (fx.photo_scenario(), fx.type_scenario(), fx.skipped_scenario(), fx.many_photos_scenario(),
                          fx.opener_fallback_scenario(), fx.opener_type_only_scenario(), fx.long_original_scenario()):
-            comp = compose(scenario, {'messages': 1, 'photos': 1, 'dates': 1, 'memos': 1})
+            comp = compose(scenario, {'messages': 120, 'photos': 40, 'dates': 5, 'memos': 20})
             for p in comp.pages:
                 html = templates[p.stem]
                 for attr in ('data-slot', 'data-src', 'data-if', 'data-repeat', 'data-width'):
@@ -518,7 +521,7 @@ class Coverage(unittest.TestCase):
                         seen.add(path)
                         self.assertIsNotNone(resolve(path, None, Context(p.corner, p.computed, p.bind)), (p.stem, path))
         for name in ('@issue.month', '@cover.headline', '@toc', '@contents.photo', '@note.materials', '@note.ratioPeople', '@back.closing',
-                     '@back.nextMonth', '@page', '@da.lead', '@da.regionEn', '@da.articlePhotos', '@sw.openerPhoto', '@da.places',
+                     '@page', '@da.lead', '@da.regionEn', '@da.articlePhotos', '@sw.openerPhoto', '@da.places',
                      # v1.2 새 이름(README §10) - 하나라도 빠지면 이 시험이 걸린다
                      '@da.featuredOrdinalEn', '@da.articleOrdinalEn', '@da.articlePhotoNote', '@da.openerPhoto',
                      '@note.ratioPeople', '@note.ratioOndolog'):

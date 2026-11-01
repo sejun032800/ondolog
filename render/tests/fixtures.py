@@ -55,18 +55,31 @@ def stop(seq: int, time: str, place: Optional[str], photos: list, notes: list, c
             'userNotes': notes, 'aiCaption': None if notes else caption}
 
 
-def questions(basis: str = '오후 영화 관람 후 저녁 식사로 이어진 동선') -> list:
+def basis_of(stops: list) -> Optional[str]:
+    """'제안' 물음의 근거 문장 - 그 기사의 경유지 이름에서만 만든다(R50-8: 시드 기록에 없는 장소 · 활동을 쓰지 않는다)."""
+    names = [s['placeName'] for s in stops if s.get('placeName')]
+    if len(names) >= 2:
+        return f'{names[0]}에서 {names[-1]}까지 이어진 동선'
+    if names:
+        return f'{names[0]}에서 보낸 하루'
+    return None
+
+
+def questions(basis: Optional[str] = None) -> list:
+    suggestion = {'type': 'suggestion', 'text': '다음에도 같은 동네에서 만난다면 어디에 가볼까?'}
+    if basis:
+        suggestion['basis'] = basis
     return [
         {'type': 'rating', 'text': '이날의 데이트는 10점 만점에 몇 점?'},
         {'type': 'recall', 'text': '이날 중 가장 기억에 남는 건?'},
-        {'type': 'suggestion', 'text': '다음에도 같은 동네에서 만난다면 어디에 가볼까?', 'basis': basis},
+        suggestion,
     ]
 
 
 def article(date_on: str, title: str, region: Optional[str], stops: list, featured: bool = False,
             recalled: bool = False, reason: Optional[str] = None) -> dict:
     a = {'dateId': f'd-{date_on}', 'dateOn': date_on, 'region': region, 'title': title, 'featured': featured,
-         'recalled': recalled, 'stops': stops, 'closingQuestions': questions()}
+         'recalled': recalled, 'stops': stops, 'closingQuestions': questions(basis_of(stops))}
     if reason:
         a['recallReason'] = reason
     return a
@@ -89,9 +102,18 @@ def turn(speaker: str, text: str, at: str) -> dict:
     return {'speaker': speaker, 'text': text, 'at': at}
 
 
+def time_of_day(at: str) -> str:
+    """시각 -> 때 이름(출처 줄의 `아침 대화 중`). 시드의 출처 줄은 첫 발화 시각에서 만든다 - 제목 · 시각이 서로 어긋나지 않게(R50-8)."""
+    hour = int(at[11:13])
+    return '아침' if hour < 12 else '낮' if hour < 18 else '저녁' if hour < 22 else '밤'
+
+
+def stamped(at: str) -> dict:
+    return attribution(f'{at[0:4]}.{at[5:7]}.{at[8:10]} {at[11:16]}, {time_of_day(at)} 대화 중', at)
+
+
 def excerpt(context: str, day: str, turns: list) -> dict:
-    return {'context': context, 'attribution': attribution(f'2026.09.{day} 09:20, 아침 대화 중', f'2026-09-{day}T09:20:00+09:00'),
-            'turns': turns}
+    return {'context': context, 'attribution': stamped(turns[0]['at']), 'turns': turns}
 
 
 def sweet_words(mains: list, subs: Optional[list] = None, label: str = '2026년 9월') -> dict:
@@ -101,17 +123,17 @@ def sweet_words(mains: list, subs: Optional[list] = None, label: str = '2026년 
 
 
 def sub(speaker: str, text: str, at: str = '2026-09-11T23:40:00+09:00') -> dict:
-    return {'attribution': attribution('2026.09.11 23:40, 밤 대화 중', at), 'speaker': speaker, 'text': text}
+    return {'attribution': stamped(at), 'speaker': speaker, 'text': text}
 
 
-def this_month(headline: str, articles: list, signals: Optional[list] = None, closing: str = '10월에도 같은 동네를 걸어 보자.',
+def this_month(headline: str, articles: list, signals: Optional[list] = None, closing: str = '연남동의 장소가 가장 많이 나온 달이었습니다.',
                label: str = '2026년 9월') -> dict:
     return {'schemaVersion': '1.0',
             'header': {'cornerName': '이달의 우리', 'title': '이달의 우리', 'periodLabel': label},
             'payload': {'theme': {'headline': headline, 'lead': '이번 달 두 사람이 남긴 기록에는 같은 동네의 장소가 여러 번 나왔습니다.',
                                   'polarity': 'positive',
                                   'signals': signals or [{'kind': 'place', 'value': '연남동', 'count': 5},
-                                                         {'kind': 'activity', 'value': '산책', 'count': 3}]},
+                                                         {'kind': 'place', 'value': '성수동', 'count': 2}]},
                         'articles': articles, 'closing': closing}}
 
 
@@ -121,7 +143,7 @@ def tm_article(seq: int, title: str, body: str, evidence: list) -> dict:
 
 def ev_message(text: str, day: str = '2026-09-03') -> dict:
     return {'type': 'message', 'at': f'{day}T20:10:00+09:00', 'excerpt': text,
-            'attribution': attribution(f'{day.replace("-", ".")} 20:10, 밤 대화 중', f'{day}T20:10:00+09:00')}
+            'attribution': stamped(f'{day}T20:10:00+09:00')}
 
 
 def ev_photo(entry: str) -> dict:
@@ -151,7 +173,7 @@ def photo_scenario(theme: str = 'basic', short_side: int = 1200) -> dict:
              [memo('창가 자리가 비어 있었다.\n케이크를 반씩 나눠 먹었다.', B)], None),
         stop(2, '19:00', '연남동 식당', [photo('e06', w, h), photo('e07', w, h)], [], '저녁을 먹은 식당'),
     ], featured=True)
-    second = article('2026-09-21', '성수동 산책', '성수동', [
+    second = article('2026-09-21', '성수동에서 걸은 하루', '성수동', [
         stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다'),
         stop(1, '15:30', None, [photo('e09', w, h), photo('e10', w, h)], [memo('오래 걸었다.')], None),
     ])
@@ -168,7 +190,7 @@ def photo_scenario(theme: str = 'basic', short_side: int = 1200) -> dict:
     tm = this_month('연남동을 자주 걸은 달', [
         tm_article(0, '같은 동네, 여러 번', '연남동은 이번 달 다섯 번 기록에 나왔습니다.', [ev_message('연남동 또 가자'), ev_date('2026-09-12')]),
         tm_article(1, '비 오는 날의 기록', '비가 온 날의 대화와 사진이 함께 남았습니다.', [ev_message('우산 챙겼어? 오늘 정말 비가 많이 온대'), ev_photo('e12')]),
-        tm_article(2, '산책이 늘었다', '성수동에서 오래 걸은 날이 있었습니다.', [ev_date('2026-09-21')]),
+        tm_article(2, '오래 걸은 날', '성수동에서 오래 걸은 날이 있었습니다.', [ev_date('2026-09-21')]),
     ])
     return {'theme': theme, 'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2),
                                          corner_row('this_month', tm, seq=3)]}
@@ -191,7 +213,7 @@ def type_scenario(theme: str = 'neon') -> dict:
     tm = this_month('비가 와도 우리는 걸었다', [
         tm_article(0, '같은 동네, 여러 번', '연남동은 이번 달 다섯 번 기록에 나왔습니다.', [ev_message('연남동 또 가자'), ev_date('2026-09-12')]),
         tm_article(1, '비 오는 날의 기록', '비가 온 날의 대화와 사진이 함께 남았습니다.', [ev_message('우산 챙겼어? 오늘 정말 비가 많이 온대'), ev_photo('e12')]),
-        tm_article(2, '산책이 늘었다', '성수동에서 오래 걸은 날이 있었습니다.', [ev_date('2026-09-21')]),
+        tm_article(2, '오래 걸은 날', '성수동에서 오래 걸은 날이 있었습니다.', [ev_date('2026-09-21')]),
         tm_article(3, '밤에 오간 말', '늦은 밤 대화가 이어진 날이 있었습니다.', [ev_message('좋은 아침', '2026-09-17')]),
     ])
     rows = [corner_row('date_archive', s['corners'][0]['content'], seq=1), corner_row('sweet_words', sw, seq=2),
@@ -222,12 +244,12 @@ def exact_text(seed: str, length: int) -> str:
 LONG_SEED = '비 오는 날에는 우산을 챙기라고 말해 주던 목소리가 오래 남아서 오늘도 그 말을 다시 꺼내어 읽어 본다'
 
 
-def long_conversation(day: str, turns: int = 4, chars: int = 160, context: str = '긴 이야기를 나눈 대화') -> dict:
-    """`turns`개 발화, 발화마다 정확히 `chars`자인 대화 하나."""
+def long_conversation(day: str, turns: int = 4, chars: int = 160, context: str = '긴 이야기를 나눈 대화', hour: int = 21) -> dict:
+    """`turns`개 발화, 발화마다 정확히 `chars`자인 대화 하나. 첫 발화 시각 = `hour`시 10분."""
     speakers = [A, B]
     words = LONG_SEED.split(' ')
     return excerpt(context, day, [
-        turn(speakers[i % 2], exact_text(' '.join(words[i:] + words[:i]), chars), f'2026-09-{day}T21:{10 + i}:00+09:00') for i in range(turns)])
+        turn(speakers[i % 2], exact_text(' '.join(words[i:] + words[:i]), chars), f'2026-09-{day}T{hour:02d}:{10 + i}:00+09:00') for i in range(turns)])
 
 
 def many_photos_scenario(theme: str = 'basic') -> dict:
@@ -238,9 +260,9 @@ def many_photos_scenario(theme: str = 'basic') -> dict:
         stop(1, '14:20', '연남동 카페', [photo('e02', w, h), photo('e03', w, h), photo('e04', w, h), photo('e05', w, h)],
              [memo('창가 자리가 비어 있었다.\n케이크를 반씩 나눠 먹었다.', B)], None),
         stop(2, '19:00', '연남동 식당', [photo('e06', w, h), photo('e07', w, h)], [], '저녁을 먹은 식당'),
-        stop(3, '21:30', '경의선숲길', [photo('e13', w, h)], [], '밤 산책길'),
+        stop(3, '21:30', '경의선숲길', [photo('e13', w, h)], [], '밤의 숲길'),
     ], featured=True)
-    second = article('2026-09-21', '성수동 산책', '성수동', [
+    second = article('2026-09-21', '성수동에서 걸은 하루', '성수동', [
         stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다'),
         stop(1, '15:30', None, [photo('e09', w, h), photo('e10', w, h), photo('e14', w, h), photo('e15', w, h)], [memo('오래 걸었다.')], None),
     ])
@@ -259,7 +281,7 @@ def opener_fallback_scenario(theme: str = 'night') -> dict:
         stop(0, '14:20', '홍대입구역', [], [memo('역 앞에서 만났다. 우산이 하나뿐이었다.')], None),
         stop(1, '16:10', '연남동 카페', [photo('e02', w, h), photo('e03', w, h)], [memo('창가 자리가 비어 있었다.', B)], None),
     ], featured=True)
-    second = article('2026-09-21', '성수동 산책', '성수동', [stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다')])
+    second = article('2026-09-21', '성수동에서 걸은 하루', '성수동', [stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다')])
     base = photo_scenario(theme)
     return {'theme': theme, 'corners': [corner_row('date_archive', date_archive([featured, second]), seq=1), base['corners'][1], base['corners'][2]]}
 
@@ -271,7 +293,7 @@ def opener_type_only_scenario(theme: str = 'hip') -> dict:
         stop(0, '14:20', '홍대입구역', [], [memo('사진은 못 찍었다. 비가 너무 왔다.')], None),
         stop(1, '16:10', '연남동 카페', [], [memo('창가 자리가 비어 있었다.', B)], None),
     ], featured=True)
-    second = article('2026-09-21', '성수동 산책', '성수동', [stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다')])
+    second = article('2026-09-21', '성수동에서 걸은 하루', '성수동', [stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다')])
     base = photo_scenario(theme)
     return {'theme': theme, 'corners': [corner_row('date_archive', date_archive([featured, second]), seq=1), base['corners'][1], base['corners'][2]]}
 
@@ -280,9 +302,9 @@ def long_original_scenario(theme: str = 'ondol', with_overlong: bool = False) ->
     """③ 긴 원문 - 160자 4턴 대화 둘(각 한 면 안에 들어가지만 둘은 한 면에 못 든다 -> 인용 2면) + 긴 메모.
     `with_overlong`이면 한 면을 넘는 대화(4턴 x 400자) 하나를 더한다 - 렌더가 실패해야 한다. 그 대화를 빼면 나뉘어 통과한다."""
     base = photo_scenario(theme)
-    mains = [long_conversation('22'), long_conversation('24', context='저녁 약속을 두고 길게 이어진 대화')]
+    mains = [long_conversation('22'), long_conversation('24', context='저녁 약속을 두고 길게 이어진 대화', hour=19)]
     if with_overlong:
-        mains.append(long_conversation('27', chars=400, context='밤새 이어진 가장 긴 대화'))
+        mains.append(long_conversation('27', chars=400, context='밤새 이어진 가장 긴 대화', hour=23))
     sw = sweet_words(mains, [sub(B, '오늘 고생했어 진짜'), sub(A, '집에 잘 들어갔어?', '2026-09-15T22:10:00+09:00')])
     da = base['corners'][0]['content']
     long_memo = exact_text('창가 자리에서 오래 이야기했다 해가 질 때까지 앉아 있었다', 120)

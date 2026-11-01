@@ -27,6 +27,11 @@ from typing import Any, Optional
 sys.dont_write_bytecode = True
 
 from romanize import romanize_place  # noqa: E402
+from facts import (  # noqa: E402  (호의 사실 - 지면의 수치 · 목록은 모두 여기서 한 번 계산한다. 아래 이름은 compose에서도 쓸 수 있게 다시 내보낸다)
+    ARTICLE_PHOTOS, PHOTOS_PER_STOP, PLACES_CAP, UNNAMED_PLACE, FactsError, IssueFacts, article_photos, as_dict, as_list, build_facts,
+    caption_memo_count, first_photo_any, first_photo_path, is_blank, memo_notes, mmdd_dot, ratio_label, shown_photos_of_stop,
+    stop_photo_counts, ymd_dot,
+)
 
 THEMES = ('basic', 'hip', 'neon', 'lovely', 'night', 'ondol')
 CORNER_ORDER = ('date_archive', 'sweet_words', 'this_month')  # CORNER_LAYOUT §6 (연애 DNA·연애리그 없음)
@@ -44,9 +49,6 @@ STOP_HEIGHT_PX = {
 TIMELINE_MEMO_BASE_CHARS = 50   # README §12 - §5 표는 메모 50자 안팎을 기준으로 잰 값
 TIMELINE_MEMO_STEP_PX = 29      # README §12 - 메모 50자마다 약 29px
 TIMELINE_MAX_PAGES = 2          # CORNER_LAYOUT §3-1 "타임라인 1~2면", §4 "배열이 예상보다 김: 상한까지만"
-PHOTOS_PER_STOP = 3             # CORNER_LAYOUT §3-1 "4 이상은 상위 3장만"
-ARTICLE_PHOTOS = 3              # README §9-② `@da.articlePhotos` 상위 3장
-PLACES_CAP = 8                  # 장소 목록 상한 - README 쓸기 검사(`tools/sweep.py`)가 통과를 확인한 최대 항목 수
 SIGNALS_CAP = 3                 # CORNER_LAYOUT §3-4 "요약 수치 3개"
 # README §12 - 다정한 말들 인용 블록의 가용 높이(그 면의 단문 개수에 따라)와 대화 하나의 높이. 대화 단위로 면을 나눈다.
 QUOTE_CAPACITY_PX = 844         # 단문 0~2개
@@ -107,10 +109,6 @@ class Composition:
 # 작은 도구
 # ---------------------------------------------------------------------------
 
-def is_blank(v: Any) -> bool:
-    return v is None or (isinstance(v, str) and v.strip() == '') or (isinstance(v, (list, dict)) and len(v) == 0)
-
-
 def code_points(s: str) -> int:
     return len(s)  # Python str은 코드포인트 단위다
 
@@ -123,20 +121,6 @@ def count_sentences(text: Any) -> int:
     return max(1, len([p for p in parts if p.strip() != '']))
 
 
-def ymd_dot(value: Any) -> str:
-    """`2026-08-19`(또는 ISO 시각) -> `2026.08.19`. 모양이 아니면 빈 값."""
-    if isinstance(value, str):
-        m = re.match(r'^(\d{4})-(\d{2})-(\d{2})', value)
-        if m:
-            return f'{m.group(1)}.{m.group(2)}.{m.group(3)}'
-    return ''
-
-
-def mmdd_dot(value: Any) -> str:
-    s = ymd_dot(value)
-    return s[5:] if s else ''
-
-
 def mmdd_hhmm(value: Any) -> str:
     """ISO 시각(+09:00 표기 그대로) -> `08.11 23:40`. 모양이 아니면 빈 값."""
     if isinstance(value, str):
@@ -144,6 +128,33 @@ def mmdd_hhmm(value: Any) -> str:
         if m:
             return f'{m.group(1)}.{m.group(2)} {m.group(3)}:{m.group(4)}'
     return ''
+
+
+def source_stamp(at: Any, year: Optional[int], recalled_days: Any = (), fallback: Any = None) -> Any:
+    """출처 날짜 · 시각(R50-2 #9) - 근거 날짜와 같은 규칙. `09.22 09:20`, 이 호의 연도와 다른 해이거나 재소환 기사의 날짜만 `2025.09.20 09:20`.
+
+    ISO 시각이 아니면 `fallback`을 그대로 돌려준다(값을 지어내지 않는다).
+    """
+    if isinstance(at, str):
+        m = re.match(r'^\d{4}-\d{2}-\d{2}T(\d{2}):(\d{2})', at)
+        day = mmdd_or_ymd(at, year, recalled_days)
+        if m and day:
+            return f'{day} {m.group(1)}:{m.group(2)}'
+    return fallback
+
+
+_DISPLAY_STAMP = re.compile(r'^\s*\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}')
+
+
+def quote_display(display: Any, at: Any, year: Optional[int], recalled_days: Any = ()) -> Any:
+    """`attribution.display`(`2026.09.22 09:20, 아침 대화 중`)의 앞 날짜 · 시각을 `source_stamp` 규칙으로 바꾼다. 뒤의 정황 말(`, 아침 대화 중`)은 그대로 둔다. 모양이 맞지 않으면 그대로."""
+    if not isinstance(display, str):
+        return display
+    m = _DISPLAY_STAMP.match(display)
+    stamp = source_stamp(at, year, recalled_days)
+    if not m or not stamp:
+        return display
+    return stamp + display[m.end():]
 
 
 def month_of_label(label: Any) -> Optional[str]:
@@ -229,14 +240,6 @@ def pack_quotes(heights: list, sub_count: int, names: Optional[list] = None) -> 
     return pages
 
 
-def as_list(v: Any) -> list:
-    return v if isinstance(v, list) else []
-
-
-def as_dict(v: Any) -> dict:
-    return v if isinstance(v, dict) else {}
-
-
 def split_headline(text: Any) -> Optional[list]:
     """표제를 3줄·줄당 6자 이내로 띄어쓰기에 맞게 나눈다. 못 나누면 None (MASTER 9-5 r64).
 
@@ -261,12 +264,6 @@ def split_headline(text: Any) -> Optional[list]:
 # ---------------------------------------------------------------------------
 # 데이트 아카이브
 # ---------------------------------------------------------------------------
-
-def memo_notes(stop: dict) -> list:
-    """지면에 놓을 수 있는 메모 - 글이 있는 메모만. 그림 메모는 이 지면에 놓지 못한다."""
-    return [n for n in as_list(stop.get('userNotes'))
-            if isinstance(n, dict) and n.get('type', 'memo') == 'memo' and not is_blank(n.get('text'))]
-
 
 def stop_height(stop: dict) -> int:
     """README §5 표 + 메모 보정 - 메모가 50자를 넘으면 50자마다 29px을 더한다(§12). 지면이 그리는 메모는 첫 메모 하나다."""
@@ -304,82 +301,11 @@ def split_timeline(stops: list) -> tuple:
     return [p for p in pages if p], dropped
 
 
-def shown_photos_of_stop(stop: dict) -> list:
-    return [p for p in as_list(stop.get('photos')) if isinstance(p, dict) and isinstance(p.get('path'), str)][:PHOTOS_PER_STOP]
-
-
-def article_photos(article: dict) -> list:
-    """README §9 `@da.articlePhotos` - 그 기사의 사진을 편 뒤 상위 3장. 항목: path · caption.
-
-    **임시 규칙 R48-3 ②(디자인 v1.2.3 전까지)**: 캡션에는 AI 캡션을 싣지 않고 유저 메모만 싣는다 - 지면에 라벨 줄이 없어 AI 문장이 두 사람의 글처럼 읽히기 때문이다.
-    캡션 = 그 사진이 속한 stop의 첫 유저 메모(원문 그대로). 같은 메모를 사진마다 되풀이하지 않으려고 그 stop의 첫 사진에만 붙인다. 메모가 없으면 빈 값(줄이 지워진다).
-    """
-    out = []
-    for stop in as_list(article.get('stops')):
-        if not isinstance(stop, dict):
-            continue
-        memos = memo_notes(stop)
-        caption = memos[0]['text'] if memos else ''
-        for photo in as_list(stop.get('photos')):
-            if isinstance(photo, dict) and isinstance(photo.get('path'), str):
-                out.append({'path': photo['path'], 'caption': caption})
-                caption = ''
-    return out[:ARTICLE_PHOTOS]
-
-
-def caption_memo_count(articles: list) -> int:
-    """기사들의 사진 아래에 실린 유저 메모 수(R48-3 ②) - 오프너 문장과 발행 노트가 같이 쓴다."""
-    return sum(1 for a in articles for p in article_photos(a) if p['caption'])
-
-
-def first_photo_path(article: dict) -> Optional[str]:
-    stops = as_list(article.get('stops'))
-    if stops and isinstance(stops[0], dict):
-        photos = as_list(stops[0].get('photos'))
-        if photos and isinstance(photos[0], dict) and isinstance(photos[0].get('path'), str):
-            return photos[0]['path']
-    return None
-
-
-def shown_memo_count(kept_stops: list) -> int:
-    """지면에 실린 메모 수 - 타임라인에 실린 구간 중 메모가 있는 구간(지면은 구간마다 첫 메모 하나를 그린다). 오프너 문장과 발행 노트가 같이 쓴다."""
-    return sum(1 for s in kept_stops if as_list(s.get('userNotes')))
-
-
-def shown_lead_photos(kept_stops: list, other_articles: list) -> list:
-    """오프너 문장이 세는 실린 사진(경로, 중복 없음) - 대표 기사 타임라인에 실린 구간의 사진(구간당 3장 상한) + 비대표 이번 기간 기사의 기사당 상한 3장."""
-    paths: list = []
-    for s in kept_stops:
-        paths.extend(p['path'] for p in shown_photos_of_stop(s))
-    for a in other_articles:
-        paths.extend(p['path'] for p in article_photos(a))
-    return list(dict.fromkeys(paths))
-
-
-def first_photo_any(article: dict) -> Optional[str]:
-    """README §10 `@da.openerPhoto` - 기사의 **전체 stop**을 순서대로 편 뒤 첫 사진(§3-1 폴백). 하나도 없으면 None -> `type-only`."""
-    for stop in as_list(article.get('stops')):
-        for photo in as_list(as_dict(stop).get('photos')):
-            if isinstance(photo, dict) and isinstance(photo.get('path'), str):
-                return photo['path']
-    return None
-
-
-def article_photo_total(article: dict) -> int:
-    return sum(1 for stop in as_list(article.get('stops')) for p in as_list(as_dict(stop).get('photos'))
-               if isinstance(p, dict) and isinstance(p.get('path'), str))
-
-
 def photo_note(total: int, shown: int) -> str:
     """README §10 `@da.articlePhotoNote` - 실린 수 < 전체면 `그날 남은 사진 {전체}장 중 {실린}장`, 같으면 `그날 남은 사진 {실린}장`. 0이면 빈 값."""
     if shown <= 0:
         return ''
     return f'그날 남은 사진 {total}장 중 {shown}장' if shown < total else f'그날 남은 사진 {shown}장'
-
-
-def route_of(article: dict) -> str:
-    return ' → '.join(s['placeName'] for s in as_list(article.get('stops'))
-                      if isinstance(s, dict) and isinstance(s.get('placeName'), str) and s['placeName'].strip())
 
 
 # ---------------------------------------------------------------------------
@@ -410,6 +336,7 @@ class _Builder:
         self.sentences: list = []
         self.report: dict = {'decisions': []}
         self.shown: list = []  # 지면에 실린 사진(날짜 아카이브 안), 지면 순서·중복 없음
+        self.facts: Optional[IssueFacts] = None   # 호의 사실 - 데이트 아카이브가 없으면 None
 
     # -- 기록 ----------------------------------------------------------------
 
@@ -435,6 +362,18 @@ class _Builder:
             'names': ' · '.join(n for n in self.names if n),
         }
 
+    def ensure_facts(self) -> None:
+        """데이트 아카이브 지면이 없는 호의 호의 사실 - 기사 없이 대화 · 이달의 우리 수치와 노트 표만 든다."""
+        if self.facts is not None:
+            return
+        sw_row, tm_row = self.ready.get('sweet_words'), self.ready.get('this_month')
+        try:
+            self.facts = build_facts(articles=[], fi=-1, kept_stops=[], dropped_stops=[], materials=self.materials, summary=None,
+                                     sweet_payload=as_dict(sw_row).get('payload') if sw_row else None,
+                                     this_month_payload=as_dict(tm_row).get('payload') if tm_row else None)
+        except FactsError as e:
+            raise ComposeError(f"호 {self.issue.get('id')}: {e}") from None
+
     # -- 데이트 아카이브 --------------------------------------------------------
 
     def date_archive_pages(self) -> list:
@@ -452,18 +391,19 @@ class _Builder:
         label = as_dict(content.get('header')).get('periodLabel')
         month = month_of_label(label) or f'{self.end_month}월'
         summary = as_dict(payload.get('summary'))
-        regions = [r for r in as_list(summary.get('regions')) if isinstance(r, str) and r.strip()]
 
         stops = [s for s in as_list(art.get('stops')) if isinstance(s, dict)]
         first_time = hhmm(stops[0].get('time')) if stops else None   # README §11 ③ `14:20`
         last_time = hhmm(stops[-1].get('time')) if stops else None
 
-        # 타임라인 분할(README §5) - 메모 없는 그림 메모 stop은 보기 사본에서 메모로 세지 않는다
+        # 타임라인 분할(README §5) - 메모 없는 그림 메모 stop은 보기 사본에서 메모로 세지 않는다.
+        # 구간 라벨 `사진 3 / 4`(R50-2)의 숫자는 호의 사실(`facts.stop_photo_counts`)에서 온다 - 여기서 세지 않는다.
         view_stops = []
         for s in stops:
             v = copy.deepcopy(s)
             v['userNotes'] = memo_notes(s)
             v['time'] = hhmm(v.get('time'))
+            v['photoLabel'] = ratio_label(*stop_photo_counts(s))
             view_stops.append(v)
         try:
             tl_pages, dropped_stops = split_timeline(view_stops)
@@ -477,6 +417,18 @@ class _Builder:
                 raise ComposeError(f"호 {self.issue.get('id')}: 데이트 아카이브 {i + 1}번째 기사({str(a.get('title') or '')[:20]})의 히어로 사진 원천이 없다 "
                                    f'(첫 구간의 첫 사진 - 지면에 폴백이 없다. 디자인 v1.2.3 전 임시 규칙 R48-3 ①)')
 
+        # 호의 사실 - 이 아래의 모든 수치 · 목록은 여기서 읽는다 (R50-2)
+        sw_row = self.ready.get('sweet_words')
+        tm_row = self.ready.get('this_month')
+        try:
+            facts = build_facts(articles=articles, fi=fi, kept_stops=kept_stops, dropped_stops=dropped_stops, materials=self.materials,
+                                summary=summary, sweet_payload=as_dict(sw_row).get('payload') if sw_row else None,
+                                this_month_payload=as_dict(tm_row).get('payload') if tm_row else None)
+        except FactsError as e:
+            raise ComposeError(f"호 {self.issue.get('id')}: {e}") from None
+        self.facts = facts
+        lead_f = facts.lead
+
         # 실린 사진 - 지면 순서(오프너 -> 타임라인 -> 기사). 오프너 사진은 대표 기사 전체 stop의 첫 사진이다(§10)
         opener_photo = first_photo_any(art)
         self.show(opener_photo)
@@ -489,41 +441,22 @@ class _Builder:
             for p in article_photos(a):
                 self.show(p['path'])
 
-        # @da.lead - 지면에 실제로 실린 것만 센다(R26-5): 사진은 stop당 3장 상한 뒤, 데이트는 재소환을 뺀 이번 기간 것
-        # 55-3(D안): 사진·메모는 재소환을 뺀 이번 기간 기사 중 **지면에 실제로 실린 것** - 사진은 stop당 3장 · 비대표 기사는 기사당 3장 상한 뒤,
-        # 메모는 대표 기사 타임라인에 실린 메모(비대표 기사는 개수만 적히므로 뺀다). 발행 노트의 게재 수와 같은 함수·같은 집합에서 나온다.
-        this_period = [a for a in articles if a.get('recalled') is not True]
-        lead_stops = [s for a in this_period for s in as_list(a.get('stops')) if isinstance(s, dict)]
-        lead_photo_paths = shown_lead_photos(kept_stops, [a for i, a in enumerate(articles) if i != fi and a.get('recalled') is not True])
-        lead_photos = len(lead_photo_paths)
-        # 메모 = 대표 기사 타임라인에 실린 메모 + 비대표 기사 사진 아래에 실린 메모(R48-3 ②, 재소환 기사 것은 뺀다)
-        other_articles = [a for i, a in enumerate(articles) if i != fi]
-        lead_notes = shown_memo_count(kept_stops) + caption_memo_count([a for a in other_articles if a.get('recalled') is not True])
-        self.caption_memo_total = caption_memo_count(other_articles)   # 발행 노트의 게재 수는 재소환 기사의 것도 센다
-        self.lead_photo_paths = lead_photo_paths
-        self.lead_memo_count = lead_notes
+        # @da.lead - 지면에 실제로 실린 것만 센다(R26-5): 데이트는 이번 기간 모은 양, 사진 · 메모는 이번 기간 기사 중 실린 것(재소환은 따로)
+        regions = facts.regions
         region_part = f"{', '.join(regions)}, " if regions else ''
-        lead = (f'{month}에 두 사람이 함께 보낸 날은 {len(this_period)}번이었습니다. '
-                f'{region_part}{len(lead_stops)}곳을 거치며 남긴 {lead_photos}장의 사진과 {lead_notes}개의 메모를 그대로 실었습니다.')
+        lead = (f'{month}에 두 사람이 함께 보낸 날은 {facts.period_dates}번이었습니다. '
+                f'{region_part}{facts.place_count}곳을 거치며 남긴 {len(facts.photos_shown_period)}장의 사진과 '
+                f'{facts.memos_shown_period}개의 메모를 그대로 실었습니다.')
         route_headline = f'{month}에 두 사람이 그린 지도'
         self.say('ondolog', 'fixedFrame', '@da.lead', lead)
         self.say('ondolog', 'fixedFrame', '@da.routeHeadline', route_headline)
 
-        photo_total = sum(len(as_list(s.get('photos'))) for s in stops)
-        memo_total = sum(len(as_list(s.get('userNotes'))) for s in stops)
-        caption_total = sum(1 for s in stops if not is_blank(s.get('aiCaption')))
         records = ''
-        if memo_total + caption_total > 0:
-            records = f'남긴 기록 · 메모 {memo_total}' + (f' · AI 캡션 {caption_total}' if caption_total > 0 else '')
+        if lead_f.memos_total + lead_f.ai_captions_shown > 0:
+            records = f'남긴 기록 · 메모 {lead_f.memos_total}' + (f' · AI 캡션 {lead_f.ai_captions_shown}' if lead_f.ai_captions_shown > 0 else '')
 
-        all_stops = [s for a in articles for s in as_list(a.get('stops')) if isinstance(s, dict)]
-        places_all = []
-        for a in articles:
-            for s in as_list(a.get('stops')):
-                if isinstance(s, dict):
-                    places_all.append({'date': mmdd_dot(a.get('dateOn')), 'placeName': s.get('placeName')})
-        places = places_all[:PLACES_CAP]
-        self.omitted_places = len(places_all) - len(places)
+        places = facts.places[:PLACES_CAP]
+        self.omitted_places = len(facts.places) - len(places)
         article_no = f'{fi + 1:02d}'
 
         region_en = romanize_place(art['region']) if isinstance(art.get('region'), str) else None
@@ -536,8 +469,8 @@ class _Builder:
             'openerPhoto': opener_photo or '',
             'startTime': first_time or '',
             'endTime': last_time or '',
-            'stopCount': len(stops),
-            'photoCount': photo_total,
+            'stopCount': lead_f.stop_count,
+            'photoCount': lead_f.photos_total,
             'records': records,
         }
 
@@ -559,8 +492,9 @@ class _Builder:
                 'articleNo': article_no,
                 'startTime': first_time or '',
                 'endTime': last_time or '',
-                'route': route_of(art),
-                'totals': f'사진 {photo_total}장 · 메모 {memo_total}',
+                'route': lead_f.route,
+                'totals': (f'사진 {ratio_label(lead_f.timeline_photos_shown, lead_f.photos_total)}장 · '
+                           f'메모 {ratio_label(lead_f.memos_shown, lead_f.memos_total)}'),
             }}
             pages.append(PageSpec('da-timeline', v, computed, {'featured': fi, 'i': fi}, 'date_archive'))
         for s in kept_stops:
@@ -570,17 +504,16 @@ class _Builder:
             elif not is_blank(s.get('aiCaption')):
                 self.say('ondolog', 'aiCaption', 'date_archive.stop.aiCaption', s.get('aiCaption'))
         self.timeline_dropped = dropped_stops
-        self.timeline_kept = kept_stops
         self.timeline_page_count = len(tl_pages)
 
-        # 이동 경로 + 세 물음
+        # 이동 경로 + 세 물음 - 이번 달 경로이므로 재소환 장소는 없다 (R50-3)
         v = view_copy()
         v_art = v['payload']['articles'][fi]
         for q in as_list(v_art.get('closingQuestions')):
             if isinstance(q, dict):
                 q['type'] = QUESTION_TYPE_KO.get(q.get('type'), q.get('type'))
         computed = {'da': {
-            'routeSummary': f"{summary.get('regionCount', len(regions))}개 지역 · {len(all_stops)}개 장소",
+            'routeSummary': f'{facts.region_count}개 지역 · {facts.place_count}개 장소',
             'routeHeadline': route_headline,
             'places': places,
         }}
@@ -597,18 +530,18 @@ class _Builder:
             years = self.end_year - int(str(a.get('dateOn') or '0000')[0:4]) if re.match(r'^\d{4}', str(a.get('dateOn') or '')) else 0
             # R26-4: anniversary만 "N년 전 이맘때". 나머지 사유는 빈 값(줄 삭제)
             va['recallReason'] = f'{years}년 전 이맘때' if (a.get('recalled') is True and a.get('recallReason') == 'anniversary' and years > 0) else None
-            a_stops = [s for s in as_list(a.get('stops')) if isinstance(s, dict)]
+            af = facts.article(i)
             a_photos = article_photos(a)
             computed = {'da': {
                 'articleNo': f'{i + 1:02d}',
                 'articleOrdinalEn': ordinal_en(i + 1),
-                'articlePhotoNote': photo_note(article_photo_total(a), len(a_photos)),
+                'articlePhotoNote': photo_note(af.photos_total, af.photos_shown),
                 'articleDate': ymd_dot(a.get('dateOn')),
-                'articleRoute': route_of(a),
-                'articlePhotoCount': sum(len(as_list(s.get('photos'))) for s in a_stops),
-                'articleNoteCount': sum(len(as_list(s.get('userNotes'))) for s in a_stops),
-                'articleStopCount': len(a_stops),
-                'articleCaptionCount': sum(1 for s in a_stops if not is_blank(s.get('aiCaption'))),
+                'articleRoute': af.route,
+                'articlePhotoCount': af.photos_total,
+                'articleNoteCount': af.memos_total,
+                'articleStopCount': af.stop_count,
+                'articleCaptionCount': af.ai_captions_shown if af.ai_captions_shown > 0 else '',   # 실린 수만, 0이면 빈 값 -> 칸째 뺀다 (R50-4)
                 'articlePhotos': a_photos,
             }}
             pages.append(PageSpec('da-article', v, computed, {'featured': fi, 'i': i}, 'date_archive'))
@@ -628,14 +561,20 @@ class _Builder:
         if not mains:
             raise ComposeError('sweet_words에 main이 없다')
         sw_computed = {'sw': {'openerPhoto': opener_photo or ''}}
+        recalled_days = self.facts.recalled_days if self.facts else set()
 
         def view(main_slice: list, sub_slice: list) -> dict:
             v = copy.deepcopy(content)
-            v['payload']['main'] = copy.deepcopy(main_slice)
+            main_view = copy.deepcopy(main_slice)
+            for m in main_view:   # 출처 날짜 = 근거 날짜 규칙 (R50-2 #9, R48-3 ④ 임시값을 대체)
+                att = as_dict(m.get('attribution'))
+                att['display'] = quote_display(att.get('display'), att.get('at'), self.end_year, recalled_days)
+                m['attribution'] = att
+            v['payload']['main'] = main_view
             sub_view = copy.deepcopy(sub_slice)
             for s in sub_view:
                 att = as_dict(s.get('attribution'))
-                att['at'] = mmdd_hhmm(att.get('at'))  # 지면 표기 `08.11 23:40`
+                att['at'] = source_stamp(att.get('at'), self.end_year, recalled_days, fallback='')   # 지면 표기 `08.11 23:40`
                 s['attribution'] = att
             v['payload']['sub'] = sub_view
             return v
@@ -672,9 +611,7 @@ class _Builder:
 
         view = copy.deepcopy(content)
         # README §11 ⑤ - 근거 날짜는 `08.22`, 재소환 기사의 날짜만 연도를 붙인다
-        da_content = self.ready.get('date_archive')
-        recalled_days = {str(a.get('dateOn')) for a in as_list(as_dict(as_dict(da_content).get('payload')).get('articles'))
-                         if isinstance(a, dict) and a.get('recalled') is True} if da_content else set()
+        recalled_days = self.facts.recalled_days if self.facts else set()
         # README §11 ④ - `.seq`는 두 자리 `01`. seq가 0부터면 +1 해서 쓴다
         seqs = [a['seq'] for a in view['payload']['articles'] if isinstance(a.get('seq'), int)]
         seq_shift = 1 if seqs and min(seqs) == 0 else 0
@@ -760,6 +697,7 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     used_up = {contents_photo, back_photo, cover_photo_used}
     sw_opener_photo = next((p for p in b.shown if p not in used_up), None)  # README §9 `@sw.openerPhoto`
 
+    b.ensure_facts()   # 데이트 아카이브가 없는 호도 대화 · 이달의 우리 수치는 호의 사실에서 읽는다
     sw_pages = b.sweet_words_pages(sw_opener_photo) if 'sweet_words' in b.ready else []
     tm_pages = b.this_month_pages() if 'this_month' in b.ready else []
 
@@ -786,7 +724,6 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
 
     closing = f'{b.end_month}월의 온도를\n여기에 두고 갑니다'
     b.say('ondolog', 'fixedFrame', '@back.closing', closing.replace('\n', ' '))
-    nm_year, nm_month = (b.end_year + 1, 1) if b.end_month == 12 else (b.end_year, b.end_month + 1)
 
     base = {'issue': iv, 'toc': toc}
     pages: list = []
@@ -799,7 +736,7 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     for t in ordered:
         pages.extend(body_pages[t])
     pages.append(PageSpec('back', None, {**base, 'back': {
-        'photo': back_photo or '', 'closing': closing, 'nextMonth': f'{MONTHS_EN[nm_month - 1]} {nm_year}'}}, {}, None))
+        'photo': back_photo or '', 'closing': closing}}, {}, None))   # R50-5: 다음 호를 약속하는 표시(NEXT ISSUE)는 싣지 않는다
 
     for n, p in enumerate(pages, 1):  # 폴리오는 표지·뒤표지 외 전부에 있다 - 표지(1장)를 뺀 번호
         p.computed.setdefault('issue', iv)
@@ -819,8 +756,9 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
         'coverHeadlineFrom': cover['headlineFrom'],
         'coverHeadlineUnsplit': cover['headlineUnsplit'],
         'quotePages': getattr(b, 'quote_page_count', 0),
-        'leadCounts': {'photos': len(getattr(b, 'lead_photo_paths', [])), 'memos': getattr(b, 'lead_memo_count', 0)},
-        'leadPhotoPaths': list(getattr(b, 'lead_photo_paths', [])),
+        'leadCounts': {'photos': len(b.facts.photos_shown_period) if b.facts else 0, 'memos': b.facts.memos_shown_period if b.facts else 0},
+        'leadPhotoPaths': list(b.facts.photos_shown_period) if b.facts else [],
+        'facts': b.facts.to_report() if b.facts else None,
         'contentsPhoto': contents_photo, 'backPhoto': back_photo, 'swOpenerPhoto': sw_opener_photo,
         'pages': [{'n': i, 'stem': p.stem} for i, p in enumerate(pages, 1)],
         'toc': toc,
@@ -834,20 +772,18 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
 
 
 def toc_desc(b: _Builder, corner_type: str, payload: dict, header: dict) -> str:
-    """목차 설명 줄(README §11 ①) - **코너가 담은 것을 종류와 개수로 적는다. 형용사를 쓰지 않는다.** 고정 틀 세 개."""
+    """목차 설명 줄(README §11 ①) - **코너가 담은 것을 종류와 개수로 적는다. 형용사를 쓰지 않는다.** 고정 틀 세 개. 개수는 호의 사실에서 읽는다(R50-2)."""
     if corner_type == 'date_archive':
         month = month_of_label(header.get('periodLabel')) or f'{b.end_month}월'
-        count = as_dict(payload.get('summary')).get('dateCount')
-        if not isinstance(count, int):
-            count = len([a for a in b.da['articles'] if a.get('recalled') is not True])
-        return f"화보 · {month}의 {count}번의 하루 · 기사 {len(b.da['articles'])}편"
+        recalled = f' · 그때 그 시절 {b.facts.articles_recalled}편' if b.facts.articles_recalled > 0 else ''   # 재소환이 없으면 뒤 조각은 없다
+        return f'화보 · {month}의 하루 {b.facts.articles_period}편{recalled}'
     if corner_type == 'sweet_words':
         return '인용 · 원문 그대로'
     headline = as_dict(payload.get('theme')).get('headline')
     pieces = ['기사']
     if isinstance(headline, str) and headline.strip():
         pieces.append(headline)
-    pieces.append(f"소기사 {len(as_list(payload.get('articles')))}편")
+    pieces.append(f'소기사 {b.facts.this_month_articles}편')
     return ' · '.join(pieces)
 
 
@@ -915,8 +851,40 @@ def _sentence_summary(sentences: list) -> dict:
     return {'people': total['people'], 'ondolog': total['ondolog'], 'byKind': by_kind}
 
 
+NOTE_ROW_LABELS = {'dates': ('데이트', '번', '{n}번'), 'photos': ('사진', '장', '{n}장'),
+                   'memos': ('메모', '개', '{n}개'), 'messages': ('대화', '개', '인용 {n}개')}
+
+
+def not_used_text(row_key: str, item: dict, timeline_max_pages: int) -> str:
+    """발행 노트 '싣지 않은 것' 한 줄 - 호의 사실의 항목(`kind` · `n`)을 문장으로. 숫자는 항목의 것이고 여기서 세지 않는다."""
+    n, kind = item['n'], item['kind']
+    texts = {
+        ('dates', 'unpicked'): f'기사로 고르지 않은 날 {n}번',
+        ('photos', 'over_cap'): f'사진 {n}장 — 한 구간에 {PHOTOS_PER_STOP}장까지 싣습니다',
+        ('photos', 'dropped_stops'): f"구간 {item.get('stops', 0)}곳(사진 {n}장) — 타임라인 {timeline_max_pages}면에 들어가지 않았습니다",
+        ('photos', 'other_cap'): f'사진 {n}장 — 대표가 아닌 기사에는 {ARTICLE_PHOTOS}장까지 싣습니다',
+        ('photos', 'unpicked'): f'사진 {n}장 — 기사에 담기지 않았습니다',
+        ('memos', 'extra_in_stop'): f'메모 {n}개 — 한 구간에 하나만 싣습니다',
+        ('memos', 'dropped_stops'): f'메모 {n}개 — 타임라인 {timeline_max_pages}면에 들어가지 않은 구간의 것입니다',
+        ('memos', 'other_cap'): f'메모 {n}개 — 대표가 아닌 기사에는 하나만 싣습니다',
+        ('memos', 'unpicked'): f'메모 {n}개 — 기사에 담기지 않았습니다',
+        ('messages', 'unpicked'): f'대화 {n}개 — 인용으로 고르지 않았습니다',
+    }
+    return texts[(row_key, kind)]
+
+
+INFO_TEXTS = {
+    'drawings': lambda n: f'그림 {n}개 — 이 호의 지면에는 그림 자리가 없습니다',
+    'omitted_places': lambda n: f'장소 {n}곳 — 목록에 {PLACES_CAP}곳까지 싣습니다',
+    'evidence_photos': lambda n: f'근거 사진 {n}장 — 이달의 우리에는 개수만 적습니다',
+}
+
+
 def _note_values(b: _Builder, pages: list) -> dict:
-    """발행 노트(CORNER_LAYOUT §3-0) - 재료 집계 · 문장 출처 · 싣지 않은 것 · 비어 있는 코너. 형용사 없는 문장만."""
+    """발행 노트(CORNER_LAYOUT §3-0) - 재료 집계 · 문장 출처 · 싣지 않은 것 · 비어 있는 코너. 형용사 없는 문장만.
+
+    표와 '싣지 않은 것'의 숫자는 모두 호의 사실(`b.facts`)에서 읽는다 - 줄마다 `모은 양 - 실제 게재 = 싣지 않은 것의 합`이다(R50-2).
+    """
     summary = _sentence_summary(b.sentences)
     people, ondolog = summary['people'], summary['ondolog']
     total = people + ondolog
@@ -925,69 +893,14 @@ def _note_values(b: _Builder, pages: list) -> dict:
     # 막대 폭은 글자(`34%`)와 따로 숫자로 맡긴다 - `data-width`는 `34%` 글자를 받지 않는다(R48-6, 디자인 resolve.js와 같다)
     b.note_widths = ({'@note.ratioPeople': ratio_people, '@note.ratioOndolog': 100 - ratio_people} if ratio_people is not None else {})
 
-    mats = b.materials
-    memo_used = shown_memo_count(getattr(b, 'timeline_kept', [])) + getattr(b, 'caption_memo_total', 0)
-    chat_used = 0
-    if 'sweet_words' in b.ready:
-        p = as_dict(b.ready['sweet_words'].get('payload'))
-        chat_used = sum(len(as_list(as_dict(m).get('turns'))) for m in as_list(p.get('main'))) + len(as_list(p.get('sub')))
-    this_period = [a for a in getattr(b, 'da', {}).get('articles', []) if a.get('recalled') is not True]
+    facts = b.facts
     rows = []
-    for label, key, unit, used, used_label in (
-        ('데이트', 'dates', '번', len(this_period) if 'date_archive' in b.ready else 0, '{n}번'),
-        ('사진', 'photos', '장', len(b.shown), '{n}장'),
-        ('메모', 'memos', '개', memo_used, '{n}개'),
-        ('대화', 'messages', '개', chat_used, '인용 {n}개'),
-    ):
-        n = mats.get(key)
-        if isinstance(n, int) and n > 0:
-            rows.append({'label': label, 'collected': f'{n}{unit}', 'used': used_label.format(n=used)})
-
     not_used = []
-    if 'date_archive' in b.ready:
-        da = b.da
-        articles, fi = da['articles'], da['fi']
-        stops = [s for s in as_list(articles[fi].get('stops')) if isinstance(s, dict)]
-        kept_ids = {id(s) for s in getattr(b, 'timeline_kept', [])}
-        over_cap = sum(max(0, len(as_list(s.get('photos'))) - PHOTOS_PER_STOP) for s in stops)
-        if over_cap:
-            not_used.append(f'사진 {over_cap}장 — 한 구간에 {PHOTOS_PER_STOP}장까지 싣습니다')
-        dropped = getattr(b, 'timeline_dropped', [])
-        if dropped:
-            photos = sum(min(len(as_list(s.get('photos'))), PHOTOS_PER_STOP) for s in dropped)
-            not_used.append(f'구간 {len(dropped)}곳(사진 {photos}장) — 타임라인 {TIMELINE_MAX_PAGES}면에 들어가지 않았습니다')
-        extra_memos = 0
-        drawings = 0
-        for s in stops:
-            notes = as_list(s.get('userNotes'))
-            texts = [n for n in notes if isinstance(n, dict) and n.get('type', 'memo') == 'memo' and not is_blank(n.get('text'))]
-            drawings += sum(1 for n in notes if isinstance(n, dict) and n.get('type') == 'drawing')
-            extra_memos += max(0, len(texts) - 1)
-        if extra_memos:
-            not_used.append(f'메모 {extra_memos}개 — 한 구간에 하나만 싣습니다')
-        if drawings:
-            not_used.append(f'그림 {drawings}개 — 이 호의 지면에는 그림 자리가 없습니다')
-        other_photos = other_memos = 0
-        for i, a in enumerate(articles):
-            if i == fi:
-                continue
-            ap = article_photos(a)
-            total = sum(len(as_list(as_dict(s).get('photos'))) for s in as_list(a.get('stops')))
-            other_photos += max(0, total - len(ap))
-            for s in as_list(a.get('stops')):
-                other_memos += len(memo_notes(as_dict(s)))
-        if other_photos:
-            not_used.append(f'사진 {other_photos}장 — 대표가 아닌 기사에는 {ARTICLE_PHOTOS}장까지 싣습니다')
-        other_memos = max(0, other_memos - getattr(b, 'caption_memo_total', 0))   # 사진 아래에 실린 메모(R48-3 ②)는 싣지 않은 것이 아니다
-        if other_memos:
-            not_used.append(f'메모 {other_memos}개 — 대표가 아닌 기사에는 개수만 적습니다')
-        if getattr(b, 'omitted_places', 0):
-            not_used.append(f'장소 {b.omitted_places}곳 — 목록에 {PLACES_CAP}곳까지 싣습니다')
-    if 'this_month' in b.ready:
-        ev_photos = sum(1 for a in as_list(as_dict(b.ready['this_month'].get('payload')).get('articles'))
-                        for ev in as_list(as_dict(a).get('evidence')) if as_dict(ev).get('type') == 'photo')
-        if ev_photos:
-            not_used.append(f'근거 사진 {ev_photos}장 — 이달의 우리에는 개수만 적습니다')
+    for r in facts.rows:
+        label, unit, used_label = NOTE_ROW_LABELS[r['key']]
+        rows.append({'label': label, 'collected': f"{r['collected']}{unit}", 'used': used_label.format(n=r['used'])})
+        not_used.extend(not_used_text(r['key'], i, TIMELINE_MAX_PAGES) for i in r['items'])
+    not_used.extend(INFO_TEXTS[i['kind']](i['n']) for i in facts.info)
     if not not_used:
         not_used = ['모두 실었습니다']
 

@@ -51,6 +51,8 @@ from page_audit import (  # noqa: E402
 )
 from slot_fill import fill  # noqa: E402
 
+from bs4 import BeautifulSoup  # noqa: E402
+
 DEVELOPMENT_PROJECT_NAME = 'ondolog'
 TEST_MARK = 'test'
 MAGAZINE_BUCKET = 'magazine'
@@ -296,12 +298,30 @@ def load_templates(pages_dir: Path = PAGES_DIR) -> dict[str, str]:
     return {p.stem: p.read_text(encoding='utf-8') for p in sorted(pages_dir.glob('*.html'))}
 
 
+def drop_empty_caption_cell(html: str) -> str:
+    """R50-4 - 기사 칸의 `AI 캡션` 수가 비었으면(지면에 실린 AI 캡션이 0) 숫자 칸을 라벨째 뺀다.
+
+    지면 HTML에 이 칸을 뺄 표시(`data-optional`)가 없다 - 디자인 v1.2.3 전 임시로 렌더러가 뺀다(R50-6의 여섯 곳 밖이라 HTML은 고치지 않았다).
+    `@da.articleCaptionCount` 칸 하나에만 걸린다. 채운 값이 있으면 아무것도 하지 않는다.
+    """
+    if '@da.articleCaptionCount' not in html:
+        return html
+    soup = BeautifulSoup(html, 'html.parser')
+    changed = False
+    for el in soup.select('[data-slot="@da.articleCaptionCount"]'):
+        if el.get_text(strip=True) == '' and el.parent is not None and el.parent.name == 'span':
+            el.parent.decompose()
+            changed = True
+    return str(soup) if changed else html
+
+
 def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
     """지면 하나를 채운다. 테마는 `<html data-theme>` 값 하나만 바꾼다(README §4)."""
     if spec.stem not in templates:
         raise StopError(f'지면 HTML이 없다 ({spec.stem})')
     html = fill(templates[spec.stem], spec.corner, spec.computed, spec.bind,
                 chooser=lambda names, scope: choose_variant(spec, names, scope), widths=spec.widths)
+    html = drop_empty_caption_cell(html)
     html, n = re.subn(r'(<html\b[^>]*\bdata-theme=")[^"]*(")', rf'\g<1>{theme}\g<2>', html, count=1)
     if n != 1:
         raise StopError(f'지면에 <html data-theme>가 없다 ({spec.stem})')
@@ -446,8 +466,11 @@ def build_pages(composition: Composition, templates: dict[str, str], work: Path,
 # 렌더 (Playwright)
 # ---------------------------------------------------------------------------
 
-def render_pages(page_files: list[Path], image_width: int = IMAGE_WIDTH_PX, jpeg_quality: int = JPEG_QUALITY) -> list[dict[str, Any]]:
-    """지면마다: 검사 -> PDF 한 쪽 -> 이미지 한 장. 검사 결과는 렌더를 실패시키지 않는다."""
+def render_pages(page_files: list[Path], image_width: int = IMAGE_WIDTH_PX, jpeg_quality: int = JPEG_QUALITY,
+                 with_png: bool = False) -> list[dict[str, Any]]:
+    """지면마다: 검사 -> PDF 한 쪽 -> 이미지 한 장. 검사 결과는 렌더를 실패시키지 않는다.
+
+    `with_png`이면 같은 렌더 결과(같은 페이지 · 같은 배율)에서 PNG도 한 장 더 찍는다(R50-7 쪽 그림 - 새 의존성 없이 Playwright 그대로)."""
     from playwright.sync_api import sync_playwright
 
     design_js = design_audit_js(TOOLS_DIR)
@@ -468,8 +491,9 @@ def render_pages(page_files: list[Path], image_width: int = IMAGE_WIDTH_PX, jpeg
                     prefer_css_page_size=True,
                 )
                 image = page.locator('body').screenshot(type='jpeg', quality=jpeg_quality)
+                png = page.locator('body').screenshot(type='png') if with_png else None
                 page.close()
-                results.append({'file': f.name, 'pdf': pdf, 'image': image, 'findings': findings, 'design': compare})
+                results.append({'file': f.name, 'pdf': pdf, 'image': image, 'png': png, 'findings': findings, 'design': compare})
         finally:
             browser.close()
     return results

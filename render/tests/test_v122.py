@@ -30,6 +30,7 @@ from slot_fill import fill, parse_width  # noqa: E402
 
 NAMES = [fx.A, fx.B]
 TEMPLATES = r.load_templates()
+ROOMY = {'messages': 1000, 'photos': 1000, 'dates': 100, 'memos': 100}   # 모은 양이 게재보다 늘 크다 - 이 시험들은 숫자가 아니라 지면 구조를 본다 (R50-2 정합은 test_facts.py)
 
 
 def compose(scenario, materials=None, couple=None):
@@ -103,7 +104,7 @@ class Width(unittest.TestCase):
         self.assertEqual(fill('<div data-if="@no"><b data-width="@w">x</b></div>', None, {'w': 5}), '')
 
     def test_note_page_bars_follow_the_data(self):
-        comp = compose(fx.photo_scenario(), {'messages': 1, 'photos': 1, 'dates': 1, 'memos': 1})
+        comp = compose(fx.photo_scenario(), ROOMY)
         note = pages(comp, 'note')[0].computed['note']
         soup = BeautifulSoup(filled(comp, 'note'), 'html.parser')
         people = int(note['ratioPeople'].rstrip('%'))
@@ -199,7 +200,7 @@ class Bindings(unittest.TestCase):
 
     def test_toc_desc_fixed_frames_without_adjectives(self):
         toc = compose(fx.photo_scenario()).report['toc']
-        self.assertEqual(toc[0]['desc'], '화보 · 9월의 2번의 하루 · 기사 3편')
+        self.assertEqual(toc[0]['desc'], '화보 · 9월의 하루 2편 · 그때 그 시절 1편')   # 실은 이번 기간 기사 · 재소환 기사를 따로 (R50-2)
         self.assertEqual(toc[1]['desc'], '인용 · 원문 그대로')
         self.assertEqual(toc[2]['desc'], '기사 · 연남동을 자주 걸은 달 · 소기사 3편')
 
@@ -426,7 +427,7 @@ class LeadEqualsNote(unittest.TestCase):
         return {'theme': 'basic', 'corners': [fx.corner_row('date_archive', fx.date_archive([feat, second, again]))]}
 
     def check(self, scenario):
-        comp = compose(scenario, {'messages': 1, 'photos': 1, 'dates': 1, 'memos': 1})
+        comp = compose(scenario, ROOMY)
         lead = pages(comp, 'da-opener')[0].computed['da']['lead']
         said = re.search(r'남긴 (\d+)장의 사진과 (\d+)개의 메모', lead)
         lead_photos, lead_memos = int(said.group(1)), int(said.group(2))
@@ -434,28 +435,19 @@ class LeadEqualsNote(unittest.TestCase):
         self.assertEqual((lead_photos, lead_memos), (counts['photos'], counts['memos']))      # 문장의 숫자 = 세어 둔 집합
         rows = {m['label']: m['used'] for m in pages(comp, 'note')[0].computed['note']['materials']}
         note_photos, note_memos = int(rows['사진'].rstrip('장')), int(rows['메모'].rstrip('개'))
+        # R50-2 - 오프너 문장 = 발행 노트 게재 (같은 호의 사실에서 한 번 센다). 재소환 기사의 것은 둘 다에서 빠지고 따로 센다
+        self.assertEqual((lead_photos, lead_memos), (note_photos, note_memos))
         shown = set(comp.shown_photos)
-        rest = shown - set(comp.report['leadPhotoPaths'])
         self.assertTrue(set(comp.report['leadPhotoPaths']) <= shown)
-        self.assertEqual(lead_photos + len(rest), note_photos)                                  # 오프너 + 나머지 = 노트
-        # 나머지는 재소환 기사에 실린 것과 표지 등 오프너 범위 밖의 것뿐이다
-        from compose import article_photos
-        recalled = {p['path'] for c in scenario['corners'] if c['corner_type'] == 'date_archive'
-                    for a in c['content']['payload']['articles'] if a.get('recalled') is True for p in article_photos(a)}
-        outside = recalled | {comp.report['coverPhoto'], comp.report['contentsPhoto'], comp.report['backPhoto'], comp.report['swOpenerPhoto']}
-        self.assertTrue(rest <= outside, rest - outside)
-        recalled_captions = caption_memo_count([a for c in scenario['corners'] if c['corner_type'] == 'date_archive'
-                                                for a in c['content']['payload']['articles'] if a.get('recalled') is True])
-        self.assertEqual(lead_memos + recalled_captions, note_memos)                           # 노트 = 오프너 + 재소환 기사 사진 아래 메모(R48-3 ②)
-        return lead_photos, lead_memos, len(rest), note_photos, note_memos
+        return lead_photos, lead_memos, len(shown - set(comp.report['leadPhotoPaths'])), note_photos, note_memos
 
     def test_cap_exceeded_non_featured_memos_and_recalled(self):
         photos, memos, rest, note_p, note_m = self.check(self.many())
-        self.assertEqual(photos, 3 + 1 + 3)        # 대표 구간 3장 + 1장, 비대표 기사 6장 중 3장 (재소환 2장은 오프너 밖)
-        # 대표 타임라인에 실린 구간 둘 + 비대표 기사 사진 아래 메모 하나(첫 사진, R48-3 ②) - 재소환 메모는 오프너에서 뺀다 / 한 구간의 둘째 메모는 지면에 없다
+        self.assertEqual(photos, 3 + 1 + 3)        # 대표 구간 3장 + 1장, 비대표 기사 6장 중 3장 (재소환 2장은 이번 기간 수치에 섞지 않는다)
+        # 대표 타임라인에 실린 구간 둘 + 비대표 기사 사진 아래 메모 하나(첫 사진, R48-3 ② · R50-4) - 재소환 메모는 뺀다 / 한 구간의 둘째 메모는 지면에 없다
         self.assertEqual(memos, 3)
-        self.assertEqual(rest, 2)
-        self.assertEqual((note_p, note_m), (9, 4))   # 노트는 재소환 기사 사진 아래 메모(옛 메모)도 센다
+        self.assertEqual(rest, 2)                    # 재소환 기사에 실린 사진 2장은 노트 · 오프너 어디에도 세지 않는다
+        self.assertEqual((note_p, note_m), (7, 3))
 
     def test_all_scenarios(self):
         for sc in (fx.photo_scenario(), fx.type_scenario(), fx.skipped_scenario(), fx.many_photos_scenario(), fx.opener_fallback_scenario(),
@@ -501,7 +493,8 @@ class R48Temporary(unittest.TestCase):
                            fx.stop(1, '15:00', 'C', [fx.photo('c0')], [], '이 문장은 온도록 캡션')])
         comp = compose(sc)
         photos = pages(comp, 'da-article')[0].computed['da']['articlePhotos']
-        self.assertEqual([p['caption'] for p in photos], [memo_text, '', ''])      # 원문 그대로 · 같은 구간 둘째 사진에는 되풀이하지 않는다 · AI 캡션은 싣지 않는다
+        self.assertEqual([p['caption'] for p in photos], [memo_text, '', ''])      # 원문 그대로 · 기사의 첫 사진 아래 하나뿐 · AI 캡션은 싣지 않는다
+        self.assertEqual([p['authorName'] for p in photos], [fx.A, '', ''])         # 쓴 사람 (R50-4)
         html = filled(comp, 'da-article')
         self.assertIn('서점에서 책을 골랐다.', html)
         self.assertNotIn('이 문장은 온도록 캡션', html)
@@ -519,11 +512,11 @@ class R48Temporary(unittest.TestCase):
 
     def test_caption_memos_are_counted_where_they_are_shown(self):
         sc = two_articles([fx.stop(0, '13:00', 'B', [fx.photo('b0')], [fx.memo('첫 메모'), fx.memo('둘째 메모')], None)])
-        comp = compose(sc, {'messages': 1, 'photos': 1, 'dates': 1, 'memos': 1})
+        comp = compose(sc, ROOMY)
         self.assertEqual(comp.report['leadCounts']['memos'], 1)                      # 비대표 기사 사진 아래의 첫 메모 하나
         rows = {m['label']: m['used'] for m in pages(comp, 'note')[0].computed['note']['materials']}
         self.assertEqual(rows['메모'], '1개')
-        self.assertIn('메모 1개 — 대표가 아닌 기사에는 개수만 적습니다', pages(comp, 'note')[0].computed['note']['notUsed'])   # 싣지 못한 둘째 메모
+        self.assertIn('메모 1개 — 대표가 아닌 기사에는 하나만 싣습니다', pages(comp, 'note')[0].computed['note']['notUsed'])   # 싣지 못한 둘째 메모
 
     def test_safe_findings_never_fail_the_render(self):
         # ③ bottom:62px 계열 safe 위반은 기록만 한다 - 렌더를 멈추는 건 잘린 원문(clipped)뿐이다
@@ -621,7 +614,7 @@ class DataWidthStrings(unittest.TestCase):
         self.assertEqual(soup.span.get_text(), '34%')
 
     def test_note_page_bars_come_from_numbers_not_from_the_percent_text(self):
-        comp = compose(fx.photo_scenario(), {'messages': 1, 'photos': 1, 'dates': 1, 'memos': 1})
+        comp = compose(fx.photo_scenario(), ROOMY)
         spec = pages(comp, 'note')[0]
         people = int(spec.computed['note']['ratioPeople'].rstrip('%'))
         self.assertEqual(spec.widths, {'@note.ratioPeople': people, '@note.ratioOndolog': 100 - people})
@@ -638,7 +631,7 @@ class NoVolNoIssueDate(unittest.TestCase):
         for scenario in (fx.photo_scenario(), fx.type_scenario(), fx.skipped_scenario(), fx.many_photos_scenario(), fx.opener_type_only_scenario()):
             issue = {**fx.ISSUE_ROW, 'published_at': '2026-10-02T00:00:00+09:00', 'issue_number': 7}
             comp = compose_issue(issue, {**fx.COUPLE_ROW, 'magazine_theme': scenario['theme']}, NAMES, scenario['corners'],
-                                 {'messages': 5, 'photos': 9, 'dates': 3, 'memos': 4})
+                                 ROOMY)
             for i, spec in enumerate(comp.pages, 1):
                 text = text_of(r.fill_page(spec, comp.theme, TEMPLATES))
                 self.assertIsNone(re.search(r'\bVol\b|Vol\.|발행일|Issue No|No\.\s*\d', text), (spec.stem, text[:80]))

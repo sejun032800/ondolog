@@ -185,7 +185,7 @@ def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, A
         cover = r.settle_cover(comp, templates, work, say)
         files = r.build_pages(comp, templates, work, fx.ISSUE_ROW, lambda dest: fx.png(1200, 1600, hue=sum(map(ord, dest)) % 80))
         html_by_page = [f.read_text(encoding='utf-8') for f in files]
-        results = r.render_pages(files)
+        results = r.render_pages(files, with_png=True)   # R50-7 쪽 그림 - PNG도 같은 렌더 결과에서
         timeline = measure_timeline(comp, files)
     pdf, counts = r.merge_pdf([x['pdf'] for x in results])
     if counts != [1] * len(counts):
@@ -197,6 +197,7 @@ def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, A
     (out / 'issue.pdf').write_bytes(pdf)
     for i, x in enumerate(results, 1):
         (out / f'page-{i:02d}.jpg').write_bytes(x['image'])
+        (out / f'page-{i:02d}.png').write_bytes(x['png'])
     (out / 'audit.json').write_text(json.dumps(audit, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (out / 'compose.json').write_text(json.dumps({'report': comp.report, 'sentences': comp.sentences, 'shownPhotos': comp.shown_photos},
                                                  ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
