@@ -1,4 +1,4 @@
-"""지면 검사 - 렌더 결과(채워진 지면)에 돌린다 (위임: 55-2 범위 7, CORNER_LAYOUT §7, R26-3).
+"""지면 검사 - 렌더 결과(채워진 지면)에 돌린다 (위임: 55-2 범위 7, 55-3 범위 4·5, CORNER_LAYOUT §7, R26-3).
 
 항목
   overflow       지면 밖 넘침(210x297mm = 794x1123px 밖으로 나간 요소)
@@ -9,7 +9,8 @@
   contrast       저대비(3.0:1 미만)
   tiny           과소 활자(7.2px 미만)
   overset        상자의 `scrollHeight > clientHeight`(판면 953px 기준, R26-3)
-  clipped        `.clamp1~4`가 글자를 잘랐다(원문이 지면에서 보이지 않는다) - 넘침 안전망이 작동한 자리
+  clipped        `.clamp1~4`가 글자를 잘랐다 - 넘침 안전망이 작동한 자리. **두 사람이 쓴 원문(`ORIGINAL_SLOTS`)이 잘렸으면 실패**(R29-3),
+                 온도록이 쓴 문장이 잘렸으면 기록이다(README §12). 어느 쪽인지는 잘린 요소의 `data-slot`으로 가른다.
 
 앞의 다섯(overflow·tiny·contrast·overset·overlap)은 디자인의 `render/issue/tools/audit.py`와 **같은 판정**이어야 한다.
 `compare_with_design`이 같은 지면에 두 검사를 모두 돌려 결과가 같은지 본다(디자인 검사기는 `tools/audit.py`의 `AUDIT`을 그대로 읽는다).
@@ -28,6 +29,10 @@ from typing import Any
 sys.dont_write_bytecode = True
 
 COMMON_KINDS = ('overflow', 'tiny', 'contrast', 'overset', 'overlap')
+
+# 두 사람이 쓴 원문이 놓이는 슬롯(README §12 "자르지 않는 것"). 이 슬롯이 `clipped`면 원문이 지면에서 잘린 것이다.
+#   .userNotes[0].text  타임라인 메모 · .text  인용 turn · 단문 · .evidence  근거 한 줄(발췌 포함) · @cover.quote  표지 이 달의 말
+ORIGINAL_SLOTS = frozenset({'.userNotes[0].text', '.text', '.evidence', '@cover.quote'})
 
 AUDIT_JS = r"""
 () => {
@@ -155,10 +160,14 @@ EXTRA_JS = r"""
     if (area > 0) out.push({k: 'text-overlap', t: ownText(ea).slice(0, 14) + ' ∩ ' + ownText(eb).slice(0, 14), area: area});
   }
 
-  // clipped - line-clamp가 글자를 잘랐다
+  // clipped - line-clamp가 글자를 잘랐다. 어떤 슬롯의 글자인지(`slot`)를 함께 남긴다 - 원문이면 실패, 온도록 문장이면 기록
+  const slotOf = el => {
+    const s = el.hasAttribute('data-slot') ? el : el.querySelector('[data-slot]');
+    return s ? s.getAttribute('data-slot') : '';
+  };
   document.querySelectorAll('.clamp1, .clamp2, .clamp3, .clamp4').forEach(el => {
     if (el.scrollHeight - el.clientHeight > 1) {
-      out.push({k: 'clipped', t: (el.textContent || '').trim().slice(0, 24), need: el.scrollHeight, have: el.clientHeight});
+      out.push({k: 'clipped', t: (el.textContent || '').trim().slice(0, 24), slot: slotOf(el), need: el.scrollHeight, have: el.clientHeight});
     }
   });
   return out;
@@ -179,6 +188,21 @@ def audit_page(page: Any) -> list:
     """열린 지면 하나를 검사한다."""
     page.evaluate('document.fonts.ready.then(() => true)')
     return page.evaluate(AUDIT_JS) + page.evaluate(EXTRA_JS)
+
+
+def original_clipped(findings: list, extra_original_slots: Any = ()) -> list:
+    """잘린 원문 - `clipped` 중 두 사람이 쓴 원문 슬롯의 것. 하나라도 있으면 렌더는 실패다(R29-3).
+
+    `extra_original_slots`: 이 호에서만 원문이 놓인 슬롯(예: 표제가 이 달의 말로 바뀐 표지의 `@cover.headline`).
+    """
+    slots = ORIGINAL_SLOTS | frozenset(extra_original_slots)
+    return [f for f in findings if f['k'] == 'clipped' and f.get('slot') in slots]
+
+
+def recorded_clipped(findings: list, extra_original_slots: Any = ()) -> list:
+    """잘린 온도록 문장 - 기록만 한다(README §12 안전망)."""
+    slots = ORIGINAL_SLOTS | frozenset(extra_original_slots)
+    return [f for f in findings if f['k'] == 'clipped' and f.get('slot') not in slots]
 
 
 def _norm(findings: list) -> list:

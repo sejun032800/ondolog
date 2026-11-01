@@ -17,8 +17,8 @@ sys.path.insert(0, HERE)
 
 import fixtures as fx  # noqa: E402
 import render_issue as r  # noqa: E402
-from compose import PageSpec, compose_issue  # noqa: E402
-from page_audit import design_audit_js  # noqa: E402
+from compose import ComposeError, PageSpec, compose_issue  # noqa: E402
+from page_audit import design_audit_js, original_clipped, recorded_clipped  # noqa: E402
 
 REF = 'abcdefghij1234567890'
 URL = f'https://{REF}.supabase.co'
@@ -77,6 +77,112 @@ class FakeApi:
         return rows
 
     select = select_all
+
+
+class WholeApi(FakeApi):
+    """`render_issue` 한 번이 쓰는 질의·저장·갱신을 메모리로 받는다(원격 없음)."""
+
+    def __init__(self, scenario, issue=None):
+        issue = issue or {**fx.ISSUE_ROW, 'published_at': None}
+        super().__init__({'issues': [issue], 'couples': [{**fx.COUPLE_ROW, 'magazine_theme': scenario['theme'], 'subscription_tier': 'free'}],
+                          'corners': scenario['corners'], 'profiles': [{'display_name': fx.A}]})
+        self.puts, self.updates = [], []
+
+    def select_all(self, table, query):
+        self.queries.append((table, query))
+        if table == 'profiles':
+            return self.tables['profiles'][:1]
+        return self.tables.get(table, [])
+
+    select = select_all
+
+    def storage_get(self, bucket, path):
+        return fx.png(1200, 1600, hue=len(path) % 80)
+
+    def storage_list(self, bucket, prefix):
+        return []
+
+    def storage_remove(self, bucket, paths):
+        pass
+
+    def storage_put(self, bucket, path, content, content_type):
+        self.puts.append(path)
+
+    def update(self, table, query, patch):
+        self.updates.append(patch)
+        return [patch]
+
+
+class WholeRender(unittest.TestCase):
+    """`render_issue` 처음부터 끝까지(메모리 API) - 표지 정리 · 원문 잘림 검사 · 감사 요약 · 업로드 순서."""
+
+    def run_issue(self, scenario):
+        api = WholeApi(scenario)
+        with tempfile.TemporaryDirectory() as tmp:
+            old = r.OUT_ROOT
+            r.OUT_ROOT = Path(tmp)
+            try:
+                lines = []
+                report = r.render_issue(api, fx.ISSUE, say=lines.append)
+                out = Path(tmp) / fx.ISSUE
+                audit = json.loads((out / 'audit.json').read_text(encoding='utf-8'))
+                compose = json.loads((out / 'compose.json').read_text(encoding='utf-8'))
+            finally:
+                r.OUT_ROOT = old
+        return api, report, audit, compose
+
+    def test_a_clean_issue_renders_with_no_original_clipped_and_the_design_audit_agrees(self):
+        api, report, audit, compose = self.run_issue(fx.long_original_scenario())
+        self.assertEqual(report['pageCount'], 15)
+        self.assertEqual(audit['originalClipped'], [])
+        self.assertTrue(audit['designAuditSame'])
+        self.assertEqual(compose['report']['quotePages'], 2)
+        self.assertFalse(compose['report']['coverQuoteRemoved'])
+        self.assertEqual(len(api.puts), 16)                                     # PDF 1 + 쪽 이미지 15
+        self.assertEqual(api.updates[0], {'pdf_digital_path': None, 'page_count': None, 'cover_path': None})   # 먼저 비우고
+        self.assertEqual(api.updates[-1]['page_count'], 15)                      # 마지막에 채운다
+
+    def test_an_overlong_conversation_stops_before_anything_is_written(self):
+        api = WholeApi(fx.long_original_scenario(with_overlong=True))
+        with tempfile.TemporaryDirectory() as tmp:
+            old = r.OUT_ROOT
+            r.OUT_ROOT = Path(tmp)
+            try:
+                with self.assertRaises(r.StopError) as ctx:
+                    r.render_issue(api, fx.ISSUE, say=lambda s: None)
+            finally:
+                r.OUT_ROOT = old
+        self.assertIn('지면을 짤 수 없다', str(ctx.exception))
+        self.assertIn('1337px', str(ctx.exception))
+        self.assertEqual(api.puts, [])
+        self.assertEqual(api.updates, [])                                       # 원격에는 아무것도 쓰지 않았다
+
+    def test_clipped_original_stops_the_render_before_upload(self):
+        original = r.build_pages
+
+        def clamp_quotes(composition, templates, work, issue, fetch):
+            templates = dict(templates)
+            templates['sw-quotes'] = templates['sw-quotes'].replace('class="mb"', 'class="mb clamp1"')
+            return original(composition, templates, work, issue, fetch)
+
+        scenario = fx.photo_scenario()
+        scenario['corners'][1]['content']['payload']['main'][0]['turns'][0]['text'] = fx.exact_text(fx.LONG_SEED, 150)
+        api = WholeApi(scenario)
+        r.build_pages = clamp_quotes
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                old = r.OUT_ROOT
+                r.OUT_ROOT = Path(tmp)
+                try:
+                    with self.assertRaises(r.StopError) as ctx:
+                        r.render_issue(api, fx.ISSUE, say=lambda s: None)
+                finally:
+                    r.OUT_ROOT = old
+        finally:
+            r.build_pages = original
+        self.assertIn('원문이 지면에서 잘렸다', str(ctx.exception))
+        self.assertEqual(api.puts, [])
+        self.assertEqual(api.updates, [])
 
 
 class Materials(unittest.TestCase):
@@ -231,18 +337,96 @@ class Render(unittest.TestCase):
     def test_design_audit_is_read_from_the_design_tools(self):
         self.assertIn('overset', design_audit_js(r.TOOLS_DIR))
 
-    def test_clipped_text_is_recorded(self):
-        """원문이 `.clamp`에 잘리면 기록한다 - 지면에서 보이지 않는 원문이다."""
+    def test_clipped_ondolog_sentence_is_recorded(self):
+        """55-3 - 온도록이 쓴 문장이 `.clamp`에 잘리면 기록한다(렌더는 실패가 아니다). 이전: 인용 turn 원문을 일부러 길게 해 clipped를 기대했다
+        (v1.1.1에는 인용 `clamp3`가 있었다). 이후: v1.2.2에는 원문 칸에 clamp가 없다 - 온도록 문장(이달의 우리 표제)이 넘칠 때 기록한다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            sc = fx.photo_scenario()
+            tm = json.loads(json.dumps(sc['corners'][2]['content']))
+            tm['payload']['theme']['headline'] = '아주 긴 표제 ' * 30
+            sc['corners'][2] = fx.corner_row('this_month', tm, seq=3)
+            comp, files = build(sc, work)
+            lead = [f for f in files if 'tm-lead' in f.name][0]
+            results = r.render_pages([lead])
+            clipped = [x for x in results[0]['findings'] if x['k'] == 'clipped']
+            self.assertTrue(clipped)
+            self.assertEqual(original_clipped(results[0]['findings']), [])           # 원문 슬롯이 아니다
+            self.assertEqual(len(recorded_clipped(results[0]['findings'])), len(clipped))  # 기록으로 센다
+
+    def test_clipped_original_is_a_failure(self):
+        """55-3 - 두 사람이 쓴 원문이 잘리면 실패다(R29-3). v1.2.2 지면에는 원문 칸에 clamp가 없으므로, 지면에 clamp를 일부러 되살려 검사 경로를 확인한다."""
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp) / 'work'
             sc = fx.photo_scenario()
             sw = json.loads(json.dumps(sc['corners'][1]['content']))
-            sw['payload']['main'][0]['turns'][0]['text'] = '아주 긴 말 ' * 60
+            sw['payload']['main'][0]['turns'][0]['text'] = fx.exact_text(fx.LONG_SEED, 150)
             sc['corners'][1] = fx.corner_row('sweet_words', sw, seq=2)
             comp, files = build(sc, work)
             quotes = [f for f in files if 'sw-quotes' in f.name][0]
+            quotes.write_text(quotes.read_text(encoding='utf-8').replace('<p class="mb"', '<p class="mb clamp1"'), encoding='utf-8')
             results = r.render_pages([quotes])
-            self.assertIn('clipped', {x['k'] for x in results[0]['findings']})
+            self.assertTrue(original_clipped(results[0]['findings']), results[0]['findings'])
+            comp.pages = [p for p in comp.pages if p.stem == 'sw-quotes'][:1]
+            summary = r.audit_summary(comp, results, 'x')
+            self.assertTrue(summary['originalClipped'])
+            self.assertEqual(summary['originalClipped'][0]['slot'], '.text')
+
+    def test_a_conversation_over_one_page_stops_the_render(self):
+        """55-3 - 한 대화가 한 면을 넘으면 자르지 않고 멈춘다(R29-3). 사유에 어느 호 · 어느 대화 · 높이가 있다. 그 대화를 빼면 나뉘어 통과한다."""
+        with self.assertRaises(ComposeError) as ctx:
+            compose_issue(fx.ISSUE_ROW, {**fx.COUPLE_ROW}, NAMES, fx.long_original_scenario(with_overlong=True)['corners'], None)
+        msg = str(ctx.exception)
+        self.assertIn(fx.ISSUE, msg)
+        self.assertIn('3번째 대화', msg)
+        self.assertIn('1337px', msg)
+        self.assertIn('844px', msg)
+        ok = compose_issue(fx.ISSUE_ROW, {**fx.COUPLE_ROW}, NAMES, fx.long_original_scenario()['corners'], None)
+        self.assertEqual(len([p for p in ok.pages if p.stem == 'sw-quotes']), 2)
+
+    def test_cover_quote_that_does_not_fit_is_removed_as_a_row(self):
+        """55-3 - 표지 이 달의 말이 규격에 들어가지 않으면 줄째 지운다. 들어가면 그대로 둔다."""
+        for scenario_theme, short_side, stem in (('basic', 1200, 'cover-photo'), ('neon', 900, 'cover-type')):
+            for quote, expect_removed in (('천천히 와도 돼', False), ('천천히 와도 괜찮다는 말을 오래 되뇌었다. ' * 14, True)):
+                with tempfile.TemporaryDirectory() as tmp:
+                    work = Path(tmp) / 'work'
+                    sc = fx.photo_scenario(scenario_theme, short_side=short_side)
+                    sw = json.loads(json.dumps(sc['corners'][1]['content']))
+                    sw['payload']['main'][0]['turns'][0]['text'] = quote
+                    sc['corners'][1] = fx.corner_row('sweet_words', sw, seq=2)
+                    comp = compose_issue(fx.ISSUE_ROW, {**fx.COUPLE_ROW, 'magazine_theme': scenario_theme}, NAMES, sc['corners'], None)
+                    self.assertEqual(comp.pages[0].stem, stem)
+                    templates = r.load_templates()
+                    r.prepare_work(work)
+                    outcome = r.settle_cover(comp, templates, work)
+                    self.assertEqual(outcome['quoteRemoved'], expect_removed, (stem, len(quote)))
+                    html = r.fill_page(comp.pages[0], scenario_theme, templates)
+                    self.assertEqual(quote in html, not expect_removed)
+                    if expect_removed:
+                        self.assertNotIn('이 달의 말', html)              # 줄째 - 라벨까지 지워진다(활자 표지) / 따옴표 줄(사진 표지)
+                        self.assertNotIn('&ldquo;', html.replace('<!--', ''))
+                    # 지운 뒤에도 원문은 인용면에 그대로 있다
+                    self.assertIn(quote, json.dumps([p.corner for p in comp.pages if p.stem == 'sw-quotes'], ensure_ascii=False))
+
+    def test_headline_from_the_quote_is_never_clipped(self):
+        """55-3 - 표제를 못 나눠 이 달의 말(원문)이 표제가 됐는데 표제 칸이 잘리면, 원문을 자르지 않고 나뉘지 않은 이달의 우리 표제로 되돌린다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            sc = fx.type_scenario('neon')
+            tm = json.loads(json.dumps(sc['corners'][2]['content']))
+            tm['payload']['theme']['headline'] = '아주아주긴단어가있는제목'
+            sc['corners'][2] = fx.corner_row('this_month', tm, seq=3)
+            sw = json.loads(json.dumps(sc['corners'][1]['content']))
+            sw['payload']['main'][0]['turns'][0]['text'] = '오늘은 비가 온다고 했으니 우산을 꼭 챙겨서 나가자 알겠지? 약속이야'
+            sc['corners'][1] = fx.corner_row('sweet_words', sw, seq=2)
+            comp = compose_issue(fx.ISSUE_ROW, {**fx.COUPLE_ROW, 'magazine_theme': 'neon'}, NAMES, sc['corners'], None)
+            self.assertEqual(comp.report['coverHeadlineFrom'], 'quote')
+            templates = r.load_templates()
+            r.prepare_work(work)
+            outcome = r.settle_cover(comp, templates, work)
+            self.assertTrue(outcome['headlineReverted'])
+            self.assertEqual(comp.report['coverHeadlineFrom'], 'theme.headline-unsplit')
+            self.assertEqual(comp.pages[0].computed['cover']['headline'], '아주아주긴단어가있는제목')
 
 
 if __name__ == '__main__':

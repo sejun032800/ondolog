@@ -204,3 +204,87 @@ def skipped_scenario(theme: str = 'lovely') -> dict:
     s = photo_scenario(theme)
     rows = [s['corners'][0], corner_row('sweet_words', None, status='skipped', skip_reason='insufficient_input', seq=2), s['corners'][2]]
     return {'theme': theme, 'corners': rows}
+
+
+# ---------------------------------------------------------------------------
+# 55-3 - 디자인 v1.2.2 지면 시험 호 (로컬 세 권 + 변형). 모두 합성 시험 데이터이고 실제 사람의 기록이 아니다.
+# ---------------------------------------------------------------------------
+
+def exact_text(seed: str, length: int) -> str:
+    """정확히 `length`자인 시험 문장(코드포인트). 시험 재료의 글자 수를 맞추려는 것이다 - 사람이 쓴 원문이 아니다."""
+    out = ''
+    while len(out) < length:
+        out += seed + ' '
+    out = out[:length]
+    return out[:-1] + '.' if out.endswith(' ') else out
+
+
+LONG_SEED = '비 오는 날에는 우산을 챙기라고 말해 주던 목소리가 오래 남아서 오늘도 그 말을 다시 꺼내어 읽어 본다'
+
+
+def long_conversation(day: str, turns: int = 4, chars: int = 160, context: str = '긴 이야기를 나눈 대화') -> dict:
+    """`turns`개 발화, 발화마다 정확히 `chars`자인 대화 하나."""
+    speakers = [A, B]
+    words = LONG_SEED.split(' ')
+    return excerpt(context, day, [
+        turn(speakers[i % 2], exact_text(' '.join(words[i:] + words[:i]), chars), f'2026-09-{day}T21:{10 + i}:00+09:00') for i in range(turns)])
+
+
+def many_photos_scenario(theme: str = 'basic') -> dict:
+    """① 사진 많은 달 - basic · 타임라인 2면 분할(사진 3장 stop 포함) · 출처 막대 두 칸 · 이달의 우리 3편(사진 없이 한 단)."""
+    w, h = 1200, 1600
+    featured = article('2026-09-12', '비 오는 날의 연남동', '연남동', [
+        stop(0, '09:05', '홍대입구역', [photo('e01', w, h)], [memo('역 앞에서 만났다. 우산이 하나뿐이었다.')], None),
+        stop(1, '14:20', '연남동 카페', [photo('e02', w, h), photo('e03', w, h), photo('e04', w, h), photo('e05', w, h)],
+             [memo('창가 자리가 비어 있었다.\n케이크를 반씩 나눠 먹었다.', B)], None),
+        stop(2, '19:00', '연남동 식당', [photo('e06', w, h), photo('e07', w, h)], [], '저녁을 먹은 식당'),
+        stop(3, '21:30', '경의선숲길', [photo('e13', w, h)], [], '밤 산책길'),
+    ], featured=True)
+    second = article('2026-09-21', '성수동 산책', '성수동', [
+        stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다'),
+        stop(1, '15:30', None, [photo('e09', w, h), photo('e10', w, h), photo('e14', w, h), photo('e15', w, h)], [memo('오래 걸었다.')], None),
+    ])
+    recalled = article('2025-09-20', '일 년 전 이맘때', '합정동', [
+        stop(0, '12:00', '합정동 공원', [photo('e11', w, h)], [], '공원 벤치'),
+    ], recalled=True, reason='anniversary')
+    da = date_archive([featured, second, recalled], ['연남동', '성수동'])
+    base = photo_scenario(theme)
+    return {'theme': theme, 'corners': [corner_row('date_archive', da, seq=1), base['corners'][1], base['corners'][2]]}
+
+
+def opener_fallback_scenario(theme: str = 'night') -> dict:
+    """② 대표 기사 첫 stop에 사진이 없다 - 오프너는 같은 기사의 다음 stop 사진으로 폴백한다. basic 아닌 테마."""
+    w, h = 1200, 1600
+    featured = article('2026-09-12', '비 오는 날의 연남동', '연남동', [
+        stop(0, '14:20', '홍대입구역', [], [memo('역 앞에서 만났다. 우산이 하나뿐이었다.')], None),
+        stop(1, '16:10', '연남동 카페', [photo('e02', w, h), photo('e03', w, h)], [memo('창가 자리가 비어 있었다.', B)], None),
+    ], featured=True)
+    second = article('2026-09-21', '성수동 산책', '성수동', [stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다')])
+    base = photo_scenario(theme)
+    return {'theme': theme, 'corners': [corner_row('date_archive', date_archive([featured, second]), seq=1), base['corners'][1], base['corners'][2]]}
+
+
+def opener_type_only_scenario(theme: str = 'hip') -> dict:
+    """② 대표 기사 전체 stop에 사진이 하나도 없다 - 오프너는 type-only. (다른 기사에는 사진이 있고, 짧은 변 900px이라 활자 표지가 된다)"""
+    w, h = 900, 1200
+    featured = article('2026-09-12', '사진 없이 남긴 하루', '연남동', [
+        stop(0, '14:20', '홍대입구역', [], [memo('사진은 못 찍었다. 비가 너무 왔다.')], None),
+        stop(1, '16:10', '연남동 카페', [], [memo('창가 자리가 비어 있었다.', B)], None),
+    ], featured=True)
+    second = article('2026-09-21', '성수동 산책', '성수동', [stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점에서 책을 골랐다')])
+    base = photo_scenario(theme)
+    return {'theme': theme, 'corners': [corner_row('date_archive', date_archive([featured, second]), seq=1), base['corners'][1], base['corners'][2]]}
+
+
+def long_original_scenario(theme: str = 'ondol', with_overlong: bool = False) -> dict:
+    """③ 긴 원문 - 160자 4턴 대화 둘(각 한 면 안에 들어가지만 둘은 한 면에 못 든다 -> 인용 2면) + 긴 메모.
+    `with_overlong`이면 한 면을 넘는 대화(4턴 x 400자) 하나를 더한다 - 렌더가 실패해야 한다. 그 대화를 빼면 나뉘어 통과한다."""
+    base = photo_scenario(theme)
+    mains = [long_conversation('22'), long_conversation('24', context='저녁 약속을 두고 길게 이어진 대화')]
+    if with_overlong:
+        mains.append(long_conversation('27', chars=400, context='밤새 이어진 가장 긴 대화'))
+    sw = sweet_words(mains, [sub(B, '오늘 고생했어 진짜'), sub(A, '집에 잘 들어갔어?', '2026-09-15T22:10:00+09:00')])
+    da = base['corners'][0]['content']
+    long_memo = exact_text('창가 자리에서 오래 이야기했다 해가 질 때까지 앉아 있었다', 120)
+    da['payload']['articles'][0]['stops'][0]['userNotes'] = [memo(long_memo)]
+    return {'theme': theme, 'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2), base['corners'][2]]}

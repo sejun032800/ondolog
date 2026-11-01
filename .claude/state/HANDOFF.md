@@ -27,11 +27,42 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 022 실증 스크립트 3종 (`scripts/db/verify_022_*.sql`) | 작성 완료(`47b`), **미실행**. 실행은 메인 세션이 적용 확인 뒤 | 이 파일 "022 실증 스크립트 (`47b`)" 절 |
 | 테마 복사 트리거 실증 — 원격 couples 0행, 48- C에서 (SCHEMA §9-D-9) | 미실증 | `docs/ONDOLOG_SCHEMA.md` §9-D-9 · 이 파일 "022 적용·실증 결과 (`47b` 실행)" 절 |
 | lock 재생성 후 `react-native-worklets` 미설치 (`49`) — reanimated 4.5.1 피어(0.10.x). 이전엔 피어 자동 설치로 들어왔고 `--legacy-peer-deps`는 피어를 안 깐다. jest·tsc는 무관, 재빌드(`51-`) 전 판단 필요. 메인 세션 판단: ui-builder.md 중복은 `추가분` 코드 블록 안 사본을 지웠고 Phase 10은 제목을 두고 본문만 한 줄. db-architect.md 13행 겹침 정리: "마이그레이션은 SCHEMA.md §13의 순서(현재 022까지)를 그대로 따른다" | 열림 | `.claude/state/prompts/phase-7/49-main-session-m0-env-sync.md` · `package.json` |
-| 조판 막힌 슬롯 여섯 묶음·README 빈칸 (`55-2`) — 지면 HTML을 고쳐야 한다(디자인 세션). 시험 호 ①②③은 개발 DB에 있다(① 발행됨) | 열림 | 이 파일 "조판 슬롯 채우기 (`55-2`)" 절 |
+| 조판 막힌 슬롯 여섯 묶음·README 빈칸 (`55-2`) — v1.2.2 반입·`55-3` 맞춤으로 대부분 해소. **남은 것: 디자인에 넘길 목록 4건**(`da-article` 히어로 사진 틀 · 캡션 라벨 줄 · 하단 한 줄의 `bottom:62px` · `attribution.at` 표기). 시험 호 ①②③은 개발 DB에 있다(① 발행됨) | 열림(디자인) | 이 파일 "조판 v1.2.2 맞춤 (`55-3`)" 절 |
+| 조판 `55-3` 원격 실증(시험 호 4권 렌더 · 발행 회귀) — 명령 작성 완료, **실행은 사람**. 실제 커플 발행은 PM 판정 뒤(R29-2) | 대기(사람) | `scripts/ops/out/55-3-run.ps1` · 이 파일 "조판 v1.2.2 맞춤 (`55-3`)" 절 |
 | UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
 | **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 -> R30-1로 RPC 결정, `023_delete_own_entry.sql` 작성(`57-` A), **원격 적용·실증 완료**, 앱 UI는 `57-` C에서 만듦(실기기 확인 대기) | 앱 쪽 해소 | 이 파일 "본인 기록 삭제 UI · stop 시각 (`57-` C)" 절 |
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
+
+## 조판 v1.2.2 맞춤 (`55-3`, 2026-10-28, corner-pipeline) - 로컬 시험 호 렌더 통과, 원격 미실행(`55-3-run.ps1`은 사람)
+
+내부 결정(항목당 한 줄):
+
+- 반입 대조: README §8 48파일 = 실제 48파일(빠짐 0 · 남음 0) · 파일명 ASCII · `render/issue/` 수정 0. `contents.html` 속표지 문장(합니다체)은 PM이 받은 변경으로 정한 것(README §10에 없음).
+- `data-width`(`slot_fill.parse_width`·`_apply_width`): 숫자 또는 숫자 글자(`34`·`34%`)만 받고 그 밖(None·범위 밖·`abc`·불리언·NaN)은 요소를 지운다(실패 아님). **`34%`도 받는다** - 지면이 같은 경로(`@note.ratioPeople`)로 폭과 `34%` 글자를 함께 맡기기 때문이다(디자인 `resolve.js`는 폭·글자를 따로 받아 `34%`를 지운다 - 알려진 차이, `scripts/ops/out/55-3-data-width.txt`). 폭 칸은 `width:N%;flex:none`으로 바꾸고 박혀 있던 `width`·`flex`만 지운다(`min-width` 등은 둔다). 적용 순서는 variant → repeat → if → optional → width, 폭이 지운 요소의 슬롯도 부모 optional 판정에는 이미 세어진다(`resolve.js`와 같다).
+- 문장이 하나도 없으면 출처 비율은 `0% / 100%`가 아니라 빈 값이라 막대 두 칸이 지워진다(없는 값을 만들지 않는다).
+- 쪽 번호(README §11 ⑦ "표지를 뺀 본문 기준 1부터")를 **목차 01 · 발행 노트 02 · …**로 읽었다(장 번호 - 1, 표지 2종에는 폴리오 없음, 목차 쪽 번호도 같은 기준). `04`는 두 자리 글자이고 글자 사이 `.3em`은 CSS가 벌린다(`0 4`로 쓰지 않는다). 55-2는 장 번호(표지 1)를 썼다 - 이 해석이 PM 뜻과 다르면 `compose.py` 한 곳(`first_page`·`page`)만 고친다.
+- 목차 설명(README §11 ①): 데이트 아카이브는 `summary.dateCount`(없으면 재소환 뺀 기사 수), 이달의 우리는 `theme.headline`이 비면 그 조각만 뺀다.
+- 시각 `hhmm`: `9:05`·`14:20:00`·ISO 시각을 `HH:MM`으로, 모양이 아니면 **있는 그대로** 둔다(값을 지어내지 않는다). `.seq`: 가장 작은 `seq`가 0이면 +1, 아니면 그대로(저장된 content는 0부터).
+- 근거 날짜 `08.22`: 재소환 기사(`recalled`)의 `dateOn`과 같은 날짜, 또는 이 호의 연도와 다른 해만 `2025.08.20`처럼 연도를 붙인다.
+- `@da.openerPhoto` = 대표 기사 전체 stop을 편 첫 사진(`first_photo_any`). `choose_variant`는 `with-photo`/`type-only` 한 쌍을 지면으로 가른다(`da-opener`는 `da.openerPhoto`, `sw-opener`는 `sw.openerPhoto`). 표지 사진 사슬은 그대로.
+- 인용면 나눔(`pack_quotes`): 대화 높이 = 113 + 64 x 턴 수 + 35자를 넘는 줄마다 22px(원문 줄바꿈마다 새 줄). README §12 표의 12·30·60·100자 열과 ±2px로 맞고, **160자 열은 표(4줄)보다 크게 잡는다**(35자/줄 규칙으로 5줄 - 실측 렌더는 들여쓴 발화가 5줄, 아닌 발화가 4줄이라 표와 5줄 규칙 사이). 가용 높이 844px, 단문 3개 이상이면 마지막 면만 781px, 한 대화가 가용 높이를 넘으면 `ComposeError`(호 · 대화 · 높이). **`SW_QUOTES_PER_PAGE = 2` 규칙은 없앴다** - 높이로만 나눈다(CORNER_LAYOUT §3-3 "최대 2개"보다 README §12가 새 원본).
+- 타임라인(`stop_height`): README §5 표 + 첫 메모가 50자를 넘으면 50자마다 +29px(올림). **README §12 표의 200자 열(506px)은 이 규칙(477px)보다 29px 크다 - 긴 메모는 규칙이 작게 잡는다**(디자인 확인 거리). 한 구간만으로 953px을 넘으면 `ComposeError`(구간을 쪼개지 않는다). 두 면에 못 드는 구간을 노트 "싣지 않은 것"에 적는 55-2 동작은 그대로(원문을 줄이는 것이 아니라 싣지 않는 것).
+- 표지 이 달의 말(`render_issue.settle_cover`): 표지를 한 번 열어 이 달의 말 줄이 판면 밖이거나 다른 글자 상자와 겹치면 `quote`·`quoteBy`를 비워 줄째 지운다. **표제가 이 달의 말(원문)로 바뀐 표지**가 `clamp`에 잘리면 원문을 자르지 않고 나뉘지 않은 이달의 우리 표제로 되돌린다(그것도 없으면 비움). 결과는 `compose.json` 보고(`coverQuoteRemoved`·`coverHeadlineFrom`).
+- 원문 `clipped`: 검사가 잘린 요소의 `data-slot`을 남기고(`slot`), `.userNotes[0].text`·`.text`·`.evidence`·`@cover.quote`(와 표제가 이 달의 말인 표지의 `@cover.headline`)가 잘렸으면 `render_issue`가 업로드 전에 멈춘다. 온도록 문장이 잘린 것은 `audit.json`의 `recordedClipped`에 기록. v1.2.2 지면에는 원문 칸에 clamp가 없어 실제 렌더에서는 원문 clipped가 0이다.
+- 출력: 렌더·시드 출력에서 프로젝트 ref 줄을 뺐다(`접속 대상: 개발 프로젝트 ondolog - 확인됨`). deno 발행 출력은 `55-3-run.ps1`의 필터가 ref를 지운다.
+- 시험 호: `render/seed_render_tests.py`에 세트 인수(`run 55-3`)를 더했다(`55-2` 세트는 기본값 그대로). 4권 = photos(basic)·opener(night)·long(ondol)·overlong(ondol, 렌더가 멈춰야 함). 저장 스키마는 Deno로 12개 모두 통과. 로컬은 `render/local_volumes.py`(출력 `render/out/55-3-local/`, git 무시).
+- Python 시험: 122 → 173 (`scripts/ops/out/55-3-python-tests.txt`). 기존 시험 변경 - `test_clipped_text_is_recorded`(인용 turn이 `clamp3`에 잘려 `clipped`를 기대) → 둘로 나눔: 온도록 문장(이달의 우리 표제)이 넘치면 `clipped` **기록**, 원문 칸이 잘리면 **실패**(`original_clipped`) + 한 대화가 한 면을 넘으면 `ComposeError`; `Order`의 쪽 번호 시험 둘과 `ThisMonth.test_evidence_line_rules`는 확정값(쪽 번호 · `09.12`)으로 갱신.
+
+막힌 슬롯 - 지면 HTML을 고쳐야 한다(`render/issue/`는 고치지 않았다 - 디자인 세션 몫):
+
+1. `da-article.html` 히어로 사진: `payload.articles[i].stops[0].photos[0].path` 한 경로뿐, `data-optional`·변형이 없다. 첫 stop에 사진이 없으면 사진 없는 `<img>`가 빈 회색 틀로 남는다(`broken-image`). 오프너처럼 기사 전체 첫 사진 폴백 + 틀 삭제가 필요하다.
+2. `da-article.html` 사진 캡션: README §11 ⑥은 "라벨 한 줄 + 문장 한 줄"인데 지면에는 `AI 캡션` 라벨 줄이 없고 견본 글자에 옛 접두(`AI 캡션 · …`)가 남아 있다. 렌더러는 접두 없이 문장만 넣는다(타임라인은 라벨 줄이 있어 맞다).
+3. 하단 한 줄이 판면 하단(1047px)을 넘는다(`safe`): 목차 고지 · 발행 노트 `ONDOLOG` 표시 · 타임라인 경로 줄 · 인용면 고지 · 이달의 우리 마감 문장 · 뒤표지 하단 줄. 지면 HTML의 `bottom:62px`(등)이 판면 하단 여백 안쪽이다. 의도라면 규격 값(CORNER_LAYOUT §0-3b)을 고치거나 검사 예외로 정해 달라.
+4. `sw-quotes.html` 단문의 `.attribution.at`(`08.11 23:40`)과 `@da.places .date`(`08.19`) 표기는 README에 규칙이 없다(§11 7건에도 없다). 렌더러는 시각 `HH:MM`·날짜 `MM.DD` 규칙을 따라 임시로 정했다.
+5. README 쪽: §5·§12의 메모 보정 문장("50자마다 29px")과 §12 표(200자 506px)가 맞지 않는다. §12 인용 "한 줄 약 35자"와 표의 160자 열(4줄)도 어긋난다(위 결정 참고).
+
+`55-2`에서 넘긴 남은 항목 처리: 막힌 슬롯 1(출처 막대) 해소(`data-width`) · 2(다정 지수) 해소(v1.2 지면) · 3(`da-article` 고정 문구 셋) 해소(러닝헤드 `data-if` · 영문 서수 · 사진 수 문장) · 4 해소(영문 서수 · `@da.openerPhoto` + 변형) 단 `da-article` 히어로는 위 1번 · 5 README 빈칸 중 `@toc.desc` · `.photo` · 근거 날짜 · `.seq` · 폴리오 · 캡션 접두는 §11로 확정, `attribution.at`은 위 4번 · 6 원문 잘림 해소(v1.2.2에서 clamp 제거 + 면 나눔/실패). "목차 매니페스트"라는 항목은 HANDOFF 55-2 절에 없다(지시서 예시로만 적혀 있다).
 
 ## description_ko 029 (`70-` 1부 이어서, 2026-10-27, db-architect) - 작성만, 원격 미적용 · 미실증
 - 029 는 `update … where code` 36줄만(멱등). 문구는 `docs/ONDOLOG_36_descriptions.md` 에서 `**` 만 뺀 것 = 020 과 글자 단위 같음(jest 가 셋을 대조).

@@ -1,19 +1,25 @@
-"""조판 시험용 초안 호 - 원격 **개발** DB·스토리지에 시험 커플 셋과 호 하나씩을 만든다 (위임: 55-2). 운영자 PC에서 돈다.
+"""조판 시험용 초안 호 - 원격 **개발** DB·스토리지에 시험 커플과 호 하나씩을 만든다 (위임: 55-2, 55-3). 운영자 PC에서 돈다.
 
-`55-1`의 호는 발행됐다 - 조판 시험은 새 호를 쓴다. 코너 content는 LLM이 쓴 것이 아니라 `tests/fixtures.py`의 **합성 시험 데이터**다
-(실제 사람의 기록이 아니다). 저장 스키마(`src/types/corners/storedContent.ts`)는 이 파일을 쓰기 전에 Deno로 따로 검증한다(`dump`).
+`55-1`·`55-2`의 호는 발행됐거나 낡았다 - 조판 시험은 새 호를 쓴다. 코너 content는 **LLM이 쓴 것이 아니라** `tests/fixtures.py`의 **합성 시험 데이터**다
+(실제 사람의 기록이 아니다 - 실제 LLM 호출 0회). 저장 스키마(`src/types/corners/storedContent.ts`)는 이 파일을 쓰기 전에 Deno로 따로 검증한다(`dump`).
 
+세트 `55-2` (기본)
   ① `test-55-2-photo`  basic  사진 표지 · 타임라인 2면 분할 · 재소환 기사 · 다정한 말들 main 2
   ② `test-55-2-type`   neon   활자 표지(사진 짧은 변 900px) · 다정한 말들 main 3(인용 2면) · 이달의 우리 4편
   ③ `test-55-2-skip`   lovely 다정한 말들 `skipped`(insufficient_input) - 목차·쪽 번호가 다시 매겨진다
+세트 `55-3` (디자인 v1.2.2)
+  ① `test-55-3-photos`   basic 사진 많은 달 · 타임라인 2면 분할 · 출처 막대 두 칸 · 이달의 우리 한 단
+  ② `test-55-3-opener`   night 대표 기사 첫 stop에 사진이 없다 - 오프너가 다음 stop 사진으로 폴백
+  ③ `test-55-3-long`     ondol 160자 4턴 대화 둘(인용 2면) + 긴 메모 - 렌더가 통과해야 한다
+  ④ `test-55-3-overlong` ondol ③에 한 면을 넘는 대화 하나를 더한 것 - **렌더가 멈춰야 한다**(자르지 않는다, R29-3)
 
 규칙 (R13-7 · 54와 같다): 이름에 `test`. 개발 프로젝트가 아니면 쓰기 전에 멈춘다. **만든 행·파일은 목록으로 남기고 지우지 않는다**
-(`render/out/seed-55-2.json`). service_role 키는 환경변수로만 읽고 어디에도 쓰지 않는다. 계정에는 비밀번호가 없다.
+(`render/out/seed-<세트>.json`). service_role 키는 환경변수로만 읽고 어디에도 쓰지 않는다. 계정에는 비밀번호가 없다.
 복제(P7)가 하는 일 - 원본(`entries`)과 같은 사진을 목적지(`magazine/{couple}/{issue}/{entry}.png`)에 미리 둔다. 발행 명령이 목적지 존재를 다시 확인한다.
 
 사용 (저장소 루트에서):
-    render/.venv/Scripts/python.exe render/seed_render_tests.py dump <폴더>   # 검증용 content JSON만 쓴다(원격 접속 없음)
-    render/.venv/Scripts/python.exe render/seed_render_tests.py run          # 원격 개발 DB에 만든다
+    render/.venv/Scripts/python.exe render/seed_render_tests.py dump <폴더> [세트]   # 검증용 content JSON만 쓴다(원격 접속 없음)
+    render/.venv/Scripts/python.exe render/seed_render_tests.py run [세트]          # 원격 개발 DB에 만든다
 """
 
 from __future__ import annotations
@@ -37,14 +43,27 @@ sys.path.insert(0, str(HERE / 'tests'))
 import fixtures as fx  # noqa: E402
 import render_issue as r  # noqa: E402
 
-LOG_FILE = HERE / 'out' / 'seed-55-2.json'
 NOW = datetime.now().astimezone().isoformat()
 
-SCENARIOS = [
-    ('photo', 'basic', 'test-늘봄', fx.photo_scenario, (1200, 1600)),
-    ('type', 'neon', 'test-봄볕', fx.type_scenario, (900, 1200)),
-    ('skip', 'lovely', 'test-온기', fx.skipped_scenario, (1200, 1600)),
-]
+# 세트 -> [(라벨, 테마, 커플 닉네임(이름에 test), 시나리오 만들기, 사진 크기)]
+SETS = {
+    '55-2': [
+        ('photo', 'basic', 'test-늘봄', fx.photo_scenario, (1200, 1600)),
+        ('type', 'neon', 'test-봄볕', fx.type_scenario, (900, 1200)),
+        ('skip', 'lovely', 'test-온기', fx.skipped_scenario, (1200, 1600)),
+    ],
+    '55-3': [
+        ('photos', 'basic', 'test-늘봄-55-3', fx.many_photos_scenario, (1200, 1600)),
+        ('opener', 'night', 'test-봄볕-55-3', fx.opener_fallback_scenario, (1200, 1600)),
+        ('long', 'ondol', 'test-온기-55-3', fx.long_original_scenario, (1200, 1600)),
+        ('overlong', 'ondol', 'test-긴말-55-3', lambda theme: fx.long_original_scenario(theme, with_overlong=True), (1200, 1600)),
+    ],
+}
+DEFAULT_SET = '55-2'
+
+
+def log_file(set_name: str) -> Path:
+    return HERE / 'out' / f'seed-{set_name}.json'
 
 
 class SeedApi(r.Api):
@@ -96,9 +115,9 @@ def new_ids(scenario: dict) -> dict[str, str]:
     return ids
 
 
-def dump(folder: Path) -> None:
+def dump(folder: Path, set_name: str = DEFAULT_SET) -> None:
     folder.mkdir(parents=True, exist_ok=True)
-    for label, theme, nickname, build, _ in SCENARIOS:
+    for label, theme, nickname, build, _ in SETS[set_name]:
         scenario = build(theme)
         couple_id, issue_id = str(uuid.uuid4()), str(uuid.uuid4())
         for row in realize(scenario, couple_id, issue_id, new_ids(scenario)):
@@ -116,18 +135,19 @@ def kst(date_on: str, hhmm: str, plus_minutes: int = 0) -> str:
     return base.isoformat()
 
 
-def seed_one(api: SeedApi, log: dict, label: str, theme: str, nickname: str, build, size: tuple[int, int], say) -> None:
+def seed_one(api: SeedApi, log: dict, set_name: str, label: str, theme: str, nickname: str, build, size: tuple[int, int], say) -> None:
     scenario = build(theme)
     ids = new_ids(scenario)
     users = []
     for tag, name, gender in (('a', fx.A, 'male'), ('b', fx.B, 'female')):
-        uid = api.create_user(f'test-55-2-{label}-{tag}@example.com')
+        email = f'test-{set_name}-{label}-{tag}@example.com'
+        uid = api.create_user(email)
         api.insert('profiles', [{'id': uid, 'display_name': name, 'gender': gender, 'birth_date': '1999-01-01', 'onboarding_step': 3,
                                  'terms_agreed_at': NOW, 'privacy_agreed_at': NOW, 'ai_usage_agreed_at': NOW}])
         users.append(uid)
-        log['users'].append({'id': uid, 'email': f'test-55-2-{label}-{tag}@example.com'})
+        log['users'].append({'id': uid, 'email': email})
     by_name = {fx.A: users[0], fx.B: users[1]}
-    couple = api.insert('couples', [{'user_a_id': users[0], 'user_b_id': users[1], 'invite_code': f'T552{label[:2].upper()}{uuid.uuid4().hex[:2].upper()}',
+    couple = api.insert('couples', [{'user_a_id': users[0], 'user_b_id': users[1], 'invite_code': f"T{set_name.replace('-', '')}{label[:2].upper()}{uuid.uuid4().hex[:2].upper()}",
                                       'nickname': nickname, 'status': 'active', 'connected_at': NOW, 'magazine_theme': theme}])[0]
     couple_id = couple['id']
     log['couples'].append({'label': label, 'id': couple_id, 'nickname': nickname, 'theme': theme})
@@ -208,25 +228,26 @@ def seed_one(api: SeedApi, log: dict, label: str, theme: str, nickname: str, bui
             'couple_id': couple_id, 'issue_id': issue_id, 'corner_type': c['corner_type'], 'seq': c['seq'],
             'period_start': '2026-09-01', 'period_end': '2026-09-30', 'status': c['status'], 'content': c['content'],
             'skip_reason': c['skip_reason'], 'source_date_ids': date_ids if c['corner_type'] == 'date_archive' else [],
-            'engine_version': 'fixture-55-2'}])[0]
+            'engine_version': f'fixture-{set_name}'}])[0]
         log['corners'].append({'id': inserted['id'], 'issueLabel': label, 'cornerType': c['corner_type'], 'status': c['status']})
     say(f'{label}: 사진 {len(photo_for_entry)}장 · 채팅 {len(messages)}줄 · 코너 {len(rows)}')
 
 
-def run() -> int:
+def run(set_name: str = DEFAULT_SET) -> int:
     sys.stdout.reconfigure(encoding='utf-8')
+    LOG_FILE = log_file(set_name)
     api0, ref, secrets = r.connect()
     api = SeedApi(api0.base, secrets[0])
 
     def say(line: str) -> None:
         print(r.redact(line, secrets))
 
-    say(f'접속 대상: 개발 프로젝트 {r.DEVELOPMENT_PROJECT_NAME} ({ref}) - 확인됨')
+    say(f'접속 대상: 개발 프로젝트 {r.DEVELOPMENT_PROJECT_NAME} - 확인됨 (프로젝트 ref는 출력하지 않는다)')
     log: dict[str, list] = {'users': [], 'couples': [], 'issues': [], 'corners': [], 'storage': []}
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
-        for label, theme, nickname, build, size in SCENARIOS:
-            seed_one(api, log, label, theme, nickname, build, size, say)
+        for label, theme, nickname, build, size in SETS[set_name]:
+            seed_one(api, log, set_name, label, theme, nickname, build, size, say)
     finally:  # 도중에 실패해도 그때까지 만든 행·파일의 목록은 남긴다(지우지 않는다)
         LOG_FILE.write_text(r.redact(json.dumps(log, ensure_ascii=False, indent=2), secrets) + '\n', encoding='utf-8')
         say(f'목록 파일: {LOG_FILE}')
@@ -234,13 +255,15 @@ def run() -> int:
 
 
 if __name__ == '__main__':
-    if len(sys.argv) >= 3 and sys.argv[1] == 'dump':
-        dump(Path(sys.argv[2]))
-    elif sys.argv[1:] == ['run']:
+    args = sys.argv[1:]
+    chosen = args[-1] if args and args[-1] in SETS else DEFAULT_SET
+    if len(args) >= 2 and args[0] == 'dump':
+        dump(Path(args[1]), chosen)
+    elif args[:1] == ['run'] and len(args) in (1, 2):
         try:
-            sys.exit(run())
+            sys.exit(run(chosen))
         except r.StopError as e:
             print(f'멈춤: {e}', file=sys.stderr)
             sys.exit(2)
     else:
-        sys.exit('사용: dump <폴더> | run')
+        sys.exit('사용: dump <폴더> [세트] | run [세트]   (세트: ' + ' | '.join(SETS) + ')')

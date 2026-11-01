@@ -8,8 +8,10 @@
     data-optional 안의 슬롯 값(`data-slot`·`data-src` 모두)이 전부 비면 요소째 지운다
     data-slot     요소의 글자를 값으로 바꾼다(줄바꿈은 `<br>`)
     data-src      `<img>`의 `src`를 사진 경로로 바꾼다 (`data-src="."`는 반복 항목 자체가 경로)
+    data-width    값(0~100)을 그 요소의 `width:%`로 바꾼다(55-3, README v1.2.2 §2). 값이 없거나 범위 밖이거나 숫자가 아니면 **그 요소를 지운다** -
+                  렌더를 실패시키지 않는다. 박힌 폭을 남기면 고치려던 결함(R29-1)이 그대로 남는다.
 
-해석 순서는 **variant -> repeat -> if -> optional**이다(README §2, R25-2). 한 요소 안에서도, 요소와 자손 사이에서도 이 순서다.
+해석 순서는 **variant -> repeat -> if -> optional -> width**이다(README §2, R25-2). 한 요소 안에서도, 요소와 자손 사이에서도 이 순서다.
   - 지울 변형 안의 반복은 복제되지 않는다(variant를 부모가 자손보다 먼저 고르므로 그 가지는 방문하지 않는다).
   - `if`로 지운 가지의 빈 슬롯은 `optional` 판정에 세지 않는다(그 가지는 이미 트리에 없다).
 
@@ -116,6 +118,57 @@ def resolve(path: str, scope: Any, ctx: Context) -> Any:
     return current
 
 
+_WIDTH_TEXT = re.compile(r'^\d+(?:\.\d+)?%?$')
+
+
+def parse_width(value: Any) -> Optional[float]:
+    """`data-width` 값 -> 0~100 숫자. 없거나(None) 숫자가 아니거나 범위 밖이면 None(그 요소를 지운다).
+
+    숫자 또는 숫자 글자(`34`·`34%`)만 받는다. 글자 뒤의 `%`는 받는다 - 지면의 같은 경로(`@note.ratioPeople`)가 폭과 `34%` 글자를 함께 맡기 때문이다
+    (디자인 `resolve.js`는 폭과 글자를 따로 받아 이 경우가 없다). 그 밖의 글자(`abc`)·`True`·`NaN`·빈 글자는 숫자가 아니다.
+    """
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+    elif isinstance(value, str):
+        text = value.strip()
+        if not _WIDTH_TEXT.match(text):
+            return None
+        number = float(text.rstrip('%'))
+    else:
+        return None
+    if number != number or number < 0 or number > 100:  # NaN · 범위 밖
+        return None
+    return number
+
+
+def _split_declarations(style: str) -> list:
+    """`style` 속성을 선언 단위로 나눈다 - 괄호 안의 `;`은 나누지 않는다."""
+    parts, depth, cur = [], 0, []
+    for ch in style:
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth = max(0, depth - 1)
+        if ch == ';' and depth == 0:
+            parts.append(''.join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append(''.join(cur))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _apply_width(el: Tag, percent: float) -> None:
+    """요소의 `width`를 값으로 바꾼다(`resolve.js`와 같게 `flex:none`도). 박혀 있던 `width`·`flex` 선언은 지운다. `min-width` 같은 다른 선언은 둔다."""
+    kept = [d for d in _split_declarations(el.get('style', ''))
+            if d.split(':', 1)[0].strip().lower() not in ('width', 'flex')]
+    kept.append(f'width:{percent:g}%')
+    kept.append('flex:none')
+    el['style'] = ';'.join(kept)
+
+
 def _text(value: Any) -> str:
     if isinstance(value, bool):
         return 'true' if value else 'false'
@@ -212,6 +265,15 @@ class SlotFiller:
         if el.has_attr('data-optional') and empty > 0 and filled == 0:
             el.decompose()
             return 0, 0
+
+        # 5. width: optional 다음이다 - 지워질 요소의 폭을 계산할 이유가 없다. 값이 없으면 그 요소를 지운다(실패 아님).
+        #    지운 요소 안의 슬롯은 부모의 optional 판정에 이미 세어졌다(`resolve.js`도 optional 다음에 지운다).
+        if el.has_attr('data-width'):
+            percent = parse_width(resolve(el['data-width'], scope, self.ctx))
+            if percent is None:
+                el.decompose()
+            else:
+                _apply_width(el, percent)
         return filled, empty
 
     # -- repeat -------------------------------------------------------------------

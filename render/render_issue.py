@@ -46,7 +46,7 @@ REPO = HERE.parent
 sys.path.insert(0, str(HERE))
 
 from compose import ComposeError, Composition, PageSpec, choose_variant, compose_issue  # noqa: E402
-from page_audit import audit_page, compare_with_design, design_audit_js  # noqa: E402
+from page_audit import audit_page, compare_with_design, design_audit_js, original_clipped, recorded_clipped  # noqa: E402
 from slot_fill import fill  # noqa: E402
 
 DEVELOPMENT_PROJECT_NAME = 'ondolog'
@@ -320,6 +320,93 @@ def prepare_work(work: Path) -> None:
             shutil.copy2(src, work / name)
 
 
+COVER_PROBE_JS = r"""
+() => {
+  const SAFE = {left: 68 - 0.5, right: 794 - 68 + 0.5, top: 60 - 0.5, bottom: 1123 - 76 + 0.5};
+  const out = {headlineClipped: false, quote: null};
+  const h = document.querySelector('[data-slot="@cover.headline"]');
+  if (h) out.headlineClipped = h.scrollHeight - h.clientHeight > 1;
+  const q = document.querySelector('[data-slot="@cover.quote"]');
+  if (!q) return out;
+  const row = q.closest('[data-optional]') || q;
+  let box = null;
+  const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!n.textContent.trim()) continue;
+    const rg = document.createRange();
+    rg.selectNodeContents(n);
+    for (const r of rg.getClientRects()) {
+      if (r.width < 1 || r.height < 1) continue;
+      box = box ? {left: Math.min(box.left, r.left), top: Math.min(box.top, r.top), right: Math.max(box.right, r.right),
+                   bottom: Math.max(box.bottom, r.bottom)} : {left: r.left, top: r.top, right: r.right, bottom: r.bottom};
+    }
+  }
+  if (!box) return out;
+  const reasons = [];
+  if (box.left < SAFE.left || box.right > SAFE.right || box.top < SAFE.top || box.bottom > SAFE.bottom) reasons.push('safe');
+  const host = row.closest('body > .ab');
+  for (const o of document.querySelectorAll('body > .ab')) {
+    if (o === host || o.contains(row) || !o.textContent.trim()) continue;
+    const r = o.getBoundingClientRect();
+    const ox = Math.min(box.right, r.right) - Math.max(box.left, r.left);
+    const oy = Math.min(box.bottom, r.bottom) - Math.max(box.top, r.top);
+    if (ox > 2 && oy > 2) reasons.push('overlap:' + (o.className || '?'));
+  }
+  out.quote = {fits: reasons.length === 0, reasons: reasons, box: [Math.round(box.left), Math.round(box.top), Math.round(box.right), Math.round(box.bottom)]};
+  return out;
+}
+"""
+
+
+def settle_cover(composition: Composition, templates: dict[str, str], work: Path, say: Callable[[str], None] = lambda s: None) -> dict[str, Any]:
+    """표지를 한 번 열어 보고 원문이 잘리거나 규격에 안 들어가는 자리를 정리한다 (55-3 범위 4-④, README §12). 작업 폴더가 준비된 뒤에 부른다.
+
+    - **이 달의 말**: 자리를 그대로 두고, 판면 밖이거나 다른 글자와 겹치면 **줄째 지운다**(`computed.cover.quote`·`quoteBy`를 비운다 -> `data-optional`이 줄을 지운다).
+    - **표제가 이 달의 말로 바뀐 표지**(표제를 3줄·6자로 못 나눴을 때): 표제 칸이 `clamp`라 원문이 잘리면, 원문을 자르지 않고 나뉘지 않은 `theme.headline`로 되돌린다
+      (그것도 없으면 표제를 비운다). 온도록이 쓴 표제는 잘려도 기록이다.
+    결과는 `composition.report`에 남긴다(`coverQuoteRemoved` · `coverHeadlineFrom`).
+    """
+    spec = composition.pages[0]
+    outcome: dict[str, Any] = {'quoteRemoved': False, 'headlineReverted': False}
+    cover = spec.computed.get('cover')
+    if spec.stem not in ('cover-photo', 'cover-type') or not isinstance(cover, dict):
+        return outcome
+    from playwright.sync_api import sync_playwright
+
+    probe_file = work / 'pages' / '_cover-probe.html'
+
+    def probe(page: Any) -> dict[str, Any]:
+        probe_file.write_text(fill_page(spec, composition.theme, templates), encoding='utf-8', newline='\n')
+        page.goto(probe_file.as_uri(), wait_until='networkidle')
+        page.evaluate('document.fonts.ready.then(() => true)')
+        return page.evaluate(COVER_PROBE_JS)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            page = browser.new_context(viewport=VIEWPORT).new_page()
+            result = probe(page)
+            if composition.report.get('coverHeadlineFrom') == 'quote' and result['headlineClipped']:
+                unsplit = composition.report.get('coverHeadlineUnsplit') or ''
+                cover['headline'] = unsplit
+                composition.report['coverHeadlineFrom'] = 'theme.headline-unsplit' if unsplit else 'none'
+                outcome['headlineReverted'] = True
+                say('표지: 이 달의 말을 표제로 쓰면 잘린다 - 원문을 자르지 않고 표제를 나뉘지 않은 이달의 우리 표제로 되돌렸다')
+                result = probe(page)
+            quote = result.get('quote')
+            if quote is not None and not quote['fits']:
+                cover['quote'] = ''
+                cover['quoteBy'] = ''
+                outcome['quoteRemoved'] = True
+                outcome['reasons'] = quote['reasons']
+                say(f"표지: 이 달의 말이 규격에 들어가지 않아 줄째 지웠다 ({', '.join(quote['reasons'])})")
+        finally:
+            browser.close()
+    probe_file.unlink(missing_ok=True)
+    composition.report['coverQuoteRemoved'] = outcome['quoteRemoved']
+    return outcome
+
+
 def build_pages(composition: Composition, templates: dict[str, str], work: Path, issue: dict[str, Any],
                 fetch: Callable[[str], Optional[bytes]]) -> list[Path]:
     """채운 지면을 `work/pages/NN-<stem>.html`로 쓴다. 사진은 목적지 사본을 받아 `work/photos/`에 두고 상대 경로로 잇는다."""
@@ -400,12 +487,22 @@ def merge_pdf(pdfs: list[bytes]) -> tuple[bytes, list[int]]:
     return out.getvalue(), counts
 
 
+def clipped_original_slots(composition: Composition) -> tuple:
+    """이 호에서 원문이 놓이는 표지 표제 슬롯 - 표제가 이 달의 말(원문)로 바뀐 호만."""
+    return ('@cover.headline',) if composition.report.get('coverHeadlineFrom') == 'quote' else ()
+
+
 def audit_summary(composition: Composition, results: list[dict[str, Any]], issue_id: str) -> dict[str, Any]:
     pages = []
     totals: dict[str, int] = {}
+    originals: list[dict[str, Any]] = []
+    recorded: list[dict[str, Any]] = []
+    extra = clipped_original_slots(composition)
     for n, (spec, res) in enumerate(zip(composition.pages, results), 1):
         for f in res['findings']:
             totals[f['k']] = totals.get(f['k'], 0) + 1
+        originals += [{'n': n, 'stem': spec.stem, **f} for f in original_clipped(res['findings'], extra)]
+        recorded += [{'n': n, 'stem': spec.stem, **f} for f in recorded_clipped(res['findings'], extra)]
         pages.append({'n': n, 'stem': spec.stem, 'findings': res['findings'], 'designAudit': res['design']})
     return {
         'issueId': issue_id,
@@ -413,6 +510,8 @@ def audit_summary(composition: Composition, results: list[dict[str, Any]], issue
         'note': '기존 기준 위반은 렌더를 실패시키지 않고 기록한다 - 운영자가 보고 판단한다',
         'totals': totals,
         'designAuditSame': all(p['designAudit'].get('same', True) for p in pages),
+        'originalClipped': originals,
+        'recordedClipped': recorded,
         'pages': pages,
     }
 
@@ -460,10 +559,16 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
     out = OUT_ROOT / issue_id
     work = out / 'work'
     prepare_work(work)
-    files = build_pages(composition, load_templates(), work, issue, lambda dest: api.storage_get(MAGAZINE_BUCKET, dest))
+    templates = load_templates()
+    settle_cover(composition, templates, work, say)
+    files = build_pages(composition, templates, work, issue, lambda dest: api.storage_get(MAGAZINE_BUCKET, dest))
 
     results = render_pages(files, image_width, jpeg_quality)
     pdf, page_counts = merge_pdf([r['pdf'] for r in results])
+    audit_pre = audit_summary(composition, results, issue_id)
+    if audit_pre['originalClipped']:   # 원문이 잘린 지면은 만들지 않는다(R29-3) - 운영자가 본다
+        raise StopError(f"원문이 지면에서 잘렸다 (호 {issue_id}): " + '; '.join(
+            f"{c['n']}쪽 {c['stem']} 슬롯 {c.get('slot')} 「{c.get('t')}」 (필요 {c.get('need')}px / 가용 {c.get('have')}px)" for c in audit_pre['originalClipped']))
     extra = [(n, c) for n, c in enumerate(page_counts, 1) if c != 1]
     if extra:
         raise StopError(f'한 지면이 PDF 한 쪽에 들어가지 않는다 (지면, 쪽 수): {extra}')
@@ -481,7 +586,7 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
     image_names = [ascii_name(f'page-{i:02d}.jpg') for i in range(1, len(images) + 1)]
     for name, img in zip(image_names, images):
         (out / name).write_bytes(img)
-    audit = audit_summary(composition, results, issue_id)
+    audit = audit_pre
     (out / 'audit.json').write_text(json.dumps(audit, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (out / 'compose.json').write_text(json.dumps({
         'issueId': issue_id, 'report': composition.report, 'sentences': composition.sentences,
@@ -534,7 +639,7 @@ def main(argv: list[str]) -> int:
     secrets: list[str] = []
     try:
         api, ref, secrets = connect()
-        print(redact(f'접속 대상: 개발 프로젝트 {DEVELOPMENT_PROJECT_NAME} ({ref}) - 확인됨', secrets))
+        print(redact(f'접속 대상: 개발 프로젝트 {DEVELOPMENT_PROJECT_NAME} - 확인됨 (프로젝트 ref는 출력하지 않는다)', secrets))
         render_issue(api, args.issue_id, args.image_width, args.jpeg_quality, say=lambda s: print(redact(s, secrets)))
     except StopError as e:
         print(redact(f'멈춤: {e}', secrets), file=sys.stderr)

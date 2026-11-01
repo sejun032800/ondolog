@@ -231,15 +231,18 @@ class Order(unittest.TestCase):
         self.assertNotIn('sw-opener', stems(comp))
         self.assertNotIn('sw-quotes', stems(comp))
         self.assertEqual([t['title'] for t in comp.report['toc']], ['데이트 아카이브', '이달의 우리'])
-        self.assertEqual([t['page'] for t in comp.report['toc']], ['04', '10'])  # 다정한 말들 두 면이 빠져 번호가 당겨진다
+        # 55-3 (README §11 ⑦) - 쪽 번호는 표지를 뺀 본문 기준 1부터: 목차 01 · 발행 노트 02 · 첫 코너 03
+        self.assertEqual([t['page'] for t in comp.report['toc']], ['03', '09'])  # 다정한 말들 두 면이 빠져 번호가 당겨진다
         self.assertEqual(len(comp.pages), 12)
-        self.assertEqual([p.computed['page'] for p in comp.pages][-1], '12')
+        self.assertEqual([p.computed['page'] for p in comp.pages[1:]][-1], '11')
         full = compose(fx.photo_scenario())
-        self.assertEqual([t['page'] for t in full.report['toc']], ['04', '10', '12'])
+        self.assertEqual([t['page'] for t in full.report['toc']], ['03', '09', '11'])
 
-    def test_page_numbers_are_the_sheet_numbers(self):
+    def test_page_numbers_start_after_the_cover(self):
+        """README §11 ⑦ - 표지를 뺀 본문 기준 1부터. 표지 2종에는 폴리오가 없다(뒤표지 지면은 폴리오 칸이 없다)."""
         comp = compose(fx.photo_scenario())
-        self.assertEqual([p.computed['page'] for p in comp.pages], [f'{n:02d}' for n in range(1, 15)])
+        self.assertNotIn('page', comp.pages[0].computed)
+        self.assertEqual([p.computed['page'] for p in comp.pages[1:]], [f'{n:02d}' for n in range(1, 14)])
 
     def test_unfinished_corners_leave_like_skipped_and_never_get_a_substitute_page(self):
         sc = fx.photo_scenario()
@@ -297,7 +300,7 @@ class RecallReason(unittest.TestCase):
 
 
 class Lead(unittest.TestCase):
-    """R26-5 - @da.lead의 숫자는 지면에 실제로 실린 것: stop당 3장 상한 뒤 사진, 재소환을 뺀 이번 기간 데이트."""
+    """R26-5 + 55-3 D안 - @da.lead의 숫자는 지면에 실제로 실린 것: 사진은 stop당 3장 · 비대표 기사는 기사당 3장 상한 뒤, 메모는 대표 기사 타임라인에 실린 것, 데이트는 재소환을 뺀 이번 기간 것."""
 
     def test_counts_cap_photos_per_stop_and_exclude_recalled(self):
         feat = fx.article('2026-09-12', '대표', '연남동', [
@@ -308,7 +311,7 @@ class Lead(unittest.TestCase):
             fx.stop(0, '12:00', 'D', [fx.photo('d1'), fx.photo('d2')], [fx.memo('옛 메모')], None)], recalled=True, reason='anniversary')
         comp = compose({'theme': 'basic', 'corners': [fx.corner_row('date_archive', fx.date_archive([feat, second, recalled], ['연남동', '성수동']))]})
         lead = page(comp, 'da-opener').computed['da']['lead']
-        # 데이트 2번(재소환 뺌) · 구간 3곳 · 사진 3 + 1 + 3 = 7장 · 메모 1개(재소환의 메모는 뺌)
+        # 데이트 2번(재소환 뺌) · 구간 3곳 · 사진 3 + 1 (대표 구간 상한) + 3 (비대표 기사 4장 중 기사당 3장) = 7장 · 메모 1개(대표 타임라인에 실린 것, 재소환의 메모는 뺌) - 값은 이전과 같고 기준이 바뀌었다
         self.assertEqual(lead, '9월에 두 사람이 함께 보낸 날은 2번이었습니다. 연남동, 성수동, 3곳을 거치며 남긴 7장의 사진과 1개의 메모를 그대로 실었습니다.')
 
     def test_record_numbers_follow_the_readme_sums(self):
@@ -454,9 +457,10 @@ class Note(unittest.TestCase):
 class ThisMonth(unittest.TestCase):
     def test_evidence_line_rules(self):
         line = _Builder.evidence_line
-        self.assertEqual(line([fx.ev_message('연남동 또 가자'), fx.ev_date('2026-09-12')]), '근거 · “연남동 또 가자” · 2026.09.12')
+        # 55-3 (README §11 ⑤) - 날짜는 `08.22` 월.일, 연도는 적지 않는다
+        self.assertEqual(line([fx.ev_message('연남동 또 가자'), fx.ev_date('2026-09-12')]), '근거 · “연남동 또 가자” · 09.12')
         # 15자 초과 발췌는 날짜만
-        self.assertEqual(line([fx.ev_message('1234567890123456', '2026-09-03')]), '근거 · 2026.09.03')
+        self.assertEqual(line([fx.ev_message('1234567890123456', '2026-09-03')]), '근거 · 09.03')
         self.assertEqual(line([fx.ev_message('123456789012345')]), '근거 · “123456789012345”')
         # 사진 근거는 개수를 합친다
         self.assertEqual(line([fx.ev_photo('a'), fx.ev_message('좋아'), fx.ev_photo('b')]), '근거 · 사진 2장 · “좋아”')
@@ -501,17 +505,21 @@ class Coverage(unittest.TestCase):
         templates = r.load_templates()
         from slot_fill import Context, resolve
         seen = set()
-        for scenario in (fx.photo_scenario(), fx.type_scenario(), fx.skipped_scenario()):
+        for scenario in (fx.photo_scenario(), fx.type_scenario(), fx.skipped_scenario(), fx.many_photos_scenario(),
+                         fx.opener_fallback_scenario(), fx.opener_type_only_scenario(), fx.long_original_scenario()):
             comp = compose(scenario, {'messages': 1, 'photos': 1, 'dates': 1, 'memos': 1})
             for p in comp.pages:
                 html = templates[p.stem]
-                for attr in ('data-slot', 'data-src', 'data-if', 'data-repeat'):
+                for attr in ('data-slot', 'data-src', 'data-if', 'data-repeat', 'data-width'):
                     for path in re.findall(attr + r'="(!?@[^"]+)"', html):
                         path = path.lstrip('!')
                         seen.add(path)
                         self.assertIsNotNone(resolve(path, None, Context(p.corner, p.computed, p.bind)), (p.stem, path))
         for name in ('@issue.month', '@cover.headline', '@toc', '@contents.photo', '@note.materials', '@note.ratioPeople', '@back.closing',
-                     '@back.nextMonth', '@page', '@da.lead', '@da.regionEn', '@da.articlePhotos', '@sw.openerPhoto', '@da.places'):
+                     '@back.nextMonth', '@page', '@da.lead', '@da.regionEn', '@da.articlePhotos', '@sw.openerPhoto', '@da.places',
+                     # v1.2 새 이름(README §10) - 하나라도 빠지면 이 시험이 걸린다
+                     '@da.featuredOrdinalEn', '@da.articleOrdinalEn', '@da.articlePhotoNote', '@da.openerPhoto',
+                     '@note.ratioPeople', '@note.ratioOndolog'):
             self.assertIn(name, seen)
 
     def test_every_corner_path_in_every_page_resolves_or_is_a_documented_empty(self):
