@@ -9,6 +9,8 @@
   contrast       저대비(3.0:1 미만)
   tiny           과소 활자(7.2px 미만)
   overset        상자의 `scrollHeight > clientHeight`(판면 953px 기준, R26-3)
+  overset(원문) `overset` 상자 안에 원문 슬롯(`ORIGINAL_SLOTS`)이 들었으면 **실패**(R49-1) - 잘린 원문과 같은 원칙이다. 온도록 문장만 든 상자의 overset은 기록이다.
+                 어느 쪽인지는 `clipped`와 **같은 표시**(`ORIGINAL_SLOTS`, 슬롯 이름)로 가른다 - 원문 슬롯 목록은 이 파일 한 곳에만 있다.
   clipped        `.clamp1~4`가 글자를 잘랐다 - 넘침 안전망이 작동한 자리. **두 사람이 쓴 원문(`ORIGINAL_SLOTS`)이 잘렸으면 실패**(R29-3),
                  온도록이 쓴 문장이 잘렸으면 기록이다(README §12). 어느 쪽인지는 잘린 요소의 `data-slot`으로 가른다.
 
@@ -173,6 +175,37 @@ EXTRA_JS = r"""
   return out;
 }
 """
+
+
+# overset 상자(`body > .ab`, 위·아래가 모두 정해진 상자) 안에 든 원문 슬롯 이름. 판정 조건은 `AUDIT_JS`의 overset과 같다(순서도 같다).
+OVERSET_SLOTS_JS = r"""
+(originalSlots) => {
+  const out = [];
+  document.querySelectorAll('body > .ab').forEach(el => {
+    const st = getComputedStyle(el);
+    if (st.bottom !== 'auto' && st.top !== 'auto' && el.scrollHeight - el.clientHeight > 2) {
+      const found = new Set();
+      el.querySelectorAll('[data-slot]').forEach(s => { if (originalSlots.includes(s.getAttribute('data-slot'))) found.add(s.getAttribute('data-slot')); });
+      out.push([...found]);
+    }
+  });
+  return out;
+}
+"""
+
+
+def mark_original_overset(page: Any, findings: list, extra_original_slots: Any = ()) -> None:
+    """`overset` 결과마다 그 상자에 든 원문 슬롯 이름을 `originalSlots`로 붙인다. 디자인 검사기와의 비교(`compare_with_design`) **뒤에** 부른다
+    (비교는 결과 전체를 보므로 먼저 붙이면 공통 다섯 항목이 어긋난다)."""
+    sets = page.evaluate(OVERSET_SLOTS_JS, sorted(ORIGINAL_SLOTS | frozenset(extra_original_slots)))
+    overs = [f for f in findings if f['k'] == 'overset']
+    for f, slots in zip(overs, sets):
+        f['originalSlots'] = slots
+
+
+def original_overset(findings: list) -> list:
+    """원문 필드가 든 상자의 넘침 - 하나라도 있으면 렌더는 실패다(R49-1)."""
+    return [f for f in findings if f['k'] == 'overset' and f.get('originalSlots')]
 
 
 def design_audit_js(tools_dir: Path) -> str:

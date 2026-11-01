@@ -8,8 +8,8 @@
   vol2b-opener-typeonly ② 대표 기사 전체에 사진이 없다 -> type-only · hip
   vol3-long-original    ③ 160자 4턴 대화 둘(인용 2면) + 긴 메모 · ondol
   vol3-fail             ③ 위 호에 한 면을 넘는 대화 하나를 더한 것 - **렌더가 실패해야 한다**(사유를 남긴다)
-  vol4-timeline-overflow R48-4 긴 타임라인 메모(400자) 둘 - 높이 어림이 실제보다 작아 한 면에 몰린다. 지면 검사가 이 넘침을 렌더 실패로 잡는지 본다(`overflow.txt`에 결과를 남긴다.
-                         잡지 못해도 고치지 않고 그대로 보고한다 - 관문 판단은 PM)
+  vol4-timeline-overflow R48-4 · R49-1 긴 타임라인 메모(400자) 둘 - 높이 어림이 실제보다 작아 한 면에 몰린다. 원문 필드가 든 상자의 넘침이라 **렌더가 멈춰야 한다**
+                         (`overflow.txt`에 사유 · 높이를 남긴다. 멈춤 경로라 audit.json · PDF는 남지 않는다 - render_issue와 같다)
 
 각 권: issue.pdf · page-NN.jpg · audit.json(개발 검사 + 디자인 `tools/audit.py` 검사 나란히) · compose.json · report.txt(요약 · safe 분류표 · 사실 확인)
 
@@ -164,6 +164,15 @@ def measure_timeline(comp: Any, files: list) -> list:
     return rows
 
 
+class GateStop(r.StopError):
+    """지면 검사가 렌더를 멈췄다(`render_issue.gate_failure`) - 사유와 함께 그때까지의 검사 결과 · 타임라인 높이를 들고 있다(보고용)."""
+
+    def __init__(self, reason: str, audit: dict, timeline: list) -> None:
+        super().__init__(reason)
+        self.audit = audit
+        self.timeline = timeline
+
+
 def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, Any]:
     out = out_root / name
     out.mkdir(parents=True, exist_ok=True)
@@ -181,10 +190,13 @@ def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, A
     pdf, counts = r.merge_pdf([x['pdf'] for x in results])
     if counts != [1] * len(counts):
         raise r.StopError(f'한 지면이 PDF 한 쪽이 아니다 {counts}')
+    audit = r.audit_summary(comp, results, name)
+    failure = r.gate_failure(audit, name)   # 실제 렌더(`render_issue`)와 같은 함수 - 걸리면 그 경로처럼 audit.json · PDF를 남기지 않고 멈춘다
+    if failure:
+        raise GateStop(failure, audit, timeline)
     (out / 'issue.pdf').write_bytes(pdf)
     for i, x in enumerate(results, 1):
         (out / f'page-{i:02d}.jpg').write_bytes(x['image'])
-    audit = r.audit_summary(comp, results, name)
     (out / 'audit.json').write_text(json.dumps(audit, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (out / 'compose.json').write_text(json.dumps({'report': comp.report, 'sentences': comp.sentences, 'shownPhotos': comp.shown_photos},
                                                  ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -227,44 +239,46 @@ def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, A
     lines += ['', f'사실 확인(기계 점검) 어긋남 {len(facts)}건'] + [f'  {x}' for x in facts]
     (out / 'report.txt').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     say('\n'.join(lines))
-    return {'name': name, 'pages': len(results), 'totals': audit['totals'], 'originalClipped': len(audit['originalClipped']),
+    return {'name': name, 'pages': len(results), 'totals': audit['totals'], 'originalClipped': len(audit['originalClipped']), 'originalOverset': len(audit['originalOverset']),
             'designSame': audit['designAuditSame'], 'safe': safe_rows, 'facts': facts, 'pdf': str(out / 'issue.pdf'),
             'timeline': timeline, 'audit': audit, 'composition': comp}
 
 
 def overflow_verdict(out_root: Path, say) -> dict[str, Any]:
-    """R48-4 - 긴 타임라인 메모 호를 실제 렌더 경로와 같은 관문으로 돌려 본다. **잡았는지 못 잡았는지만** 남긴다(고치지 않는다).
+    """R48-4 · R49-1 - 긴 타임라인 메모 호는 **렌더가 멈춰야 한다**(원문 필드가 든 상자의 넘침 = 실패).
 
-    렌더가 멈추는 조건은 `render_issue.render_issue`와 같다: 지면 구성 오류(ComposeError) · 원문 clipped · 한 지면이 PDF 한 쪽을 넘음 · 쪽 수 · 이미지 가로.
-    그 밖의 검사 결과(overset · overflow · text-overlap · safe)는 audit.json에 기록만 되고 렌더를 멈추지 않는다.
+    실제 렌더(`render_issue`)와 같은 관문 함수(`render_issue.gate_failure`)로 가른다 - 이 파일이 조건을 따로 복제하지 않는다.
+    멈추면 실제 경로처럼 audit.json · PDF를 남기지 않는다. 사유 · 검사 결과 · 타임라인 높이는 `overflow.txt`에 남긴다.
     """
     name, build = OVERFLOW_VOLUME
     sc = build()
     out = out_root / name
+    if out.exists():                      # 이전 실행의 파일이 남아 결과를 흐리지 않게 비운다
+        for old in out.iterdir():
+            if old.is_file():
+                old.unlink()
     out.mkdir(parents=True, exist_ok=True)
-    verdict: dict[str, Any] = {'name': name}
+    verdict: dict[str, Any] = {'name': name, 'stopped': False}
     try:
         res = render_volume(name, sc, out_root, say)
+    except GateStop as e:
+        verdict.update(stopped=True, exit=2, reason=f'멈춤: {e}', audit=e.audit, timeline=e.timeline)
     except ComposeError as e:
-        verdict.update(caught=True, reason=f'지면을 짤 수 없다: {e}')
+        verdict.update(stopped=True, exit=2, reason=f'멈춤: 지면을 짤 수 없다: {e}')
     except r.StopError as e:
-        verdict.update(caught=True, reason=f'멈춤: {e}')
+        verdict.update(stopped=True, exit=2, reason=f'멈춤: {e}')
     else:
-        audit, comp = res['audit'], res['composition']
-        stops_est = sum(t['estimateSum'] for t in res['timeline'])
-        stops_act = sum(t['actualSum'] for t in res['timeline'])
-        recorded = [f"{p['n']}쪽 {p['stem']} {f['k']}" + (f" 필요 {f.get('need')}px / 가용 {f.get('have')}px" if f['k'] == 'overset' else '')
-                    for p in audit['pages'] for f in p['findings'] if f['k'] in ('overset', 'overflow', 'text-overlap', 'safe') and p['stem'] == 'da-timeline']
-        caught = bool(audit['originalClipped'])
-        verdict.update(caught=caught,
-                       reason=('원문 clipped: ' + '; '.join(f"{c['n']}쪽 {c['stem']} 슬롯 {c.get('slot')}" for c in audit['originalClipped'])) if caught
-                       else '렌더 실패 조건에 걸리지 않았다 - 렌더 통과(PDF 생성)',
-                       estimateSum=stops_est, actualSum=stops_act, timeline=res['timeline'], recordedOnly=recorded, pdf=res['pdf'])
-    lines = [f"== {name} 결과 ==", f"지면 검사가 넘침을 렌더 실패로: {'잡음' if verdict['caught'] else '못 잡음'}", f"사유: {verdict['reason']}"]
-    if 'timeline' in verdict:
-        for t in verdict['timeline']:
-            lines.append(f"타임라인 {t['n']}쪽 어림 {t['estimate']} 합 {t['estimateSum']}px / 실제 {t['actual']} 합 {t['actualSum']}px / 상자 {t['boxHeight']}px 내용 {t['contentHeight']}px")
-        lines.append('기록만 된 검사 결과(렌더를 멈추지 않는다): ' + (' | '.join(verdict['recordedOnly']) or '없음'))
+        verdict.update(reason='렌더 통과(PDF 생성) - 기대(멈춤)와 다르다', audit=res['audit'], timeline=res['timeline'])
+    audit = verdict.get('audit')
+    lines = [f"== {name} 결과 ==",
+             f"기대: 멈춤(종료 코드 2) + 사유 / 실제: {'멈춤 (종료 코드 2)' if verdict['stopped'] else '렌더 통과 (종료 코드 0)'}",
+             f"사유: {verdict['reason']}"]
+    for t in verdict.get('timeline', []):
+        lines.append(f"타임라인 {t['n']}쪽 어림 {t['estimate']} 합 {t['estimateSum']}px / 실제 {t['actual']} 합 {t['actualSum']}px / 상자 {t['boxHeight']}px 내용 {t['contentHeight']}px")
+    if audit:
+        lines.append('검사 결과 합계: ' + json.dumps(audit['totals'], ensure_ascii=False))
+        lines.append('원문 상자 overset: ' + ('; '.join(f"{c['n']}쪽 {c['stem']} {c.get('t')} 내용 {c.get('need')}px / 상자 {c.get('have')}px 원문 {c['originalSlots']}" for c in audit['originalOverset']) or '없음'))
+    lines.append(f"audit.json: {'있음' if (out / 'audit.json').exists() else '남지 않음(멈춤 경로는 audit.json을 쓰기 전에 멈춘다 - render_issue와 같다)'}")
     (out / 'overflow.txt').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
     return verdict
@@ -275,8 +289,13 @@ def main(argv: list) -> int:
     out_root = Path(argv[0]).resolve() if argv else OUT_DEFAULT
     out_root.mkdir(parents=True, exist_ok=True)
     summary = []
+    stopped: list = []
     for name, build in VOLUMES:
-        summary.append(render_volume(name, build(), out_root, print))
+        try:
+            summary.append(render_volume(name, build(), out_root, print))
+        except r.StopError as e:      # 통과해야 하는 권이 멈추면 그대로 알린다(시험 데이터를 바꾸지 않는다)
+            stopped.append({'name': name, 'reason': str(e)})
+            print(f'== {name} ==\n!! 렌더가 멈췄다: {e}')
     # ③ 실패 권 - 한 면을 넘는 대화 하나로 렌더가 멈춰야 한다. 사유를 남긴다.
     name, build = FAIL_VOLUME
     sc = build()
@@ -290,13 +309,15 @@ def main(argv: list) -> int:
     else:
         print(f'== {name} ==\n!! 한 면을 넘는 대화인데 렌더가 멈추지 않았다')
         return 1
-    # R48-4 넘침 확인 권 - 결과는 보고용이고 종료 코드에 넣지 않는다(관문 판단은 PM)
-    overflow_verdict(out_root, print)
+    # R48-4 · R49-1 넘침 확인 권 - 멈춰야 통과다
+    verdict = overflow_verdict(out_root, print)
+    if not verdict['stopped']:
+        stopped.append({'name': verdict['name'], 'reason': '멈춰야 하는데 렌더가 통과했다'})
     summary = [{k: v for k, v in s.items() if k not in ('audit', 'composition')} for s in summary]
     (out_root / 'summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    bad = [s for s in summary if s['originalClipped'] or s['facts'] or not s['designSame']]
+    bad = [s for s in summary if s['originalClipped'] or s['originalOverset'] or s['facts'] or not s['designSame']]
     print('\n요약:', json.dumps([{k: v for k, v in s.items() if k != 'safe'} for s in summary], ensure_ascii=False))
-    return 1 if bad else 0
+    return 1 if (bad or stopped) else 0
 
 
 if __name__ == '__main__':

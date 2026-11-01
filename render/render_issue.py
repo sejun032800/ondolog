@@ -46,7 +46,9 @@ REPO = HERE.parent
 sys.path.insert(0, str(HERE))
 
 from compose import ComposeError, Composition, PageSpec, choose_variant, compose_issue  # noqa: E402
-from page_audit import audit_page, compare_with_design, design_audit_js, original_clipped, recorded_clipped  # noqa: E402
+from page_audit import (  # noqa: E402
+    audit_page, compare_with_design, design_audit_js, mark_original_overset, original_clipped, original_overset, recorded_clipped,
+)
 from slot_fill import fill  # noqa: E402
 
 DEVELOPMENT_PROJECT_NAME = 'ondolog'
@@ -459,6 +461,7 @@ def render_pages(page_files: list[Path], image_width: int = IMAGE_WIDTH_PX, jpeg
                 page.goto(f.as_uri(), wait_until='networkidle')
                 findings = audit_page(page)
                 compare = compare_with_design(page, design_js, findings)
+                mark_original_overset(page, findings)
                 pdf = page.pdf(
                     width='210mm', height='297mm', print_background=True,
                     margin={'top': '0', 'right': '0', 'bottom': '0', 'left': '0'},
@@ -492,17 +495,37 @@ def clipped_original_slots(composition: Composition) -> tuple:
     return ('@cover.headline',) if composition.report.get('coverHeadlineFrom') == 'quote' else ()
 
 
+def gate_failure(audit: dict[str, Any], issue_id: str) -> Optional[str]:
+    """지면 검사 결과가 렌더를 멈춰야 하는가 - 멈춰야 하면 사유(호 · 지면 · 상자 · 넘친 높이), 아니면 None.
+    `render_issue`와 로컬 시험 호(`local_volumes.py`)가 **같은 이 함수**로 가른다.
+
+    - 원문이 잘렸다(`originalClipped`, R29-3)
+    - 원문 필드가 든 상자가 넘쳤다(`originalOverset`, R49-1) - 온도록 문장만 든 상자의 넘침은 `audit.json` 기록만이다
+    """
+    reasons: list[str] = []
+    if audit['originalClipped']:
+        reasons.append(f"원문이 지면에서 잘렸다 (호 {issue_id}): " + '; '.join(
+            f"{c['n']}쪽 {c['stem']} 슬롯 {c.get('slot')} 「{c.get('t')}」 (필요 {c.get('need')}px / 가용 {c.get('have')}px)" for c in audit['originalClipped']))
+    if audit['originalOverset']:
+        reasons.append(f"원문 필드가 든 상자가 판면을 넘었다 (호 {issue_id}): " + '; '.join(
+            f"{c['n']}쪽 {c['stem']} 상자 {c.get('t')} (내용 {c.get('need')}px / 상자 {c.get('have')}px, 원문 슬롯 {', '.join(c['originalSlots'])})"
+            for c in audit['originalOverset']))
+    return ' | '.join(reasons) if reasons else None
+
+
 def audit_summary(composition: Composition, results: list[dict[str, Any]], issue_id: str) -> dict[str, Any]:
     pages = []
     totals: dict[str, int] = {}
     originals: list[dict[str, Any]] = []
     recorded: list[dict[str, Any]] = []
+    overset_originals: list[dict[str, Any]] = []
     extra = clipped_original_slots(composition)
     for n, (spec, res) in enumerate(zip(composition.pages, results), 1):
         for f in res['findings']:
             totals[f['k']] = totals.get(f['k'], 0) + 1
         originals += [{'n': n, 'stem': spec.stem, **f} for f in original_clipped(res['findings'], extra)]
         recorded += [{'n': n, 'stem': spec.stem, **f} for f in recorded_clipped(res['findings'], extra)]
+        overset_originals += [{'n': n, 'stem': spec.stem, **f} for f in original_overset(res['findings'])]
         pages.append({'n': n, 'stem': spec.stem, 'findings': res['findings'], 'designAudit': res['design']})
     return {
         'issueId': issue_id,
@@ -511,6 +534,7 @@ def audit_summary(composition: Composition, results: list[dict[str, Any]], issue
         'totals': totals,
         'designAuditSame': all(p['designAudit'].get('same', True) for p in pages),
         'originalClipped': originals,
+        'originalOverset': overset_originals,
         'recordedClipped': recorded,
         'pages': pages,
     }
@@ -566,9 +590,9 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
     results = render_pages(files, image_width, jpeg_quality)
     pdf, page_counts = merge_pdf([r['pdf'] for r in results])
     audit_pre = audit_summary(composition, results, issue_id)
-    if audit_pre['originalClipped']:   # 원문이 잘린 지면은 만들지 않는다(R29-3) - 운영자가 본다
-        raise StopError(f"원문이 지면에서 잘렸다 (호 {issue_id}): " + '; '.join(
-            f"{c['n']}쪽 {c['stem']} 슬롯 {c.get('slot')} 「{c.get('t')}」 (필요 {c.get('need')}px / 가용 {c.get('have')}px)" for c in audit_pre['originalClipped']))
+    failure = gate_failure(audit_pre, issue_id)   # 원문이 잘리거나 원문 상자가 넘친 지면은 만들지 않는다(R29-3 · R49-1) - 운영자가 본다
+    if failure:
+        raise StopError(failure)
     extra = [(n, c) for n, c in enumerate(page_counts, 1) if c != 1]
     if extra:
         raise StopError(f'한 지면이 PDF 한 쪽에 들어가지 않는다 (지면, 쪽 수): {extra}')

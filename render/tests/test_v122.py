@@ -25,7 +25,7 @@ from compose import (  # noqa: E402
     ComposeError, caption_memo_count, compose_issue, conversation_height, hhmm, mmdd_hhmm, mmdd_or_ymd, ordinal_en, pack_quotes, photo_note,
     split_timeline, stop_height, text_lines,
 )
-from page_audit import original_clipped  # noqa: E402
+from page_audit import mark_original_overset, original_clipped, original_overset  # noqa: E402
 from slot_fill import fill, parse_width  # noqa: E402
 
 NAMES = [fx.A, fx.B]
@@ -537,6 +537,73 @@ class R48Temporary(unittest.TestCase):
         self.assertEqual(pages(comp, 'da-places')[0].computed['da']['places'][0]['date'], '09.12')
         quotes = pages(comp, 'sw-quotes')[-1].corner['payload']['sub']
         self.assertEqual(quotes[0]['attribution']['at'], '09.11 23:40')
+
+
+OVERSET_HTML = """<!doctype html><html><body style="margin:0;height:1123px">
+<div class="ab" style="position:absolute;left:0;width:300px;top:100px;bottom:923px;overflow:visible">
+  <div {attr} style="height:{h}px">text</div></div>
+<div class="ab" style="position:absolute;left:400px;width:300px;top:100px;bottom:923px;overflow:visible">
+  <div data-slot="@da.lead" style="height:{h2}px">온도록 문장</div></div>
+</body></html>"""
+
+
+class OriginalOversetGate(unittest.TestCase):
+    """R49-1 - 원문 필드가 든 상자의 넘침은 렌더 실패, 온도록 문장만 든 상자의 넘침은 기록만. 상자 높이 = 1123 - 100 - 923 = 100px."""
+
+    def audit_of(self, attr, h, h2=100):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / 'p.html'
+            f.write_text(OVERSET_HTML.format(attr=attr, h=h, h2=h2), encoding='utf-8')
+            res = r.render_pages([f])[0]
+        return res['findings']
+
+    def test_boundary_content_equal_to_box_passes(self):
+        for attr in ('data-slot=".userNotes[0].text"', 'data-slot=".text"', 'data-slot=".evidence"', 'data-slot="@cover.quote"'):
+            findings = self.audit_of(attr, 100)
+            self.assertEqual([f for f in findings if f['k'] == 'overset'], [], attr)       # 내용 = 상자 높이 바로 그 값
+            audit = {'originalClipped': [], 'originalOverset': original_overset(findings)}
+            self.assertIsNone(r.gate_failure(audit, 'ISSUE'))
+
+    def test_original_box_overflowing_fails_with_reason(self):
+        findings = self.audit_of('data-slot=".userNotes[0].text"', 160)
+        overs = [f for f in findings if f['k'] == 'overset']
+        self.assertEqual(len(overs), 1)
+        self.assertEqual((overs[0]['need'], overs[0]['have']), (160, 100))
+        self.assertEqual(overs[0]['originalSlots'], ['.userNotes[0].text'])
+        audit = {'originalClipped': [], 'originalOverset': [{'n': 5, 'stem': 'da-timeline', **f} for f in original_overset(findings)]}
+        why = r.gate_failure(audit, 'ISSUE-1')
+        for part in ('ISSUE-1', '5쪽', 'da-timeline', '내용 160px / 상자 100px', '.userNotes[0].text'):
+            self.assertIn(part, why)
+
+    def test_box_with_only_ondolog_sentences_is_recorded_not_failed(self):
+        findings = self.audit_of('data-slot=".userNotes[0].text"', 100, h2=160)           # 원문 상자는 맞고 온도록 상자만 넘친다
+        overs = [f for f in findings if f['k'] == 'overset']
+        self.assertEqual(len(overs), 1)
+        self.assertEqual(overs[0]['originalSlots'], [])
+        self.assertEqual(original_overset(findings), [])
+        self.assertIsNone(r.gate_failure({'originalClipped': [], 'originalOverset': original_overset(findings)}, 'ISSUE'))
+
+    def test_marking_does_not_change_the_common_five_vs_design(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / 'p.html'
+            f.write_text(OVERSET_HTML.format(attr='data-slot=".text"', h=160, h2=160), encoding='utf-8')
+            res = r.render_pages([f])[0]
+        self.assertTrue(res['design'].get('same', True), res['design'])
+
+    def test_timeline_overflow_volume_stops_the_render(self):
+        sc = fx.timeline_overflow_scenario('basic')
+        comp = compose(sc)
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'work'
+            r.prepare_work(work)
+            files = r.build_pages(comp, TEMPLATES, work, fx.ISSUE_ROW, lambda dest: fx.png(200, 300))
+            results = r.render_pages(files)
+        audit = r.audit_summary(comp, results, fx.ISSUE)
+        why = r.gate_failure(audit, fx.ISSUE)
+        self.assertIsNotNone(why)
+        self.assertIn('da-timeline', why)
+        self.assertIn('.userNotes[0].text', why)
+        self.assertEqual(audit['originalClipped'], [])
 
 
 class DataWidthStrings(unittest.TestCase):
