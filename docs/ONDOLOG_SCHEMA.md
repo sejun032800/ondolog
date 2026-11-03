@@ -2241,6 +2241,8 @@ create trigger tg_unlock_on_upgrade
 
 ### 11-3. 7일 유예 파기 — 개시자 파생 데이터만
 
+> **(030, ROADMAP R53-3) 아래 본문의 결함:** 개시자의 `biometric_consent_revoked_at`을 무조건 채워, 생체 동의를 한 적 없는 개시자에서 `chk_biometric_revoke_order` 위반(23514)으로 실패한다. 2026-11-03 05:00 UTC 원격 개발에서 실제로 실패했다(`test-68-purge`). 030에서 **동의 시각이 있을 때만 철회 시각을 채우도록** 고치고, cron 문장은 **한 건씩 예외를 잡아** 실패를 `ops_alerts`에 남긴다. 030 적용 뒤 이 본문을 030 정의로 바꾼다.
+
 ```sql
 create or replace function public.execute_dissolution(p_dissolution_id uuid)
 returns void
