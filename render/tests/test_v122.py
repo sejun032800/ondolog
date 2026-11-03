@@ -404,9 +404,9 @@ class TimelineMemo(unittest.TestCase):
 
     def test_memo_text_in_the_page_is_whole(self):
         sc = fx.long_original_scenario()
-        memo_text = sc['corners'][0]['content']['payload']['articles'][0]['stops'][0]['userNotes'][0]['text']
+        memo_text = sc['corners'][0]['content']['payload']['articles'][0]['stops'][1]['userNotes'][0]['text']   # 긴 메모는 16:10 연남동 카페 구간에 붙는다 (R52-4)
         comp = compose(sc)
-        self.assertIn(memo_text, text_of(filled(comp, 'da-timeline', 0)))
+        self.assertIn(memo_text, ' '.join(text_of(filled(comp, 'da-timeline', i)) for i in range(len(pages(comp, 'da-timeline')))))
 
 
 class LeadEqualsNote(unittest.TestCase):

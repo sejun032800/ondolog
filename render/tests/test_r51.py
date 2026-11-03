@@ -205,7 +205,7 @@ class ThisMonthNumbers(unittest.TestCase):
             sc = build()
             comp = compose(sc)
             da = date_archive_of(sc)
-            want = [(str(fx.stops_in_region(da, region)), region) for region in da['payload']['summary']['regions']]
+            want = [(str(fx.days_in_region(da, region)), f'{region}에서 보낸 날') for region in da['payload']['summary']['regions']]
             self.assertEqual(self.cells(comp), want, name)
 
     def test_generated_numbers_are_ignored(self):
@@ -214,7 +214,7 @@ class ThisMonthNumbers(unittest.TestCase):
         tm['payload']['theme']['signals'] = [{'kind': 'place', 'value': '연남동', 'count': 99}, {'kind': 'place', 'value': '성수동', 'count': 77}]
         comp = compose(sc)
         cells = self.cells(comp)
-        self.assertEqual(cells, [('4', '연남동'), ('2', '성수동')])                # 연남동 4곳(대표 기사 경유지) · 성수동 2곳, 재소환 합정동은 세지 않는다
+        self.assertEqual(cells, [('1', '연남동에서 보낸 날'), ('1', '성수동에서 보낸 날')])   # 연남동 하루 · 성수동 하루, 재소환 합정동은 세지 않는다 (R52-2)
         text = soup_of(pages(comp, 'tm-lead')[0], comp).get_text(' ', strip=True)
         self.assertNotIn('99', text)
         self.assertNotIn('77', text)
@@ -223,7 +223,7 @@ class ThisMonthNumbers(unittest.TestCase):
         sc = fx.many_photos_scenario()
         tm = next(c for c in sc['corners'] if c['corner_type'] == 'this_month')['content']
         tm['payload']['theme']['signals'] = [{'kind': 'place', 'value': '성수동', 'count': 5}]
-        self.assertEqual(self.cells(compose(sc)), [('2', '성수동')])
+        self.assertEqual(self.cells(compose(sc)), [('1', '성수동에서 보낸 날')])
 
     def test_a_signal_the_records_cannot_count_is_not_shown(self):
         sc = fx.many_photos_scenario()
@@ -242,8 +242,8 @@ class ThisMonthNumbers(unittest.TestCase):
         sc = fx.many_photos_scenario()
         arts = date_archive_of(sc)['payload']['articles']
         facts = build_facts(articles=arts, fi=0, kept_stops=[], dropped_stops=[])
-        self.assertEqual(facts.signal_count('place', '연남동'), 4)
-        self.assertEqual(facts.signal_count('place', ' 성수동 '), 2)
+        self.assertEqual(facts.signal_count('place', '연남동'), 1)                  # 그 지역에서 보낸 날(데이트) 수 - 경유지 4곳이 아니다 (R52-2)
+        self.assertEqual(facts.signal_count('place', ' 성수동 '), 1)
         self.assertEqual(facts.signal_count('place', '합정동'), None)
         self.assertEqual(facts.signal_count('place', '경의선숲길'), 1)
         self.assertEqual(facts.signal_count('activity', '연남동'), None)
@@ -258,9 +258,10 @@ class ThisMonthNumbers(unittest.TestCase):
             facts = build_facts(articles=da['payload']['articles'], fi=next(i for i, a in enumerate(da['payload']['articles']) if a['featured']),
                                 kept_stops=[], dropped_stops=[])
             for a in tm['payload']['articles']:
-                m = re.search(r'연남동은 이번 달 데이트 기록에서 경유지로 (\d+)번', a['body'])
+                m = re.search(r'연남동에서 보낸 날은 이번 달 데이트 기록에 (\d+)번 있었고, 그 경유지는 (\d+)곳', a['body'])
                 if m:
                     self.assertEqual(int(m.group(1)), facts.signal_count('place', '연남동'), name)
+                    self.assertEqual(int(m.group(2)), fx.stops_in_region(da, '연남동'), name)
             for s in tm['payload']['theme']['signals']:
                 self.assertEqual(s['count'], facts.signal_count(s['kind'], s['value']), name)
             self.assertNotRegex(repr(tm), '다섯 번')

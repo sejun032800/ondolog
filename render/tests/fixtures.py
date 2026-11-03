@@ -131,9 +131,14 @@ def stops_in_region(da: dict, region: str) -> int:
     return sum(len(a['stops']) for a in da['payload']['articles'] if not a['recalled'] and a.get('region') == region)
 
 
+def days_in_region(da: dict, region: str) -> int:
+    """이번 기간(재소환 제외) 그 지역에서 보낸 날(데이트) 수 - 이달의 우리 지역 칸의 숫자 (R52-2, `facts.IssueFacts.signal`과 같은 정의)."""
+    return sum(1 for a in da['payload']['articles'] if not a['recalled'] and a.get('region') == region)
+
+
 def region_signals(da: dict) -> list:
-    """이달의 우리 리드의 신호 - 지역마다 한 칸, 숫자는 기록에서 센 값이다."""
-    return [{'kind': 'place', 'value': region, 'count': stops_in_region(da, region)} for region in da['payload']['summary']['regions']]
+    """이달의 우리 리드의 신호 - 지역마다 한 칸, 숫자는 기록에서 센 값(그 지역에서 보낸 날)이다."""
+    return [{'kind': 'place', 'value': region, 'count': days_in_region(da, region)} for region in da['payload']['summary']['regions']]
 
 
 def this_month(headline: str, articles: list, signals: Optional[list] = None, closing: str = '연남동의 장소가 가장 많이 나온 달이었습니다.',
@@ -175,9 +180,9 @@ COUPLE_ROW = {'id': COUPLE, 'nickname': 'test-늘봄', 'magazine_theme': 'basic'
 
 def standard_this_month(da: dict, headline: str = '연남동을 자주 걸은 달', night_article: bool = False) -> dict:
     """이달의 우리 시험 content - 숫자(신호 · 본문의 `N번`)는 `da`(데이트 아카이브 content)의 기록에서 센 값이다 (R51-4)."""
-    n = stops_in_region(da, '연남동')
+    days, stops = days_in_region(da, '연남동'), stops_in_region(da, '연남동')
     articles = [
-        tm_article(0, '같은 동네, 여러 번', f'연남동은 이번 달 데이트 기록에서 경유지로 {n}번 나왔습니다.', [ev_message('연남동 또 가자'), ev_date('2026-09-12')]),
+        tm_article(0, '같은 동네, 여러 곳', f'연남동에서 보낸 날은 이번 달 데이트 기록에 {days}번 있었고, 그 경유지는 {stops}곳이었습니다.', [ev_message('연남동 또 가자'), ev_date('2026-09-12')]),
         tm_article(1, '비 오는 날의 기록', '비가 온 날의 대화와 사진이 함께 남았습니다.', [ev_message('우산 챙겼어? 오늘 정말 비가 많이 온대'), ev_photo('e12')]),
         tm_article(2, '오래 걸은 날', '성수동에서 오래 걸은 날이 있었습니다.', [ev_date('2026-09-21')]),
     ]
@@ -314,17 +319,17 @@ OVERLONG_CONVERSATION_SENTENCES = (
 MEMO_SENTENCES_WINDOW = (
     '창가 자리에 앉아 오래 이야기했다.', '해가 질 때까지 아무 말 없이 있어도 좋았다.', '커피가 식는 줄도 모르고 창밖만 한참 바라보았다.',
     '건너편 건물 유리에 노을이 번지는 것을 둘이 같이 보았다.', '나가기 전에 한 잔씩 더 시켜서 천천히 마셨다.', '계산하고 나오니 비가 그쳐 있었다.',
-    '젖은 길 위로 가로등 불빛이 길게 늘어져 있었다.', '집에 가는 길에는 서로 말이 별로 없었는데 그게 불편하지 않았다.',
-    '헤어지기 전에 손을 한 번 더 잡았다.', '오늘 하루가 오래 기억에 남을 것 같다.',
-    '돌아서는 뒷모습이 보이지 않을 때까지 서 있었다.', '버스 창가에 앉아 오늘 찍은 사진을 하나씩 넘겨 보았다.', '사진 속 우리는 생각보다 더 많이 웃고 있었다.',
-    '집에 도착해서 불을 켜기 전에 잠깐 현관에 서 있었다.', '내일도 비슷한 하루였으면 좋겠다고 적어 둔다.')
+    '젖은 길 위로 가로등 불빛이 길게 늘어져 있었다.', '창가에서 일어서기 전까지 서로 말이 별로 없었는데 그게 불편하지 않았다.',
+    '다음 장소로 가기 전에 손을 한 번 더 잡았다.', '오늘 하루가 오래 기억에 남을 것 같다.',
+    '자리에서 일어나기 전에 창밖을 한 번 더 내다보았다.', '휴대전화에 오늘 찍은 사진을 하나씩 넘겨 보았다.', '사진 속 우리는 생각보다 더 많이 웃고 있었다.',
+    '문을 열고 나서기 전에 잠깐 입구에 서 있었다.', '내일도 비슷한 하루였으면 좋겠다고 적어 둔다.')
 MEMO_SENTENCES_ALLEY = (
     '골목을 따라 걷다가 문 닫은 가게 앞에서 한참을 서 있었다.', '셔터에 붙은 오래된 안내문의 글씨가 반쯤 바래 있었다.', '그날의 공기가 오래 남았다.',
     '한 블록쯤 더 걸어가니 작은 공원이 나왔다.', '벤치에 앉아 사 온 빵을 반으로 나눠 먹었다.', '근처 놀이터에서 아이들 웃음소리가 들렸다.',
     '바람이 불어서 나뭇잎이 발 앞까지 굴러왔다.', '한참 앉아 있다가 날이 어두워져서 일어났다.', '돌아오는 길에 편의점에 들러 따뜻한 차를 샀다.',
     '손에 쥔 컵이 따뜻해서 오래 놓지 않았다.',
-    '지하철역 입구에서 마지막으로 뒤를 돌아보았다.', '개찰구 너머로 손을 흔드는 모습이 작게 보였다.', '플랫폼에 서서 오늘 걸은 길을 천천히 되짚어 보았다.',
-    '열차가 들어오는 소리에 생각이 끊겼다.', '창에 비친 얼굴이 조금 웃고 있는 것 같았다.', '내릴 역에 도착해서 계단을 오르는데 바람이 한결 차가웠다.')
+    '숲길 끝에서 마지막으로 뒤를 돌아보았다.', '가로등 아래에서 손을 흔드는 모습이 작게 보였다.', '벤치에 다시 앉아 오늘 걸은 길을 천천히 되짚어 보았다.',
+    '멀리서 자전거가 지나가는 소리에 생각이 끊겼다.', '젖은 땅에 비친 불빛이 조금 흔들리는 것 같았다.', '돌아가는 길에 계단을 오르는데 바람이 한결 차가웠다.')
 
 
 def whole_memo(sentences: tuple, min_chars: int) -> str:
@@ -400,7 +405,7 @@ def long_original_scenario(theme: str = 'ondol', with_overlong: bool = False) ->
         mains.append(long_conversation('27', tuple(' '.join(group) for group in OVERLONG_CONVERSATION_SENTENCES), '밤새 이어진 가장 긴 대화', 23))
     sw = sweet_words(mains, [sub(B, '오늘 고생했어 진짜'), sub(A, '집에 잘 들어갔어?', '2026-09-15T22:10:00+09:00')])
     da = base['corners'][0]['content']
-    da['payload']['articles'][0]['stops'][0]['userNotes'] = [memo(whole_memo(MEMO_SENTENCES_WINDOW, 120))]
+    da['payload']['articles'][0]['stops'][1]['userNotes'] = [memo(whole_memo(MEMO_SENTENCES_WINDOW, 120), B)]   # 16:10 연남동 카페 - 창가 · 커피 · 노을 메모가 붙을 구간 (R52-4)
     return {'theme': theme, 'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2), base['corners'][2]]}
 
 
@@ -412,7 +417,7 @@ def timeline_overflow_scenario(theme: str = 'basic', memo_chars: int = 370) -> d
     da = base['corners'][0]['content']
     featured = da['payload']['articles'][0]
     featured['stops'] = [
-        stop(0, '14:20', '연남동 카페', [photo('e02', 1200, 1600)], [memo(whole_memo(MEMO_SENTENCES_WINDOW, memo_chars))], None),
-        stop(1, '17:40', '경의선숲길', [], [memo(whole_memo(MEMO_SENTENCES_ALLEY, memo_chars), B)], None),
+        stop(0, '16:10', '연남동 카페', [photo('e02', 1200, 1600)], [memo(whole_memo(MEMO_SENTENCES_WINDOW, memo_chars))], None),
+        stop(1, '19:10', '경의선숲길', [], [memo(whole_memo(MEMO_SENTENCES_ALLEY, memo_chars), B)], None),
     ]
     return {'theme': theme, 'corners': [corner_row('date_archive', da, seq=1), base['corners'][1], corner_row('this_month', standard_this_month(da), seq=3)]}

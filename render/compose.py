@@ -633,16 +633,16 @@ class _Builder:
 
     def signal_cells(self, signals: list) -> list:
         """이달의 우리 리드의 숫자 칸 (R51-4) - 생성 콘텐츠는 **어떤 칸을 보일지**(`kind` · `value`와 순서)만 정한다.
-        숫자는 생성이 준 `count`가 아니라 호의 사실(`IssueFacts.signal_count`)이 계산한다. 기록에서 셀 수 없는 칸은 보이지 않는다. 보이는 칸은 `SIGNALS_CAP`개까지."""
+        숫자와 라벨은 생성이 준 `count` · `value`가 아니라 호의 사실(`IssueFacts.signal`)이 만든다(지역 칸 = `{지역}에서 보낸 날`, R52-2). 기록에서 셀 수 없는 칸은 보이지 않는다. 보이는 칸은 `SIGNALS_CAP`개까지."""
         cells = []
         for s in signals:
             if not isinstance(s, dict) or not isinstance(s.get('value'), str):
                 continue
-            n = self.facts.signal_count(s.get('kind'), s.get('value')) if self.facts else None
-            if n is None:
+            found = self.facts.signal(s.get('kind'), s.get('value')) if self.facts else None
+            if found is None:
                 self.decide(f"이달의 우리 숫자 칸 「{s.get('value')}」({s.get('kind')})은 기록에서 셀 수 없어 보이지 않는다 (R51-4)")
                 continue
-            cells.append({**s, 'count': n})
+            cells.append({**s, 'count': found[0], 'value': found[1]})   # 숫자도 라벨도 호의 사실이 만든다 (R52-2)
         return cells[:SIGNALS_CAP]
 
     @staticmethod

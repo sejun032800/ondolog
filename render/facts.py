@@ -9,7 +9,7 @@
   - 이름 없는 경유지는 빈 줄이 아니라 `UNNAMED_PLACE`로 싣고 센다 (R50-3). 재소환 장소는 이번 달 경로에서 뺀다.
   - AI 캡션 수는 **지면에 실린 수**만 센다 (R50-4).
   - 재소환 기사로 실린 사진은 이번 기간 게재에 섞지 않고 따로 센다 (R51-2) - `이번 기간 게재 + 재소환 = 지면에 실린 사진 전체`.
-  - 이달의 우리 리드의 숫자 칸은 생성 콘텐츠가 준 `count`가 아니라 여기서 계산한다 (R51-4, `IssueFacts.signal_count`).
+  - 이달의 우리 리드의 숫자 칸은 생성 콘텐츠가 준 `count`가 아니라 여기서 계산한다 (R51-4, `IssueFacts.signal`). 지역 칸은 그 지역에서 보낸 날(데이트) 수이고 라벨도 여기서 만든다 (R52-2).
 
 없는 값을 만들지 않는다 - 입력에 없는 것은 세지 않는다. 이 파일의 숫자 상수(`PHOTOS_PER_STOP` 등)는 `compose.py`가 문서에서 가져온 값과 같은 것이다(출처는 compose 쪽에 적었다).
 """
@@ -26,6 +26,7 @@ sys.dont_write_bytecode = True
 UNNAMED_PLACE = '이름을 남기지 않은 곳'   # R50-3
 PHOTOS_PER_STOP = 3                       # CORNER_LAYOUT §3-1 "4 이상은 상위 3장만"
 ARTICLE_PHOTOS = 3                        # README §9-② `@da.articlePhotos` 상위 3장
+REGION_DAYS_SUFFIX = '에서 보낸 날'            # R52-2 - 이달의 우리 지역 칸의 라벨 `{지역}에서 보낸 날`
 PLACES_CAP = 8                            # 장소 목록 상한 - README 쓸기 검사가 통과를 확인한 최대 항목 수
 
 
@@ -197,23 +198,31 @@ class IssueFacts:
     def article(self, index: int) -> ArticleFacts:
         return self.articles[index]
 
-    def signal_count(self, kind: Any, value: Any) -> Optional[int]:
-        """이달의 우리 리드의 숫자 칸 하나 - 생성 콘텐츠가 신호(`kind` · `value`)만 고르고 숫자는 여기서 계산한다 (R51-4).
+    def signal(self, kind: Any, value: Any) -> Optional[tuple]:
+        """이달의 우리 리드의 숫자 칸 하나 - 생성 콘텐츠가 신호(`kind` · `value`)만 고르고 **숫자와 라벨은 여기서 만든다** (R51-4 · R52-2). `(숫자, 라벨)` 또는 None.
 
-        정의 (장소 신호 `kind == 'place'`만): **이번 기간(재소환 제외) 기사들의 경유지 중**
-          - `value`가 기사의 지역(`region`)과 같으면 그 지역 기사들의 경유지 수 합,
-          - 아니면 `value`가 경유지 이름과 같은 경유지의 수.
+        정의 (장소 신호 `kind == 'place'`만), **이번 기간(재소환 제외) 기사들 중**
+          - `value`가 기사의 지역(`region`)과 같으면 **그 지역 데이트(날) 수** - 데이트 단위 지역 속성으로 센다(경유지 이름으로 세지 않는다). 라벨 `"{지역}에서 보낸 날"`,
+          - 아니면 `value`가 경유지 이름과 같은 경유지의 수 - 라벨은 그 이름 그대로(장소 칸의 정의는 그대로다).
         기록에서 셀 수 없는 신호(`keyword` · `activity`, 이번 기간 기록에 없는 지역 · 장소)는 None - 호출부가 그 칸을 보이지 않는다(없는 숫자를 만들지 않는다).
         """
         if kind != 'place' or not isinstance(value, str) or not value.strip():
             return None
         name = value.strip()
         period = [f for f in self.articles if not f.recalled]
-        in_region = [f for f in period if f.region == name]
-        if in_region:
-            return sum(f.stop_count for f in in_region)
+        days_in_region = len([f for f in period if f.region == name])
+        if days_in_region:
+            return days_in_region, f'{name}{REGION_DAYS_SUFFIX}'
         by_name = sum(f.place_names.count(name) for f in period)
-        return by_name if by_name > 0 else None
+        return (by_name, name) if by_name > 0 else None
+
+    def signal_count(self, kind: Any, value: Any) -> Optional[int]:
+        found = self.signal(kind, value)
+        return found[0] if found else None
+
+    def signal_label(self, kind: Any, value: Any) -> Optional[str]:
+        found = self.signal(kind, value)
+        return found[1] if found else None
 
     @property
     def lead(self) -> ArticleFacts:
