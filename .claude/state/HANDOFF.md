@@ -114,6 +114,16 @@ R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 �
 
 `55-2`에서 넘긴 남은 항목 처리: 막힌 슬롯 1(출처 막대) 해소(`data-width`) · 2(다정 지수) 해소(v1.2 지면) · 3(`da-article` 고정 문구 셋) 해소(러닝헤드 `data-if` · 영문 서수 · 사진 수 문장) · 4 해소(영문 서수 · `@da.openerPhoto` + 변형) 단 `da-article` 히어로는 위 1번 · 5 README 빈칸 중 `@toc.desc` · `.photo` · 근거 날짜 · `.seq` · 폴리오 · 캡션 접두는 §11로 확정, `attribution.at`은 위 4번 · 6 원문 잘림 해소(v1.2.2에서 clamp 제거 + 면 나눔/실패). "목차 매니페스트"라는 항목은 HANDOFF 55-2 절에 없다(지시서 예시로만 적혀 있다).
 
+## 해제 배치 결함 030 (`71-` 1부, 2026-11-03, db-architect) - 작성만, 원격 미적용 · 미실증
+- 래퍼 함수 선택(`run_due_dissolutions`, DO 블록 아님): cron 이 실행하는 문장이 `select public.run_due_dissolutions();` 한 줄이라 로컬 시험이 `cron.job.command` 를 그대로 실행할 수 있다. 025 분류 1 로 public · anon · authenticated · service_role 모두 회수.
+- 새 `ops_alerts.kind` = `dissolution_failed`. 제약 이름 `ops_alerts_kind_check`(022 열 인라인 check 의 기본 이름, 로컬 pg_constraint 로 확인) drop 후 같은 이름으로 세 값 check 추가. 원격 제약 이름은 2부에서 확인.
+- 실패 알림 detail 은 dissolution_id · sqlstate · constraint · message(SQLERRM 앞 120자) 네 키만. PG_EXCEPTION_DETAIL 없음. 알림 insert 자체가 실패하면 raise warning 으로 넘어가 다음 건을 계속한다.
+- 계속 실패하는 건은 매일 05:00Z 마다 알림 한 행씩 더 쌓인다(중복 제거 안 함, 기록이 곧 재시도 횟수). 필요하면 PM 판단.
+- cron 교체는 014 와 같은 `cron.schedule(같은 이름, ...)` 갱신 방식(pg_cron 은 같은 jobname 이면 갱신). 2부에서 `cron.job` 에 이름 하나뿐인지 확인.
+- 개시자 철회 시각은 동의 시각 없으면 null(기존 값이 있어도 제약상 null 이었음), 있으면 `coalesce(기존, now())`. 본문 나머지 한 글자도 안 바꿈(로컬에서 013 본문과 줄 비교).
+- 로컬 시험은 PGlite 를 저장소 밖 임시 폴더에 설치해 실행(저장소 의존성 추가 0). 실패 장치 = 시험 안에서만 만든 `couples` BEFORE UPDATE 트리거(23514, constraint test_only_boom, DETAIL 에 가짜 행 값).
+- `scripts/db/check_cron_failures.sql`(R53-5) 읽기 전용 SELECT. `src/types/database.ts` 에 `run_due_dissolutions` 수동 추가(원격 미조회라 재생성 못 함).
+
 ## description_ko 029 (`70-` 1부 이어서, 2026-10-27, db-architect) - 작성만, 원격 미적용 · 미실증
 - 029 는 `update … where code` 36줄만(멱등). 문구는 `docs/ONDOLOG_36_descriptions.md` 에서 `**` 만 뺀 것 = 020 과 글자 단위 같음(jest 가 셋을 대조).
 - 원격 `schema_migrations` 에는 적용 시각 칸이 없다(version · statements · name). 시각 비교 대신 statements 와 파일 비교(공백 · `;` 제거 md5)만 썼다.
