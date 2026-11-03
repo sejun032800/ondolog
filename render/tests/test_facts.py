@@ -393,7 +393,7 @@ class SourceDateAndBack(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class DesignEditsAreMarked(unittest.TestCase):
-    EDITED = {'contents': 'R50-6', 'da-article': 'R50-6', 'da-timeline': 'R50-6', 'back': 'R50-6', 'sw-opener': 'R50-6'}
+    EDITED = {'contents': 'R50-6', 'da-article': 'R50-6', 'da-timeline': 'R50-6', 'back': 'R50-6', 'sw-opener': 'R50-6', 'da-opener': 'R50-6'}
 
     def test_each_edited_page_carries_the_marker_comment(self):
         for stem, mark in self.EDITED.items():

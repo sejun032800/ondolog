@@ -8,7 +8,7 @@
   vol2b-opener-typeonly ② 대표 기사 전체에 사진이 없다 -> type-only · hip
   vol3-long-original    ③ 160자 4턴 대화 둘(인용 2면) + 긴 메모 · ondol
   vol3-fail             ③ 위 호에 한 면을 넘는 대화 하나를 더한 것 - **렌더가 실패해야 한다**(사유를 남긴다)
-  vol4-timeline-overflow R48-4 · R49-1 긴 타임라인 메모(400자) 둘 - 높이 어림이 실제보다 작아 한 면에 몰린다. 원문 필드가 든 상자의 넘침이라 **렌더가 멈춰야 한다**
+  vol4-timeline-overflow R48-4 · R49-1 긴 타임라인 메모(380자 안팎, 문장 단위) 둘 - 높이 어림이 실제보다 작아 한 면에 몰린다. 원문 필드가 든 상자의 넘침이라 **렌더가 멈춰야 한다**
                          (`overflow.txt`에 사유 · 높이를 남긴다. 멈춤 경로라 audit.json · PDF는 남지 않는다 - render_issue와 같다)
 
 각 권: issue.pdf · page-NN.jpg · audit.json(개발 검사 + 디자인 `tools/audit.py` 검사 나란히) · compose.json · report.txt(요약 · safe 분류표 · 사실 확인)

@@ -12,7 +12,7 @@
   ② `test-55-3-opener`   night 대표 기사 첫 stop에 사진이 없다 - 오프너가 다음 stop 사진으로 폴백
   ③ `test-55-3-long`     ondol 160자 4턴 대화 둘(인용 2면) + 긴 메모 - 렌더가 통과해야 한다
   ④ `test-55-3-overlong` ondol ③에 한 면을 넘는 대화 하나를 더한 것 - **렌더가 멈춰야 한다**(자르지 않는다, R29-3)
-  ⑤ `test-55-3-memo`     basic 긴 타임라인 메모(400자) 둘 - 높이 어림이 실제보다 작아 한 면에 몰린다(R48-4). **렌더만 한다, 발행하지 않는다**.
+  ⑤ `test-55-3-memo`     basic 긴 타임라인 메모(380자 안팎, 문장 단위) 둘 - 높이 어림이 실제보다 작아 한 면에 몰린다(R48-4). **렌더만 한다, 발행하지 않는다**.
                          지면 검사가 넘침을 렌더 실패로 잡는지 보려는 호다(잡든 못 잡든 결과를 그대로 본다)
 
 규칙 (R13-7 · 54와 같다): 이름에 `test`. 개발 프로젝트가 아니면 쓰기 전에 멈춘다. **만든 행·파일은 목록으로 남기고 지우지 않는다**
@@ -104,6 +104,41 @@ def realize(scenario: dict, couple_id: str, issue_id: str, ids: dict[str, str]) 
     for key in sorted(set(re.findall(r'"(d-\d{4}-\d{2}-\d{2})"', text))):
         text = text.replace(f'"{key}"', f'"{ids[key]}"')
     return json.loads(text)
+
+
+def chat_messages(rows: list[dict]) -> list[tuple]:
+    """시드가 채팅 기록(`messages`)에 넣는 원문 줄 - (보낸 사람 이름 또는 None, 본문, 시각).
+
+    지면에 실리는 두 사람의 말 줄은 모두 여기서 나온다: 다정한 말들의 인용 턴 · 그 밖의 짧은 말 · 이달의 우리 근거에 든 메시지 발췌(`evidence.excerpt`, 원문 그대로).
+    근거 발췌는 보낸 사람이 content에 없으므로 이름은 None이다(호출부가 정한다). "지면에 실린 원문 = 기록의 메시지 하나와 글자 단위로 같다" 시험이 이 함수를 기준으로 삼는다 (R51-7).
+    """
+    out: list[tuple] = []
+    for c in rows:
+        if c['status'] != 'ready':
+            continue
+        if c['corner_type'] == 'sweet_words':
+            for m in c['content']['payload']['main']:
+                for t in m['turns']:
+                    out.append((t['speaker'], t['text'], t['at']))
+            for sub in c['content']['payload']['sub']:
+                out.append((sub['speaker'], sub['text'], sub['attribution']['at']))
+        if c['corner_type'] == 'this_month':
+            for a in c['content']['payload']['articles']:
+                for ev in a['evidence']:
+                    if ev['type'] == 'message' and isinstance(ev.get('excerpt'), str):
+                        out.append((None, ev['excerpt'], ev['at']))
+    return out
+
+
+def memo_texts(rows: list[dict]) -> list[str]:
+    """시드가 `data_entries`(메모)에 넣는 글 - 데이트 아카이브 구간의 유저 메모 원문."""
+    out: list[str] = []
+    for c in rows:
+        if c['corner_type'] == 'date_archive' and c['status'] == 'ready':
+            for article in c['content']['payload']['articles']:
+                for stop in article['stops']:
+                    out.extend(n['text'] for n in stop['userNotes'] if n.get('type', 'memo') == 'memo' and n.get('text'))
+    return out
 
 
 def entry_names(scenario: dict) -> list[str]:
@@ -204,15 +239,8 @@ def seed_one(api: SeedApi, log: dict, set_name: str, label: str, theme: str, nic
                             'storage_path': f'{couple_id}/{entry_id}.png', 'width': size[0], 'height': size[1],
                             'captured_at': ev['at'], 'created_at': ev['at'], 'access_locked': False}])
                         photo_for_entry[entry_id] = (f'{couple_id}/{entry_id}.png', ev['photoPath'])
-    # 채팅 - 다정한 말들의 원문과 같은 줄 + 배경 대화
-    messages = []
-    for c in rows:
-        if c['corner_type'] == 'sweet_words' and c['status'] == 'ready':
-            for m in c['content']['payload']['main']:
-                for t in m['turns']:
-                    messages.append((by_name[t['speaker']], t['text'], t['at']))
-            for s in c['content']['payload']['sub']:
-                messages.append((by_name[s['speaker']], s['text'], s['attribution']['at']))
+    # 채팅 - 지면에 실린 원문과 같은 줄(`chat_messages`) + 배경 대화
+    messages = [(by_name[speaker] if speaker else users[0], text, at) for speaker, text, at in chat_messages(rows)]
     for i in range(10):
         messages.append((users[i % 2], f'시험용 대화 {i + 1}', kst('2026-09-05', '12:00', i * 7)))
     api.insert('messages', [{'id': str(uuid.uuid4()), 'couple_id': couple_id, 'sender_id': s, 'body': b, 'sent_at': at} for s, b, at in messages])

@@ -403,7 +403,8 @@ class _Builder:
             v = copy.deepcopy(s)
             v['userNotes'] = memo_notes(s)
             v['time'] = hhmm(v.get('time'))
-            v['photoLabel'] = ratio_label(*stop_photo_counts(s))
+            shown_n, total_n = stop_photo_counts(s)
+            v['photoLabel'] = ratio_label(shown_n, total_n) if total_n > 0 else ''   # 사진이 0이면 라벨 값이 비고 지면이 라벨째 뺀다 (R51-5)
             view_stops.append(v)
         try:
             tl_pages, dropped_stops = split_timeline(view_stops)
@@ -470,7 +471,7 @@ class _Builder:
             'startTime': first_time or '',
             'endTime': last_time or '',
             'stopCount': lead_f.stop_count,
-            'photoCount': lead_f.photos_total,
+            'photoCount': lead_f.photos_total or '',   # 0이면 빈 값 -> 칸째 뺀다 (R51-5)
             'records': records,
         }
 
@@ -493,8 +494,7 @@ class _Builder:
                 'startTime': first_time or '',
                 'endTime': last_time or '',
                 'route': lead_f.route,
-                'totals': (f'사진 {ratio_label(lead_f.timeline_photos_shown, lead_f.photos_total)}장 · '
-                           f'메모 {ratio_label(lead_f.memos_shown, lead_f.memos_total)}'),
+                'totals': timeline_totals(lead_f),
             }}
             pages.append(PageSpec('da-timeline', v, computed, {'featured': fi, 'i': fi}, 'date_archive'))
         for s in kept_stops:
@@ -538,8 +538,8 @@ class _Builder:
                 'articlePhotoNote': photo_note(af.photos_total, af.photos_shown),
                 'articleDate': ymd_dot(a.get('dateOn')),
                 'articleRoute': af.route,
-                'articlePhotoCount': af.photos_total,
-                'articleNoteCount': af.memos_total,
+                'articlePhotoCount': af.photos_total or '',   # 0이면 빈 값 -> 칸째 뺀다 (R51-5)
+                'articleNoteCount': af.memos_total or '',
                 'articleStopCount': af.stop_count,
                 'articleCaptionCount': af.ai_captions_shown if af.ai_captions_shown > 0 else '',   # 실린 수만, 0이면 빈 값 -> 칸째 뺀다 (R50-4)
                 'articlePhotos': a_photos,
@@ -607,7 +607,7 @@ class _Builder:
         theme = as_dict(payload.get('theme'))
 
         lead = copy.deepcopy(content)
-        lead['payload']['theme']['signals'] = copy.deepcopy(as_list(theme.get('signals')))[:SIGNALS_CAP]
+        lead['payload']['theme']['signals'] = self.signal_cells(as_list(theme.get('signals')))
 
         view = copy.deepcopy(content)
         # README §11 ⑤ - 근거 날짜는 `08.22`, 재소환 기사의 날짜만 연도를 붙인다
@@ -630,6 +630,20 @@ class _Builder:
                     self.say('people', 'evidenceExcerpt', 'this_month.evidence.excerpt', ev['excerpt'])
         self.say('ondolog', 'closing', 'this_month.closing', payload.get('closing'))
         return [PageSpec('tm-lead', lead, {}, {}, 'this_month'), PageSpec('tm-articles', view, {}, {}, 'this_month')]
+
+    def signal_cells(self, signals: list) -> list:
+        """이달의 우리 리드의 숫자 칸 (R51-4) - 생성 콘텐츠는 **어떤 칸을 보일지**(`kind` · `value`와 순서)만 정한다.
+        숫자는 생성이 준 `count`가 아니라 호의 사실(`IssueFacts.signal_count`)이 계산한다. 기록에서 셀 수 없는 칸은 보이지 않는다. 보이는 칸은 `SIGNALS_CAP`개까지."""
+        cells = []
+        for s in signals:
+            if not isinstance(s, dict) or not isinstance(s.get('value'), str):
+                continue
+            n = self.facts.signal_count(s.get('kind'), s.get('value')) if self.facts else None
+            if n is None:
+                self.decide(f"이달의 우리 숫자 칸 「{s.get('value')}」({s.get('kind')})은 기록에서 셀 수 없어 보이지 않는다 (R51-4)")
+                continue
+            cells.append({**s, 'count': n})
+        return cells[:SIGNALS_CAP]
 
     @staticmethod
     def evidence_line(evidence: list, year: Optional[int] = None, recalled_days: Any = ()) -> str:
@@ -855,6 +869,16 @@ NOTE_ROW_LABELS = {'dates': ('데이트', '번', '{n}번'), 'photos': ('사진',
                    'memos': ('메모', '개', '{n}개'), 'messages': ('대화', '개', '인용 {n}개')}
 
 
+def timeline_totals(lead_f: Any) -> str:
+    """타임라인 아래 합계 한 줄 - `사진 3 / 4장 · 메모 2`. 0인 조각은 뺀다(`사진 0장 · 메모 2` -> `메모 2`, R51-5). 둘 다 0이면 빈 글자."""
+    pieces = []
+    if lead_f.photos_total > 0:
+        pieces.append(f'사진 {ratio_label(lead_f.timeline_photos_shown, lead_f.photos_total)}장')
+    if lead_f.memos_total > 0:
+        pieces.append(f'메모 {ratio_label(lead_f.memos_shown, lead_f.memos_total)}')
+    return ' · '.join(pieces)
+
+
 def not_used_text(row_key: str, item: dict, timeline_max_pages: int) -> str:
     """발행 노트 '싣지 않은 것' 한 줄 - 호의 사실의 항목(`kind` · `n`)을 문장으로. 숫자는 항목의 것이고 여기서 세지 않는다."""
     n, kind = item['n'], item['kind']
@@ -876,7 +900,6 @@ def not_used_text(row_key: str, item: dict, timeline_max_pages: int) -> str:
 INFO_TEXTS = {
     'drawings': lambda n: f'그림 {n}개 — 이 호의 지면에는 그림 자리가 없습니다',
     'omitted_places': lambda n: f'장소 {n}곳 — 목록에 {PLACES_CAP}곳까지 싣습니다',
-    'evidence_photos': lambda n: f'근거 사진 {n}장 — 이달의 우리에는 개수만 적습니다',
 }
 
 
@@ -922,6 +945,9 @@ def _note_values(b: _Builder, pages: list) -> dict:
         'sentencesOndolog': f'{ondolog}개',
         'notUsed': not_used,
         'emptyCorners': empty,
+        # R51-2 - 이번 기간 표와 따로 한 줄. 재소환이 0이면 빈 글자(줄 없음). 숫자는 호의 사실(`photos_shown_recalled`)에서 온다
+        'recalledPhotos': len(facts.photos_shown_recalled),
+        'recalledPhotosLine': (f'그때 그 시절 · 지난 기록에서 다시 실은 사진 {len(facts.photos_shown_recalled)}장' if facts.photos_shown_recalled else ''),
     }
 
 

@@ -298,30 +298,76 @@ def load_templates(pages_dir: Path = PAGES_DIR) -> dict[str, str]:
     return {p.stem: p.read_text(encoding='utf-8') for p in sorted(pages_dir.glob('*.html'))}
 
 
-def drop_empty_caption_cell(html: str) -> str:
-    """R50-4 - 기사 칸의 `AI 캡션` 수가 비었으면(지면에 실린 AI 캡션이 0) 숫자 칸을 라벨째 뺀다.
+COUNT_CELL_SLOTS = ('@da.articleCaptionCount', '@da.articlePhotoCount', '@da.articleNoteCount', '@da.photoCount')   # 마지막은 오프너 `이날의 기록`의 사진 칸
 
-    지면 HTML에 이 칸을 뺄 표시(`data-optional`)가 없다 - 디자인 v1.2.3 전 임시로 렌더러가 뺀다(R50-6의 여섯 곳 밖이라 HTML은 고치지 않았다).
-    `@da.articleCaptionCount` 칸 하나에만 걸린다. 채운 값이 있으면 아무것도 하지 않는다.
+
+def drop_empty_count_cells(html: str) -> str:
+    """기사 칸(오프너 `이날의 기록` 포함)의 숫자 칸 중 값이 빈 것을 라벨째 뺀다 (R50-4 AI 캡션 · R51-5 사진 · 메모 0) + 타임라인의 `사진 0` 라벨.
+
+    값이 빈 것은 호출부가 0을 빈 값으로 건넨 칸이다(`compose`) - 사실이지만 빈칸 · 고장으로 읽히는 `0`을 싣지 않는다.
+    지면 HTML에 이 칸을 뺄 표시(`data-optional`)가 없다 - 디자인 v1.2.3 전 임시로 렌더러가 뺀다(R50-6의 허용 자리 밖이라 HTML은 고치지 않았다).
+      - `COUNT_CELL_SLOTS` 칸: 슬롯의 부모 `<span>`(숫자 + 라벨)을 지운다. 그 줄에 칸이 남지 않으면 줄도 지운다.
+      - `.photoLabel`: 슬롯이 빈 `.lbl`(`사진 <값>`)을 지운다.
+    채운 값이 있으면 아무것도 하지 않는다.
     """
-    if '@da.articleCaptionCount' not in html:
+    if not any(name in html for name in (*COUNT_CELL_SLOTS, '.photoLabel')):
         return html
     soup = BeautifulSoup(html, 'html.parser')
     changed = False
-    for el in soup.select('[data-slot="@da.articleCaptionCount"]'):
-        if el.get_text(strip=True) == '' and el.parent is not None and el.parent.name == 'span':
+    for name in COUNT_CELL_SLOTS:
+        for el in soup.select(f'[data-slot="{name}"]'):
+            if el.get_text(strip=True) == '' and el.parent is not None and el.parent.name == 'span':
+                row = el.parent.parent
+                el.parent.decompose()
+                changed = True
+                if row is not None and row.name == 'div' and not row.find(True):
+                    row.decompose()
+    for el in soup.select('[data-slot=".photoLabel"]'):
+        if el.get_text(strip=True) == '' and el.parent is not None and 'lbl' in (el.parent.get('class') or []):
             el.parent.decompose()
             changed = True
     return str(soup) if changed else html
+
+
+drop_empty_caption_cell = drop_empty_count_cells   # 이전 이름 - 같은 함수다
+
+
+# R51-2 - 발행 노트 이번 기간 표 아래에 따로 놓는 한 줄. 지면 HTML에 자리가 없다 - 디자인 v1.2.3 전 임시로 렌더러가 표 뒤에 끼운다(R50-6의 허용 자리 밖이라 HTML은 고치지 않았다).
+# 표(수집한 재료)는 네 줄이면 아래 블록(문장의 출처 `top:520px`)에 바짝 닿아 있어 줄이 들어갈 틈이 없다 - 줄을 끼울 때만 그 아래 두 블록(`520px` · `650px`)을 같은 만큼 내린다.
+# 재소환 사진이 0이면 이 함수는 아무것도 하지 않는다(틀 그대로 - 줄도 이동도 없다).
+NOTE_RECALLED_LINE = ('<span class="note" style="display:block;margin-top:14px">'
+                      '<span data-slot="@note.recalledPhotosLine"></span></span>')
+NOTE_BLOCK_TOPS = ((520, 556), (650, 686))   # (원래 top, 줄을 끼웠을 때 top) - 줄 높이 약 16px + 위 여백 14px에 숨 쉴 틈을 더한 36px
+
+
+def add_note_recalled_line(template: str) -> str:
+    """`note` 지면 틀의 수집 재료 표(`</table>`) 바로 뒤에 재소환 사진 줄을 끼우고 그 아래 두 블록을 내린다. 표나 블록이 틀에 하나씩 없으면 StopError - 자리를 짐작하지 않는다."""
+    if template.count('</table>') != 1:
+        raise StopError('발행 노트 틀에 표(</table>)가 하나가 아니다 - 재소환 사진 줄 자리를 정할 수 없다')
+    for old, _ in NOTE_BLOCK_TOPS:
+        if template.count(f'top:{old}px') != 1:
+            raise StopError(f'발행 노트 틀에 top:{old}px 블록이 하나가 아니다 - 재소환 사진 줄 때문에 내릴 블록을 정할 수 없다')
+    out = template.replace('</table>', '</table>' + NOTE_RECALLED_LINE, 1)
+    for old, new in NOTE_BLOCK_TOPS:
+        out = out.replace(f'top:{old}px', f'top:{new}px', 1)
+    return out
+
+
+def as_dict_note(spec: PageSpec) -> dict:
+    note = (spec.computed or {}).get('note')
+    return note if isinstance(note, dict) else {}
 
 
 def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
     """지면 하나를 채운다. 테마는 `<html data-theme>` 값 하나만 바꾼다(README §4)."""
     if spec.stem not in templates:
         raise StopError(f'지면 HTML이 없다 ({spec.stem})')
-    html = fill(templates[spec.stem], spec.corner, spec.computed, spec.bind,
+    template = templates[spec.stem]
+    if spec.stem == 'note' and as_dict_note(spec).get('recalledPhotosLine'):
+        template = add_note_recalled_line(template)
+    html = fill(template, spec.corner, spec.computed, spec.bind,
                 chooser=lambda names, scope: choose_variant(spec, names, scope), widths=spec.widths)
-    html = drop_empty_caption_cell(html)
+    html = drop_empty_count_cells(html)
     html, n = re.subn(r'(<html\b[^>]*\bdata-theme=")[^"]*(")', rf'\g<1>{theme}\g<2>', html, count=1)
     if n != 1:
         raise StopError(f'지면에 <html data-theme>가 없다 ({spec.stem})')

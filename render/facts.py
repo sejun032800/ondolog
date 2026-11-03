@@ -8,6 +8,8 @@
   - 발행 노트의 각 줄은 `모은 양 - 실제 게재 = 싣지 않은 것의 합`이 맞는다. 맞지 않으면(게재가 모은 양보다 크다) `FactsError` - 거짓 숫자를 찍지 않는다.
   - 이름 없는 경유지는 빈 줄이 아니라 `UNNAMED_PLACE`로 싣고 센다 (R50-3). 재소환 장소는 이번 달 경로에서 뺀다.
   - AI 캡션 수는 **지면에 실린 수**만 센다 (R50-4).
+  - 재소환 기사로 실린 사진은 이번 기간 게재에 섞지 않고 따로 센다 (R51-2) - `이번 기간 게재 + 재소환 = 지면에 실린 사진 전체`.
+  - 이달의 우리 리드의 숫자 칸은 생성 콘텐츠가 준 `count`가 아니라 여기서 계산한다 (R51-4, `IssueFacts.signal_count`).
 
 없는 값을 만들지 않는다 - 입력에 없는 것은 세지 않는다. 이 파일의 숫자 상수(`PHOTOS_PER_STOP` 등)는 `compose.py`가 문서에서 가져온 값과 같은 것이다(출처는 compose 쪽에 적었다).
 """
@@ -155,6 +157,7 @@ class ArticleFacts:
     featured: bool
     date_on: str
     stop_count: int
+    region: str                  # 기사의 지역(`region`) - 없으면 빈 글자
     place_names: list            # 전체 경유지 이름 - 이름 없는 곳은 UNNAMED_PLACE
     route: str                   # `A → B → C`
     photos_total: int
@@ -186,12 +189,31 @@ class IssueFacts:
     memos_shown_period: int
     chat_used: int
     this_month_articles: int
+    photos_shown_recalled: list = field(default_factory=list)   # 재소환 기사로 실린 사진(경로) - 이번 기간 게재와 겹치지 않는다 (R51-2)
     rows: list = field(default_factory=list)   # 발행 노트 표 - [{'key','collected','used','items','residual'}]
     info: list = field(default_factory=list)   # 줄에 묶이지 않는 안내 - [{'kind','n'}]
     dropped_stops: int = 0
 
     def article(self, index: int) -> ArticleFacts:
         return self.articles[index]
+
+    def signal_count(self, kind: Any, value: Any) -> Optional[int]:
+        """이달의 우리 리드의 숫자 칸 하나 - 생성 콘텐츠가 신호(`kind` · `value`)만 고르고 숫자는 여기서 계산한다 (R51-4).
+
+        정의 (장소 신호 `kind == 'place'`만): **이번 기간(재소환 제외) 기사들의 경유지 중**
+          - `value`가 기사의 지역(`region`)과 같으면 그 지역 기사들의 경유지 수 합,
+          - 아니면 `value`가 경유지 이름과 같은 경유지의 수.
+        기록에서 셀 수 없는 신호(`keyword` · `activity`, 이번 기간 기록에 없는 지역 · 장소)는 None - 호출부가 그 칸을 보이지 않는다(없는 숫자를 만들지 않는다).
+        """
+        if kind != 'place' or not isinstance(value, str) or not value.strip():
+            return None
+        name = value.strip()
+        period = [f for f in self.articles if not f.recalled]
+        in_region = [f for f in period if f.region == name]
+        if in_region:
+            return sum(f.stop_count for f in in_region)
+        by_name = sum(f.place_names.count(name) for f in period)
+        return by_name if by_name > 0 else None
 
     @property
     def lead(self) -> ArticleFacts:
@@ -202,7 +224,8 @@ class IssueFacts:
             'periodDates': self.period_dates, 'periodDatesSource': self.period_dates_source,
             'articlesPeriod': self.articles_period, 'articlesRecalled': self.articles_recalled,
             'placeCount': self.place_count, 'regionCount': self.region_count,
-            'photosShownPeriod': len(self.photos_shown_period), 'memosShownPeriod': self.memos_shown_period,
+            'photosShownPeriod': len(self.photos_shown_period), 'photosShownRecalled': len(self.photos_shown_recalled),
+            'memosShownPeriod': self.memos_shown_period,
             'chatUsed': self.chat_used,
             'noteRows': [{'key': r['key'], 'collected': r['collected'], 'used': r['used'],
                           'notUsed': sum(i['n'] for i in r['items']) + r['residual'], 'balanced': True} for r in self.rows],
@@ -239,7 +262,7 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
             ai_shown = 0                     # 기사 지면은 AI 캡션을 싣지 않는다 (R48-3 ②)
         afs.append(ArticleFacts(
             index=i, recalled=a.get('recalled') is True, featured=(i == fi), date_on=str(a.get('dateOn') or ''),
-            stop_count=len(stops), place_names=names, route=' → '.join(names),
+            stop_count=len(stops), region=(a.get('region').strip() if isinstance(a.get('region'), str) else ''), place_names=names, route=' → '.join(names),
             photos_total=photos_total, photos_shown_paths=shown_paths, memos_total=memos_total, memos_shown=memos_shown,
             ai_captions_shown=ai_shown, timeline_photos_shown=timeline_shown))
 
@@ -266,19 +289,19 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
     region_count = summary.get('regionCount') if isinstance(summary.get('regionCount'), int) else len(regions)
 
     shown_period = _distinct([p for f in period for p in f.photos_shown_paths])
+    shown_recalled = [p for p in _distinct([p for f in recalled for p in f.photos_shown_paths]) if p not in set(shown_period)]
     memos_shown_period = sum(f.memos_shown for f in period)
 
     sw = as_dict(sweet_payload)
     chat_used = sum(len(as_list(as_dict(m).get('turns'))) for m in as_list(sw.get('main'))) + len(as_list(sw.get('sub')))
     tm = as_dict(this_month_payload)
     tm_articles = as_list(tm.get('articles'))
-    ev_photos = sum(1 for a in tm_articles for ev in as_list(as_dict(a).get('evidence')) if as_dict(ev).get('type') == 'photo')
 
     facts = IssueFacts(
         articles=afs, featured=fi, period_dates=period_dates, period_dates_source=source,
         articles_period=len(period), articles_recalled=len(recalled), recalled_days={f.date_on for f in recalled},
         places=places, place_count=len(places), regions=regions, region_count=region_count,
-        photos_shown_period=shown_period, memos_shown_period=memos_shown_period, chat_used=chat_used,
+        photos_shown_period=shown_period, photos_shown_recalled=shown_recalled, memos_shown_period=memos_shown_period, chat_used=chat_used,
         this_month_articles=len(tm_articles), dropped_stops=len(dropped_stops) if lead_in_period else 0)
 
     # --- 발행 노트 표 (R50-2) - 줄마다 모은 양 - 실제 게재 = 싣지 않은 것의 합
@@ -326,8 +349,6 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
                    for n in as_list(s.get('userNotes')) if isinstance(n, dict) and n.get('type') == 'drawing')
     if drawings:
         facts.info.append({'kind': 'drawings', 'n': drawings})
-    if ev_photos:
-        facts.info.append({'kind': 'evidence_photos', 'n': ev_photos})
     omitted = max(0, len(places) - PLACES_CAP)
     if omitted:
         facts.info.append({'kind': 'omitted_places', 'n': omitted})

@@ -435,7 +435,7 @@ class Note(unittest.TestCase):
         notes = page(compose(fx.photo_scenario(), {'messages': 120, 'photos': 20, 'dates': 3, 'memos': 4}), 'note').computed['note']['notUsed']
         self.assertIn('사진 1장 — 한 구간에 3장까지 싣습니다', notes)         # 연남동 카페 4장 중 1장
         self.assertNotIn('메모 1개 — 대표가 아닌 기사에는 개수만 적습니다', notes)   # R48-3 ② - 그 메모는 사진 아래에 실렸다
-        self.assertIn('근거 사진 1장 — 이달의 우리에는 개수만 적습니다', notes)
+        self.assertFalse([x for x in notes if '근거 사진' in x])                      # R51-3 - 덜 실은 것이 아니다
 
     def test_nothing_left_out_says_so(self):
         art = fx.article('2026-09-12', '제목', '연남동', [fx.stop(0, '10:00', 'A', [fx.photo('a')], [fx.memo('메모')], None)], featured=True)
@@ -473,7 +473,7 @@ class ThisMonth(unittest.TestCase):
     def test_signals_are_capped_at_three_and_seq_is_two_digits(self):
         sc = fx.photo_scenario()
         tm = copy.deepcopy(sc['corners'][2]['content'])
-        tm['payload']['theme']['signals'] = [{'kind': 'place', 'value': f'v{i}', 'count': i + 1} for i in range(5)]
+        tm['payload']['theme']['signals'] = [{'kind': 'place', 'value': v, 'count': 1} for v in ('연남동', '성수동', '홍대입구역', '연남동 카페', '연남동 식당')]   # 기록에서 셀 수 있는 칸 다섯 (R51-4)
         sc['corners'][2] = fx.corner_row('this_month', tm, seq=3)
         comp = compose(sc)
         self.assertEqual(len(page(comp, 'tm-lead').corner['payload']['theme']['signals']), 3)
