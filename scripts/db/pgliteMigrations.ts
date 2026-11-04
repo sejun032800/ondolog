@@ -174,8 +174,24 @@ function startServer(): Promise<PgClient> {
   })
 }
 
-/** 스텁 -> 마이그레이션 001.. 순서대로. upTo 가 있으면 그 번호(포함)까지만. */
-export async function createMigratedDb(opts: { upTo?: number; dir?: string } = {}): Promise<MigratedDb> {
+/** 파일 하나를 읽어 적용한다(pg_cron 확장 줄만 뺀다). 실패하면 파일 이름을 붙여 던진다. */
+async function applyFile(db: PgClient, dir: string, f: string): Promise<void> {
+  const sql = fs.readFileSync(path.join(dir, f), 'utf8').replace(PG_CRON_EXTENSION, '')
+  try {
+    await db.exec(sql)
+  } catch (e) {
+    throw new Error(`migration ${f} failed: ${(e as Error).message}`)
+  }
+}
+
+/**
+ * 스텁 -> 마이그레이션을 정렬 순서대로 적용.
+ *  - upTo: 이 번호(포함)까지만 (파일 앞 숫자를 숫자로 비교).
+ *  - throughFile: 이 파일 이름(포함)까지만. 보존 시험이 "편입 파일까지"를 부를 때 쓴다(R56-5).
+ *  - dir: 마이그레이션 폴더. 고의 실패 시험이 임시 폴더를 넘긴다(저장소 폴더에는 아무것도 만들지 않는다).
+ * 나머지 파일은 applyRemaining 으로 이어 적용한다.
+ */
+export async function createMigratedDb(opts: { upTo?: number; throughFile?: string; dir?: string } = {}): Promise<MigratedDb> {
   const dir = opts.dir ?? MIGRATIONS_DIR
   const db = await startServer()
   try {
@@ -183,17 +199,26 @@ export async function createMigratedDb(opts: { upTo?: number; dir?: string } = {
     const applied: string[] = []
     for (const f of listMigrationFiles(dir)) {
       if (opts.upTo !== undefined && parseInt(f, 10) > opts.upTo) break
-      const sql = fs.readFileSync(path.join(dir, f), 'utf8').replace(PG_CRON_EXTENSION, '')
-      try {
-        await db.exec(sql)
-      } catch (e) {
-        throw new Error(`migration ${f} failed: ${(e as Error).message}`)
-      }
+      await applyFile(db, dir, f)
       applied.push(f)
+      if (opts.throughFile !== undefined && f === opts.throughFile) break
+    }
+    if (opts.throughFile !== undefined && !applied.includes(opts.throughFile)) {
+      throw new Error(`throughFile not found: ${opts.throughFile}`)
     }
     return { db, applied }
   } catch (e) {
     await db.close()
     throw e
   }
+}
+
+/** 이미 적용한 파일(m.applied) 뒤의 파일을 정렬 순서대로 모두 적용한다. m.applied 에 이어 붙여 돌려준다. */
+export async function applyRemaining(m: MigratedDb, dir: string = MIGRATIONS_DIR): Promise<string[]> {
+  const rest = listMigrationFiles(dir).filter((f) => !m.applied.includes(f))
+  for (const f of rest) {
+    await applyFile(m.db, dir, f)
+    m.applied.push(f)
+  }
+  return rest
 }

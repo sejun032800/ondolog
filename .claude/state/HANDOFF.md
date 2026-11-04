@@ -657,6 +657,7 @@ R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 �
 **타입 재생성 (SCHEMA §9-D-10 r55)**
 - 명령 (R56-3): `[Console]::OutputEncoding = [Text.Encoding]::UTF8; npx supabase gen types typescript --linked | Out-File -Encoding utf8 src/types/database.ts` (PowerShell)
 - `git diff --stat`에 `Bin`이 나오면 커밋하지 않는다.
+- `demo_responses` 보존 시험 = 편입 파일 뒤 모든 마이그레이션에 적용 · 이 테이블을 바꾸는 마이그레이션은 PM의 명시 허가 없이 쓰지 않는다(R56-5).
 - 근거: `.claude/state/prompts/phase-7/23-main-session-dispatch-theme.md:221`, `.claude/state/archive/progress-20260928.md:186`. 출력도 기존 파일과 같은 UTF-8 BOM + CRLF였다.
 - 먼저 scratchpad에 생성해 판정한 뒤 같은 명령으로 실제 경로에 썼다.
 - diff 요약: +108 / −3

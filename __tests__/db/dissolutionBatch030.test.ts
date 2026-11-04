@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * 해제 배치 시험 (`71b-`, R54-2 · R55-1~5): supabase/migrations/ 001~030 을 파일에서 읽어 PGlite 에 적용하고
+ * 해제 배치 시험 (`71b-`, R54-2 · R55-1~5): supabase/migrations/ 전체를 파일에서 읽어 PGlite 에 적용하고
  * 실제로 SQL 을 실행해 결과를 본다. 원격 접속 0.
  * `71-` 하네스의 34단언을 옮긴 것: (a) 7 · (b) 3 · (c) 11 · (d) 12 (= 33, R56-2: 파일 본문 비교 단언은 뺐다).
  * 배치 함수 · 마이그레이션 지시서는 이 틀(scripts/db/pgliteMigrations.ts)에 시험을 더한다.
@@ -73,9 +73,8 @@ async function dis(cid: string, init: string, hoursAgoPurge = 1, reason = 'unlin
 beforeAll(async () => {
   const m = await createMigratedDb()
   db = m.db
-  // 저장소 마이그레이션이 전부 적용됐는지(번호 순서 그대로, 030 포함)
+  // 적용 목록 = 저장소 마이그레이션 파일 전체(정렬 순서)
   expect(m.applied).toEqual(listMigrationFiles())
-  expect(m.applied[m.applied.length - 1]).toMatch(/^030_/)
 }, 120000)
 
 afterAll(async () => {
