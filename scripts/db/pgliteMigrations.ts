@@ -78,12 +78,40 @@ interface Reply {
   ready?: boolean
 }
 
+// 자식 프로세스 정리 (R56-1): 띄운 서버를 전부 기록해 두고, 정상 종료(close) · 실패(createMigratedDb 의 catch) ·
+// 시간 초과(시험의 afterAll 이 closeAllServers 호출) · 부모 종료(process 'exit') 어느 경로에서도 남지 않게 한다.
+// 정상 종료는 stdin 을 닫아 서버가 스스로 끝내게 하되, GRACE_MS 안에 안 끝나면 강제로 끝낸다(Windows 도 child.kill() = 강제 종료).
+const GRACE_MS = 5000
+const READY_MS = 60000
+const liveChildren = new Set<ChildProcessWithoutNullStreams>()
+process.on('exit', () => {
+  for (const c of liveChildren) c.kill()
+})
+
+/** 아직 살아 있는 PGlite 서버를 전부 끝낸다. 시험의 afterAll 에서 부른다(beforeAll 이 시간 초과여도 정리되도록). */
+export async function closeAllServers(): Promise<void> {
+  await Promise.all(
+    [...liveChildren].map(
+      (c) =>
+        new Promise<void>((res) => {
+          if (c.exitCode !== null || c.signalCode !== null) return res()
+          c.once('exit', () => res())
+          c.kill()
+        }),
+    ),
+  )
+}
+
 function startServer(): Promise<PgClient> {
   return new Promise((resolve, reject) => {
     const child: ChildProcessWithoutNullStreams = spawn(process.execPath, [path.join(__dirname, 'pgliteServer.mjs')], {
       cwd: path.join(__dirname, '..', '..'),
       stdio: ['pipe', 'pipe', 'pipe'],
     })
+    liveChildren.add(child)
+    const readyTimer = setTimeout(() => {
+      if (!ready) child.kill()
+    }, READY_MS)
     const pending = new Map<number, { res: (r: Reply) => void }>()
     let seq = 0
     let buf = ''
@@ -109,6 +137,8 @@ function startServer(): Promise<PgClient> {
     })
     child.on('exit', () => {
       exited = true
+      clearTimeout(readyTimer)
+      liveChildren.delete(child)
       if (!ready) reject(new Error('pglite server exited before ready: ' + stderr.slice(-2000)))
       for (const p of pending.values()) p.res({ id: -1, ok: false, error: 'pglite server exited: ' + stderr.slice(-500) })
     })
@@ -132,7 +162,11 @@ function startServer(): Promise<PgClient> {
       async close() {
         if (exited) return
         await new Promise<void>((res) => {
-          child.on('exit', () => res())
+          const force = setTimeout(() => child.kill(), GRACE_MS)
+          child.on('exit', () => {
+            clearTimeout(force)
+            res()
+          })
           child.stdin.end()
         })
       },

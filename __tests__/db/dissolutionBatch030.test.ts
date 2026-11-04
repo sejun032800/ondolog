@@ -3,12 +3,10 @@
  *
  * 해제 배치 시험 (`71b-`, R54-2 · R55-1~5): supabase/migrations/ 001~030 을 파일에서 읽어 PGlite 에 적용하고
  * 실제로 SQL 을 실행해 결과를 본다. 원격 접속 0.
- * `71-` 하네스의 34단언을 옮긴 것: (a) 7 · (b) 3 · (c) 11 · (d) 13.
+ * `71-` 하네스의 34단언을 옮긴 것: (a) 7 · (b) 3 · (c) 11 · (d) 12 (= 33, R56-2: 파일 본문 비교 단언은 뺐다).
  * 배치 함수 · 마이그레이션 지시서는 이 틀(scripts/db/pgliteMigrations.ts)에 시험을 더한다.
  */
-import fs from 'fs'
-import path from 'path'
-import { MIGRATIONS_DIR, createMigratedDb, listMigrationFiles, type PgClient } from '../../scripts/db/pgliteMigrations'
+import { closeAllServers, createMigratedDb, listMigrationFiles, type PgClient } from '../../scripts/db/pgliteMigrations'
 
 let db: PgClient
 let n = 0
@@ -82,6 +80,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db?.close()
+  await closeAllServers() // beforeAll 이 시간 초과 · 실패여서 db 가 비어 있어도 남은 자식 프로세스를 끝낸다 (R56-1)
 })
 
 // ---- (a) 생체 동의 없는 개시자 (7)
@@ -332,20 +331,5 @@ describe('(d) regression', () => {
   it('one execute-dissolutions job, schedule 0 5 * * *', () => {
     expect(r.jobs).toHaveLength(1)
     expect(r.jobs[0].schedule).toBe('0 5 * * *')
-  })
-  // 71- 에서 옮긴 마지막 단언: 013 과 030 의 execute_dissolution 본문이 철회 시각 한 줄만 다르다. (파일 본문을 줄 단위로 비교 - 보고에 표시)
-  it('execute_dissolution body differs only by that one line (1 old + 1 new, same length)', () => {
-    const s13 = fs.readFileSync(path.join(MIGRATIONS_DIR, '013_batch_functions.sql'), 'utf8')
-    const s30 = fs.readFileSync(path.join(MIGRATIONS_DIR, '030_dissolution_batch_fix.sql'), 'utf8')
-    const body = (s: string, fn: string): string[] => {
-      const i = s.indexOf('create or replace function public.' + fn)
-      const j = s.indexOf('$$;', s.indexOf('as $$', i))
-      return s.slice(i, j).split('\n').map((x) => x.trimEnd())
-    }
-    const b13 = body(s13, 'execute_dissolution')
-    const b30 = body(s30, 'execute_dissolution')
-    const diff = b30.filter((l) => !b13.includes(l)).concat(b13.filter((l) => !b30.includes(l)))
-    expect(diff).toHaveLength(2)
-    expect(b13.length).toBe(b30.length)
   })
 })

@@ -655,7 +655,8 @@ R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 �
 실제 함수·FK·RLS·동시 발행 잠금은 `48-` C에서 증명한다.
 
 **타입 재생성 (SCHEMA §9-D-10 r55)**
-- 명령: `npx supabase gen types typescript --linked > src/types/database.ts` (PowerShell)
+- 명령 (R56-3): `[Console]::OutputEncoding = [Text.Encoding]::UTF8; npx supabase gen types typescript --linked | Out-File -Encoding utf8 src/types/database.ts` (PowerShell)
+- `git diff --stat`에 `Bin`이 나오면 커밋하지 않는다.
 - 근거: `.claude/state/prompts/phase-7/23-main-session-dispatch-theme.md:221`, `.claude/state/archive/progress-20260928.md:186`. 출력도 기존 파일과 같은 UTF-8 BOM + CRLF였다.
 - 먼저 scratchpad에 생성해 판정한 뒤 같은 명령으로 실제 경로에 썼다.
 - diff 요약: +108 / −3
