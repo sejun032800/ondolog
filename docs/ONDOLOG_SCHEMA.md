@@ -1513,7 +1513,7 @@ create trigger tg_issues_theme_on_publish
 ```sql
 create table public.ops_alerts (
   id           uuid primary key default gen_random_uuid(),
-  kind         text not null check (kind in ('couple_membership', 'usage_over')),
+  kind         text not null check (kind in ('couple_membership', 'usage_over', 'dissolution_failed')),
   couple_id    uuid references public.couples(id) on delete cascade,
   issue_id     uuid references public.issues(id)  on delete cascade,
   detail       jsonb not null default '{}'::jsonb,
@@ -1528,6 +1528,8 @@ alter table public.ops_alerts enable row level security;   -- 정책 없음 = se
 comment on column public.ops_alerts.detail is
   'ID만 담는다. 채팅 원문·이름·사진 경로를 넣지 않는다.';
 ```
+
+(030) kind에 `dissolution_failed`를 더했다. 제약 이름은 `ops_alerts_kind_check`(drop constraint 뒤 같은 이름으로 다시 추가). 해제 실패의 detail 키는 `dissolution_id`, `sqlstate`, `constraint`, `message`(앞 120자) 네 개이며 `issue_id`는 null이다.
 
 ### 9-D-6. 발행 확정 함수
 
@@ -1796,6 +1798,26 @@ public.fn_connect_couple(p_invite_code text) returns uuid   -- 026 (66- 1부)
 | 데이터 | 원격에 있어야 하는 데이터(라벨 등)는 **시드가 아니라 마이그레이션**에 둔다 — `db push`는 시드를 올리지 않는다 |
 | 확인 | 마이그레이션을 다루는 지시서의 사전 점검에 "적용된 파일의 diff 0"(`git diff <적용 커밋>.. -- supabase/migrations/<번호>_*`)을 넣는다 |
 | 전수 확인 | `70-`에서 001~028 전부 — 원격 적용 시각보다 나중에 바뀐 파일을 git 기록으로 찾고, 그 파일만 원격 실제 상태와 비교(읽기 전용). 어긋남은 029에서 한 번에 |
+| 번호(r56, R56-7) | **030 뒤로는 시각 형식 `YYYYMMDDHHMMSS_이름.sql`**(UTC). 001~030은 그대로. 원격 최신 버전보다 작은 번호 0 · `--include-all` 0 |
+| 변경 경로(r56, R56-8) | 원격 스키마는 **저장소 마이그레이션 → 사람의 `db push`로만** 바뀐다. 다른 연결의 `apply_migration`·쓰기 SQL 0 |
+
+---
+
+## 9-I. 앱 밖 테이블 — `demo_responses` (원격 버전 `20261103142031`, ROADMAP R56-5·6·9)
+
+**무엇.** 웹 체험판(온보딩 연애 유형 검사의 웹판) 익명 응답 로그. 진행 단계(event 7종)마다 한 행. **앱 코드는 이 테이블을 읽거나 쓰지 않는다.**
+
+**경위.** 11/03 14:20:31 UTC, 다른 대화의 Supabase 연결로 원격 개발 프로젝트에 직접 만들어졌다(`apply_migration` 이름 `demo_responses_web_trial`). 저장소에는 `71c-`에서 같은 버전 번호·md5가 같은 본문으로 편입한다(원격 쓰기 없음).
+
+| 항목 | 내용 |
+|---|---|
+| 모으는 것 | 나이대 · 성별 · MBTI와 입력 경로 · 간이 4문항 답 · 5문항 답 · 결과 유형 · 빅5 · 스턴버그 · 애착 · 코어 변경 · 기기 · 엔진 버전 · 시각 |
+| 모으지 않는 것 | 이름 · 정확한 생년월일. 만 14세 미만은 웹 코드가 아무것도 보내지 않는다 |
+| 권한 | RLS 켬. anon·authenticated 모든 권한 회수 뒤 **anon에 insert만**. 정책 `for insert to anon with check (true)` 하나 — 공개 키로 읽기·수정·삭제 불가 |
+| 값 범위 | 모든 열에 check |
+| 보안 점검 | `with check (true)` 경고는 의도된 것 — 기준선에 포함 |
+| **보존(절대)** | 행을 지우거나 바꾸지 않는다. 이후 마이그레이션에서 이 테이블을 부르는 문장 0(PM 명시 허가 제외, 더하기만). 원격 `db reset`·`migration repair`·초기화 금지. PGlite 보존 시험이 지킨다. 주 1회 CSV 사본을 저장소 밖에 |
+| 남은 것 | 스팸 insert 거르기(분석 때) · 수집 고지 문구 확인(지금, 사람) · 운영 분리(M4-1) 때 지우지 않음 |
 
 ---
 
@@ -2241,7 +2263,7 @@ create trigger tg_unlock_on_upgrade
 
 ### 11-3. 7일 유예 파기 — 개시자 파생 데이터만
 
-> **(030, ROADMAP R53-3) 아래 본문의 결함:** 개시자의 `biometric_consent_revoked_at`을 무조건 채워, 생체 동의를 한 적 없는 개시자에서 `chk_biometric_revoke_order` 위반(23514)으로 실패한다. 2026-11-03 05:00 UTC 원격 개발에서 실제로 실패했다(`test-68-purge`). 030에서 **동의 시각이 있을 때만 철회 시각을 채우도록** 고치고, cron 문장은 **한 건씩 예외를 잡아** 실패를 `ops_alerts`에 남긴다. 030 적용 뒤 이 본문을 030 정의로 바꾼다.
+> **(030, ROADMAP R53-3) 정정 반영:** 013 정의는 개시자의 `biometric_consent_revoked_at`을 무조건 채워, 생체 동의를 한 적 없는 개시자에서 `chk_biometric_revoke_order` 위반(23514)으로 실패했다(2026-11-03 05:00 UTC 원격 개발에서 실제 발생). 030에서 **동의 시각이 있을 때만 철회 시각을 채우도록** 재정의했다. 배치 실행은 §11-4의 `run_due_dissolutions()`가 한 건씩 맡는다.
 
 ```sql
 create or replace function public.execute_dissolution(p_dissolution_id uuid)
@@ -2269,7 +2291,7 @@ begin
 
   update public.profiles
      set reference_photo_path = null,
-         biometric_consent_revoked_at = coalesce(biometric_consent_revoked_at, now())
+         biometric_consent_revoked_at = case when biometric_consent_at is not null then coalesce(biometric_consent_revoked_at, now()) else null end
    where id = d.initiated_by;
 
   -- 발행 매거진(issues/corners)은 보존한다.
@@ -2301,6 +2323,8 @@ end;
 $$;
 ```
 
+`execute_dissolution(uuid)`: `security definer`, `set search_path = public`, 실행 권한은 public·anon·authenticated·service_role 모두 회수(025 분류 1, 배치 전용).
+
 ### 11-4. pg_cron 스케줄
 
 ```sql
@@ -2310,12 +2334,50 @@ select cron.schedule('expire-stories',    '*/15 * * * *',
 select cron.schedule('retention-policy',  '0 4 * * *',
   $$ select public.apply_retention_policy(); $$);
 
-select cron.schedule('execute-dissolutions', '0 5 * * *', $$
-  select public.execute_dissolution(id)
-  from public.couple_dissolutions
-  where cancelled_at is null and executed_at is null and purge_scheduled_at <= now();
-$$);
+-- 030(R53-3): 대상 전체를 한 문장으로 부르지 않고, 래퍼가 한 건씩 실행한다.
+-- 같은 작업 이름으로 다시 부르면 pg_cron이 그 작업을 갱신한다.
+select cron.schedule('execute-dissolutions', '0 5 * * *',
+  $$ select public.run_due_dissolutions(); $$);
+
+create or replace function public.run_due_dissolutions()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r            record;
+  v_sqlstate   text;
+  v_constraint text;
+begin
+  for r in
+    select id, couple_id from public.couple_dissolutions
+     where cancelled_at is null and executed_at is null and purge_scheduled_at <= now()
+     order by purge_scheduled_at, id
+  loop
+    begin
+      perform public.execute_dissolution(r.id);
+    exception when others then
+      get stacked diagnostics v_constraint = constraint_name;
+      v_sqlstate := sqlstate;
+      begin
+        insert into public.ops_alerts (kind, couple_id, detail)
+        values ('dissolution_failed', r.couple_id,
+                jsonb_build_object('dissolution_id', r.id, 'sqlstate', v_sqlstate,
+                                   'constraint', v_constraint, 'message', left(sqlerrm, 120)));
+      exception when others then
+        raise warning 'dissolution % failed (%) and the alert row could not be written (%)', r.id, v_sqlstate, sqlstate;
+      end;
+    end;
+  end loop;
+end;
+$$;
+
+revoke execute on function public.run_due_dissolutions() from public, anon, authenticated, service_role;
 ```
+
+한 건이 실패해도 그날의 다른 해제는 실행된다. 실패한 건은 그 건의 변경만 롤백되고(`executed_at`은 비어 있어 다음 실행에서 다시 시도된다), `ops_alerts`에 `dissolution_failed` 한 행이 남는다. `detail`은 해제 id·SQLSTATE·제약 이름·메시지 앞 120자만 담고 `PG_EXCEPTION_DETAIL`은 담지 않는다(check 위반의 DETAIL에는 행의 값이 들어 있다). 계속 실패하는 건은 실행할 때마다 한 행씩 더 쌓인다(중복 정리는 M4-2 운영 경보 때, R54-3).
+실패 기록 점검: `scripts/db/check_cron_failures.sql`(R53-5).
 
 > 연애 온도 산출, 스탯 계산, 코너 생성은 LLM·엔진 코드가 필요하므로 pg_cron SQL이 아니라 **Edge Function**으로 실행하고, 스케줄은 pg_cron + pg_net이 그 함수를 부른다.
 >

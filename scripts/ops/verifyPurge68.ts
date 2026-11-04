@@ -9,7 +9,7 @@
  *   - 해제 행: executed_at 이 있다 · cancelled_at 은 null
  *   - couples.status = 'dissolved' · dissolved_at 이 있다 (상대가 탈퇴 상태가 아니므로 couples 행은 지워지지 않는다)
  *   - 개시자(p) 파생 행 삭제: messages(sender_id) · data_entries(author_id) · stories(author_id) · stat_snapshots(user_id) 0건
- *   - 개시자 profiles: reference_photo_path null · biometric_consent_revoked_at 이 찍힘
+ *   - 개시자 profiles: reference_photo_path null · biometric_consent_revoked_at 은 biometric_consent_at 이 있으면 찍힘, 없으면 null (030)
  *   - 상대(q) 행 유지: q 의 messages 가 1건 이상 · q 의 프로필이 그대로
  * 배치가 아직 안 돌았으면(유예 끝 전 · 유예는 끝났지만 executed_at 이 없음) "아직"을 출력하고 끝낸다(실패 아님, 종료 코드 0).
  *
@@ -97,9 +97,12 @@ async function main(): Promise<void> {
     stats: await count('stat_snapshots', 'user_id', target.initiatedBy),
   }
   check(p.messages === 0 && p.entries === 0 && p.stories === 0 && p.stats === 0, `개시자 파생 행 0건: messages ${p.messages} · data_entries ${p.entries} · stories ${p.stories} · stat_snapshots ${p.stats}`)
-  const pp = await db.from('profiles').select('reference_photo_path, biometric_consent_revoked_at').eq('id', target.initiatedBy).maybeSingle()
-  check(!pp.error && pp.data !== null && pp.data.reference_photo_path === null && pp.data.biometric_consent_revoked_at !== null,
-    `개시자 profiles: reference_photo_path ${pp.data?.reference_photo_path} · biometric_consent_revoked_at ${pp.data?.biometric_consent_revoked_at}`)
+  // 030 정의: 철회 시각은 생체 동의 시각이 있을 때만 채워진다(동의 없으면 null). 출력에는 null 여부만 적는다(시각 값 · id 출력 0).
+  const pp = await db.from('profiles').select('reference_photo_path, biometric_consent_at, biometric_consent_revoked_at').eq('id', target.initiatedBy).maybeSingle()
+  const consented = !pp.error && pp.data !== null && pp.data.biometric_consent_at !== null
+  const revoked = !pp.error && pp.data !== null && pp.data.biometric_consent_revoked_at !== null
+  check(!pp.error && pp.data !== null && pp.data.reference_photo_path === null && revoked === consented,
+    `개시자 profiles: reference_photo_path ${pp.data?.reference_photo_path === null ? 'null' : '있음'} · biometric_consent_at ${consented ? '있음' : 'null'} · biometric_consent_revoked_at ${revoked ? '있음' : 'null'} (기대: 동의 있으면 철회 있음, 없으면 null)`)
   const qm = await count('messages', 'sender_id', target.partner)
   check(qm >= 1, `상대 messages 유지: ${qm}건`)
   const qp = await db.from('profiles').select('id, deleted_at').eq('id', target.partner).maybeSingle()

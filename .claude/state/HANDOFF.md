@@ -114,6 +114,15 @@ R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 �
 
 `55-2`에서 넘긴 남은 항목 처리: 막힌 슬롯 1(출처 막대) 해소(`data-width`) · 2(다정 지수) 해소(v1.2 지면) · 3(`da-article` 고정 문구 셋) 해소(러닝헤드 `data-if` · 영문 서수 · 사진 수 문장) · 4 해소(영문 서수 · `@da.openerPhoto` + 변형) 단 `da-article` 히어로는 위 1번 · 5 README 빈칸 중 `@toc.desc` · `.photo` · 근거 날짜 · `.seq` · 폴리오 · 캡션 접두는 §11로 확정, `attribution.at`은 위 4번 · 6 원문 잘림 해소(v1.2.2에서 clamp 제거 + 면 나눔/실패). "목차 매니페스트"라는 항목은 HANDOFF 55-2 절에 없다(지시서 예시로만 적혀 있다).
 
+## PGlite 배치 시험 (`71b-`, 2026-11-04, db-architect) - 로컬 시험만, 원격 접속 0
+- 시험 `__tests__/db/dissolutionBatch030.test.ts` · 헬퍼 `createMigratedDb()` (`scripts/db/pgliteMigrations.ts`) + 서버 `scripts/db/pgliteServer.mjs`. **배치 함수 · 마이그레이션 지시서는 이 틀에 시험을 더한다**(R54-2): `createMigratedDb({upTo})`로 001~N을 파일에서 읽어 적용하고 `db.query` / `db.exec`로 결과를 본다.
+- 내부 결정: PGlite를 jest 안에서 불러오면 동적 `import()`가 `--experimental-vm-modules` 없이 실패(`ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG`). jest 설정 · 실행 옵션을 바꾸지 않으려고 PGlite를 자식 Node 프로세스(`pgliteServer.mjs`)로 돌리고 문장을 표준 입출력(JSON 줄)으로 보낸다. 시험 파일 머리 `@jest-environment node` 주석만 사용. 날짜 값은 JSON을 거쳐 ISO 문자열로 돌아온다.
+- 내부 결정: 스텁 = 역할 3개 · `auth`(users · uid · role) · `extensions` · `storage`(buckets · objects · foldername) · `cron`(job · schedule: 기록만, 실행 안 함) · publication `supabase_realtime` · public 기본 권한. 읽은 마이그레이션 본문에서 `create extension ... pg_cron` 한 문장만 메모리에서 뺀다(파일은 그대로). pgcrypto · pg_trgm · btree_gist는 PGlite contrib로 실제 설치.
+- 내부 결정: `71-`의 34단언을 34개 `it`로 옮김. (c) 첫 단언은 `cron.job.command`에 `run_due_dissolutions`가 들어 있는지를 한 줄 더 확인(개수는 그대로). (b) 마지막 단언은 날짜를 문자열로 받으므로 `Date`로 바꿔 비교.
+- 내부 결정: (d) 마지막 단언(013 · 030 본문이 한 줄만 다름)은 파일 본문을 줄 단위로 비교하는 것이라 SQL 실행 시험이 아니다(R32-3과 긴장). 34단언을 빠짐없이 옮기라는 지시에 따라 남겼다 - PM이 빼라 하면 한 `it`만 지운다.
+- `npm test`는 `jest --watchAll`(package.json, 바꾸지 않음)이라 한 번 돌리려면 `npx jest --watchAll=false`.
+- `verifyPurge68.ts`: 개시자 `biometric_consent_revoked_at` 기대 = `biometric_consent_at`이 있으면 채워짐, 없으면 null. 출력은 null 여부만. 원격에서 실행하지 않았다(Proteur 몫).
+
 ## 해제 배치 결함 030 (`71-` 1부, 2026-11-03, db-architect) - 작성만, 원격 미적용 · 미실증
 - 래퍼 함수 선택(`run_due_dissolutions`, DO 블록 아님): cron 이 실행하는 문장이 `select public.run_due_dissolutions();` 한 줄이라 로컬 시험이 `cron.job.command` 를 그대로 실행할 수 있다. 025 분류 1 로 public · anon · authenticated · service_role 모두 회수.
 - 새 `ops_alerts.kind` = `dissolution_failed`. 제약 이름 `ops_alerts_kind_check`(022 열 인라인 check 의 기본 이름, 로컬 pg_constraint 로 확인) drop 후 같은 이름으로 세 값 check 추가. 원격 제약 이름은 2부에서 확인.
