@@ -58,7 +58,7 @@ describe('supabase.ts 가 등록한 확인 요청', () => {
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit]
     expect(new URL(url).pathname).toBe('/auth/v1/health')
     expect(init.method).toBe('GET')
-    expect(init.headers == null || Object.keys(init.headers as object).length === 0).toBe(true)
+    expect(init.headers).toBeUndefined()
     expect(init.body == null).toBe(true)
     expect(init.signal).toBe(signal)
   })

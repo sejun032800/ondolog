@@ -1,5 +1,9 @@
 # 진행 상황
 
+2026-11-05 (메인 세션, `51-` 1단계 사전 작업): 관문 통과(r60) · TODO_SUPPORT_EMAIL 남음(사람 전제 a 미완) · Expo 패치 `870a3c3` 들어옴. 기준선 0 / 0 · 1765 · 100 · Python 277(274.1 s). ① 헤더 단언 `toBeUndefined()` 한 줄(위임, jest 1765 그대로 실패 0). ② 확인 목록 최종본 `.claude/state/prompts/phase-7/51-device-checklist.md` — B절은 기록 사슬로 27가지(24 → `67-` +1 → `68-` +2) + U0, 유예 화면은 B26 · B27로 원래 있음, 전체 48항목 · 실행 순서 13단계. ③ 빌드 안내는 보고에만. PM 확인 대기. 미커밋
+
+2026-11-05 (ui-builder, `51-` 사전 작업 ①, R60-3): `u8ProbeTimeout.test.tsx` 헤더 0 단언을 `init.headers === undefined`(`toBeUndefined`)로 교체, 다른 단언 변경 0. 앱 코드 변경 0. tsc 0 · jest 1765 · 100 실패 0. 미커밋
+
 2026-11-05 (메인 세션, `72c-` 검증): 사전 git status 빈 출력 · r59 확인 · 기준선 0 / 0 · 1762 · 99 · Python 277(233.6 s). 확인 요청 8초 제한(AbortController, 확인 요청에만) · 정리 때 abort · 등록 함수 실호출 헤더 시험 · 래퍼 `scripts/ops/pyDurations.py`. 금지 대상 diff: `connectionMonitor.ts` 타입 한 줄(`ConnectionProbe`에 `signal?`) — 감싸기 함수는 그대로(보고). 재실행 tsc 0 / 0 · jest 1765 · 100 실패 0 · Python 래퍼 277 OK 240.0 s(R59-4 재측정 불필요) · 남은 프로세스 전 0/0/0 = 후 0/0/0. 사람 확인(Proteur, 키 없는 상태 확인 GET) 401 - 띠 설계 전제 맞음. 미커밋
 
 2026-11-05 (ui-builder, `72c-`, R59-1 · R59-2 · R59-4): 확인 요청 8초 제한(`useOfflineProbe`: AbortController, 시간 초과 = 실패 · 띠 유지 · 15초 간격 그대로, 화면이 사라질 때 abort + 타이머 정리, 다른 요청 제한 0 · 감싸기 변경 0) · 헤더 시험 `u8ProbeTimeout`(등록된 함수를 불러 경로 · GET · 헤더 0 · 본문 0 · signal, 8초 취소 · 띠 유지 · 15초 뒤 재시도, 정리 때 취소) · Python 측정 래퍼 `scripts/ops/pyDurations.py`. 새 시험 3. 설정 · 의존성 · 마이그레이션 · 원격 변경 0. 미커밋
