@@ -46,7 +46,7 @@ export function trackConnection(base: typeof fetch, report: (ok: boolean) => voi
 }
 
 /** 띠 풀기 확인 요청. 응답이 오면(상태 무관) resolve, 거부되면 reject. 감싸기를 지나지 않는다. */
-export type ConnectionProbe = () => Promise<unknown>
+export type ConnectionProbe = (signal?: AbortSignal) => Promise<unknown>
 let probe: ConnectionProbe | null = null
 export function registerConnectionProbe(next: ConnectionProbe | null): void {
   probe = next

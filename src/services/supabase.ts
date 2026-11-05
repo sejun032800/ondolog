@@ -11,7 +11,7 @@ if (!url || !anonKey) {
 }
 
 // I02 띠 풀기 확인: 감싸기 전 원래 `fetch`로 보낸다(감싸기를 지나지 않음). 헤더 없음(토큰 · 키 0) - 401이어도 응답이 오면 연결이다.
-registerConnectionProbe(() => fetch(`${url}/auth/v1/health`, { method: 'GET' }));
+registerConnectionProbe((signal) => fetch(`${url}/auth/v1/health`, { method: 'GET', signal }));
 
 export const supabase = createClient(url, anonKey, {
   // I02 연결 끊김 판정: 요청 결과만 읽는다(새 요청 없음, `connectionMonitor.ts`).

@@ -105,7 +105,7 @@ describe('띠 풀기 확인 요청', () => {
     expect(appStateHandlers).toHaveLength(0)
   })
 
-  it('앞으로 옴 -> 한 번 / 15초 안 두 번째 0 / 15초 뒤 한 번 더 / 확인 요청에 인자 0', async () => {
+  it('앞으로 옴 -> 한 번 / 15초 안 두 번째 0 / 15초 뒤 한 번 더 / 확인 요청에 signal 하나만', async () => {
     const probe = jest.fn(async () => { throw new TypeError('Network request failed') })
     registerConnectionProbe(probe as never)
     await render(<ConnectionBanner />)
@@ -116,7 +116,8 @@ describe('띠 풀기 확인 요청', () => {
     expect(probe).toHaveBeenCalledTimes(1)
     await act(async () => { jest.advanceTimersByTime(10_000) })
     expect(probe).toHaveBeenCalledTimes(2)
-    expect(probe.mock.calls[0]).toHaveLength(0) // 사용자 토큰 · 헤더를 받을 자리가 없다
+    expect(probe.mock.calls[0]).toHaveLength(1) // 사용자 토큰 · 헤더를 받을 자리가 없다 - 8초 제한용 signal 하나뿐
+    expect((probe.mock.calls[0] as unknown[])[0]).toBeInstanceOf(AbortSignal)
     expect(screen.getByTestId('connection-banner')).toBeTruthy() // 거부 -> 띠 유지
   })
 

@@ -1,5 +1,9 @@
 # 진행 상황
 
+2026-11-05 (메인 세션, `72c-` 검증): 사전 git status 빈 출력 · r59 확인 · 기준선 0 / 0 · 1762 · 99 · Python 277(233.6 s). 확인 요청 8초 제한(AbortController, 확인 요청에만) · 정리 때 abort · 등록 함수 실호출 헤더 시험 · 래퍼 `scripts/ops/pyDurations.py`. 금지 대상 diff: `connectionMonitor.ts` 타입 한 줄(`ConnectionProbe`에 `signal?`) — 감싸기 함수는 그대로(보고). 재실행 tsc 0 / 0 · jest 1765 · 100 실패 0 · Python 래퍼 277 OK 240.0 s(R59-4 재측정 불필요) · 남은 프로세스 전 0/0/0 = 후 0/0/0. 사람 확인(Proteur, 키 없는 상태 확인 GET) 401 - 띠 설계 전제 맞음. 미커밋
+
+2026-11-05 (ui-builder, `72c-`, R59-1 · R59-2 · R59-4): 확인 요청 8초 제한(`useOfflineProbe`: AbortController, 시간 초과 = 실패 · 띠 유지 · 15초 간격 그대로, 화면이 사라질 때 abort + 타이머 정리, 다른 요청 제한 0 · 감싸기 변경 0) · 헤더 시험 `u8ProbeTimeout`(등록된 함수를 불러 경로 · GET · 헤더 0 · 본문 0 · signal, 8초 취소 · 띠 유지 · 15초 뒤 재시도, 정리 때 취소) · Python 측정 래퍼 `scripts/ops/pyDurations.py`. 새 시험 3. 설정 · 의존성 · 마이그레이션 · 원격 변경 0. 미커밋
+
 2026-11-05 (메인 세션, `72b-` 검증): 사전 git status 빈 출력 · r58 확인 · 기준선 0 / 0 · 1750 · 98 · Python 277(323.1 s). 확인 엔드포인트 `/auth/v1/health`(키 헤더 없음, 근거 Supabase Envoy 게이트웨이 문서). 금지 대상 diff 0 · 판정은 감싼 fetch 거부 자리 · TypeError 짐작 0 · 확인 요청은 원래 fetch(감싸기 0회) · 채팅에서만 숨김 · A18 무효 문구 = patch7 보드. 재실행 tsc 0 / 0 · jest 1762 · 99 실패 0 · Python 277 OK(시간 측정 두 번 408.1 s / 347.2 s, 상위 10개가 두 번 모두 전체의 83%, `72b-python-durations-1/2.txt`) · 남은 프로세스 전 0/0/0 = 후 0/0/0. 미커밋
 
 2026-11-05 (ui-builder, `72b-`, R58-2 · R58-3): I02 띠 바로잡기 - 끊김 = 감싼 fetch 호출의 거부만(AbortError 제외, `isNetworkFailure` 삭제) · `useOfflineProbe`(띠 있을 때만, active + 15초, `/auth/v1/health` 헤더 없음, 응답이면 띠 내림 + 정리) · 큐로 띠 숨기기는 `inChat`일 때만 · 감싸기는 인자 · 응답 · 오류 그대로 · A18 invalid 문구 교체. 새 시험 12(u8OfflineBand), jest 1762 · 99. 미커밋

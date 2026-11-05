@@ -34,6 +34,27 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
+## 확인 요청 시간 제한 · 헤더 시험 · Python 측정 래퍼 (`72c-`, 2026-11-05, ui-builder) - 원격 0
+
+- 래퍼 실행(저장소 루트): `render/.venv/Scripts/python.exe -B scripts/ops/pyDurations.py` (결과 `scripts/ops/out/py-durations-<시각>.txt`)
+- R59-4 기준 기록(`72b-` 2회차): 전체 347.2초
+  | 순위 | 시험 | 초 |
+  |---|---|---|
+  | 1 | test_render_issue.Render.test_all_six_themes_render | 54.23 |
+  | 2 | test_render_issue.WholeRender.test_a_clean_issue_renders_with_no_original_clipped_and_the_design_audit_agrees | 39.12 |
+  | 3 | test_render_issue.WholeRender.test_clipped_original_stops_the_render_before_upload | 38.23 |
+  | 4 | test_render_issue.Render.test_photo_scenario_renders_to_one_pdf_with_matching_pages | 35.86 |
+  | 5 | test_render_issue.Render.test_clipped_ondolog_sentence_is_recorded | 32.97 |
+  | 6 | test_render_issue.Render.test_audit_catches_overset_when_the_timeline_is_not_split | 20.64 |
+  | 7 | test_v122.OriginalOversetGate.test_timeline_overflow_volume_stops_the_render | 18.96 |
+  | 8 | test_render_issue.Render.test_clipped_original_is_a_failure | 16.90 |
+  | 9 | test_render_issue.Sample.test_every_image_in_a_filled_page_is_a_work_folder_photo | 16.52 |
+  | 10 | test_render_issue.Sample.test_a_sample_path_left_in_a_page_is_a_failure | 14.98 |
+- 내부 결정: `ConnectionProbe`가 `signal?`을 받는다(확인 요청에만). 기존 u8OfflineBand의 "확인 요청 인자 0" 단언을 "signal 하나만"으로 고침(헤더 0 계약은 새 시험이 등록 함수로 지킨다).
+- 내부 결정: 시간 초과 · 거부 · 정리 모두 한 `finish()`로 타이머를 지운다. 정리 단계는 진행 중 요청을 abort 한다.
+- 내부 결정: 래퍼는 `discover -s render/tests`와 같은 위치를 절대 경로로 찾는다(작업 폴더 무관). 판정은 unittest 그대로, 종료 코드도 그대로.
+- 내부 결정: 정리 시 타이머 개수 0 단언은 뺐다(React · RN 쪽 타이머가 따로 있음). 대신 abort 와 이후 재시도 0을 본다.
+
 ## 지역 숫자 · 시드 메모 (`55-3d`, 2026-11-03, corner-pipeline) - 로컬 다섯 권 재렌더, 원격 미실행
 
 - 지역 칸 정의: 이번 기간(재소환 제외) 기사 중 `region`이 값과 같은 기사 수(= 그 지역에서 보낸 날). 경유지 이름이 값과 같은 칸은 예전처럼 경유지 수 · 라벨은 이름 그대로. 지역과 경유지 이름이 같은 글자면 지역이 먼저다.
