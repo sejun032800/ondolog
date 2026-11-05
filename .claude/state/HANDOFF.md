@@ -1067,3 +1067,11 @@ Phase 7 위임(`.claude/state/prompts/phase-7/15-main-session-package-align.md`)
     시트)는 실제로 동작한다.
 
 
+
+## 72b- (ui-builder, 연결 끊김 띠 바로잡기)
+- 확인 요청은 `supabase.ts`가 `registerConnectionProbe`로 등록한 `fetch(url + '/auth/v1/health')` 하나. `global.fetch` 감싸기를 거치지 않는 전역 `fetch`를 직접 쓴다.
+- `useOfflineProbe`는 `ConnectionBanner` 안에서 호출한다(탭 레이아웃에 한 번만 마운트). 띠가 내려가면 효과 정리로 타이머와 AppState 구독이 멈춘다.
+- 첫 확인은 띠가 뜬 뒤 첫 `active` 이벤트 또는 15초 타이머 중 먼저 오는 쪽. 시도 사이 최소 15초.
+- 채팅 화면 판별은 `useSegments()`에 `chat`이 있는지로 한다(`app/(tabs)/_layout.tsx`).
+- A18 "그 밖의 무효"는 `CONNECT_ERROR_COPY.invalid`(P0002)로 보았다. `other`(알 수 없는 실패)는 그대로.
+- 옛 시험 `u8CommonStates`의 `isNetworkFailure` 단언 삭제, 큐 숨김 시험에 `inChat` 추가, `u6Onboarding2` 문구 갱신.

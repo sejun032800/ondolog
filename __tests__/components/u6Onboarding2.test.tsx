@@ -327,7 +327,7 @@ describe('A18 초대 코드 입력', () => {
     await fireEvent.press(screen.getByTestId('invite-connect'))
     await act(async () => {})
     expect(mockRedeem).toHaveBeenCalledWith('me', 'P4N8XQ')
-    expect(screen.getByTestId('invite-error').props.children).toBe('연결할 수 없어요. 코드를 다시 확인해주세요.')
+    expect(screen.getByTestId('invite-error').props.children).toBe('쓸 수 없는 코드예요. 상대에게 코드를 다시 받아 주세요.')
     expect(mockMarkInviteDone).not.toHaveBeenCalled()
     expect(mockReplace).not.toHaveBeenCalled()
   })

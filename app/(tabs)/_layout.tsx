@@ -10,7 +10,7 @@
  *
  * 각 탭 화면은 자체 헤더를 그리므로 네이티브 헤더는 끈다.
  */
-import { Tabs } from 'expo-router'
+import { Tabs, useSegments } from 'expo-router'
 import { View } from 'react-native'
 import { ConnectionBanner } from '../../src/components/nocturne/ConnectionBanner'
 import { TabBar } from '../../src/components/nocturne/TabBar'
@@ -22,6 +22,7 @@ export default function TabsLayout() {
   useStartDateRecheck()
   // 상대가 연결 해제를 요청했으면 앱 안에서 알린다(`68-`, 푸시 없음).
   useDissolutionNotice()
+  const inChat = (useSegments() as string[]).includes('chat')
   return (
     <View style={{ flex: 1 }}>
       <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
@@ -31,8 +32,8 @@ export default function TabsLayout() {
         <Tabs.Screen name="magazine" options={{ title: '매거진' }} />
         <Tabs.Screen name="settings" options={{ title: '설정' }} />
       </Tabs>
-      {/* I02 연결 끊김 띠 - 모든 탭 위에 하나(채팅의 보낼 것 문장과는 겹치지 않는다). */}
-      <ConnectionBanner />
+      {/* I02 연결 끊김 띠 - 모든 탭 위에 하나(채팅 화면에서만 보낼 것 문장에 자리를 내준다). */}
+      <ConnectionBanner inChat={inChat} />
     </View>
   )
 }

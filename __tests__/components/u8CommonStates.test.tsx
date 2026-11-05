@@ -15,7 +15,7 @@ import { MESSAGE_COPY } from '../../src/components/chat/Messages'
 import { START_TEMPERATURE_HINT_LINES } from '../../src/constants/mainCopy'
 import { SUPPORT_EMAIL, SUPPORT_MAIL_SUBJECT } from '../../src/constants/support'
 import { connectErrorMessage } from '../../src/services/coupleConnectCore'
-import { isNetworkFailure, trackConnection, useConnectionStore } from '../../src/services/connectionMonitor'
+import { trackConnection, useConnectionStore } from '../../src/services/connectionMonitor'
 import { useCoupleStore } from '../../src/store/coupleStore'
 import { showToast, TOAST_DURATION_MS, useToastStore } from '../../src/store/toastStore'
 import { SETTINGS_GROUPS } from '../../src/utils/settingsRules'
@@ -122,9 +122,6 @@ describe('I02 연결 끊김 판정 - 요청 실패', () => {
     await expect(aborted('x')).rejects.toThrow('aborted')
     expect(useConnectionStore.getState().offline).toBe(true) // 건드리지 않는다
 
-    expect(isNetworkFailure(new TypeError('Failed to fetch'))).toBe(true)
-    expect(isNetworkFailure(new Error('boom'))).toBe(false)
-    expect(isNetworkFailure(null)).toBe(false)
   })
 
   it('끊기면 띠가 보이고, 풀리면 사라진다', async () => {
@@ -137,7 +134,7 @@ describe('I02 연결 끊김 판정 - 요청 실패', () => {
   })
 
   it('채팅에 보낼 것이 남아 있으면 띠를 그리지 않는다 - 채팅의 큐 문장과 겹치지 않는다', async () => {
-    await render(<ConnectionBanner />)
+    await render(<ConnectionBanner inChat />)
     await act(async () => useConnectionStore.getState().report(false))
     expect(screen.getByTestId('connection-banner')).toBeTruthy()
     await act(async () => mockQueueListener?.onTextQueue?.([{ status: 'pending' }]))

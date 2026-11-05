@@ -3,14 +3,15 @@
  * 정지 점 - 스피너 없음. 눌리지 않는다(`pointerEvents none`).
  *
  * **채팅의 큐 문장과 겹치지 않는다**: 채팅은 보낼 것이 남아 있을 때 자기 문장(F05 "연결이 끊겼어요. 다시 연결되면 이어서 보내요")을 이미 보인다.
- * 보낼 것이 남은 동안(글 · 사진 큐에 대기 항목이 있는 동안)에는 이 띠를 그리지 않는다 - 그 쪽이 "보낼 것"을 말하고, 이 띠는 "받은 것"을 말한다.
- * 끊김 판정은 `connectionMonitor`(요청 실패)다.
+ * **채팅 화면에서**(`inChat`) 보낼 것이 남은 동안(글 · 사진 큐에 대기 항목이 있는 동안)에는 이 띠를 그리지 않는다. 다른 탭에서는 큐와 관계없이 끊김을 보인다(`72b-`) - 그 쪽이 "보낼 것"을 말하고, 이 띠는 "받은 것"을 말한다.
+ * 끊김 판정은 `connectionMonitor`(감싼 fetch의 거부), 풀기는 `useOfflineProbe`다.
  */
 import { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { chatQueueHub } from '../../services/chatQueueHub'
 import { useConnectionStore } from '../../services/connectionMonitor'
+import { useOfflineProbe } from '../../hooks/useOfflineProbe'
 import { fontFamily, nocturne, shape, withAlpha } from '../../theme/nocturne'
 
 export const CONNECTION_COPY = {
@@ -32,11 +33,12 @@ export function useChatQueueWaiting(): boolean {
   return text || photo
 }
 
-export function ConnectionBanner() {
+export function ConnectionBanner({ inChat = false }: { inChat?: boolean }) {
+  useOfflineProbe()
   const insets = useSafeAreaInsets()
   const offline = useConnectionStore((s) => s.offline)
   const queueWaiting = useChatQueueWaiting()
-  if (!offline || queueWaiting) return null
+  if (!offline || (inChat && queueWaiting)) return null
   return (
     <View
       pointerEvents="none"
