@@ -135,10 +135,10 @@ async function renderDetail() {
 
 describe('A14 · A15 상세 결과', () => {
   it('고정 문장이 MASTER 문장과 글자 그대로 같다', async () => {
-    expect(COMPATIBILITY_START_TEMPERATURE_NOTICE).toBe('연인과 연결하면 이 궁합이 두 사람의 시작 온도에 반영됩니다.')
+    expect(COMPATIBILITY_START_TEMPERATURE_NOTICE).toBe('연인과 연결하면 이 궁합이 두 사람의 시작 온도에 반영돼요.')
     await renderDetail()
     expect(screen.getByTestId('compatibility-start-notice').props.children).toBe(
-      '연인과 연결하면 이 궁합이 두 사람의 시작 온도에 반영됩니다.',
+      '연인과 연결하면 이 궁합이 두 사람의 시작 온도에 반영돼요.',
     )
   })
 

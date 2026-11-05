@@ -263,7 +263,7 @@ describe('H01 · H02 설정 목록', () => {
     }
     for (const hidden of HIDDEN_SETTINGS_ITEMS) expect(screen.queryByText(hidden.label)).toBeNull()
     // 보드에서 뺀 그룹 제목도 없다.
-    for (const kicker of ['OUR SKY', 'MAGAZINE', 'PHOTOS & DATA', 'NOTIFICATIONS', 'ETC']) expect(screen.queryByText(kicker)).toBeNull()
+    for (const kicker of ['OUR SKY', 'MAGAZINE', 'PHOTOS & DATA', 'NOTIFICATIONS']) expect(screen.queryByText(kicker)).toBeNull()
   })
 
   it('남은 항목은 모두 눌러서 갈 곳이 있다(빈 화면 0) - 경로가 서로 다른 설정 하위 화면이다', async () => {
@@ -285,6 +285,7 @@ describe('H01 · H02 설정 목록', () => {
       '/settings-couple',
       '/settings-personality',
       '/settings-privacy',
+      '/settings-about',
     ])
     // 각 경로가 실제 화면 파일이다.
     for (const href of new Set(hrefs)) expect(() => require.resolve(`../../app${href}`)).not.toThrow()
@@ -449,8 +450,8 @@ describe('H04 커플', () => {
     useCoupleStore.setState({ status: 'disconnected', coupleId: null, partnerId: null, refresh: (async () => {}) as never })
     await render(<SettingsCoupleScreen />)
     await settle()
-    expect(screen.getByText('연인과 연결하면 열려요')).toBeTruthy()
-    expect(screen.getByText('초대하기')).toBeTruthy()
+    expect(screen.getByText('여기까지 왔어요. 상대만 있으면 돼요')).toBeTruthy()
+    expect(screen.getByText('초대 코드 보내기')).toBeTruthy()
   })
 })
 

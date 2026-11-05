@@ -10,7 +10,7 @@
  */
 import { useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AttachSheet, Composer, OfflineBanner } from '../../src/components/chat/Composer'
 import { ChatMessageItem, DateDivider, MESSAGE_COPY } from '../../src/components/chat/Messages'
@@ -25,6 +25,7 @@ import { fetchProfile } from '../../src/services/personalityApi'
 import { pickPhotos } from '../../src/services/photoPicker'
 import { useChatViewerStore, type StoryViewItem } from '../../src/store/chatViewerStore'
 import { useCoupleStore } from '../../src/store/coupleStore'
+import { showToast } from '../../src/store/toastStore'
 import { fontFamily, nocturne, shape } from '../../src/theme/nocturne'
 import { chatDateLabel, groupMessagesByDate, type ChatMessage } from '../../src/utils/chatMessages'
 import { computeDaysTogetherKst } from '../../src/utils/relationshipDays'
@@ -169,7 +170,7 @@ function ChatConversation() {
       const picked = await pickPhotos()
       for (const photo of picked) await sendPhoto(photo)
     } catch {
-      Alert.alert('사진을 고르지 못했어요', '다시 시도해 주세요')
+      showToast('사진을 고르지 못했어요. 다시 시도해 주세요')
     }
   }
 
@@ -181,9 +182,9 @@ function ChatConversation() {
       if (picked.length === 0) return
       setPosting(true)
       const ok = await postStory(picked[0])
-      if (!ok) Alert.alert('스토리를 올리지 못했어요', '연결을 확인하고 다시 시도해 주세요')
+      if (!ok) showToast('스토리를 올리지 못했어요. 연결을 확인하고 다시 시도해 주세요')
     } catch {
-      Alert.alert('사진을 고르지 못했어요', '다시 시도해 주세요')
+      showToast('사진을 고르지 못했어요. 다시 시도해 주세요')
     } finally {
       setPosting(false)
     }

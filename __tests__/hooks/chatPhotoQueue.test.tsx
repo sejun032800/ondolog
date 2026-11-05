@@ -213,8 +213,10 @@ describe('사진 메시지 - 올렸는데 행을 넣기 전에(또는 응답 전
     await waitFor(async () => expect(await storedQueue()).toEqual([]))
     expect(backend.objects.messages.size).toBe(1) // 다시 올려도 같은 경로 하나
     expect(backend.messages).toHaveLength(1) // 23505 = 이미 전송됨 -> 행 하나
-    expect(second.result.current.messages).toHaveLength(1)
-    expect(second.result.current.hasQueued).toBe(false)
+    // 저장소 확인과 화면 상태는 **다른 길**이다: 큐가 비는 순간 저장 쓰기와 `setState`가 같은 동기 구간에서 시작되지만, 저장은 마이크로태스크에서 끝나고
+    // 화면 상태는 React가 다음 틱에 반영한다. 저장이 비었다고 상태를 바로 읽으면 반영 직전에 읽을 수 있다(R56-4 원인). 상태는 상태로 기다린다.
+    await waitFor(() => expect(second.result.current.messages).toHaveLength(1))
+    await waitFor(() => expect(second.result.current.hasQueued).toBe(false))
     expect(mockFiles.size).toBe(0) // 성공하면 복사본도 지운다
     await second.unmount()
 
@@ -225,7 +227,7 @@ describe('사진 메시지 - 올렸는데 행을 넣기 전에(또는 응답 전
     await waitFor(async () => expect(await storedQueue()).toEqual([]))
     expect(backend.objects.messages.size).toBe(1)
     expect(backend.messages).toHaveLength(1)
-    expect(third.result.current.messages).toHaveLength(1)
+    await waitFor(() => expect(third.result.current.messages).toHaveLength(1)) // 저장소가 비는 것과 화면 반영은 다른 틱이다
     await third.unmount()
   })
 
@@ -321,7 +323,7 @@ describe('복사본이 사라진 항목 · 취소', () => {
     expect(backend.uploadCalls).toBe(0)
     expect(backend.messages).toHaveLength(0)
     await waitFor(async () => expect(await storedQueue()).toEqual([]))
-    expect(hook.result.current.hasQueued).toBe(false)
+    await waitFor(() => expect(hook.result.current.hasQueued).toBe(false)) // 저장소가 비는 것과 화면 반영은 다른 틱이다
 
     await act(async () => {
       hook.result.current.cancelPending(orphan.clientId)

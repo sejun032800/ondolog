@@ -18,9 +18,10 @@ export const SETTINGS_ROUTES = {
   couple: '/settings-couple',
   personality: '/settings-personality',
   privacy: '/settings-privacy',
+  about: '/settings-about',
 } as const
 
-export type SettingsItemKey = 'profile' | 'social' | 'partner' | 'nickname' | 'personality' | 'privacy'
+export type SettingsItemKey = 'profile' | 'social' | 'partner' | 'nickname' | 'personality' | 'privacy' | 'about'
 
 export interface SettingsItem {
   key: SettingsItemKey
@@ -58,6 +59,11 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     kicker: 'PRIVACY',
     items: [{ key: 'privacy', label: '개인정보 & 약관', href: SETTINGS_ROUTES.privacy }],
   },
+  {
+    kicker: 'ETC',
+    // H19 앱 정보 · 문의(최소판, `72-`) - 값은 앱 버전(보드 H02 "1.0.0").
+    items: [{ key: 'about', label: '앱 정보 · 문의', href: SETTINGS_ROUTES.about }],
+  },
 ]
 
 /** 보드에는 있지만 이번에 갈 곳이 없어 숨긴 항목. 라벨은 보드 글자 그대로. */
@@ -71,11 +77,11 @@ export const HIDDEN_SETTINGS_ITEMS: readonly { label: string; reason: string }[]
   { label: '사진 찾기', reason: 'H07 - 지시서 범위 밖' },
   { label: '알림', reason: 'H10 - 푸시 발송을 만들 때로 미룸(R42-5)' },
   { label: '데이터 내려받기 · 삭제', reason: 'H17 - 지시서 범위 밖' },
-  { label: '앱 정보 · 문의', reason: 'H19 - 지시서 범위 밖' },
   { label: '매거진 - 빠진 지면 기본값', reason: 'H18 - 지시서 범위 밖' },
   { label: '생체정보(얼굴 인식) 동의', reason: 'H12 - 지시서가 숨기라고 함(설정 목록 · H11 모두)' },
   { label: '사진 바꾸기', reason: 'H03 보드 - 지시서 범위 밖(프로필 사진 칸 없음)' },
   { label: '테마(라이트/다크)', reason: '옛 화면 항목 - 보드에 없음' },
+  { label: '오픈소스 라이선스', reason: 'H19 보드 항목 - M4-9, 숨김' },
 ]
 
 /** H11 보이는 줄 - 라벨과 여는 문서 키(A12 `legal-document`). 생체정보 · 데이터 내려받기 · 마케팅 줄은 없다. */

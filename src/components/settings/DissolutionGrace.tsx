@@ -10,7 +10,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { GlassCard, SoftCard } from '../nocturne/GlassCard'
 import { ListGroup, ListRow } from '../nocturne/ListGroup'
 import { nocturne, type } from '../../theme/nocturne'
-import { graceDateLabel, graceDaysLeft, type DissolutionState } from '../../utils/dissolution'
+import { graceDateLabel, graceDaysLeft, nameWithSubject, type DissolutionState } from '../../utils/dissolution'
 
 export const GRACE_COPY = {
   kicker: 'DISCONNECTING',
@@ -18,6 +18,8 @@ export const GRACE_COPY = {
   keepIssues: '발행된 잡지는 한쪽이 남아 있으면 보존돼요',
   pdf: '발행된 호 PDF로 받아두기',
   cancel: '해제 취소하기',
+  /** 취소 버튼이 없는 쪽(상대)의 빈 버튼 자리 - 빈자리는 고장으로 읽혀서 이유를 적는다(patch7 ⓔ). */
+  cancelOnlyRequester: '취소는 요청한 사람만 할 수 있어요.',
 } as const
 
 export function graceBullets(state: DissolutionState, partnerName: string | null): string[] {
@@ -31,9 +33,9 @@ export function graceBullets(state: DissolutionState, partnerName: string | null
     ]
   }
   return [
-    state.reason === 'withdrawal' ? `${name}님이 탈퇴를 요청했어요` : `${name}님이 연결 해제를 요청했어요`,
+    state.reason === 'withdrawal' ? `${nameWithSubject(name)} 탈퇴를 요청했어요` : `${nameWithSubject(name)} 연결 해제를 요청했어요`,
     GRACE_COPY.noNewIssue,
-    `해제되면 ${name}님이 남긴 사진·글·대화가 지워지고, 내 기록은 남아요`,
+    `해제되면 ${nameWithSubject(name)} 남긴 사진·글·대화가 지워지고, 내 기록은 남아요`,
     GRACE_COPY.keepIssues,
   ]
 }

@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CoupleGate } from '../../src/components/CoupleGate'
+import { EmptyState } from '../../src/components/nocturne/EmptyState'
 import { AddFab } from '../../src/components/feed/AddFab'
 import { FeedChapterView } from '../../src/components/feed/FeedChapterView'
 import { SoloBanner } from '../../src/components/feed/SoloBanner'
@@ -82,10 +83,14 @@ export default function FeedTab() {
             <GhostButton label="다시 불러오기" onPress={() => void feed.reload()} />
           </View>
         ) : feed.chapters.length === 0 ? (
-          <View style={styles.empty} testID="feed-empty">
-            <Text style={styles.emptyText}>아직 기록이 없어요</Text>
-            <Text style={styles.emptySub}>사진을 골라 첫 데이트를 남겨 보세요</Text>
-          </View>
+          <EmptyState
+            title="기록을 남기면 여기에 쌓여요"
+            body={'사진 몇 장과 한 줄이면 충분해요.\n이번 호의 재료가 돼요.'}
+            actionLabel="첫 기록 남기기"
+            onAction={() => router.push('/upload')}
+            actionDisabled={!canRecord}
+            testID="feed-empty"
+          />
         ) : (
           feed.chapters.map((chapter) => (
             <View
@@ -134,7 +139,6 @@ const styles = StyleSheet.create({
   skeleton: { gap: 16 },
   empty: { gap: 10, paddingVertical: 48, alignItems: 'center' },
   emptyText: { ...type.title, color: nocturne.text },
-  emptySub: { ...type.sub, color: nocturne.textMute },
   index: { position: 'absolute', right: 8, alignItems: 'center', gap: 12 },
   indexItem: { fontFamily: fontFamily.semiBold, fontSize: 10.5, lineHeight: 14 },
   indexOn: { color: nocturne.text },

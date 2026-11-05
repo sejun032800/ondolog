@@ -20,6 +20,9 @@ export const INVITE_COPY = {
   /** 채팅에서 온 경우(F02). 보드의 두 번째 문장은 뺐다. */
   bodyChat: '채팅은 연인과 연결되면 열려요.',
   body: '연인과 연결되면 열려요.',
+  /** I01 커플 게이트(`N-S-H4-Settings`) - 커플 전용 기능을 누르고 들어왔을 때. */
+  titleGate: '여기까지 왔어요. 상대만 있으면 돼요',
+  bodyGate: '두 사람의 기록을 한 타임라인으로 보려면 연인과 연결해요.',
   send: '초대 코드 보내기',
   enter: '받은 코드 입력하기',
   myCode: 'MY CODE',
@@ -37,13 +40,17 @@ export interface InviteSheetProps {
   userId: string
   /** 채팅에서 열었으면 true - 안내 문구가 채팅 문구가 된다. */
   fromChat?: boolean
+  /** `<CoupleGate>`(I01)에서 열었으면 true - 안내 문구가 I01 문구가 된다. */
+  fromGate?: boolean
+  /** 처음 보일 단계. I01의 [받은 코드 입력하기]는 바로 입력 단계로 온다. */
+  initialStep?: 'intro' | 'enter'
   onClose: () => void
   /** 코드 발급 중 이미 연결돼 있었거나, 받은 코드로 연결됐을 때. */
   onConnected: () => void
 }
 
-export function InviteSheet({ userId, fromChat, onClose, onConnected }: InviteSheetProps) {
-  const [step, setStep] = useState<InviteStep>('intro')
+export function InviteSheet({ userId, fromChat, fromGate, initialStep = 'intro', onClose, onConnected }: InviteSheetProps) {
+  const [step, setStep] = useState<InviteStep>(initialStep)
   const [code, setCode] = useState<string | null>(null)
   const [entered, setEntered] = useState('')
   const [busy, setBusy] = useState(false)
@@ -105,8 +112,8 @@ export function InviteSheet({ userId, fromChat, onClose, onConnected }: InviteSh
           {step === 'intro' ? (
             <>
               <View style={styles.copy}>
-                <Text style={styles.title}>{INVITE_COPY.title}</Text>
-                <Text style={styles.body}>{fromChat ? INVITE_COPY.bodyChat : INVITE_COPY.body}</Text>
+                <Text style={styles.title}>{fromGate ? INVITE_COPY.titleGate : INVITE_COPY.title}</Text>
+                <Text style={styles.body}>{fromChat ? INVITE_COPY.bodyChat : fromGate ? INVITE_COPY.bodyGate : INVITE_COPY.body}</Text>
               </View>
               <PrimaryButton label={INVITE_COPY.send} onPress={issue} disabled={busy} testID="invite-send" />
               <PressScale onPress={() => { setError(null); setStep('enter') }} accessibilityLabel={INVITE_COPY.enter} style={styles.linkWrap} testID="invite-enter">

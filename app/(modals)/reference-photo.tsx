@@ -25,7 +25,8 @@
  * 섹션만 잠긴다).
  */
 import { useEffect, useState } from 'react'
-import { Alert, View } from 'react-native'
+import { View } from 'react-native'
+import { showToast } from '../../src/store/toastStore'
 import { ReferencePhotoSlot } from '../../src/components/ReferencePhotoSlot'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
 import { useSession } from '../../src/hooks/useSession'
@@ -93,7 +94,7 @@ export default function ReferencePhotoModal() {
     try {
       await setPersonalReferencePhoto(session!.user.id, localUri)
     } catch (e) {
-      Alert.alert('저장에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
+      showToast('저장에 실패했어요')
     }
   }
 
@@ -101,7 +102,7 @@ export default function ReferencePhotoModal() {
     try {
       await setCoupleReferencePhoto(localUri)
     } catch (e) {
-      Alert.alert('저장에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
+      showToast('저장에 실패했어요')
     }
   }
 

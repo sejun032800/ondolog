@@ -12,10 +12,10 @@ export const CONNECT_COUPLE_FN = 'fn_connect_couple'
 
 export type ConnectErrorKind = 'invalid' | 'own' | 'already' | 'other'
 
-/** A18 오류 문구. `already`는 N-S-A3 A18 보드 원문, 나머지는 보드에 문구가 없어 기존 앱 문구/자리표시자(보고 참조). */
+/** A18 오류 문구. `already`는 N-S-A3 A18 보드 원문, `own`은 patch7(`N-R43-App-States` A18 ⓒ①) 보드 문구. 나머지는 기존 앱 문구. */
 export const CONNECT_ERROR_COPY: Record<ConnectErrorKind, string> = {
   invalid: '연결할 수 없어요. 코드를 다시 확인해주세요.',
-  own: '내가 만든 코드는 쓸 수 없어요',
+  own: '내가 만든 코드는 쓸 수 없어요. 상대의 코드를 입력해 주세요.',
   already: '이미 다른 사람과 연결된 코드는 쓸 수 없어요',
   other: '연결하지 못했어요. 다시 시도해주세요.',
 }

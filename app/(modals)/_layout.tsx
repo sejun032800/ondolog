@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router'
+import { ToastHost } from '../../src/components/nocturne/Toast'
 import { useTheme } from '../../src/theme'
 
 /** Part 11-3 — 모달 그룹. 전 화면이 모달 프레젠테이션으로 뜬다. */
@@ -6,6 +7,7 @@ export default function ModalsLayout() {
   const { colors, typography } = useTheme()
 
   return (
+    <>
     <Stack
       screenOptions={{
         presentation: 'modal',
@@ -35,5 +37,7 @@ export default function ModalsLayout() {
       {/* 매거진 뷰어(D10 속표지 -> D11) - 속표지가 ✕를 직접 그린다. */}
       <Stack.Screen name="magazine-viewer" options={{ headerShown: false }} />
     </Stack>
+    <ToastHost aboveTabBar={false} />
+    </>
   )
 }

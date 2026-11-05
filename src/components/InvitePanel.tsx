@@ -9,7 +9,7 @@
  * 컴포넌트 자체는 어느 화면에서 왔는지 모른다.
  */
 import { useState } from 'react'
-import { ActivityIndicator, Alert, Share, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Share, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Button } from './Button'
 import { useTheme } from '../theme'
 import {
@@ -18,6 +18,7 @@ import {
   type InviteStatus,
 } from '../services/coupleApi'
 import { ConnectCoupleError } from '../services/coupleConnectCore'
+import { showToast } from '../store/toastStore'
 
 interface InvitePanelProps {
   userId: string
@@ -44,7 +45,7 @@ export function InvitePanel({ userId, onConnected, onSkip }: InvitePanelProps) {
       }
       setInviteCode(result.couple.invite_code)
     } catch (e) {
-      Alert.alert('코드 발급에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
+      showToast('코드 발급에 실패했어요')
     } finally {
       setIssuing(false)
     }
@@ -66,10 +67,7 @@ export function InvitePanel({ userId, onConnected, onSkip }: InvitePanelProps) {
       await redeemInviteCode(userId, enteredCode.trim())
       onConnected()
     } catch (e) {
-      Alert.alert(
-        e instanceof ConnectCoupleError ? '연결할 수 없어요' : '연결에 실패했어요',
-        e instanceof Error ? e.message : '다시 시도해주세요.',
-      )
+      showToast(e instanceof ConnectCoupleError ? e.message : '연결에 실패했어요')
     } finally {
       setRedeeming(false)
     }

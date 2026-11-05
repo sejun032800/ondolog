@@ -22,7 +22,8 @@
  */
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { Alert, View } from 'react-native'
+import { View } from 'react-native'
+import { showToast } from '../../src/store/toastStore'
 import { BiometricConsentPanel } from '../../src/components/BiometricConsentPanel'
 import { ScreenContainer } from '../../src/components/ScreenContainer'
 import { useSession } from '../../src/hooks/useSession'
@@ -61,7 +62,7 @@ export default function BiometricConsentModal() {
       await agreeBiometricConsent(userId)
       router.back()
     } catch (e) {
-      Alert.alert('저장에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
+      showToast('저장에 실패했어요')
     } finally {
       setSubmitting(false)
     }
@@ -73,7 +74,7 @@ export default function BiometricConsentModal() {
       await revokeBiometricConsent(userId)
       router.back()
     } catch (e) {
-      Alert.alert('철회에 실패했어요', e instanceof Error ? e.message : '다시 시도해주세요.')
+      showToast('철회에 실패했어요')
     } finally {
       setSubmitting(false)
     }

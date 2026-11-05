@@ -13,7 +13,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -35,6 +34,7 @@ import { useSession } from '../../src/hooks/useSession'
 import { fetchDate, recordDate, type DateRow } from '../../src/services/dateRecordApi'
 import { pickPhotos, readLocalBytes } from '../../src/services/photoPicker'
 import { supabase } from '../../src/services/supabase'
+import { showToast } from '../../src/store/toastStore'
 import { fontFamily, nocturne, shape, type, withAlpha } from '../../src/theme/nocturne'
 import { generateUuidV4 } from '../../src/utils/uuid'
 import {
@@ -129,7 +129,7 @@ export default function UploadSheet() {
         return [...prev, ...picked.filter((p) => !known.has(p.uri))]
       })
     } catch (e) {
-      Alert.alert('사진을 고르지 못했어요', e instanceof Error ? e.message : '다시 시도해 주세요')
+      showToast('사진을 고르지 못했어요')
     }
   }
 
@@ -163,11 +163,11 @@ export default function UploadSheet() {
         },
       )
       if (result.failedPhotos > 0) {
-        Alert.alert('일부 사진은 올리지 못했어요', `${result.failedPhotos}장은 올라가지 않았어요. 다시 올려 주세요`)
+        showToast(`일부 사진은 올리지 못했어요. ${result.failedPhotos}장은 다시 올려 주세요`)
       }
       router.back()
     } catch (e) {
-      Alert.alert('기록하지 못했어요', e instanceof Error ? e.message : '다시 시도해 주세요')
+      showToast('기록하지 못했어요')
     } finally {
       setSaving(false)
     }

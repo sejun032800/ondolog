@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { trackConnection } from './connectionMonitor';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -10,6 +11,8 @@ if (!url || !anonKey) {
 }
 
 export const supabase = createClient(url, anonKey, {
+  // I02 연결 끊김 판정: 요청 결과만 읽는다(새 요청 없음, `connectionMonitor.ts`).
+  global: { fetch: trackConnection((input, init) => fetch(input as RequestInfo, init as RequestInit)) },
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,

@@ -11,7 +11,7 @@
  */
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
-import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StopTimeline } from '../../../src/components/date/StopTimeline'
 import { ConfirmDialog } from '../../../src/components/nocturne/ConfirmDialog'
@@ -24,6 +24,7 @@ import { useDateDetail } from '../../../src/hooks/useDateDetail'
 import { useSession } from '../../../src/hooks/useSession'
 import { canDeleteEntry, deleteOwnEntry } from '../../../src/services/dateRecordApi'
 import { supabase } from '../../../src/services/supabase'
+import { showToast } from '../../../src/store/toastStore'
 import { buildDateHead } from '../../../src/utils/dateRecord'
 import { fontFamily, nocturne, shape, type, withAlpha } from '../../../src/theme/nocturne'
 
@@ -49,7 +50,7 @@ export default function DateDetailScreen() {
       await detail.reload()
     } catch (e) {
       setPending(null)
-      Alert.alert('지우지 못했어요', e instanceof Error ? e.message : '다시 시도해 주세요')
+      showToast('지우지 못했어요')
     } finally {
       setDeleting(false)
     }

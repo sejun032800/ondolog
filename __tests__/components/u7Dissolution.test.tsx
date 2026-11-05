@@ -205,17 +205,20 @@ describe('H14 연결 해제 유예 화면 - 양쪽', () => {
     await render(<SettingsCoupleScreen />)
     await settle()
     expect(screen.getByTestId('grace-days').props.children).toBe('5일')
-    expect(screen.getByText('서영님이 연결 해제를 요청했어요')).toBeTruthy()
+    expect(screen.getByText('서영이 연결 해제를 요청했어요')).toBeTruthy()
     expect(screen.getByText('해제 예정 기간에는 새 호를 만들지 않아요')).toBeTruthy()
     expect(screen.queryByTestId('grace-cancel')).toBeNull()
     expect(screen.queryByText('해제 취소하기')).toBeNull()
+    // 빈 버튼 자리에는 왜 없는지를 적는다(patch7 ⓔ).
+    expect(screen.getByTestId('grace-cancel-reason').props.children).toBe('취소는 요청한 사람만 할 수 있어요.')
+    expect(screen.getByText('해제되면 서영이 남긴 사진·글·대화가 지워지고, 내 기록은 남아요')).toBeTruthy()
   })
 
   it('상대 화면 - 탈퇴로 생긴 해제면 탈퇴 요청이라고 알린다(취소 버튼 없음)', async () => {
     seed({ initiatedBy: PARTNER, reason: 'withdrawal', purgeInDays: 5 })
     await render(<SettingsCoupleScreen />)
     await settle()
-    expect(screen.getByText('서영님이 탈퇴를 요청했어요')).toBeTruthy()
+    expect(screen.getByText('서영이 탈퇴를 요청했어요')).toBeTruthy()
     expect(screen.queryByTestId('grace-cancel')).toBeNull()
   })
 
@@ -249,13 +252,12 @@ describe('H14 연결 해제 유예 화면 - 양쪽', () => {
 
 // ── H14 해제 요청 ──
 
-describe('H14 연결 해제 요청 - 다단계 확인', () => {
-  it('안내 -> 문구 입력 순서이고, 문구가 틀리면 [해제 요청하기]를 눌러도 함수가 불리지 않는다', async () => {
+describe('H14 연결 해제 요청 - 확인(I05)', () => {
+  it('안내와 문구 입력이 한 화면이고, 문구가 틀리면 [해제 요청하기]를 눌러도 함수가 불리지 않는다', async () => {
     await render(<SettingsUnlinkScreen />)
     await settle()
-    expect(screen.getByTestId('unlink-pdf-row')).toBeTruthy() // PDF 저장 안내
-    await fireEvent.press(screen.getByTestId('unlink-next'))
-    await fireEvent.changeText(screen.getByTestId('unlink-phrase-input'), '연결 해제')
+    expect(screen.getByTestId('unlink-pdf-row')).toBeTruthy() // PDF 저장 안내 - 안내와 문구 입력이 한 화면이다(patch7 ⓖ)
+    await fireEvent.changeText(screen.getByTestId('unlink-phrase-input'), '해제')
     await fireEvent.press(screen.getByTestId('unlink-submit'))
     await settle()
     expect(mockDb.rpcCalls).toEqual([])
@@ -268,7 +270,6 @@ describe('H14 연결 해제 요청 - 다단계 확인', () => {
   it('문구가 맞으면 fn_request_dissolution 호출 하나(인자 없음) - 직접 쓰기 0, 그 뒤 커플 화면으로 돌아간다', async () => {
     await render(<SettingsUnlinkScreen />)
     await settle()
-    await fireEvent.press(screen.getByTestId('unlink-next'))
     await fireEvent.changeText(screen.getByTestId('unlink-phrase-input'), UNLINK_PHRASE)
     await fireEvent.press(screen.getByTestId('unlink-submit'))
     await settle()
@@ -280,7 +281,6 @@ describe('H14 연결 해제 요청 - 다단계 확인', () => {
   it('이미 진행 중(23505)이면 안내 문구를 보이고 돌아가지 않는다', async () => {
     await render(<SettingsUnlinkScreen />)
     await settle()
-    await fireEvent.press(screen.getByTestId('unlink-next'))
     await fireEvent.changeText(screen.getByTestId('unlink-phrase-input'), UNLINK_PHRASE)
     mockDb.failNextRpc = { code: '23505' }
     await fireEvent.press(screen.getByTestId('unlink-submit'))
@@ -418,5 +418,49 @@ describe('H11 마케팅 정보 수신 토글', () => {
     await settle()
     expect(screen.getByTestId('privacy-marketing-toggle').props.accessibilityState.checked).toBe(false)
     expect(screen.getByTestId('privacy-error')).toBeTruthy()
+  })
+})
+
+// ── I05 확인어 - H14 `해제합니다` · H16 `탈퇴합니다`(`72-`, R44-5) ──
+
+describe('I05 확인어는 화면마다 다르다', () => {
+  it('확인어 글자가 보드 그대로이고 서로 다르다', () => {
+    expect(UNLINK_PHRASE).toBe('해제합니다')
+    expect(WITHDRAW_PHRASE).toBe('탈퇴합니다')
+    expect(UNLINK_PHRASE).not.toBe(WITHDRAW_PHRASE)
+  })
+
+  it('H14는 `해제합니다`일 때만 켜진다 - 탈퇴 확인어 · 옛 임시 문구로는 켜지지 않고 함수도 불리지 않는다', async () => {
+    await render(<SettingsUnlinkScreen />)
+    await settle()
+    const submit = () => screen.getByTestId('unlink-submit')
+    expect(submit().props.accessibilityState?.disabled ?? submit().props.disabled).toBeTruthy()
+    for (const wrong of [WITHDRAW_PHRASE, '연결 해제합니다', '해제합니다.', '해제']) {
+      await fireEvent.changeText(screen.getByTestId('unlink-phrase-input'), wrong)
+      await fireEvent.press(submit())
+      await settle()
+      expect(mockDb.rpcCalls).toEqual([])
+    }
+    await fireEvent.changeText(screen.getByTestId('unlink-phrase-input'), '해제합니다')
+    await fireEvent.press(submit())
+    await settle()
+    expect(mockDb.rpcCalls).toEqual([{ fn: 'fn_request_dissolution', args: undefined }])
+  })
+
+  it('H16은 `탈퇴합니다`일 때만 켜진다 - 해제 확인어로는 켜지지 않는다. 발행물 PDF 저장 안내가 있다', async () => {
+    await render(<SettingsWithdrawScreen />)
+    await settle()
+    expect(screen.getByTestId('withdraw-pdf-row')).toBeTruthy()
+    expect(screen.getByText('발행된 호 PDF로 받아두기')).toBeTruthy()
+    for (const wrong of [UNLINK_PHRASE, '연결 해제합니다', '탈퇴']) {
+      await fireEvent.changeText(screen.getByTestId('withdraw-phrase-input'), wrong)
+      await fireEvent.press(screen.getByTestId('withdraw-submit'))
+      await settle()
+      expect(mockDb.rpcCalls).toEqual([])
+    }
+    await fireEvent.changeText(screen.getByTestId('withdraw-phrase-input'), '탈퇴합니다')
+    await fireEvent.press(screen.getByTestId('withdraw-submit'))
+    await settle()
+    expect(mockDb.rpcCalls).toEqual([{ fn: 'fn_request_withdrawal', args: undefined }])
   })
 })

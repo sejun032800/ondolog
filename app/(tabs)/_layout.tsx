@@ -11,6 +11,8 @@
  * 각 탭 화면은 자체 헤더를 그리므로 네이티브 헤더는 끈다.
  */
 import { Tabs } from 'expo-router'
+import { View } from 'react-native'
+import { ConnectionBanner } from '../../src/components/nocturne/ConnectionBanner'
 import { TabBar } from '../../src/components/nocturne/TabBar'
 import { useDissolutionNotice } from '../../src/hooks/useDissolutionNotice'
 import { useStartDateRecheck } from '../../src/hooks/useStartDateRecheck'
@@ -21,12 +23,16 @@ export default function TabsLayout() {
   // 상대가 연결 해제를 요청했으면 앱 안에서 알린다(`68-`, 푸시 없음).
   useDissolutionNotice()
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
-      <Tabs.Screen name="main" options={{ title: '메인' }} />
-      <Tabs.Screen name="chat" options={{ title: '채팅' }} />
-      <Tabs.Screen name="feed" options={{ title: '피드' }} />
-      <Tabs.Screen name="magazine" options={{ title: '매거진' }} />
-      <Tabs.Screen name="settings" options={{ title: '설정' }} />
-    </Tabs>
+    <View style={{ flex: 1 }}>
+      <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
+        <Tabs.Screen name="main" options={{ title: '메인' }} />
+        <Tabs.Screen name="chat" options={{ title: '채팅' }} />
+        <Tabs.Screen name="feed" options={{ title: '피드' }} />
+        <Tabs.Screen name="magazine" options={{ title: '매거진' }} />
+        <Tabs.Screen name="settings" options={{ title: '설정' }} />
+      </Tabs>
+      {/* I02 연결 끊김 띠 - 모든 탭 위에 하나(채팅의 보낼 것 문장과는 겹치지 않는다). */}
+      <ConnectionBanner />
+    </View>
   )
 }

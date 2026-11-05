@@ -133,7 +133,11 @@ export default function SettingsCoupleScreen() {
         footer={
           canCancelDissolution(dissolution) ? (
             <PrimaryButton label={GRACE_COPY.cancel} onPress={cancelNow} disabled={busy} testID="grace-cancel" />
-          ) : undefined
+          ) : (
+            <Text style={styles.hint} testID="grace-cancel-reason">
+              {GRACE_COPY.cancelOnlyRequester}
+            </Text>
+          )
         }
       >
         <DissolutionGraceBody

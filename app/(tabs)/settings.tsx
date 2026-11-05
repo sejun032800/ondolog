@@ -2,14 +2,15 @@
  * H01 · H02 설정 목록 - 설정 탭. 디자인 `N-H01-Settings` · `N-S-H1-Settings`(H02).
  *
  * 목록 표는 `src/utils/settingsRules.ts`의 `SETTINGS_GROUPS`다 - **이번에 갈 곳이 있는 항목만** 있다(프로필 · 연결된 계정 · 연인 ·
- * 커플 닉네임 · 성격 프로필 · 개인정보 & 약관). 보드에 있지만 갈 곳이 없는 항목(구독 · 사진 & 데이터 · 알림 · 데이터 내려받기 ·
- * 앱 정보 · 문의 · 빠진 지면 기본값 · 생체정보 · OUR SKY · 발행물 테마)과 [연결 해제] · [회원 탈퇴]는 `HIDDEN_SETTINGS_ITEMS`에 이유와 함께 적고 그리지 않는다.
+ * 커플 닉네임 · 성격 프로필 · 개인정보 & 약관 · 앱 정보 · 문의(H19)). 보드에 있지만 갈 곳이 없는 항목(구독 · 사진 & 데이터 · 알림 · 데이터 내려받기 ·
+ * 빠진 지면 기본값 · 생체정보 · OUR SKY · 발행물 테마)과 [연결 해제] · [회원 탈퇴]는 `HIDDEN_SETTINGS_ITEMS`에 이유와 함께 적고 그리지 않는다.
  * 누르면 빈 화면이 나오는 행은 없다. 미연결이어도 5개 탭은 모두 보이고 이 탭은 전부 열린다(MASTER 11-2) -
  * "연인" 행은 "연결 전"으로 보이고, 눌러서 열리는 커플 화면이 잠긴 문(`CoupleGate`)을 보인다.
  *
  * 값은 읽기뿐이다(이름 · 로그인 방식 · 연인 이름과 D+N · 닉네임 · 성격 영문 라벨). 쓰는 것은 하위 화면이 한다.
  * 탭 바는 떠 있는 섬이라 화면 아래에 그만큼 띄운다.
  */
+import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import { useEffect } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
@@ -54,6 +55,7 @@ export default function SettingsTab() {
     nickname: connected ? (nickname ?? '') : '',
     personality: summary.loveTypeLabelEn ?? '',
     privacy: '',
+    about: Constants.expoConfig?.version ?? '',
   }
 
   return (

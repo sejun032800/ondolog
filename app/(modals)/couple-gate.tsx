@@ -3,7 +3,7 @@
  * 여기로 온다. 아래 화면이 비치는 투명 모달 위에 시트(`InviteSheet`)를 올린다. 나가는 길 = 바깥(어둡게 한 면) 누르기.
  *
  * 코드 발급·입력은 기존 함수(`coupleApi`)를 그대로 쓴다. 연결되면 사귄 날짜 입력(`/start-date`)으로 간다(기존 동작).
- * `?from=chat`이면 안내 문구가 채팅 문구가 된다.
+ * `?from=chat`이면 안내 문구가 채팅 문구가 되고, `?from=gate`이면 I01 문구가 된다(`?step=enter`면 코드 입력 단계에서 시작).
  */
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect } from 'react'
@@ -14,7 +14,7 @@ import { useCoupleStore } from '../../src/store/coupleStore'
 
 export default function CoupleGateModal() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ from?: string }>()
+  const params = useLocalSearchParams<{ from?: string; step?: string }>()
   const { session } = useSession()
   const refresh = useCoupleStore((s) => s.refresh)
 
@@ -28,6 +28,8 @@ export default function CoupleGateModal() {
     <InviteSheet
       userId={session.user.id}
       fromChat={params.from === 'chat'}
+      fromGate={params.from === 'gate'}
+      initialStep={params.step === 'enter' ? 'enter' : 'intro'}
       onClose={() => router.back()}
       onConnected={() => router.replace('/start-date')}
     />

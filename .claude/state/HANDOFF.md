@@ -150,6 +150,24 @@ R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 �
 - 앱(`src/` · `app/`)은 이 표를 읽지 않고 상수 `LOVE_TYPE_LABELS` 를 쓴다. 표를 읽는 곳은 027 `fn_complete_retest` 복구 경로뿐(표가 비면 P0002).
 - 사람 순서: `check_028_preapply.sql`(11번 값 적어 두기) -> `supabase db push` -> `verify_028_privileges.sql`(13번이 11번과 같은지) -> `verifyLabels69.ts` -> get_advisors 저장 -> `compareSecurity.ts`.
 
+## 공통 상태 · H19 · 앱 손질 (`72-`, 2026-11-04, ui-builder) - 내부 결정
+
+- 보드 위치: `docs/design/nocturne/screens/{I01..I06,H19,H14,H16,A18}.jpg` · `docs/design/nocturne/nocturne/canvas/N-R43-App-States.dc.html`(patch7) · `docs/design/nocturne/canvas/N-R44-Voice.dc.html` + `CHANGES_patch8.md`(patch8). 보드와 지시서가 다른 곳: H19 보드의 "· 최신"과 "오픈소스 라이선스"는 지시서대로 뺐다.
+- I02 감지: 새 의존성 없이 `supabase.ts`의 `global.fetch`를 `trackConnection`으로 감싼다(네트워크 오류로 던지면 끊김 · 응답이 오면 5xx도 풀림 · AbortError 무시). 새 요청을 만들지 않는다 - 풀리는 시점은 다음 요청 성공(앱 복귀 때 `useDissolutionNotice` 읽기, 채팅 큐 재시도).
+- I02 띠: `(tabs)/_layout`에 한 개. 채팅 큐에 `pending`이 있는 동안 숨긴다(채팅 F05 문장이 "보낼 것"을 말하고 띠는 "받은 것"을 말한다).
+- I05 구성: 대화 상자는 기존 `ConfirmDialog`(기록 삭제 `date/[id]`), 문구 입력은 새 `PhraseConfirm`(H14 · H16). 확인 동작(함수 · 순서 · 지우는 대상)은 그대로.
+- H14 한 화면: 보드 ⓖ가 안내 + 문구 입력 한 화면이라 옛 2단계(`unlink-next`)를 없앴다. 안내 문장도 보드 ⓖ 문장으로.
+- 확인어: `UNLINK_PHRASE = '해제합니다'`(옛 `연결 해제합니다` 폐기, 입력하는 확인어라 해요체 정리 대상 아님).
+- H14 상대 쪽: 주어는 `nameWithSubject`(받침 이/가, 한글 아닌 끝글자는 `님이`) - 옛 `~님이` 대체. 빈 버튼 자리에 "취소는 요청한 사람만 할 수 있어요."(patch7 ⓔ).
+- I01: `CoupleGate` 기본 면을 I01 보드 모양(손잡이 · 두 원 · 문구 · 초대 코드 보내기 · 받은 코드 입력하기)으로. 두 버튼은 `/couple-gate?from=gate`(`&step=enter`)로 가고 시트가 I01 문구를 쓴다.
+- I04: 피드 빈 상태를 I04 보드(`EmptyState`)로. 버튼은 보드처럼 화면 하단 고정이 아니라 문구 아래 인라인 - 실기기에서 보고 정한다.
+- I06: 토스트 알약 = `text` 면 + `ink` 글자, 글자 버튼 색 `#5B4A9A`(보드에서 눈으로 뽑은 값, 토큰 없음 - 디자인 확인 필요). 사라지는 시간 3000ms(보드에 값 없음). 루트 + `(modals)` 층에 한 개씩 붙이고 가장 나중에 붙은 것만 그린다.
+- I06 이전 목록: biometric-consent 2 · reference-photo 2 · upload 3 · chat 3 · date 상세 1 · stop 1 · InvitePanel 2. 두 번째 인자(`e.message` 원문)는 토스트에 싣지 않는다. 버튼이 있는 확인(BiometricConsentPanel 철회)은 `Alert` 그대로.
+- H19: 버전은 `expo-constants`의 `expoConfig.version`(이미 의존성). 문의는 `Linking.openURL('mailto:')`, 열 수 없으면 토스트에 주소. H01 항목은 보드 H02대로 ETC 그룹 "앱 정보 · 문의"(값 = 버전).
+- B01 보조 문구: 앱에 이전 상수도 화면도 없어 `src/constants/mainCopy.ts`에 해요체 상수만 만들었다(화면에는 아직 안 그림 - 노출 조건 판정이 숨어 있음).
+- A18: 자기 코드 문구만 patch7로. 보드의 "그 밖의 무효"(`쓸 수 없는 코드예요. 상대에게 코드를 다시 받아 주세요.`)와 앱의 `invalid` 문구(`연결할 수 없어요. 코드를 다시 확인해주세요.`)는 다르다 - 바꾸지 않고 보고.
+- `chatPhotoQueue`: 저장소가 비었다고(마이크로태스크) 화면 상태(React가 다음 틱에 반영)를 바로 읽던 시험 3곳을 상태 기다림으로. 앱 코드는 정상. 같은 시험을 40번 되풀이하면 10번 흔들리던 것이 60번 되풀이에서 0.
+
 ## U7 해제 · 탈퇴 앱 (`68-` 1부, 2026-10-26, ui-builder) - 원격 미적용(027 대기), 회귀 스크립트 작성만, 실기기 미확인
 - 내부 결정: **연결 해제 문구**는 보드 · MASTER에 없어 H16 보드 형식으로 `연결 해제합니다`로 정함(`src/utils/dissolution.ts` `UNLINK_PHRASE`) - PM이 다른 문구를 원하면 한 줄. 탈퇴 문구는 보드 `탈퇴합니다`.
 - 내부 결정: **상대가 해제를 처음 보는 곳** = 탭이 열릴 때 · 앱 복귀 때 `useDissolutionNotice`가 상대(개시자 아님)에게 커플 화면(`/settings-couple`)을 한 번 푸시(해제 id당 앱을 켠 동안 한 번). 설정 > 연인 줄로 언제든 다시 본다. 푸시 알림 없음.

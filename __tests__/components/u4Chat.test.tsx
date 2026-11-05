@@ -147,8 +147,8 @@ describe('F02 게이팅 - 채팅은 진입 즉시 초대', () => {
       </CoupleGate>,
     )
     expect(mockPush).not.toHaveBeenCalled()
-    await fireEvent.press(screen.getByText('초대하기'))
-    expect(mockPush).toHaveBeenCalledWith('/couple-gate')
+    await fireEvent.press(screen.getByText('초대 코드 보내기'))
+    expect(mockPush).toHaveBeenCalledWith('/couple-gate?from=gate')
   })
 
   it('채팅 탭: 미연결이면 "채팅" 머리만 비치고 대화 화면은 없다', async () => {

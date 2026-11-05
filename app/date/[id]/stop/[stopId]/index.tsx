@@ -9,7 +9,7 @@
  */
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PrimaryButton } from '../../../../../src/components/nocturne/Buttons'
 import { PushHeader } from '../../../../../src/components/nocturne/ExitHeader'
@@ -17,6 +17,7 @@ import { ScreenFrame } from '../../../../../src/components/nocturne/ScreenFrame'
 import { useSession } from '../../../../../src/hooks/useSession'
 import { fetchDate, fetchEntriesOfDates, fetchStopsOfDate, updateStop } from '../../../../../src/services/dateRecordApi'
 import { supabase } from '../../../../../src/services/supabase'
+import { showToast } from '../../../../../src/store/toastStore'
 import { formatClockInput, kstTimeOf, resolveStopArrival, stopTimeErrorMessage } from '../../../../../src/utils/dateRecord'
 import { nocturne, shape, type, withAlpha } from '../../../../../src/theme/nocturne'
 
@@ -86,7 +87,7 @@ export default function StopEditScreen() {
       })
       router.back()
     } catch (e) {
-      Alert.alert('장소를 고치지 못했어요', e instanceof Error ? e.message : '다시 시도해 주세요')
+      showToast('장소를 고치지 못했어요')
     } finally {
       setSaving(false)
     }

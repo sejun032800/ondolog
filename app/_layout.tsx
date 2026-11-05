@@ -15,6 +15,7 @@
  */
 import { useFonts } from 'expo-font'
 import { Stack } from 'expo-router'
+import { ToastHost } from '../src/components/nocturne/Toast'
 import { useChatQueueResume } from '../src/hooks/useChatQueueResume'
 import { useHydrateThemePreference } from '../src/theme'
 
@@ -35,11 +36,15 @@ export default function RootLayout() {
   if (!fontsLoaded) return null
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(onboarding)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(onboarding)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
+      </Stack>
+      {/* I06 공통 토스트 - 루트 층. 모달 층은 `(modals)/_layout`에 따로 붙는다(네이티브 모달이 이 층을 가린다). */}
+      <ToastHost />
+    </>
   )
 }
