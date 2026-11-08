@@ -1,5 +1,7 @@
 # 진행 상황
 
+2026-11-08 (메인 세션, `51b-` 단계 A): 사전 점검 O(git status 빈 출력 · ROADMAP r65 · 51b- 파일 4개) · 남은 프로세스 전 0/0/0 · 기준선 tsc 0 / 0 · jest 1765 · 100 · Python 277 OK 232.6 s(`51b-*-pre.txt`). ui-builder A3에서 멈춤(멈춤 조건 4): 스플래시 바탕은 `expo-splash-screen` 미설치라 app.json만으로 안 바뀜(introspect `splashscreen_background` #FFFFFF 그대로). A1 · A2 설치만 끝남(package.json `expo-crypto ~57.0.4` 추가 · dev-client / image-picker `~57.0.21`; lock에 dev-launcher 57.0.22 · dev-menu 57.0.21 · schema-utils 범위 따라 바뀜). 폴리필 · 시험 · A4 · 관문 미실시. `android/`는 08-25부터 있던 git 무시 폴더(이번에 만든 것 아님). PM 판단 대기. 미커밋
+
 2026-11-05 (메인 세션, `51-` 1단계 사전 작업): 관문 통과(r60) · TODO_SUPPORT_EMAIL 남음(사람 전제 a 미완) · Expo 패치 `870a3c3` 들어옴. 기준선 0 / 0 · 1765 · 100 · Python 277(274.1 s). ① 헤더 단언 `toBeUndefined()` 한 줄(위임, jest 1765 그대로 실패 0). ② 확인 목록 최종본 `.claude/state/prompts/phase-7/51-device-checklist.md` — B절은 기록 사슬로 27가지(24 → `67-` +1 → `68-` +2) + U0, 유예 화면은 B26 · B27로 원래 있음, 전체 48항목 · 실행 순서 13단계. ③ 빌드 안내는 보고에만. PM 확인 대기. 미커밋
 
 2026-11-05 (ui-builder, `51-` 사전 작업 ①, R60-3): `u8ProbeTimeout.test.tsx` 헤더 0 단언을 `init.headers === undefined`(`toBeUndefined`)로 교체, 다른 단언 변경 0. 앱 코드 변경 0. tsc 0 · jest 1765 · 100 실패 0. 미커밋
