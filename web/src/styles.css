@@ -188,6 +188,11 @@ input { font: inherit; }
 .composerInput::placeholder { color: var(--textMute); }
 .sendBtn { flex: none; width: 36px; height: 36px; border-radius: 999px; background: rgba(243,239,247,.06); color: var(--textFaint); font-weight: 600; font-size: 16px; }
 .sendBtn.on { background: var(--rose); color: var(--ink); }
+.partnerBtn { width: 48px; height: 28px; border-radius: 999px; font-size: 12px; color: var(--textSub); background: rgba(243,239,247,.08); }
+/* 새 말풍선 등장: 보드 motion.screenEnter(translateY 12 · 220ms) + ease-out. 줄 전체가 나타나므로 겹치거나 순서가 바뀌지 않는다. */
+.chatRow.enter { animation: bubbleIn 220ms ease-out both; }
+@keyframes bubbleIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .chatRow.enter { animation: none; } }
 
 /* 채팅 시험 버튼 - 시험 빌드에서만 그려진다(App.tsx) */
 .trialBtn { position: absolute; left: 12px; top: var(--top); z-index: 40; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12px; color: var(--textSub); background: rgba(243,239,247,.08); border: 1px solid var(--hairline); }

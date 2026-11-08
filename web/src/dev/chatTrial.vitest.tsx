@@ -30,7 +30,7 @@ describe('채팅 시험 화면', () => {
     expect(screen.getByTestId('chat-list').scrollTop).toBe(12345)
   })
 
-  it('보내면 목록 끝에 추가되고 입력창이 비며 끝으로 붙는다', () => {
+  it('보내면 목록 끝에 추가되고 입력창이 빈다', () => {
     render(<ChatTrialScreen onBack={() => {}} />)
     const input = screen.getByPlaceholderText('메시지 보내기') as HTMLInputElement
     fireEvent.change(input, { target: { value: '안녕' } })
@@ -39,13 +39,12 @@ describe('채팅 시험 화면', () => {
     expect(rows).toHaveLength(501)
     expect(rows[500].textContent).toContain('안녕')
     expect(input.value).toBe('')
-    expect(screen.getByTestId('chat-list').scrollTop).toBe(12345)
   })
 
   it('빈 입력은 보내지 않는다', () => {
     render(<ChatTrialScreen onBack={() => {}} />)
     fireEvent.change(screen.getByPlaceholderText('메시지 보내기'), { target: { value: '   ' } })
-    expect((screen.getByLabelText('보내기') as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByLabelText('보내기'))
     expect(screen.getAllByTestId('chat-message')).toHaveLength(500)
   })
 

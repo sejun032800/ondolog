@@ -1,5 +1,9 @@
 # 진행 상황
 
+2026-11-09 (메인 세션, `73-` 묶음 1c 검증, r72): ui-builder 위임. 재실행: 보호 파일 diff 0 · web/ 밖 변경 0(PROGRESS · HANDOFF 제외) · web/android 변경 0 · web package.json/lock 변경 0(새 패키지 0) · ^/~ 0 · 키/주소/track 검색 0 · 조합 이벤트 시험 실재(`chatFeel.vitest.tsx:65~134`, compositionStart/End · 조합 중 엔터). web npm ci · tsc 0 · Vitest 5 파일 36. 루트 tsc 0 / 0 · jest 101 · 1771 · Python 277 OK 227.5 s(`73-1c-*.txt`). **build:trial · cap sync 미실행** — ui-builder 쪽 권한 분류기가 거부(dist 삭제), 메인 세션도 대신 실행하지 않음, 사람 실행 대기. 실기기 미확인. 미커밋
+
+2026-11-09 (ui-builder, `73-` 묶음 1c, R72-1 · R72-2): 채팅 시험 손맛 - 보내기 버튼 포커스 유지 · 한글 조합 보내기(DOM 값 읽기 + 잔여 가드) · 말풍선 등장 220ms · 부드러운 끝 이동 · 키보드 높이 변화 시 끝 유지. 훅 `web/src/platform/useChatComposer.ts` · `useStickToEnd.ts`. web tsc 0 · Vitest 5 파일 36. build:trial · cap sync는 권한 거부로 미실행. 웹 밖 변경 0. 실기기 미확인. 미커밋
+
 2026-11-08 (메인 세션, `73-` 묶음 1b 검증): G4 결함(길게 누르기 → 글자 선택 · Android 텍스트 메뉴, 채팅 시험 안 열림)으로 1b 위임(④ PM 두 줄 포함). 재실행: 보호 파일 diff 0 · web/ 밖 변경 0(PROGRESS 제외) · web/android 추적 변경 0 · ^/~ 0 · 키/주소/track 검색 0 · core/ 없음 · web/.env 무시. web npm ci · tsc 0 · Vitest 4 파일 20 · build:trial · cap sync OK. 루트 tsc 0 / 0 · jest 101 · 1771 · Python 277 OK 234.6 s(`73-1b-*.txt`). 보고: 운영 번들에 "채팅 시험" 문자열 · 시험 화면 코드 남음(실행 시 닿지 않음, PM 판단). dist는 시험 빌드 상태. 실기기 미확인. 미커밋
 
 2026-11-08 (ui-builder, `73-` 묶음 1b): 웹뷰 티 없애기 - 앱 전체 글자 선택 · 길게 누르기 메뉴 · 끌기 · 확대 · 포커스 링 · 스크롤바 끔(입력 칸 예외, `web/src/platform/webFeel.ts` contextmenu 막기) + 채팅 시험 진입을 보이지 않는 칸에서 첫 화면 작은 "채팅 시험" 버튼(시험 빌드 · 개발 서버만)으로. web tsc 0 · Vitest 20 · build:trial · cap sync OK. 웹 밖 변경 0. 실기기 미확인. 미커밋

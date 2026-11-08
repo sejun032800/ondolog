@@ -1129,3 +1129,7 @@ Phase 7 위임(`.claude/state/prompts/phase-7/15-main-session-package-align.md`)
 - 51b- A: jest-expo의 expo-crypto 목은 해시를 0으로 돌려줘 시험에서 digest만 노드 crypto로 바꿨다. 실제 네이티브 SHA-256은 기기 확인 몫.
 - 51b- A: 스플래시 바탕 · `android.backgroundColor` = `nocturne.ink` #0A0814(`src/theme/nocturne.ts`). 스플래시 이미지는 기존 `assets/splash-icon.png`(imageWidth 기본 100) - 기기에서 보고 조정.
 - 51b- A: 카메라 권한은 `expo-image-picker` 플러그인 옵션 false(매니페스트에 CAMERA · RECORD_AUDIO `tools:node=remove`). 갤러리는 `launchImageLibraryAsync`라 영향 없음.
+
+- 73-1c: 채팅 입력은 비제어 입력 칸 - 보낼 문자열을 DOM 값에서 읽는다(조합 글자 포함). 조합 중에 보냈을 때만 300ms 잔여 가드(조합 입력 · compositionend 비움).
+- 73-1c: 연출 값은 보드 motion.screenEnter(translateY 12 · 220ms)를 말풍선에 · 이징 ease-out(데모 `rise`와 같은 계열). 채팅 전용 값은 보드에 없음.
+- 73-1c: 부드러운 이동은 rAF로 직접(220ms, easeOut cubic), 창 높이 변화는 ResizeObserver에서 즉시 끝 유지, 손가락 닿으면 이동 중단, 상대 메시지는 붙어 있을 때만 따라감. 새 패키지 0.
