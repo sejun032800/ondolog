@@ -10,6 +10,35 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
+## 웹 앱 `web/` 기반 (`73-` 묶음 1, 2026-11-08, ui-builder) - 원격 0
+
+Proteur의 Windows PowerShell 기준. 저장소 루트에서 시작한다.
+
+```powershell
+# 개발 서버(브라우저에서 보기)
+cd web; npm ci; npm run dev
+
+# 시험 · 빌드
+npx tsc --noEmit; npx vitest run; npm run build
+
+# 폰에 올릴 빌드: 일반 빌드(G1 · G2 녹화용) / 채팅 시험 화면이 열리는 빌드(G4용)
+npm run build            # 운영 빌드: 채팅 시험 화면 닫힘
+npm run build:trial      # 시험 빌드: 첫 화면 왼쪽 위 보이지 않는 칸을 0.8초 길게 누르면 채팅 시험 화면
+
+# Android 프로젝트에 반영 -> Android Studio로 열어 설치(JDK 21 필요: Capacitor 8)
+npx cap sync android
+npx cap open android
+```
+
+- 앱 이름 `com.ondolog.app.web` (Expo 개발 빌드 `com.ondolog.app`과 나란히 설치된다). 앱 링크 scheme `ondolog`은 묶음 2에서 쓴다(Expo 빌드는 폰에서 지울 것).
+- 웹 앱은 정본(`src/engine` · `constants` · `data` · `store` · `utils`)을 별칭 `@/`로 가져다 쓴다. `web/` 안에 사본 없음.
+- `web/.env`(VITE_ 변수)는 git 밖. 묶음 1은 읽는 변수 없음.
+- 시험 파일은 `*.vitest.ts(x)`로만 짓는다(루트 jest가 줍지 않게). `web/` 아래 `__tests__` 폴더 · `*.test.*` · `*.spec.*` 금지.
+- 내부 결정: 라우터 `react-router-dom` 7.18.5의 `MemoryRouter`(주소창 없음 -> 콜백 주소가 기록에 안 남음, 화면 전환은 `key={location.key}` 재마운트로 데모와 같음). 하드웨어 뒤로 가기는 `src/platform/backStack.ts`(시트 -> 화면 안 단계 -> 앱 안 뒤로 -> 첫 화면에서 종료).
+- 내부 결정: 바탕색은 첫 화면 실제 칠하는 색 `#0A0814`(`.phone` 바탕 = ink). 데모 `body`의 `#05040A`는 PC 무대 뒤라 보이지 않으므로 `#0A0814`로 통일.
+- 내부 결정: 채팅 시험 화면 목록 가상화 없음(일반 DOM 500개, 느리면 G4에서 판정). 키보드는 Capacitor 8 내장 SystemBars(`insetsHandling: native`)가 키보드 높이만큼 창을 줄여 주므로 키보드 플러그인 없음.
+- 내부 결정: 묶음 1의 로그인 화면(A11) 버튼은 아무것도 하지 않는다(묶음 2에서 카카오 왕복 연결).
+
 ## 열린 항목
 
 > 완료 항목은 `.claude/state/archive/`로 옮긴다. 이 파일에는 열린 것만 둔다.

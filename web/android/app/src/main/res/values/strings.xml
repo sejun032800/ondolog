@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">온도록</string>
+    <string name="title_activity_main">온도록</string>
+    <string name="package_name">com.ondolog.app.web</string>
+    <string name="custom_url_scheme">com.ondolog.app.web</string>
+</resources>

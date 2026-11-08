@@ -35,7 +35,14 @@ function fileNameViolations(relPaths: readonly string[]): string[] {
 
 const UNTRACKED_DIRS = new Set(['node_modules', '.git'])
 /** 경로 기준 제외(R28-2): Python 가상환경. `node_modules/`와 같은 취급이다. */
-const UNTRACKED_PATHS = new Set(['render/.venv'])
+const UNTRACKED_PATHS = new Set([
+  'render/.venv',
+  // web/ 빌드 산출물(73-, R70-4). web/node_modules는 위 UNTRACKED_DIRS가 이미 뺀다.
+  'web/dist',
+  'web/android/build',
+  'web/android/.gradle',
+  'web/android/app/build',
+])
 
 function collectByFileSystem(): string[] {
   const out: string[] = []
@@ -115,6 +122,17 @@ describe('규칙 F - 저장소 실제 파일', () => {
     expect(files).toContain('CLAUDE.md')
     expect(files).toContain('package.json')
     expect(files.some((f) => !f.includes('/'))).toBe(true)
+  })
+
+  it('web/ 아래 파일이 수집에 들어 있다 (73-)', () => {
+    expect(files.some((f) => f.startsWith('web/src/'))).toBe(true)
+    expect(files).toContain('web/package.json')
+  })
+
+  it('web/ 산출물(node_modules · dist · android 빌드 폴더)은 수집되지 않는다 (R70-4)', () => {
+    const excluded = ['web/node_modules/', 'web/dist/', 'web/android/build/', 'web/android/.gradle/', 'web/android/app/build/']
+    expect(files.some((f) => excluded.some((p) => f.startsWith(p)))).toBe(false)
+    expect(collectByFileSystem().some((f) => excluded.some((p) => f.startsWith(p)))).toBe(false)
   })
 
   it('node_modules·.git 아래는 수집되지 않는다', () => {
