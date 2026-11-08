@@ -1096,3 +1096,7 @@ Phase 7 위임(`.claude/state/prompts/phase-7/15-main-session-package-align.md`)
 - 채팅 화면 판별은 `useSegments()`에 `chat`이 있는지로 한다(`app/(tabs)/_layout.tsx`).
 - A18 "그 밖의 무효"는 `CONNECT_ERROR_COPY.invalid`(P0002)로 보았다. `other`(알 수 없는 실패)는 그대로.
 - 옛 시험 `u8CommonStates`의 `isNetworkFailure` 단언 삭제, 큐 숨김 시험에 `inChat` 추가, `u6Onboarding2` 문구 갱신.
+- 51b- A: 폴리필은 `expo-crypto`를 채울 때만 require한다(import하면 expo-modules-core가 전역 fetch를 바꿔 `u8ProbeTimeout`이 깨졌다).
+- 51b- A: jest-expo의 expo-crypto 목은 해시를 0으로 돌려줘 시험에서 digest만 노드 crypto로 바꿨다. 실제 네이티브 SHA-256은 기기 확인 몫.
+- 51b- A: 스플래시 바탕 · `android.backgroundColor` = `nocturne.ink` #0A0814(`src/theme/nocturne.ts`). 스플래시 이미지는 기존 `assets/splash-icon.png`(imageWidth 기본 100) - 기기에서 보고 조정.
+- 51b- A: 카메라 권한은 `expo-image-picker` 플러그인 옵션 false(매니페스트에 CAMERA · RECORD_AUDIO `tools:node=remove`). 갤러리는 `launchImageLibraryAsync`라 영향 없음.
