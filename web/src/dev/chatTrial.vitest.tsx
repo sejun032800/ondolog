@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ChatTrialScreen } from './ChatTrial'
 import { isChatTrialOpen } from './chatTrialGate'
 import { makeFakeMessages } from './fakeMessages'
@@ -74,20 +74,24 @@ describe('채팅 시험 화면의 문', () => {
     const { container } = render(<App bridge={fakeBridge()} initialPath="/dev/chat" />)
     expect(screen.queryByTestId('chat-list')).toBeNull()
     expect(container.querySelector('[data-screen="intro"]')).not.toBeNull()
-    expect(screen.queryByTestId('chat-trial-hotspot')).toBeNull()
+    expect(screen.queryByTestId('chat-trial-button')).toBeNull()
+    expect(screen.queryByText('채팅 시험')).toBeNull()
   })
 
-  it('시험 빌드에서는 경로가 열리고, 첫 화면의 숨은 칸을 길게 누르면 들어간다', () => {
+  it('시험 빌드에서는 첫 화면에 "채팅 시험" 버튼이 1개 보이고, 누르면 들어간다', () => {
     vi.stubEnv('DEV', false)
     vi.stubEnv('MODE', 'trial')
-    vi.useFakeTimers()
     const { container } = render(<App bridge={fakeBridge()} initialPath="/intro" />)
-    const hotspot = screen.getByTestId('chat-trial-hotspot')
-    fireEvent.pointerDown(hotspot)
-    act(() => {
-      vi.advanceTimersByTime(900)
-    })
+    expect(screen.getAllByText('채팅 시험')).toHaveLength(1)
+    fireEvent.click(screen.getByTestId('chat-trial-button'))
     expect(container.querySelector('[data-screen="dev"]')).not.toBeNull()
     expect(screen.getByTestId('chat-list')).not.toBeNull()
+  })
+
+  it('운영 빌드 설정에서는 첫 화면에 "채팅 시험" 버튼이 0개다', () => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('MODE', 'production')
+    render(<App bridge={fakeBridge()} initialPath="/intro" />)
+    expect(screen.queryAllByText('채팅 시험')).toHaveLength(0)
   })
 })

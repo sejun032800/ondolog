@@ -1,5 +1,9 @@
 # 진행 상황
 
+2026-11-08 (메인 세션, `73-` 묶음 1b 검증): G4 결함(길게 누르기 → 글자 선택 · Android 텍스트 메뉴, 채팅 시험 안 열림)으로 1b 위임(④ PM 두 줄 포함). 재실행: 보호 파일 diff 0 · web/ 밖 변경 0(PROGRESS 제외) · web/android 추적 변경 0 · ^/~ 0 · 키/주소/track 검색 0 · core/ 없음 · web/.env 무시. web npm ci · tsc 0 · Vitest 4 파일 20 · build:trial · cap sync OK. 루트 tsc 0 / 0 · jest 101 · 1771 · Python 277 OK 234.6 s(`73-1b-*.txt`). 보고: 운영 번들에 "채팅 시험" 문자열 · 시험 화면 코드 남음(실행 시 닿지 않음, PM 판단). dist는 시험 빌드 상태. 실기기 미확인. 미커밋
+
+2026-11-08 (ui-builder, `73-` 묶음 1b): 웹뷰 티 없애기 - 앱 전체 글자 선택 · 길게 누르기 메뉴 · 끌기 · 확대 · 포커스 링 · 스크롤바 끔(입력 칸 예외, `web/src/platform/webFeel.ts` contextmenu 막기) + 채팅 시험 진입을 보이지 않는 칸에서 첫 화면 작은 "채팅 시험" 버튼(시험 빌드 · 개발 서버만)으로. web tsc 0 · Vitest 20 · build:trial · cap sync OK. 웹 밖 변경 0. 실기기 미확인. 미커밋
+
 2026-11-08 (메인 세션, `73-` 단계 1 검증, r70): 0단계 닫음(r70 · C1 tsconfig · C3 .gitignore check-ignore 확인) → 묶음 1 ui-builder 위임. 재실행: 보호 파일 diff 0 · web 의존성 ^/~ 0 · R70-3 검색 0줄 · core/ · track.ts · stats.sql · 키/주소 검색 0 · web/.env 무시 · 바탕색 #0A0814 전 자리 일치. web npm ci · tsc 0 · Vitest 3 파일 15 · build · cap sync(플러그인 5) 통과. 루트 tsc 0 / 0 · Python 277 OK 212.3 s · **jest 1 failed 100 passed / 2 failed 1769 passed 1771** — 원인은 `d47efb4`에 커밋된 이름 깨진 루트 파일(`bject { $_.Name -like 'c --noEmit' } … Select-Object Name`, 규칙 F 위반), web 무관. Proteur 지시로 `git rm`(스테이지됨, "c --noEmit -p ." 파일은 없었음) → jest 101 passed · 1771 passed(`73-1-jest-after-rm.txt`). 단계 1 보고 뒤 멈춤 — Proteur 빌드 · 설치 · G1/G2/G4 대기. 미커밋
 
 2026-11-08 (ui-builder, `73-` 묶음 1, R69-1~9): `web/` 신설(Vite 7.3.7 · React 19.2.3 · zustand 5.0.15 · react-router-dom 7.18.5 MemoryRouter · Capacitor 8.6.0 Android `com.ondolog.app.web`) + 데모 온보딩 반입(정본 별칭 `@/`, track 호출 11곳 제거) + 흰 프레임 0(#0A0814 인라인~네이티브) + 하드웨어 뒤로 가기 + 채팅 시험 화면(`/dev/chat`, 개발·시험 빌드만). web: npm ci OK · tsc 0 · Vitest 15 · build OK · cap sync OK. 루트 tsc 0 / 0 · jest 1769 통과 + 2 실패(저장소에 커밋된 이름 이상한 파일 때문에 fileNameRule 기존 2시험 실패 - 이번 작업 아님) · `fileNameRule.test.ts` 수집 범위 + 시험 2. 실기기 미확인. 미커밋

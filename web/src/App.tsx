@@ -39,20 +39,18 @@ function screenOf(pathname: string): ScreenName | null {
   return (SCREEN_NAMES as readonly string[]).includes(name) ? (name as ScreenName) : null
 }
 
-/** 개발용 문: 시험 빌드에서만 첫 화면 왼쪽 위(보이지 않는 칸)를 길게 누르면 채팅 시험 화면으로 간다. */
-function ChatTrialHotspot() {
+/** 개발용 문: 시험 빌드(build:trial)·개발 서버에서만 첫 화면에 작게 보이는 "채팅 시험" 버튼. 운영 빌드에서는 그려지지 않는다. */
+function ChatTrialButton() {
   const navigate = useNavigate()
-  const timer = useRef<number | undefined>(undefined)
-  const clear = () => window.clearTimeout(timer.current)
   return (
-    <div
-      data-testid="chat-trial-hotspot"
-      onPointerDown={() => { clear(); timer.current = window.setTimeout(() => navigate(CHAT_TRIAL_PATH), 800) }}
-      onPointerUp={clear}
-      onPointerLeave={clear}
-      onPointerCancel={clear}
-      style={{ position: 'absolute', left: 0, top: 0, width: 72, height: 72, zIndex: 40 }}
-    />
+    <button
+      type="button"
+      data-testid="chat-trial-button"
+      className="trialBtn"
+      onClick={() => navigate(CHAT_TRIAL_PATH)}
+    >
+      채팅 시험
+    </button>
   )
 }
 
@@ -126,7 +124,7 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
         <div key={location.key} style={{ position: 'absolute', inset: 0 }} data-screen={screen ?? 'dev'}>
           <ScreenRoutes nav={nav} ready={ready} onPhase={onPhase} trialOpen={trialOpen} />
         </div>
-        {trialOpen && screen === 'intro' ? <ChatTrialHotspot /> : null}
+        {trialOpen && screen === 'intro' ? <ChatTrialButton /> : null}
         <div className="grain" />
       </div>
     </div>
