@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "scheme": "ondolog",
     "ios": {
       "supportsTablet": true,
@@ -32,8 +32,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0A0814",
-          "image": "./assets/splash-icon.png"
+          "backgroundColor": "#0A0814"
         }
       ],
       [
