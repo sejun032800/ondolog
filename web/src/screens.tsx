@@ -2,8 +2,9 @@
  * 온보딩 A01~A17 웹 이식판. 원본: app/index.tsx, app/(onboarding)/*.tsx, app/(modals)/legal-document.tsx.
  * 채점·규칙·문항·라벨은 저장소 정본(src/engine · constants · data · store · utils, 별칭 @/)를 수정 없이 쓴다. 서버 호출은 전부 뺐다 — 모든 값은 브라우저 메모리(zustand)에만 있다.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildDescription } from './description'
+import { QUICK_QUESTIONS, type Axis } from './quickMbtiQuestions'
 import { useSessionStore, type Gender } from '@/store/sessionStore'
 import type { MbtiType, QuizChoice } from '@/constants/quizTypes'
 import type { QuickMbtiChoice } from '@/constants/quickMbti'
@@ -19,21 +20,34 @@ import { computeLoveTypeCode } from '@/engine/loveTypeInference'
 import { getEnneagramCandidates } from '@/utils/enneagramCandidates'
 import { sternbergGeometry } from '@/utils/sternbergGeometry'
 import {
-  canAgree, formatBirthInput, isAgeEligible, isAllConsented, parseBirthInput, toggleAllConsent, birthIsoToInput,
+  canAgree, canEnterLogin, formatBirthInput, isAgeEligible, isAllConsented, parseBirthInput, toggleAllConsent, birthIsoToInput,
 } from '@/utils/onboardingRules'
 import { useBackHandler } from './platform/backStack'
+import type { NativeBridge } from './platform/bridge'
+import { callbackInbox, exchangeCodeOnce, startKakaoLogin } from './auth/callback'
+import { getSupabase } from './auth/client'
+import { useAccountFinalize } from './auth/useAccountFinalize'
+import { useAuthStore } from './auth/stores'
+import { isChatTrialOpen } from './dev/chatTrialGate'
+import { renderResultCardImage } from './share/resultCard'
 import {
   BackArrow, ChoiceCard, CheckBox, ConsentRow, LinkButton, OnboardingScreen, PrimaryButton, StepBars, StepCounter,
   Wordmark, useAfter, useInView, useToast,
 } from './ui'
 
 export type ScreenName =
-  | 'intro' | 'basic' | 'mbti' | 'quiz' | 'brief' | 'share' | 'consent' | 'underage' | 'auth' | 'detail' | 'invite' | 'end'
+  | 'intro' | 'basic' | 'mbti' | 'quiz' | 'brief' | 'share' | 'consent' | 'underage' | 'auth' | 'callback' | 'detail' | 'invite' | 'end'
 
 export interface Nav {
-  push: (s: ScreenName) => void
+  /** `urgent`: 연타 방지 대기 없이 바로(앱 링크로 돌아온 로그인 콜백처럼 사람 입력이 아닌 이동). */
+  push: (s: ScreenName, opts?: { urgent?: boolean }) => void
   back: () => void
+  /** 깊이를 1로 되돌리며 바꾼다. */
   reset: (s: ScreenName) => void
+  /** 깊이를 그대로 두고 현재 화면을 바꾼다. */
+  replace: (s: ScreenName) => void
+  /** 계정이 생긴 뒤의 첫 화면. 이후 뒤로 가기로 온보딩에 다시 들어갈 수 없다(앱 종료). */
+  enterAccount: (s: ScreenName) => void
 }
 
 /* ═══ A01 · A02 스플래시 → 시작 ═══════════════════════════════ */
@@ -136,12 +150,12 @@ export function BasicInfoScreen({ nav }: { nav: Nav }) {
       onBack={nav.back}
       headerRight={<StepBars current={1} />}
       title="먼저 알려주세요"
-      subtitle={'결과를 보고 가입할지 정해도 돼요.\n결과는 익명 통계로만 쓰여요.'}
+      subtitle="결과를 보고 가입할지 정해도 돼요. 그 전까지는 이 폰에만 머물러요."
       footer={<PrimaryButton label="다음" disabled={!canProceed} onClick={() => nav.push('mbti')} />}
     >
       <div className="group">
         <p className="t-sub c-mute label">이름</p>
-        <input className="input" value={name} maxLength={20} placeholder="이름" onChange={(e) => setName(e.target.value)} />
+        <input className="input" value={name} maxLength={20} placeholder="이름" autoComplete="off" enterKeyHint="next" onChange={(e) => setName(e.target.value)} />
       </div>
       <div className="group">
         <p className="t-sub c-mute label">성별</p>
@@ -153,7 +167,7 @@ export function BasicInfoScreen({ nav }: { nav: Nav }) {
       </div>
       <div className="group">
         <p className="t-sub c-mute label">생년월일</p>
-        <input className="input" value={birthText} inputMode="numeric" maxLength={10} placeholder="YYYY.MM.DD" onChange={(e) => onBirth(e.target.value)} />
+        <input className="input" value={birthText} inputMode="numeric" autoComplete="off" enterKeyHint="done" maxLength={10} placeholder="YYYY.MM.DD" onChange={(e) => onBirth(e.target.value)} />
         <p className="t-sub c-mute" style={{ marginTop: 10, textAlign: 'right', paddingRight: 4 }}>나이 확인에만 써요</p>
       </div>
     </OnboardingScreen>
@@ -161,21 +175,12 @@ export function BasicInfoScreen({ nav }: { nav: Nav }) {
 }
 
 /* ═══ A04 · A05 · A06 MBTI ═══════════════════════════════════ */
-type Axis = 'ei' | 'sn' | 'ft' | 'jp'
 const MBTI_AXES: Array<{ key: Axis; left: { letter: string; name: string }; right: { letter: string; name: string } }> = [
   { key: 'ei', left: { letter: 'E', name: '외향' }, right: { letter: 'I', name: '내향' } },
   { key: 'sn', left: { letter: 'S', name: '감각' }, right: { letter: 'N', name: '직관' } },
   { key: 'ft', left: { letter: 'F', name: '감정' }, right: { letter: 'T', name: '사고' } },
   { key: 'jp', left: { letter: 'J', name: '판단' }, right: { letter: 'P', name: '인식' } },
 ]
-/** MASTER 9-1 화면 3 "간이 4문항(초안)" 원문 — 앱 mbti.tsx 그대로. */
-const QUICK_QUESTIONS: Array<{ axis: Axis; kicker: string; prompt: string; a: string; b: string }> = [
-  { axis: 'ei', kicker: 'E · I', prompt: '친구들과의 모임에서 나는?', a: '여러 사람과 어울리며 에너지를 얻는다', b: '소수와 깊게 대화할 때 더 편하다' },
-  { axis: 'sn', kicker: 'S · N', prompt: '새로운 걸 배울 때 나는?', a: '구체적인 사실과 경험을 먼저 확인한다', b: '전체 흐름과 가능성을 먼저 상상한다' },
-  { axis: 'ft', kicker: 'F · T', prompt: '결정을 내릴 때 나는?', a: '사람들의 감정과 관계를 먼저 고려한다', b: '논리와 원칙을 먼저 고려한다' },
-  { axis: 'jp', kicker: 'J · P', prompt: '계획을 세울 때 나는?', a: '미리 정해두고 그대로 진행하는 게 편하다', b: '상황에 따라 유연하게 바꾸는 게 편하다' },
-]
-
 export function MbtiScreen({ nav }: { nav: Nav }) {
   const { mbtiKnown, setMbtiKnown, mbti: storeMbti, mbtiSelfReported, setMbtiSelfReported, quickMbtiAnswers, setQuickMbtiAnswer } = useSessionStore()
   const [mode, setMode] = useState<'choose' | 'known' | 'unknown'>('choose')
@@ -256,17 +261,22 @@ export function MbtiScreen({ nav }: { nav: Nav }) {
 export function LoveQuizScreen({ nav }: { nav: Nav }) {
   const s = useSessionStore()
   const [index, setIndex] = useState(0)
+  // 같은 답을 연달아 두 번 누르면 다음으로 가는 일이 두 번 일어나 결과 화면이 두 번 열렸다(E4). 한 번 누르면 이 문항은 잠근다.
+  const advancing = useRef(false)
+  useEffect(() => { resetBriefPlayed() }, [])
   if (!s.mbti) return null
   const questions = ONBOARDING_QUESTIONS[s.mbti]
   const question = questions[index]
   const answers: Record<number, QuizChoice | null> = { 1: s.q1, 2: s.q2, 3: s.q3, 4: s.q4, 5: s.q5 }
   const isLast = index === questions.length - 1
   const select = (c: QuizChoice) => {
+    if (advancing.current) return
+    advancing.current = true
     s.setQuizAnswer(question.q, c)
     window.setTimeout(() => {
-      if (!isLast) { setIndex(index + 1); return }
+      if (!isLast) { advancing.current = false; setIndex(index + 1); return }
       // 마지막 문항 — 앱과 같은 채점 파이프라인(sessionStore.computeResult → inferLoveType).
-      if (useSessionStore.getState().computeResult()) { nav.push('brief') }
+      if (useSessionStore.getState().computeResult()) { nav.push('brief') } else { advancing.current = false }
     }, 160)
   }
   return (
@@ -295,13 +305,51 @@ function useLabel() {
   return { result, mbti, label }
 }
 
-export function ResultBriefScreen({ nav }: { nav: Nav }) {
+/**
+ * 결과 카드 연출을 이미 한 번 보여 준 결과의 열쇠. 같은 결과로 이 화면이 다시 열려도(약관에서 돌아옴 등) 처음부터 다시 재생하지 않는다(E4).
+ * 5문항 화면이 열릴 때 비워서, 답을 다시 고르면 연출이 다시 나온다.
+ */
+let briefPlayedFor: string | null = null
+export function resetBriefPlayed() { briefPlayedFor = null }
+
+export function ResultBriefScreen({ nav, bridge }: { nav: Nav; bridge: NativeBridge }) {
   const { result, mbti, label } = useLabel()
+  const toast = useToast()
+  const [busy, setBusy] = useState<'share' | 'save' | null>(null)
+  const key = result && mbti ? `${mbti}|${result.loveTypeCode}|${result.enneagramCore}` : null
+  const still = useRef(key !== null && briefPlayedFor === key)
+  useEffect(() => { if (key) briefPlayedFor = key }, [key])
   if (!result || !mbti) return null
   const isRare = MBTI_ENNEAGRAM_PREVALENCE[mbti]?.rare.includes(result.enneagramCore) ?? false
   const d = (ms: number) => ({ animationDelay: `${ms}ms` })
+
+  // 카드 이미지에는 이름 등 개인 식별 정보가 없다(resultCard.ts는 그런 값을 받지 않는다).
+  const run = async (kind: 'share' | 'save') => {
+    if (busy) return
+    setBusy(kind)
+    try {
+      const image = await renderResultCardImage({
+        labelEn: label?.labelEn ?? result.loveTypeCode,
+        labelKo: label?.labelKo ?? result.loveTypeCode,
+        copyKo: label?.copyKo,
+        mbti,
+        enneagramCore: result.enneagramCore,
+        isRare,
+      })
+      if (!image) { toast.show('이미지를 만들지 못했어요'); return }
+      if (kind === 'share') {
+        if ((await bridge.shareImage(image, '공유하기')) === 'failed') toast.show('공유하지 못했어요')
+      } else {
+        const r = await bridge.saveImage(image)
+        if (r === 'saved') toast.show('이미지를 저장했어요')
+        else if (r === 'failed') toast.show('저장하지 못했어요')
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
   return (
-    <div className="screen">
+    <div className={`screen ${still.current ? 'still' : ''}`}>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: 'calc(var(--top) + 40px) 28px 0' }}>
         <div className="glass appear" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '34px 24px', textAlign: 'center' }}>
           <p className="t-kicker c-mute appear" style={d(250)}>MY LOVE TYPE</p>
@@ -315,10 +363,11 @@ export function ResultBriefScreen({ nav }: { nav: Nav }) {
         </div>
       </div>
       <div className="footer appear" style={{ ...d(1500), gap: 10, paddingTop: 24 }}>
-        <PrimaryButton label="공유하기" onClick={() => nav.push('share')} />
-        <PrimaryButton label="이미지 저장" variant="ghost" onClick={() => nav.push('share')} />
+        <PrimaryButton label="공유하기" disabled={busy !== null} onClick={() => void run('share')} />
+        <PrimaryButton label="이미지 저장" variant="ghost" disabled={busy !== null} onClick={() => void run('save')} />
         <LinkButton label="더 자세히 보기 →" onClick={() => { nav.push('consent') }} />
       </div>
+      {toast.node}
     </div>
   )
 }
@@ -360,9 +409,15 @@ const DOC_ORDER: Record<string, { n: number; tag: string }> = {
   terms: { n: 2, tag: '필수' }, privacy: { n: 3, tag: '필수' }, aiUsage: { n: 4, tag: '필수' }, marketing: { n: 5, tag: '선택' },
 }
 
+/** "전체 동의"가 선택 항목(마케팅)까지 함께 켠다는 사실(R65-4). 디자인 보드 A10에는 문구가 없어 후보 문구로 둔다 - 디자인 확인 필요. */
+const ALL_CONSENT_NOTE = '선택 항목(마케팅 정보 수신)도 함께 켜져요'
+
 export function ConsentScreen({ nav }: { nav: Nav }) {
   const { birthDate, consent, setConsent } = useSessionStore()
   const [sheet, setSheet] = useState<LegalDocumentKey | null>(null)
+  // 이미 로그인한 채 들어왔으면(로그인 뒤 답이 비어 다시 온 길) 로그인 화면을 건너뛰고 바로 저장한다.
+  const userId = useAuthStore((s) => s.userId)
+  const finalize = useAccountFinalize(nav)
   const ageEligible = isAgeEligible(birthDate, new Date())
   const enabled = canAgree(consent, ageEligible)
   const toggle = (k: 'terms' | 'privacy' | 'aiUsage' | 'marketing') => setConsent({ ...consent, [k]: !consent[k] })
@@ -373,10 +428,15 @@ export function ConsentScreen({ nav }: { nav: Nav }) {
         onBack={nav.back}
         title={'시작하기 전에\n확인해주세요'}
         subtitle="동의한 다음 계정을 골라요"
-        footer={<PrimaryButton label="동의하고 시작하기" disabled={!enabled} onClick={() => nav.push('auth')} />}
+        footer={
+          <>
+            {finalize.status === 'failed' ? <p className="t-sub c-rose" style={{ textAlign: 'center' }} role="alert">저장하지 못했어요. 다시 시도해주세요.</p> : null}
+            <PrimaryButton label="동의하고 시작하기" disabled={!enabled || finalize.status === 'saving'} onClick={() => (userId ? finalize.start() : nav.push('auth'))} />
+          </>
+        }
       >
         <div className="card" style={{ marginTop: 32, padding: '8px 20px' }}>
-          <ConsentRow label="전체 동의" strong checked={isAllConsented(consent)} onToggle={() => setConsent(toggleAllConsent(consent))} />
+          <ConsentRow label="전체 동의" strong helper={ALL_CONSENT_NOTE} checked={isAllConsented(consent)} onToggle={() => setConsent(toggleAllConsent(consent))} />
           <div className="rule" />
           <ConsentRow label="만 14세 이상입니다" checked={ageEligible} trailingNote="생년월일로 확인함" />
           <div className="rule" />
@@ -458,27 +518,115 @@ export function UnderageScreen({ nav }: { nav: Nav }) {
   )
 }
 
-/* ═══ A11 로그인 — 묶음 1: 화면까지만. 카카오 왕복 · 저장은 묶음 2(73-)에서 연결한다. 지금은 버튼이 아무것도 하지 않는다 ═══ */
-export function AuthScreen({ nav: _nav }: { nav: Nav }) {
+/* ═══ A11 로그인 · 로그인 콜백 ═══════════════════════════════════
+ * 로그인은 카카오 하나뿐이다(E2). 흐름: [카카오로 시작하기] -> 앱 안 브라우저 -> 앱 링크 ondolog://auth/callback -> 콜백 화면이
+ * 코드를 교환 -> 저장 · 분기(useAccountFinalize). 코드 · 주소 · 오류 원문은 화면 · 로그에 내지 않는다.
+ */
+const LOGIN_FAILED = '로그인하지 못했어요. 잠시 후 다시 시도해주세요.'
+
+/** 카카오 시작 + "이동 중" 표시(B11). 브라우저가 닫히면(취소 포함) 다시 누를 수 있다. */
+function useKakaoStart(bridge: NativeBridge) {
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState(false)
+  const startedRef = useRef(false)
+  useEffect(() => bridge.onBrowserFinished(() => { startedRef.current = false; setPending(false) }), [bridge])
+  const start = useCallback(async () => {
+    const client = getSupabase()
+    if (!client || startedRef.current) return
+    startedRef.current = true
+    setError(false)
+    setPending(true)
+    const ok = await startKakaoLogin(client, bridge)
+    if (!ok) { startedRef.current = false; setPending(false); setError(true) }
+  }, [bridge])
+  return { pending, error, start, configured: getSupabase() !== null }
+}
+
+export function AuthScreen({ nav, bridge }: { nav: Nav; bridge: NativeBridge }) {
   const existing = useSessionStore((s) => s.existingAccountPath)
-  const go = () => { /* 묶음 2에서 로그인 왕복으로 대체 */ }
+  const birthDate = useSessionStore((s) => s.birthDate)
+  const consent = useSessionStore((s) => s.consent)
+  const kakao = useKakaoStart(bridge)
+  // 동의를 받은 길이거나, "이미 계정이 있어요"로 온 길이면 로그인 버튼이 눌린다(RN과 같은 규칙).
+  const entryAllowed = canEnterLogin(birthDate, consent, new Date()) || existing
+  const devHint = !kakao.configured && isChatTrialOpen()
+  useBackHandler(kakao.pending ? undefined : nav.back)
   return (
     <div className="screen">
-      <div style={{ padding: 'calc(var(--top) + 12px) 24px 0', display: 'flex', alignItems: 'center', minHeight: 'calc(var(--top) + 60px)' }}>
+      <div style={{ padding: 'calc(var(--top) + 12px) 24px 0', display: 'flex', alignItems: 'center', gap: 12, minHeight: 'calc(var(--top) + 60px)' }}>
+        <BackArrow onClick={nav.back} />
         <p className="t-caption c-sub" style={{ fontSize: 12, letterSpacing: 5, paddingLeft: 4 }}>ONDOLOG</p>
       </div>
       <div style={{ flex: 1 }} />
       <div className="rise" style={{ padding: '0 24px calc(var(--bot) + 44px)', display: 'flex', flexDirection: 'column', gap: 28 }}>
         <h1 className="t-display c-text pre" style={{ fontSize: 30, lineHeight: '40px' }}>{'어떤 계정으로\n시작할까요?'}</h1>
         <p className="t-sub c-sub" style={{ fontSize: 14.5, lineHeight: '23px', marginTop: -16 }}>
-          {existing ? '이미 가입한 계정으로 로그인해요.' : '로그인하면 방금 본 결과가 계정에 저장돼요.'}
+          {existing ? '이미 가입한 계정으로 로그인해요.' : '새로 가입하면 방금 본 결과가 계정에 저장돼요.'}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <PrimaryButton label="카카오로 시작하기" variant="kakao" onClick={go} />
-          <PrimaryButton label="Google로 계속하기" variant="ghost" onClick={go} />
-          <PrimaryButton label="Apple로 계속하기" onClick={go} />
+          <PrimaryButton
+            label={kakao.pending ? '카카오로 이동 중이에요' : '카카오로 시작하기'}
+            variant="kakao"
+            disabled={!entryAllowed || kakao.pending || !kakao.configured}
+            onClick={() => void kakao.start()}
+          />
+          {kakao.error ? <p className="t-sub c-rose" style={{ textAlign: 'center' }} role="alert">{LOGIN_FAILED}</p> : null}
+          {devHint ? <p className="t-sub c-mute" style={{ textAlign: 'center' }} role="status">설정이 비어 있어요 (개발용: web/.env의 VITE_ 변수)</p> : null}
         </div>
         {existing ? null : <p className="t-caption c-mute" style={{ textAlign: 'center', lineHeight: '18px' }}>동의한 내용은 로그인이 실패해도 그대로 남아요</p>}
+      </div>
+    </div>
+  )
+}
+
+/** 앱 링크로 돌아온 뒤 코드를 교환하고, 저장 · 분기로 넘기는 전용 화면. 끝나면 경로를 바꿔(replace) 이 화면은 이력에 남지 않는다. */
+export function CallbackScreen({ nav, bridge }: { nav: Nav; bridge: NativeBridge }) {
+  const finalize = useAccountFinalize(nav)
+  const kakao = useKakaoStart(bridge)
+  const [exchange, setExchange] = useState<'working' | 'failed' | 'done'>('working')
+  const startedRef = useRef(false)
+
+  useEffect(() => {
+    if (startedRef.current) return
+    startedRef.current = true
+    const cb = callbackInbox.take()
+    const client = getSupabase()
+    if (!cb || !cb.code || cb.failed || !client) { setExchange('failed'); return }
+    void exchangeCodeOnce(client, cb.code).then((r) => {
+      if (!r.ok) { setExchange('failed'); return }
+      useAuthStore.getState().setUserId(r.userId)
+      setExchange('done')
+      finalize.start()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const working = exchange === 'working' || (exchange === 'done' && finalize.status !== 'failed')
+  // 교환 · 저장이 도는 동안 뒤로 가기는 받지 않는다(중간에 빠져나가 두 번 처리되지 않게).
+  useBackHandler(working ? () => {} : undefined)
+  const loginFailed = exchange === 'failed'
+  const saveFailed = exchange === 'done' && finalize.status === 'failed'
+  return (
+    <div className="screen">
+      <div style={{ padding: 'calc(var(--top) + 12px) 24px 0', display: 'flex', alignItems: 'center', minHeight: 'calc(var(--top) + 60px)' }}>
+        <p className="t-caption c-sub" style={{ fontSize: 12, letterSpacing: 5, paddingLeft: 4 }}>ONDOLOG</p>
+      </div>
+      <div style={{ flex: 1 }} />
+      <div className="rise" style={{ padding: '0 24px calc(var(--bot) + 44px)', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {loginFailed ? (
+          <>
+            <p className="t-sub c-rose" style={{ textAlign: 'center' }} role="alert">로그인하지 못했어요</p>
+            <PrimaryButton label={kakao.pending ? '카카오로 이동 중이에요' : '다시 시도'} disabled={kakao.pending} onClick={() => void kakao.start()} />
+            {kakao.error ? <p className="t-sub c-rose" style={{ textAlign: 'center' }} role="alert">{LOGIN_FAILED}</p> : null}
+          </>
+        ) : saveFailed ? (
+          <>
+            <p className="t-sub c-rose" style={{ textAlign: 'center' }} role="alert">저장하지 못했어요. 다시 시도해주세요.</p>
+            <PrimaryButton label="다시 시도" onClick={finalize.start} />
+          </>
+        ) : (
+          <PrimaryButton label="로그인하는 중이에요" disabled />
+        )}
       </div>
     </div>
   )
@@ -704,7 +852,7 @@ export function InviteScreen({ nav }: { nav: Nav }) {
               <PrimaryButton label="공유하기" onClick={share} />
             </div>
           </div>
-          <button className="rowBtn press" onClick={() => toast.show('체험판은 여기까지예요')}>
+          <button className="rowBtn press" onClick={() => toast.show('곧 열릴 예정이에요')}>
             <span className="t-body c-text" style={{ fontSize: 15.5 }}>상대에게 코드를 받았어요</span>
             <span className="c-mute">→</span>
           </button>
@@ -719,16 +867,20 @@ export function InviteScreen({ nav }: { nav: Nav }) {
   )
 }
 
-/* ═══ 체험 끝 ═══════════════════════════════════════════════ */
+/* ═══ 온보딩 끝 ═══════════════════════════════════════════════ */
 export function EndScreen({ nav }: { nav: Nav }) {
+  // 계정이 있으면 온보딩으로 다시 들어가는 길을 두지 않는다(R71-4).
+  const hasAccount = useAuthStore((s) => s.userId) !== null
   return (
     <div className="screen" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 32px' }}>
       <div className="appear"><Wordmark size={14} /></div>
       <h1 className="t-display c-text pre appear" style={{ marginTop: 44, animationDelay: '300ms' }}>{'여기까지가\n온도록의 첫 만남이에요'}</h1>
       <p className="t-body c-sub appear" style={{ marginTop: 14, animationDelay: '600ms' }}>연결된 뒤에는 두 사람의 기록이{'\n'}매달 한 권의 잡지가 돼요.</p>
-      <div className="appear" style={{ position: 'absolute', left: 20, right: 20, bottom: 'calc(var(--bot) + 40px)', animationDelay: '1000ms' }}>
-        <PrimaryButton label="처음부터 다시 보기" variant="ghost" onClick={() => { useSessionStore.getState().resetSession(); nav.reset('intro') }} />
-      </div>
+      {hasAccount ? null : (
+        <div className="appear" style={{ position: 'absolute', left: 20, right: 20, bottom: 'calc(var(--bot) + 40px)', animationDelay: '1000ms' }}>
+          <PrimaryButton label="처음부터 다시 보기" variant="ghost" onClick={() => { useSessionStore.getState().resetSession(); nav.reset('intro') }} />
+        </div>
+      )}
     </div>
   )
 }

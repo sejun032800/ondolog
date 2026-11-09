@@ -1,5 +1,9 @@
 # 진행 상황
 
+2026-11-09 (메인 세션, `73-` 묶음 2 검증 일부, r73): ui-builder 위임 완료(B8 어긋남 0). 확인: 보호 파일 diff 0 · web/ 밖 변경은 PROGRESS · HANDOFF뿐 · web/android는 매니페스트 intent-filter + cap sync 자동 갱신 gradle 2파일(플러그인 등록) · 새 패키지 share 8.0.3 · filesystem 8.1.5 정확한 버전 · 커밋 대상에 주소/키/ref 0(ref는 git 무시 옛 로그 12개에만) · core/ 없음 · web/.env 무시 · HANDOFF 명령 한 줄씩, 원래 경로 → subst O: 순서. 재실행(`73-2-*.txt`): web npm ci ERESOLVE 0 · tsc 0 · Vitest 11 파일 99 · 루트 tsc 0 / 0 · jest 101 · 1771 · Python 277 OK 213.3 s. 실기기(G2 · G3 · G5) 미확인. 미커밋
+
+2026-11-09 (ui-builder, `73-` 묶음 2, R71-4 · R72-3): 로그인과 저장 - 카카오 왕복(PKCE s256 · Preferences 세션 · 앱 링크 `ondolog://auth/callback` · 콜백 화면 · PGRST303 1회 재시도 · 같은 코드 두 번 교환 0) + 가입 저장(정본 `personalityCore` · `decideAfterLogin` 그대로, 기존 계정 알림) + 앱 재시작 로그인 유지 + E1~E6(체험판 문구 삭제 · 카카오 하나 · 결과 공유 / 이미지 저장 `@capacitor/share 8.0.3` · `@capacitor/filesystem 8.1.5` · 연출 재생 원인 수정 · 뒤로 가기 규칙 · 전체 동의 문장) + B8 16조합 · B9 키보드. web: tsc 0 · Vitest 11 파일 99 · build:trial · cap sync(플러그인 7) OK. 루트 tsc 0 / 0 · jest 101 · 1771. 실기기 미확인. 미커밋
+
 2026-11-09 (메인 세션, `73-` 묶음 1c 검증, r72): ui-builder 위임. 재실행: 보호 파일 diff 0 · web/ 밖 변경 0(PROGRESS · HANDOFF 제외) · web/android 변경 0 · web package.json/lock 변경 0(새 패키지 0) · ^/~ 0 · 키/주소/track 검색 0 · 조합 이벤트 시험 실재(`chatFeel.vitest.tsx:65~134`, compositionStart/End · 조합 중 엔터). web npm ci · tsc 0 · Vitest 5 파일 36. 루트 tsc 0 / 0 · jest 101 · 1771 · Python 277 OK 227.5 s(`73-1c-*.txt`). **build:trial · cap sync 미실행** — ui-builder 쪽 권한 분류기가 거부(dist 삭제), 메인 세션도 대신 실행하지 않음, 사람 실행 대기. 실기기 미확인. 미커밋
 
 2026-11-09 (ui-builder, `73-` 묶음 1c, R72-1 · R72-2): 채팅 시험 손맛 - 보내기 버튼 포커스 유지 · 한글 조합 보내기(DOM 값 읽기 + 잔여 가드) · 말풍선 등장 220ms · 부드러운 끝 이동 · 키보드 높이 변화 시 끝 유지. 훅 `web/src/platform/useChatComposer.ts` · `useStickToEnd.ts`. web tsc 0 · Vitest 5 파일 36. build:trial · cap sync는 권한 거부로 미실행. 웹 밖 변경 0. 실기기 미확인. 미커밋

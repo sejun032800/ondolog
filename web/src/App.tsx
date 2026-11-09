@@ -2,11 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { MemoryRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { SkyLayer, viewOffsetPt, type SkyState } from './ui'
 import {
-  AuthScreen, BasicInfoScreen, ConsentScreen, EndScreen, IntroScreen, InviteScreen, LoveQuizScreen, MbtiScreen,
+  AuthScreen, BasicInfoScreen, CallbackScreen, ConsentScreen, EndScreen, IntroScreen, InviteScreen, LoveQuizScreen, MbtiScreen,
   ResultBriefScreen, ResultDetailScreen, ShareCardScreen, UnderageScreen, type Nav, type ScreenName,
 } from './screens'
 import { useAppNav } from './navigation'
 import { handleHardwareBack } from './platform/backStack'
+import { callbackInbox, hasExchanged, isCallbackUrl, parseCallback } from './auth/callback'
+import { useBootSession } from './auth/useBootSession'
+import { useNoticeStore } from './auth/stores'
 import { defaultBridge, type NativeBridge } from './platform/bridge'
 import { CHAT_TRIAL_PATH, isChatTrialOpen } from './dev/chatTrialGate'
 import { ChatTrialScreen } from './dev/ChatTrial'
@@ -22,6 +25,7 @@ function skyFor(screen: ScreenName | null, introPhase: 'splash' | 'start', panne
     case 'share':
       return { visible: true, offset: viewOffsetPt.deep, veil: 0.1, bottomVeil: false, moveMs: 16000, ease: 'cubic-bezier(.25,.1,.25,1)', meteors: true }
     case 'auth':
+    case 'callback':
       return { visible: true, offset: viewOffsetPt.sky, veil: 0, bottomVeil: true, moveMs: 1600 }
     case 'end':
       return { visible: true, offset: viewOffsetPt.sky, veil: 0.55, bottomVeil: true, moveMs: 2000, meteors: true }
@@ -31,7 +35,7 @@ function skyFor(screen: ScreenName | null, introPhase: 'splash' | 'start', panne
 }
 
 const SCREEN_NAMES: readonly ScreenName[] = [
-  'intro', 'basic', 'mbti', 'quiz', 'brief', 'share', 'consent', 'underage', 'auth', 'detail', 'invite', 'end',
+  'intro', 'basic', 'mbti', 'quiz', 'brief', 'share', 'consent', 'underage', 'auth', 'callback', 'detail', 'invite', 'end',
 ]
 
 function screenOf(pathname: string): ScreenName | null {
@@ -54,10 +58,26 @@ function ChatTrialButton() {
   )
 }
 
+/** 한 번 보이고 사라지는 알림(기존 계정 안내 등). 눌러도 닫힌다. */
+const NOTICE_MS = 6000
+function NoticeBanner() {
+  const message = useNoticeStore((s) => s.message)
+  useEffect(() => {
+    if (!message) return
+    const t = window.setTimeout(() => useNoticeStore.getState().clear(), NOTICE_MS)
+    return () => window.clearTimeout(t)
+  }, [message])
+  if (!message) return null
+  return (
+    <div className="notice" role="status" onClick={() => useNoticeStore.getState().clear()}>{message}</div>
+  )
+}
+
 function Shell({ bridge }: { bridge: NativeBridge }) {
   const location = useLocation()
   const { nav, canGoBack } = useAppNav()
   const screen = screenOf(location.pathname)
+  const bootDone = useBootSession(nav)
   const [introPhase, setIntroPhase] = useState<'splash' | 'start'>('splash')
   const [panned, setPanned] = useState(false)
   const skyRef = useRef<SkyState>({ visible: true, offset: viewOffsetPt.main, veil: 0.3, bottomVeil: false, moveMs: 0 })
@@ -97,6 +117,21 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
     exitApp: bridge.exitApp,
   })), [bridge, canGoBack, nav])
 
+  // 앱 링크(ondolog://auth/callback)로 돌아오면: 코드는 메모리 한 칸에만 넣고, 브라우저를 닫고, 콜백 화면으로 간다.
+  // 이미 콜백 화면이면(다시 시도) 그 자리를 바꾼다. 코드 · 주소는 라우터 경로 · 화면 · 로그에 남지 않는다.
+  const screenRef = useRef(screen)
+  screenRef.current = screen
+  useEffect(() => bridge.onAppUrlOpen((url) => {
+    if (!isCallbackUrl(url)) return
+    const params = parseCallback(url)
+    bridge.closeBrowser()
+    // 같은 코드의 앱 링크가 두 번 들어와도 한 번만 처리한다.
+    if (params.code && hasExchanged(params.code)) return
+    callbackInbox.put(params)
+    if (screenRef.current === 'callback') nav.replace('callback')
+    else nav.push('callback', { urgent: true })
+  }), [bridge, nav])
+
   // 폰 프레임 크기(PC) / 전체 화면(모바일)
   const [mobile, setMobile] = useState(false)
   const [scale, setScale] = useState(1)
@@ -122,17 +157,18 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
           <SkyLayer sky={sky} />
         </div>
         <div key={location.key} style={{ position: 'absolute', inset: 0 }} data-screen={screen ?? 'dev'}>
-          <ScreenRoutes nav={nav} ready={ready} onPhase={onPhase} trialOpen={trialOpen} />
+          <ScreenRoutes nav={nav} bridge={bridge} ready={ready && bootDone} onPhase={onPhase} trialOpen={trialOpen} />
         </div>
         {trialOpen && screen === 'intro' ? <ChatTrialButton /> : null}
+        <NoticeBanner />
         <div className="grain" />
       </div>
     </div>
   )
 }
 
-function ScreenRoutes({ nav, ready, onPhase, trialOpen }: {
-  nav: Nav; ready: boolean; onPhase: (p: 'splash' | 'start') => void; trialOpen: boolean
+function ScreenRoutes({ nav, bridge, ready, onPhase, trialOpen }: {
+  nav: Nav; bridge: NativeBridge; ready: boolean; onPhase: (p: 'splash' | 'start') => void; trialOpen: boolean
 }) {
   return (
     <Routes>
@@ -140,11 +176,12 @@ function ScreenRoutes({ nav, ready, onPhase, trialOpen }: {
       <Route path="/basic" element={<BasicInfoScreen nav={nav} />} />
       <Route path="/mbti" element={<MbtiScreen nav={nav} />} />
       <Route path="/quiz" element={<LoveQuizScreen nav={nav} />} />
-      <Route path="/brief" element={<ResultBriefScreen nav={nav} />} />
+      <Route path="/brief" element={<ResultBriefScreen nav={nav} bridge={bridge} />} />
       <Route path="/share" element={<ShareCardScreen nav={nav} />} />
       <Route path="/consent" element={<ConsentScreen nav={nav} />} />
       <Route path="/underage" element={<UnderageScreen nav={nav} />} />
-      <Route path="/auth" element={<AuthScreen nav={nav} />} />
+      <Route path="/auth" element={<AuthScreen nav={nav} bridge={bridge} />} />
+      <Route path="/callback" element={<CallbackScreen nav={nav} bridge={bridge} />} />
       <Route path="/detail" element={<ResultDetailScreen nav={nav} />} />
       <Route path="/invite" element={<InviteScreen nav={nav} />} />
       <Route path="/end" element={<EndScreen nav={nav} />} />

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import App from './App'
-import type { NativeBridge } from './platform/bridge'
+import { NAV_COOLDOWN_MS } from './navigation'
+import { webBridge, type NativeBridge } from './platform/bridge'
 
 afterEach(() => {
   cleanup()
@@ -11,6 +12,7 @@ afterEach(() => {
 function setup() {
   let back: (() => void) | undefined
   const bridge: NativeBridge = {
+    ...webBridge,
     onBackButton: (cb) => {
       back = cb
       return () => {
@@ -49,6 +51,7 @@ describe('앱 뒤로 가기 (하드웨어 버튼)', () => {
     const { bridge, pressBack } = setup()
     fireEvent.click(screen.getByText('시작하기'))
     expect(screen.getByText('먼저 알려주세요')).toBeTruthy()
+    act(() => { vi.advanceTimersByTime(NAV_COOLDOWN_MS) })
     pressBack()
     expect(screen.queryByText('먼저 알려주세요')).toBeNull()
     expect(screen.getByText('시작하기')).toBeTruthy()

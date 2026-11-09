@@ -5,7 +5,7 @@ import { isChatTrialOpen } from './chatTrialGate'
 import { makeFakeMessages } from './fakeMessages'
 import { handleHardwareBack } from '../platform/backStack'
 import App from '../App'
-import type { NativeBridge } from '../platform/bridge'
+import { webBridge, type NativeBridge } from '../platform/bridge'
 
 afterEach(() => {
   cleanup()
@@ -59,7 +59,7 @@ describe('채팅 시험 화면', () => {
 })
 
 describe('채팅 시험 화면의 문', () => {
-  const fakeBridge = (): NativeBridge => ({ onBackButton: () => () => {}, exitApp: () => {}, hideSplash: () => {} })
+  const fakeBridge = (): NativeBridge => ({ ...webBridge, onBackButton: () => () => {}, exitApp: () => {}, hideSplash: () => {} })
 
   it('개발 서버와 시험 빌드에서만 열린다', () => {
     expect(isChatTrialOpen({ DEV: true, MODE: 'development' })).toBe(true)
