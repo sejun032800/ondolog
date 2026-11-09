@@ -63,6 +63,8 @@ docs/         # 기획 문서 4종
 
 개발 순서: 엔진 → 데이터/타입/스토어 → 서비스/훅/유틸 (의존성 순서)
 
+앱 화면 = `web/`(Vite + React + Capacitor). 엔진은 `@/`로 원본을 가져다 쓰고 `core/` 복사본은 만들지 않는다. 시험 파일은 `*.vitest.ts(x)`로만 짓는다(루트 jest·tsc가 줍지 않게). `web/.env`(`VITE_SUPABASE_URL`·`VITE_SUPABASE_ANON_KEY`)는 git 밖이고, 값을 코드·로그·보고에 내지 않는다.
+
 ## config화 필수 (하드코딩 금지)
 - 발행 주기·생성 기간: 설정값(하드코딩 금지). MVP 매일 발행은 폐기(MASTER r57)
 - PDF 프로필: `digital`(150DPI) / `print`(300DPI+)
