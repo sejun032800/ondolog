@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { MemoryRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SkyLayer, viewOffsetPt, type SkyState } from './ui'
-import {
-  AuthScreen, BasicInfoScreen, CallbackScreen, ConsentScreen, EndScreen, IntroScreen, InviteScreen, LoveQuizScreen, MbtiScreen,
-  ResultBriefScreen, ResultDetailScreen, ShareCardScreen, UnderageScreen, type Nav, type ScreenName,
-} from './screens'
-import { useAppNav } from './navigation'
+import { useAppNav, type Nav } from './navigation'
 import { handleHardwareBack } from './platform/backStack'
 import { callbackInbox, hasExchanged, isCallbackUrl, parseCallback } from './auth/callback'
 import { useBootSession } from './auth/useBootSession'
 import { useNoticeStore } from './auth/stores'
 import { defaultBridge, type NativeBridge } from './platform/bridge'
-import { CHAT_TRIAL_PATH, isChatTrialOpen } from './dev/chatTrialGate'
-import { ChatTrialScreen } from './dev/ChatTrial'
+import { ALL_ROUTES, isTabRoute, routeOfPathname, type ScreenName } from './app/routes'
+import { ROUTE_ELEMENTS } from './app/routeTable'
+import { setInviteEntry, setPendingInviteStep } from './app/inviteEntry'
+import { SheetHost } from './app/sheets'
+import { useAccountData } from './app/useAccountData'
+import { usePhotoQueueResume } from './photoQueue/usePhotoQueueResume'
+import { useChatQueueResume } from './features/chat/useChatQueueResume'
+import { ViewerHost } from './features/magazine/ViewerHost'
+import { useKeyboardOpen } from './platform/useKeyboardOpen'
+import { useStartDateRecheck } from './couple/useStartDateRecheck'
+import { useDissolutionNotice } from './features/settings/useDissolutionNotice'
+import { ConnectionBanner } from './components/ConnectionBanner'
+import { ToastHost } from './components/ToastHost'
+import { useSheetStore } from './stores/sheetStore'
+import { TabBar } from './tabs/TabBar'
 
 /** 화면별 하늘(앱 SkyBackground의 view/veil 값). 하늘은 화면을 넘어 하나로 이어진다. */
 function skyFor(screen: ScreenName | null, introPhase: 'splash' | 'start', panned: boolean, prev: SkyState): SkyState {
@@ -22,40 +31,15 @@ function skyFor(screen: ScreenName | null, introPhase: 'splash' | 'start', panne
       return { visible: true, offset: panned ? viewOffsetPt.pullStart : viewOffsetPt.main, veil: introPhase === 'start' ? 0.42 : 0.3, bottomVeil: introPhase === 'start', moveMs: 6200 }
     case 'brief':
       return { visible: true, offset: viewOffsetPt.sky, veil: 0.7, bottomVeil: false, moveMs: 1800 }
-    case 'share':
-      return { visible: true, offset: viewOffsetPt.deep, veil: 0.1, bottomVeil: false, moveMs: 16000, ease: 'cubic-bezier(.25,.1,.25,1)', meteors: true }
     case 'auth':
     case 'callback':
       return { visible: true, offset: viewOffsetPt.sky, veil: 0, bottomVeil: true, moveMs: 1600 }
-    case 'end':
-      return { visible: true, offset: viewOffsetPt.sky, veil: 0.55, bottomVeil: true, moveMs: 2000, meteors: true }
+    case 'main':
+      // 메인 탭: 지평선 시점(main), 장막 .42 + 하단 장막(보드 B01~B06 · R22-1). 끌어내리기 · 하늘(C) · 유성은 이번 범위에 없다.
+      return { visible: true, offset: viewOffsetPt.main, veil: 0.42, bottomVeil: true, moveMs: 1200, meteors: false }
     default:
       return { ...prev, visible: false, meteors: false }
   }
-}
-
-const SCREEN_NAMES: readonly ScreenName[] = [
-  'intro', 'basic', 'mbti', 'quiz', 'brief', 'share', 'consent', 'underage', 'auth', 'callback', 'detail', 'invite', 'end',
-]
-
-function screenOf(pathname: string): ScreenName | null {
-  const name = pathname.replace(/^\//, '')
-  return (SCREEN_NAMES as readonly string[]).includes(name) ? (name as ScreenName) : null
-}
-
-/** 개발용 문: 시험 빌드(build:trial)·개발 서버에서만 첫 화면에 작게 보이는 "채팅 시험" 버튼. 운영 빌드에서는 그려지지 않는다. */
-function ChatTrialButton() {
-  const navigate = useNavigate()
-  return (
-    <button
-      type="button"
-      data-testid="chat-trial-button"
-      className="trialBtn"
-      onClick={() => navigate(CHAT_TRIAL_PATH)}
-    >
-      채팅 시험
-    </button>
-  )
 }
 
 /** 한 번 보이고 사라지는 알림(기존 계정 안내 등). 눌러도 닫힌다. */
@@ -76,8 +60,33 @@ function NoticeBanner() {
 function Shell({ bridge }: { bridge: NativeBridge }) {
   const location = useLocation()
   const { nav, canGoBack } = useAppNav()
-  const screen = screenOf(location.pathname)
+  const screen = routeOfPathname(location.pathname)
+  const onTab = isTabRoute(screen)
   const bootDone = useBootSession(nav)
+  useAccountData(screen)
+  // 사진 영속 큐(채팅 사진 · 스토리): 앱을 켜면(로그인 + 커플 확인) 남은 사진을 이어서 보내고, 앱이 다시 보이면 바로 이어 보낸다.
+  usePhotoQueueResume()
+  // 글 큐도 같은 방식(앱 시작 · 복귀에 이어 보냄)이고, 글 · 사진 큐의 대기 유무를 I02 띠에 알린다(채팅 화면에서 띠가 자리를 내준다).
+  useChatQueueResume()
+  // 채팅에서 키보드가 열리면 탭 바를 비킨다(입력줄이 키보드 바로 위에 붙게).
+  const keyboardOpen = useKeyboardOpen()
+  // 상대가 고친 사귄 날짜는 탭 화면에서 다음에 들어올 때(시작 · 복귀) 확인 화면(A20)으로 다시 보인다.
+  useStartDateRecheck(nav, onTab)
+  // 상대가 해제(또는 탈퇴)를 요청했으면 내가 앱에 들어올 때 처음 한 번 커플 화면(H14 유예 화면)을 보인다(앱 안 표시뿐, 푸시 없음).
+  useDissolutionNotice(nav, onTab)
+  // I01 커플 게이트의 두 버튼(+ 이후 커플 전용 기능)이 초대 · 코드 입력 화면으로 가는 입구. 이미 그 화면이면 다시 쌓지 않는다.
+  const inviteScreenRef = useRef(screen)
+  inviteScreenRef.current = screen
+  useEffect(() => {
+    setInviteEntry((step) => {
+      if (inviteScreenRef.current === 'couple-invite') return
+      setPendingInviteStep(step)
+      nav.push('couple-invite', { urgent: true })
+    })
+    return () => setInviteEntry(null)
+  }, [nav])
+  // 경로가 바뀌면(탭을 떠남 포함) 열려 있던 시트도 닫는다 - 다른 화면으로 따라오지 않는다(B4).
+  useEffect(() => { useSheetStore.getState().closeAll() }, [location.pathname])
   const [introPhase, setIntroPhase] = useState<'splash' | 'start'>('splash')
   const [panned, setPanned] = useState(false)
   const skyRef = useRef<SkyState>({ visible: true, offset: viewOffsetPt.main, veil: 0.3, bottomVeil: false, moveMs: 0 })
@@ -148,7 +157,6 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
   }, [])
 
   const onPhase = useCallback((p: 'splash' | 'start') => setIntroPhase(p), [])
-  const trialOpen = isChatTrialOpen()
 
   return (
     <div className={`stage ${mobile ? 'mobile' : ''}`}>
@@ -156,10 +164,14 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
         <div style={{ position: 'absolute', inset: 0, opacity: ready ? 1 : 0, transition: 'opacity 600ms ease' }}>
           <SkyLayer sky={sky} />
         </div>
-        <div key={location.key} style={{ position: 'absolute', inset: 0 }} data-screen={screen ?? 'dev'}>
-          <ScreenRoutes nav={nav} bridge={bridge} ready={ready && bootDone} onPhase={onPhase} trialOpen={trialOpen} />
+        <div key={location.key} style={{ position: 'absolute', inset: 0 }} data-screen={screen ?? 'unknown'}>
+          <ScreenRoutes nav={nav} bridge={bridge} ready={ready && bootDone} onPhase={onPhase} />
         </div>
-        {trialOpen && screen === 'intro' ? <ChatTrialButton /> : null}
+        {onTab && !(screen === 'chat' && keyboardOpen) ? <TabBar active={screen} onSelect={(tab) => { if (tab !== screen) nav.replace(tab) }} /> : null}
+        <SheetHost />
+        <ViewerHost bridge={bridge} />
+        <ConnectionBanner inChat={screen === 'chat'} />
+        <ToastHost aboveTabBar={onTab} />
         <NoticeBanner />
         <div className="grain" />
       </div>
@@ -167,25 +179,15 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
   )
 }
 
-function ScreenRoutes({ nav, bridge, ready, onPhase, trialOpen }: {
-  nav: Nav; bridge: NativeBridge; ready: boolean; onPhase: (p: 'splash' | 'start') => void; trialOpen: boolean
+function ScreenRoutes({ nav, bridge, ready, onPhase }: {
+  nav: Nav; bridge: NativeBridge; ready: boolean; onPhase: (p: 'splash' | 'start') => void
 }) {
+  // 라우터는 `app/routeTable.tsx` 표로만 만든다(경로 = 화면 이름 = 뒤로 가기 규칙표의 키).
   return (
     <Routes>
-      <Route path="/intro" element={ready ? <IntroScreen nav={nav} onPhase={onPhase} /> : null} />
-      <Route path="/basic" element={<BasicInfoScreen nav={nav} />} />
-      <Route path="/mbti" element={<MbtiScreen nav={nav} />} />
-      <Route path="/quiz" element={<LoveQuizScreen nav={nav} />} />
-      <Route path="/brief" element={<ResultBriefScreen nav={nav} bridge={bridge} />} />
-      <Route path="/share" element={<ShareCardScreen nav={nav} />} />
-      <Route path="/consent" element={<ConsentScreen nav={nav} />} />
-      <Route path="/underage" element={<UnderageScreen nav={nav} />} />
-      <Route path="/auth" element={<AuthScreen nav={nav} bridge={bridge} />} />
-      <Route path="/callback" element={<CallbackScreen nav={nav} bridge={bridge} />} />
-      <Route path="/detail" element={<ResultDetailScreen nav={nav} />} />
-      <Route path="/invite" element={<InviteScreen nav={nav} />} />
-      <Route path="/end" element={<EndScreen nav={nav} />} />
-      {trialOpen ? <Route path={CHAT_TRIAL_PATH} element={<ChatTrialScreen onBack={nav.back} />} /> : null}
+      {ALL_ROUTES.map((name: ScreenName) => (
+        <Route key={name} path={`/${name}`} element={ROUTE_ELEMENTS[name]({ nav, bridge, ready, onPhase })} />
+      ))}
       <Route path="*" element={<Navigate to="/intro" replace />} />
     </Routes>
   )

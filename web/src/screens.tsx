@@ -1,5 +1,5 @@
 /**
- * 온보딩 A01~A17 웹 이식판. 원본: app/index.tsx, app/(onboarding)/*.tsx, app/(modals)/legal-document.tsx.
+ * 온보딩 A01~A16 웹 이식판(A09 공유 카드는 화면이 아니라 결과 화면 공유로 만드는 이미지라 지움 - 74-2). A17 · A18은 `features/couple/InviteScreen.tsx`, A19 · A20은 `features/couple/StartDateScreen.tsx`. 원본: app/index.tsx, app/(onboarding)/*.tsx, app/(modals)/legal-document.tsx.
  * 채점·규칙·문항·라벨은 저장소 정본(src/engine · constants · data · store · utils, 별칭 @/)를 수정 없이 쓴다. 서버 호출은 전부 뺐다 — 모든 값은 브라우저 메모리(zustand)에만 있다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -24,31 +24,21 @@ import {
 } from '@/utils/onboardingRules'
 import { useBackHandler } from './platform/backStack'
 import type { NativeBridge } from './platform/bridge'
+import { saveImageToDevice, saveNotice } from './platform/imageSave'
 import { callbackInbox, exchangeCodeOnce, startKakaoLogin } from './auth/callback'
 import { getSupabase } from './auth/client'
 import { useAccountFinalize } from './auth/useAccountFinalize'
 import { useAuthStore } from './auth/stores'
-import { isChatTrialOpen } from './dev/chatTrialGate'
+import { isDevBuild } from './config/env'
+import { Sheet, useSheetClose } from './components/Sheet'
 import { renderResultCardImage } from './share/resultCard'
 import {
   BackArrow, ChoiceCard, CheckBox, ConsentRow, LinkButton, OnboardingScreen, PrimaryButton, StepBars, StepCounter,
-  Wordmark, useAfter, useInView, useToast,
+  useAfter, useInView, useToast,
 } from './ui'
 
-export type ScreenName =
-  | 'intro' | 'basic' | 'mbti' | 'quiz' | 'brief' | 'share' | 'consent' | 'underage' | 'auth' | 'callback' | 'detail' | 'invite' | 'end'
-
-export interface Nav {
-  /** `urgent`: 연타 방지 대기 없이 바로(앱 링크로 돌아온 로그인 콜백처럼 사람 입력이 아닌 이동). */
-  push: (s: ScreenName, opts?: { urgent?: boolean }) => void
-  back: () => void
-  /** 깊이를 1로 되돌리며 바꾼다. */
-  reset: (s: ScreenName) => void
-  /** 깊이를 그대로 두고 현재 화면을 바꾼다. */
-  replace: (s: ScreenName) => void
-  /** 계정이 생긴 뒤의 첫 화면. 이후 뒤로 가기로 온보딩에 다시 들어갈 수 없다(앱 종료). */
-  enterAccount: (s: ScreenName) => void
-}
+export type { Nav, ScreenName } from './navigation'
+import type { Nav } from './navigation'
 
 /* ═══ A01 · A02 스플래시 → 시작 ═══════════════════════════════ */
 let introPlayed = false
@@ -340,9 +330,8 @@ export function ResultBriefScreen({ nav, bridge }: { nav: Nav; bridge: NativeBri
       if (kind === 'share') {
         if ((await bridge.shareImage(image, '공유하기')) === 'failed') toast.show('공유하지 못했어요')
       } else {
-        const r = await bridge.saveImage(image)
-        if (r === 'saved') toast.show('이미지를 저장했어요')
-        else if (r === 'failed') toast.show('저장하지 못했어요')
+        const notice = saveNotice(await saveImageToDevice(bridge, image, 'result'), '이미지를 저장했어요', '저장하지 못했어요')
+        if (notice) toast.show(notice)
       }
     } finally {
       setBusy(null)
@@ -372,36 +361,6 @@ export function ResultBriefScreen({ nav, bridge }: { nav: Nav; bridge: NativeBri
   )
 }
 
-/* ═══ A09 공유 카드 — 밤하늘 연출 ═══════════════════════════ */
-export function ShareCardScreen({ nav }: { nav: Nav }) {
-  const { result, mbti, label } = useLabel()
-  useBackHandler(nav.back)
-  if (!result || !mbti) return null
-  const d = (ms: number, dur = 1200) => ({ animation: `appear ${dur}ms cubic-bezier(.2,.7,.2,1) ${ms}ms both` })
-  const labelEn = label?.labelEn ?? result.loveTypeCode
-  return (
-    <div className="screen" onClick={nav.back} style={{ cursor: 'pointer' }}>
-      <button aria-label="닫기" onClick={(e) => { e.stopPropagation(); nav.back() }} style={{ position: 'absolute', top: 'calc(var(--top) + 12px)', right: 20, width: 48, height: 48, fontSize: 18, color: 'rgba(243,239,247,.45)', ...d(4200, 800) }}>✕</button>
-      <div style={{ position: 'absolute', left: 0, right: 0, top: '17.5%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '0 28px' }}>
-        <p className="t-kicker c-sub" style={{ ...d(500), fontSize: 11, letterSpacing: 3.3 }}>MY LOVE TYPE</p>
-        <p style={{ marginTop: 44, display: 'flex', fontWeight: 600, fontSize: 15, letterSpacing: 4.4, paddingLeft: 4.4, color: 'var(--orchid)' }}>
-          {labelEn.split('').map((ch, i) => (
-            <span key={i} style={{ display: 'inline-block', animation: `letterIn 1000ms cubic-bezier(.2,.7,.2,1) ${1100 + i * 70}ms both` }}>{ch}</span>
-          ))}
-        </p>
-        <h1 style={{ ...d(1900, 1500), marginTop: 26, fontWeight: 600, fontSize: 38, lineHeight: '48px', letterSpacing: -0.8, maxWidth: 260, textShadow: '0 0 30px rgba(10,8,20,.6)' }}>
-          {label?.labelKo ?? result.loveTypeCode}
-        </h1>
-        {label?.copyKo ? <p style={{ ...d(2900), marginTop: 24, fontSize: 17, lineHeight: '26px', color: 'var(--textSub)', letterSpacing: 0.4 }}>{label.copyKo}</p> : null}
-        <p className="t-body c-sub" style={{ ...d(3500), marginTop: 30, opacity: 0.85 }}>{mbti} · 애니어그램 {result.enneagramCore}</p>
-      </div>
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 'calc(var(--bot) + 64px)', ...d(4100, 1600) }}>
-        <Wordmark size={13} />
-      </div>
-    </div>
-  )
-}
-
 /* ═══ A10 약관 동의 · A12 전문 시트 ═════════════════════════ */
 /** 화면에 보이는 AI 활용 설명 — 디자인 보드(A10) 문구. */
 const AI_USAGE_HELPER_BOARD = '대화·사진·메모가 잡지를 만드는 데 쓰이고, 이때 외부 AI로 전송돼요'
@@ -409,8 +368,8 @@ const DOC_ORDER: Record<string, { n: number; tag: string }> = {
   terms: { n: 2, tag: '필수' }, privacy: { n: 3, tag: '필수' }, aiUsage: { n: 4, tag: '필수' }, marketing: { n: 5, tag: '선택' },
 }
 
-/** "전체 동의"가 선택 항목(마케팅)까지 함께 켠다는 사실(R65-4). 디자인 보드 A10에는 문구가 없어 후보 문구로 둔다 - 디자인 확인 필요. */
-const ALL_CONSENT_NOTE = '선택 항목(마케팅 정보 수신)도 함께 켜져요'
+/** "전체 동의"가 선택 항목(마케팅)까지 함께 동의한다는 사실(R65-4 · R74-10 문구). "전체 동의" 줄 바로 아래, 누르기 전부터 보인다. */
+export const ALL_CONSENT_NOTE = '선택 항목인 마케팅 정보 수신도 함께 동의돼요.'
 
 export function ConsentScreen({ nav }: { nav: Nav }) {
   const { birthDate, consent, setConsent } = useSessionStore()
@@ -454,41 +413,44 @@ export function ConsentScreen({ nav }: { nav: Nav }) {
   )
 }
 
-function LegalSheet({ docKey, onClose }: { docKey: LegalDocumentKey; onClose: () => void }) {
+export function LegalSheet({ docKey, onClose }: { docKey: LegalDocumentKey; onClose: () => void }) {
   const doc = LEGAL_DOCUMENTS[docKey]
-  const [closing, setClosing] = useState(false)
-  const close = () => { setClosing(true); window.setTimeout(onClose, 240) }
-  useBackHandler(closing ? () => {} : close)
   const meta = DOC_ORDER[docKey]
+  // 공용 시트 부품(열기/닫기 연출 · 바깥 누름 · 뒤로 가기로 닫힘)을 쓴다.
+  return (
+    <Sheet variant="full" onClosed={onClose}>
+      <LegalSheetBody doc={doc} docKey={docKey} meta={meta} />
+    </Sheet>
+  )
+}
+
+function LegalSheetBody({ doc, docKey, meta }: { doc: (typeof LEGAL_DOCUMENTS)[LegalDocumentKey]; docKey: LegalDocumentKey; meta: (typeof DOC_ORDER)[LegalDocumentKey] | undefined }) {
+  const close = useSheetClose()
   return (
     <>
-      <div className="sheetBack" onClick={close} style={closing ? { opacity: 0, transition: 'opacity 240ms' } : undefined} />
-      <div className={`sheet ${closing ? 'closing' : ''}`}>
-        <div className="handle" />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 18px 0' }}>
-          <button aria-label="닫기" onClick={close} style={{ width: 48, height: 48, fontSize: 18, color: 'var(--textSub)' }}>✕</button>
-        </div>
-        <div className="content" style={{ paddingTop: 0 }}>
-          {meta ? <p className="t-kicker c-mute" style={{ letterSpacing: 2 }}>{meta.tag} · {meta.n}</p> : null}
-          <h1 className="t-display c-text" style={{ marginTop: 14 }}>{doc.title}</h1>
-          {docKey === 'aiUsage' ? (
-            <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 18 }}>
-              {[
-                ['무엇이 쓰이나요', '채팅 대화, 사진, 메모'],
-                ['어디로 보내지나요', '잡지를 만드는 동안 외부 AI 서비스로 전송돼요'],
-                ['어떤 서비스이고, 보관과 학습은', '[프로바이더명 · 보존 기간 · 학습 사용 여부 — 법무 확정 문구]'],
-              ].map(([h, b]) => (
-                <div key={h}><p className="t-title c-text" style={{ fontSize: 16.5 }}>{h}</p><p className="t-body c-sub" style={{ marginTop: 6, fontSize: 15.5 }}>{b}</p></div>
-              ))}
-              <div className="rule" />
-            </div>
-          ) : null}
-          <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {doc.body.map((p, i) => <p key={i} className="t-sub c-mute">{p}</p>)}
-          </div>
-        </div>
-        <div className="footer"><PrimaryButton label="확인" onClick={close} /></div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 18px 0' }}>
+        <button aria-label="닫기" onClick={close} style={{ width: 48, height: 48, fontSize: 18, color: 'var(--textSub)' }}>✕</button>
       </div>
+      <div className="content" style={{ paddingTop: 0 }}>
+        {meta ? <p className="t-kicker c-mute" style={{ letterSpacing: 2 }}>{meta.tag} · {meta.n}</p> : null}
+        <h1 className="t-display c-text" style={{ marginTop: 14 }}>{doc.title}</h1>
+        {docKey === 'aiUsage' ? (
+          <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {[
+              ['무엇이 쓰이나요', '채팅 대화, 사진, 메모'],
+              ['어디로 보내지나요', '잡지를 만드는 동안 외부 AI 서비스로 전송돼요'],
+              ['어떤 서비스이고, 보관과 학습은', '[프로바이더명 · 보존 기간 · 학습 사용 여부 — 법무 확정 문구]'],
+            ].map(([h, b]) => (
+              <div key={h}><p className="t-title c-text" style={{ fontSize: 16.5 }}>{h}</p><p className="t-body c-sub" style={{ marginTop: 6, fontSize: 15.5 }}>{b}</p></div>
+            ))}
+            <div className="rule" />
+          </div>
+        ) : null}
+        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {doc.body.map((p, i) => <p key={i} className="t-sub c-mute">{p}</p>)}
+        </div>
+      </div>
+      <div className="footer"><PrimaryButton label="확인" onClick={close} /></div>
     </>
   )
 }
@@ -549,7 +511,7 @@ export function AuthScreen({ nav, bridge }: { nav: Nav; bridge: NativeBridge }) 
   const kakao = useKakaoStart(bridge)
   // 동의를 받은 길이거나, "이미 계정이 있어요"로 온 길이면 로그인 버튼이 눌린다(RN과 같은 규칙).
   const entryAllowed = canEnterLogin(birthDate, consent, new Date()) || existing
-  const devHint = !kakao.configured && isChatTrialOpen()
+  const devHint = !kakao.configured && isDevBuild()
   useBackHandler(kakao.pending ? undefined : nav.back)
   return (
     <div className="screen">
@@ -640,11 +602,52 @@ const BIG5_ORDER = [
 ] as const
 const TRI_W = 260, TRI_H = 200
 
+/**
+ * A16 코어 고르기 본문(온보딩 상세와 설정 > 성격 프로필이 같이 쓴다). 고른 값은 이 안에서 들고 있고, [이 코어로 할게요]를 누르면 `onConfirm(고른 값)`을 부른다.
+ * 저장은 부르는 쪽이 한다(온보딩은 메모리, 설정은 `overrideEnneagramCore`). 목록 아래 여백은 버튼 높이만큼 둔다(B17) - 마지막 줄이 버튼 뒤로 가지 않게.
+ */
+export function CoreOverrideView({ effectiveCore, onBack, onConfirm, saving = false, error = null }: {
+  effectiveCore: EnneagramCore
+  onBack: () => void
+  onConfirm: (selected: EnneagramCore) => void
+  saving?: boolean
+  error?: string | null
+}) {
+  const [picked, setPicked] = useState<EnneagramCore | null>(null)
+  const selected = picked ?? effectiveCore
+  return (
+    <OnboardingScreen
+      animKey="override"
+      onBack={onBack}
+      title={'나에게 더 가까운\n코어를 골라주세요'}
+      subtitle="코어만 바뀌어요. 빅5와 애착 결과는 그대로예요."
+      footer={
+        <>
+          {error ? <p className="t-sub c-sub" role="alert" data-testid="override-error" style={{ textAlign: 'center' }}>{error}</p> : null}
+          <PrimaryButton label="이 코어로 할게요" disabled={saving} onClick={() => onConfirm(selected)} />
+        </>
+      }
+    >
+      <div className="card" style={{ marginTop: 28, padding: '8px 22px', marginBottom: 54 }}>
+        {ALL_CORES.map((core) => {
+          const on = core === selected
+          return (
+            <button key={core} className="coreRow" role="radio" aria-checked={on} onClick={() => setPicked(core)} data-testid={`core-${core}`}>
+              <span className={`radio ${on ? 'on' : ''}`}>{on ? <i /> : null}</span>
+              <span className="t-body c-text" style={{ flex: 1, fontSize: 15.5 }}>{core} · {ENNEAGRAM_CORE_EN[core]} {ENNEAGRAM_CORE_KO[core]}</span>
+              {core === effectiveCore ? <span className="t-sub c-mute">지금 결과</span> : null}
+            </button>
+          )
+        })}
+      </div>
+    </OnboardingScreen>
+  )
+}
+
 export function ResultDetailScreen({ nav }: { nav: Nav }) {
   const { result, mbti, q1 } = useSessionStore()
   const [override, setOverride] = useState<EnneagramCore | null>(null)
   const [view, setView] = useState<'detail' | 'override'>('detail')
-  const [picked, setPicked] = useState<EnneagramCore | null>(null)
   const [round, setRound] = useState(0)
   if (!result || !mbti || !q1) return null
 
@@ -655,32 +658,15 @@ export function ResultDetailScreen({ nav }: { nav: Nav }) {
   const candidates = override ? [] : getEnneagramCandidates(q1, inferred)
 
   if (view === 'override') {
-    const selected = picked ?? effectiveCore
-    const confirm = () => {
-      if (selected !== effectiveCore) { setOverride(selected === inferred ? null : selected); setRound((r) => r + 1); }
-      setView('detail')
-    }
     return (
-      <OnboardingScreen
-        animKey="override"
-        onBack={() => { setPicked(null); setView('detail') }}
-        title={'나에게 더 가까운\n코어를 골라주세요'}
-        subtitle="코어만 바뀌어요. 빅5와 애착 결과는 그대로예요."
-        footer={<PrimaryButton label="이 코어로 할게요" onClick={confirm} />}
-      >
-        <div className="card" style={{ marginTop: 28, padding: '8px 22px' }}>
-          {ALL_CORES.map((core) => {
-            const on = core === selected
-            return (
-              <button key={core} className="coreRow" role="radio" aria-checked={on} onClick={() => setPicked(core)}>
-                <span className={`radio ${on ? 'on' : ''}`}>{on ? <i /> : null}</span>
-                <span className="t-body c-text" style={{ flex: 1, fontSize: 15.5 }}>{core} · {ENNEAGRAM_CORE_EN[core]} {ENNEAGRAM_CORE_KO[core]}</span>
-                {core === effectiveCore ? <span className="t-sub c-mute">지금 결과</span> : null}
-              </button>
-            )
-          })}
-        </div>
-      </OnboardingScreen>
+      <CoreOverrideView
+        effectiveCore={effectiveCore}
+        onBack={() => setView('detail')}
+        onConfirm={(selected) => {
+          if (selected !== effectiveCore) { setOverride(selected === inferred ? null : selected); setRound((r) => r + 1) }
+          setView('detail')
+        }}
+      />
     )
   }
 
@@ -696,17 +682,20 @@ export function ResultDetailScreen({ nav }: { nav: Nav }) {
       sternberg={result.sternberg}
       core={effectiveCore}
       candidates={candidates}
-      onMismatch={() => { setPicked(effectiveCore); setView('override') }}
+      onMismatch={() => setView('override')}
       onNext={() => { nav.push('invite') }}
     />
   )
 }
 
-function DetailBody(props: {
+/**
+ * A14 · A15 상세 결과 본문. 온보딩에서는 [다음]이 있고 ← 가 없다. 설정 > 성격 프로필에서 다시 볼 때는(`onNext` 없음 · `onBack` 있음) [다음] 없이 ← 로 돌아온다(RN `?source=settings`).
+ */
+export function DetailBody(props: {
   labelEn: string; labelKo: string; meta: string; description: string[]
   big5: Record<'bigE' | 'bigO' | 'bigA' | 'bigC' | 'bigN', number>
   sternberg: { intimacy: number; passion: number; commitment: number }
-  core: EnneagramCore; candidates: EnneagramCore[]; onMismatch: () => void; onNext: () => void
+  core: EnneagramCore; candidates: EnneagramCore[]; onMismatch: () => void; onNext?: () => void; onBack?: () => void
 }) {
   const { big5, sternberg, core } = props
   // 등장 순서(위 → 아래): 머리 0~0.5s → 빅5 0.8s(막대 1.1s부터 0.5초) → 스턴버그 1.9s(삼각형 2.2s부터) → 나머지(A15) 3.3s에 한 번에.
@@ -738,7 +727,8 @@ function DetailBody(props: {
 
   return (
     <div className="screen solid">
-      <div className="content" style={{ paddingTop: 'calc(var(--top) + 12px)' }}>
+      {props.onBack ? <div className="pushHeader"><BackArrow onClick={props.onBack} /><span className="pushHeaderSpacer" aria-hidden="true" /></div> : null}
+      <div className="content" style={{ paddingTop: props.onBack ? 8 : 'calc(var(--top) + 12px)' }}>
         <p className="t-kicker c-orchid appear" style={{ ...a(100), fontSize: 14, lineHeight: '20px', letterSpacing: 3.4 }}>{props.labelEn}</p>
         <h1 className="t-display c-text appear" style={{ ...a(220), marginTop: 8 }}>{props.labelKo}</h1>
         <p className="t-sub c-sub appear" style={{ ...a(340), marginTop: 8, fontSize: 14.5 }}>{props.meta}</p>
@@ -813,74 +803,8 @@ function DetailBody(props: {
       </div>
       <div className="footer" style={{ ...rest, paddingTop: 14 }}>
         <p className="t-sub c-mute" style={{ textAlign: 'center' }}>{COMPATIBILITY_START_TEMPERATURE_NOTICE}</p>
-        <PrimaryButton label="다음" onClick={props.onNext} />
+        {props.onNext ? <PrimaryButton label="다음" onClick={props.onNext} /> : null}
       </div>
-    </div>
-  )
-}
-
-/* ═══ A17 연인 초대 ═════════════════════════════════════════ */
-/** coupleApi.ts 생성 규칙 그대로(0/O, 1/I 제외 6자리). 서버에 쓰지 않는다. */
-const INVITE_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-function generateInviteCode(): string {
-  let code = ''
-  for (let i = 0; i < 6; i++) code += INVITE_CODE_CHARS[Math.floor(Math.random() * INVITE_CODE_CHARS.length)]
-  return code
-}
-
-export function InviteScreen({ nav }: { nav: Nav }) {
-  const [code] = useState(generateInviteCode)
-  const toast = useToast()
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(code); toast.show('코드를 복사했어요') } catch { toast.show(`내 코드: ${code}`) }
-  }
-  const share = async () => {
-    const text = `온도록에서 우리 연결해요. 초대 코드: ${code}`
-    if (navigator.share) { try { await navigator.share({ text }) } catch { /* 닫음 */ } } else copy()
-  }
-  return (
-    <div className="screen solid">
-      <div className="content" style={{ paddingTop: 'calc(var(--top) + 60px)' }}>
-        <div className="rise">
-          <h1 className="t-display c-text" style={{ fontSize: 30, lineHeight: '38px' }}>연인을 초대해요</h1>
-          <p className="t-sub c-sub" style={{ marginTop: 10, fontSize: 14.5 }}>상대가 이 코드를 입력하면 두 사람이 연결돼요</p>
-          <div className="codeBox">
-            <p className="t-kicker c-mute" style={{ textAlign: 'center', fontSize: 11 }}>MY CODE</p>
-            <p className="code c-text" style={{ userSelect: 'all' }}>{code.slice(0, 3)} {code.slice(3)}</p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <PrimaryButton label="복사하기" variant="ghost" onClick={copy} />
-              <PrimaryButton label="공유하기" onClick={share} />
-            </div>
-          </div>
-          <button className="rowBtn press" onClick={() => toast.show('곧 열릴 예정이에요')}>
-            <span className="t-body c-text" style={{ fontSize: 15.5 }}>상대에게 코드를 받았어요</span>
-            <span className="c-mute">→</span>
-          </button>
-        </div>
-      </div>
-      <div className="footer" style={{ flexDirection: 'row', justifyContent: 'center', gap: 28 }}>
-        <button className="link press" style={{ color: 'var(--textSub)' }} onClick={() => { nav.push('end') }}>나중에 할게요</button>
-        <button className="link press" style={{ color: 'var(--textSub)' }} onClick={() => { nav.push('end') }}>솔로예요</button>
-      </div>
-      {toast.node}
-    </div>
-  )
-}
-
-/* ═══ 온보딩 끝 ═══════════════════════════════════════════════ */
-export function EndScreen({ nav }: { nav: Nav }) {
-  // 계정이 있으면 온보딩으로 다시 들어가는 길을 두지 않는다(R71-4).
-  const hasAccount = useAuthStore((s) => s.userId) !== null
-  return (
-    <div className="screen" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 32px' }}>
-      <div className="appear"><Wordmark size={14} /></div>
-      <h1 className="t-display c-text pre appear" style={{ marginTop: 44, animationDelay: '300ms' }}>{'여기까지가\n온도록의 첫 만남이에요'}</h1>
-      <p className="t-body c-sub appear" style={{ marginTop: 14, animationDelay: '600ms' }}>연결된 뒤에는 두 사람의 기록이{'\n'}매달 한 권의 잡지가 돼요.</p>
-      {hasAccount ? null : (
-        <div className="appear" style={{ position: 'absolute', left: 20, right: 20, bottom: 'calc(var(--bot) + 40px)', animationDelay: '1000ms' }}>
-          <PrimaryButton label="처음부터 다시 보기" variant="ghost" onClick={() => { useSessionStore.getState().resetSession(); nav.reset('intro') }} />
-        </div>
-      )}
     </div>
   )
 }

@@ -93,10 +93,10 @@ describe('로그인 직후 분기와 저장', () => {
 })
 
 describe('서버 진행 단계 -> 웹 화면', () => {
-  it('0 -> 결과 상세, 1 -> 초대, 그 위는 끝 화면(메인이 아직 웹에 없다)', () => {
+  it('0 -> 결과 상세, 1 -> 초대, 2 이상은 메인 탭', () => {
     expect(webRouteForStep(0)).toBe('detail')
     expect(webRouteForStep(1)).toBe('invite')
-    expect(webRouteForStep(2)).toBe('end')
-    expect(webRouteForStep(3)).toBe('end')
+    expect(webRouteForStep(2)).toBe('main')
+    expect(webRouteForStep(3)).toBe('main')
   })
 })

@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Nav } from '../screens'
 import { getSupabase } from './client'
-import { fetchProfile, webRouteForStep } from './finalize'
+import { fetchProfile, resolveWebRoute } from './finalize'
 import { withJwtRetry } from './retry'
 import { useAuthStore } from './stores'
 
@@ -36,7 +36,10 @@ export function useBootSession(nav: Nav): boolean {
         if (id) {
           useAuthStore.getState().setUserId(id)
           const profile = await withJwtRetry(() => fetchProfile(db, id))
-          if (profile && !cancelled) navRef.current.enterAccount(webRouteForStep(profile.onboarding_step))
+          if (profile && !cancelled) {
+            const route = await resolveWebRoute(db, id, profile.onboarding_step, profile.deleted_at)
+            if (!cancelled) navRef.current.enterAccount(route)
+          }
         }
       } catch {
         // 조용히 첫 화면으로 간다.

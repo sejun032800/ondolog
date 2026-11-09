@@ -1,4 +1,17 @@
 # 진행 상황
+- 2026-11-09, 메인 세션, `74-` 검증 · 마감(r75): 74-0~74-8 전부 완료, 멈춤 0. 묶음마다 직접 재실행 - 최종 web npm ci ERESOLVE 0 · tsc 0 · Vitest 29 파일 608 · build · cap sync OK · web/android 변경 0 · 새 패키지 exifr 7.1.3 하나(허가 목록) · 루트 jest 101 · 1771 · tsc 0(74-0 · 3 · 6 · 8 끝), Python 277 OK(74-0 · 3 · 6 · 8) · RN · 루트 보호 파일 diff 0 · 커밋 대상 키/주소/ref/이메일 0 · 파일 이름 ASCII. 커밋 명령은 HANDOFF "Proteur가 할 일 — 커밋 명령"(두 번). 실기기 미확인. 미커밋
+- 2026-11-09, ui-builder, 74-8 마무리(F2 이미지 저장 한 길 - 이름 매번 새로 · 공유 시트 저장 [판단] · 실패 안내, 표 마무리(화면 58 · 이전 단언 약 283/392 · B/F 21행 · 뒤로 가기 31경로 41건 · 한글 18건), 탐방 안내 `docs/74-exploration-guide.md`): 웹 tsc 0 · vitest 29파일 608건 · build 통과 · cap sync 통과(android 변경 0), 새 의존성 0 · 루트 · RN 변경 0.
+- 2026-11-09, ui-builder, 74-7 설정(H01~H06 · H11 · H14 해제(문구 입력 + 7일 유예 양쪽) · H16 탈퇴 + 유예 화면이 단계보다 먼저 · H19 앱 정보 · 문의 · 해제 알림 · 탈퇴/해제 취소 토스트 B15): 웹 tsc 0 · vitest 28파일 604건 · build 통과 · cap sync 통과(android 변경 0), 새 경로 10개(31경로) · 새 의존성 0 · 루트 · RN 변경 0 · 서버 새 RPC 0, 해제/탈퇴는 요청 · 취소 함수만(실행 함수 호출 0).
+- 2026-11-09, ui-builder, 74-6 서재 · 뷰어(D01 · D14 · D16 · D10 속표지 · D11 뷰어 · 밀기 넘기기 · 확대 · PDF 열기(시스템 브라우저, 인앱 렌더링은 허가 요청); D12 숨김 유지): 웹 tsc 0 · vitest 26파일 492건 · build 통과 · cap sync 통과(android 변경 0), 루트 tsc 0 · jest 101 · 1771 그대로, RN · 루트 변경 0.
+- 2026-11-09, ui-builder, 74-5 채팅(F01~F06 · 실시간 · 읽음 · 사진 · 24시간 스토리 · 글 전송 큐 · 메우기 · 한글 조합을 입력 이벤트 방식으로): 웹 tsc 0 · vitest 25파일 446건 · build 통과 · cap sync 통과(android 변경 0), 루트 · RN 변경 0, 새 의존성 0
+- 2026-11-09, ui-builder, 74-4 피드 · 업로드(E01 · E03 · E11 · E13 · E15 · 본인 기록 삭제 · EXIF 촬영일 · 사진 영속 큐 기반 · 사진 크게 보기; E10은 없앰): 웹 tsc 0 · vitest 22파일 373건 · build 통과 · cap sync 통과(android 변경 0), 새 의존성 `exifr@7.1.3` 하나, 루트 · RN 변경 0.
+- 2026-11-09, ui-builder, 74-3 메인(B03 · B04 · B05 · B06 · B01 · 하늘 · 온도): 웹 tsc 0 · vitest 17파일 280건 · build 통과 · cap sync 통과(android 변경 0), 루트 · RN 변경 0.
+
+2026-11-09 (ui-builder, `74-2` 온보딩 2부): 초대 A17 · 코드 입력 A18(서버 초대 코드 · `fn_connect_couple`) · 사귄 날짜 + 닉네임 A19 · 확인 A20 · 재표시 · 단계 판정(`resolveWebRoute`) · I01 -> 초대 · R74-10 문구 · A09 전체 화면 삭제 · 경로 19개. web: tsc 0 · Vitest 16 파일 245 · build · cap sync OK(새 패키지 0, web/android 변경 0). 루트 · RN 변경 0. 실기기 미확인. 미커밋
+
+2026-11-09 (ui-builder, `74-1` 앱 뼈대): 탭 5개 + 탭 바 · 시트 · 확인 · 토스트 · 연결 끊김 띠(I01~I06) · 뒤로 가기 규칙표(17경로) · 커플/프로필 저장소 · 끝 화면 · 채팅 시험 삭제. web: tsc 0 · Vitest 14 파일 162 · build · build:trial · cap sync OK(새 패키지 0, web/android 변경 0). 루트 · RN 변경 0. 실기기 미확인. 미커밋
+
+2026-11-09 (ui-builder, `74-0`): 시험 계정 초기화 스크립트 `scripts/ops/resetTestAccount.ts`(미리 보기 기본 · `--apply`) + 시험 `resetTestAccountCheck.ts`(deno test 9 통과). 루트 jest 101 · 1771 · tsc 0 그대로. 원격 접속 0. 미커밋
 
 2026-11-09 (메인 세션, `73-` 묶음 2 검증 일부, r73): ui-builder 위임 완료(B8 어긋남 0). 확인: 보호 파일 diff 0 · web/ 밖 변경은 PROGRESS · HANDOFF뿐 · web/android는 매니페스트 intent-filter + cap sync 자동 갱신 gradle 2파일(플러그인 등록) · 새 패키지 share 8.0.3 · filesystem 8.1.5 정확한 버전 · 커밋 대상에 주소/키/ref 0(ref는 git 무시 옛 로그 12개에만) · core/ 없음 · web/.env 무시 · HANDOFF 명령 한 줄씩, 원래 경로 → subst O: 순서. 재실행(`73-2-*.txt`): web npm ci ERESOLVE 0 · tsc 0 · Vitest 11 파일 99 · 루트 tsc 0 / 0 · jest 101 · 1771 · Python 277 OK 213.3 s. 실기기(G2 · G3 · G5) 미확인. 미커밋
 

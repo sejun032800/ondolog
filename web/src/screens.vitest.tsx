@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { useSessionStore } from '@/store/sessionStore'
-import { BasicInfoScreen, ConsentScreen, ResultBriefScreen, resetBriefPlayed } from './screens'
+import { ALL_CONSENT_NOTE, BasicInfoScreen, ConsentScreen, ResultBriefScreen, resetBriefPlayed } from './screens'
 import { CodeInput, normalizeCodeInput } from './codeInput'
 import { installKeyboardFocus } from './platform/keyboardFocus'
 import { drawResultCard, type ResultCardData } from './share/resultCard'
@@ -64,9 +64,23 @@ describe('A10 약관 동의 (B2 · B18 · E6)', () => {
     expect(checkbox(/^마케팅 정보 수신/).getAttribute('aria-checked')).toBe('false')
   })
 
-  it('"전체 동의"를 누르면 마케팅까지 켜지고, 그 사실이 문장으로 보인다', () => {
+  it('R74-10: "전체 동의" 줄 바로 아래에, 누르기 전부터 정해진 문장이 보인다', () => {
     renderConsent()
-    expect(screen.getByText('선택 항목(마케팅 정보 수신)도 함께 켜져요')).toBeTruthy()
+    expect(ALL_CONSENT_NOTE).toBe('선택 항목인 마케팅 정보 수신도 함께 동의돼요.')
+    const note = screen.getByText('선택 항목인 마케팅 정보 수신도 함께 동의돼요.')
+    // 같은 줄(전체 동의 체크 줄) 안에서 이름 바로 다음에 있다 - 다른 항목 줄이 아니다.
+    const row = note.closest('.crow')!
+    expect(row.textContent).toContain('전체 동의')
+    expect(row.nextElementSibling?.className).toBe('rule')
+    // 옛 후보 문구는 없다.
+    expect(screen.queryByText(/함께 켜져요/)).toBeNull()
+    // 누른 뒤에도 그대로 보인다.
+    fireEvent.click(checkbox(/^전체 동의/))
+    expect(screen.getByText('선택 항목인 마케팅 정보 수신도 함께 동의돼요.')).toBeTruthy()
+  })
+
+  it('"전체 동의"를 누르면 마케팅까지 켜지고, 다시 누르면 모두 꺼진다', () => {
+    renderConsent()
     fireEvent.click(checkbox(/^전체 동의/))
     const c = useSessionStore.getState().consent
     expect(c).toEqual({ terms: true, privacy: true, aiUsage: true, marketing: true })

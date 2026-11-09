@@ -6,12 +6,17 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import { readRemoteEnv, type RemoteEnv } from '../config/env'
+import { registerConnectionProbe, trackConnection } from '../connection/connectionMonitor'
 import { preferencesStorage, type AsyncAuthStorage } from './preferencesStorage'
 
 export type WebSupabase = SupabaseClient<Database>
 
 export function createWebClient(env: RemoteEnv, storage: AsyncAuthStorage = preferencesStorage): WebSupabase {
+  // I02 띠 풀기 확인: 감싸기 전 원래 `fetch`로 보낸다. 헤더 없음(토큰 · 키 0) - 401이어도 응답이 오면 연결이다.
+  registerConnectionProbe((signal) => fetch(`${env.url}/auth/v1/health`, { method: 'GET', signal }))
   return createClient<Database>(env.url, env.anonKey, {
+    // I02 연결 끊김 판정: 요청 결과만 읽는다(새 요청 없음, `connection/connectionMonitor.ts`).
+    global: { fetch: trackConnection((...args) => fetch(...args)) },
     auth: {
       storage,
       autoRefreshToken: true,

@@ -16,3 +16,8 @@ export function readRemoteEnv(env: EnvLike = import.meta.env as EnvLike): Remote
   if (!url || !anonKey) return null
   return { url, anonKey }
 }
+
+/** 개발 서버(`npm run dev`) 또는 시험용 빌드(`--mode trial`)인가. 운영 빌드에서는 false - 개발용 안내만 이것으로 가른다. */
+export function isDevBuild(env: { DEV: boolean; MODE: string } = import.meta.env): boolean {
+  return env.DEV === true || env.MODE === 'trial'
+}

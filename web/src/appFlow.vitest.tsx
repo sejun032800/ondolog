@@ -8,9 +8,10 @@ import { resetCallbackStateForTest } from './auth/callback'
 import { setSupabaseForTest } from './auth/client'
 import { useAuthStore, useNoticeStore } from './auth/stores'
 import { BOOT_TIMEOUT_MS } from './auth/useBootSession'
+import { EXISTING_ACCOUNT_NOTICE } from './auth/finalize'
 import { useSessionStore } from '@/store/sessionStore'
 import { fillOnboardingAnswers, makeFakeBridge, makeFakeClient } from './testSupport'
-import { EndScreen, LoveQuizScreen } from './screens'
+import { LoveQuizScreen } from './screens'
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -105,6 +106,40 @@ describe('로그인 왕복 (앱 링크 -> 콜백 -> 저장 -> 계정 화면)', (
     expect(screen.getAllByText(/이미 가입한 계정이에요/)).toHaveLength(1)
     fireEvent.click(screen.getByRole('status'))
     expect(screen.queryByText(/이미 가입한 계정이에요/)).toBeNull()
+  })
+})
+
+describe('기존 계정 알림 (F3 - 끝 화면이 없는 흐름)', () => {
+  const NOTICE = '이미 가입한 계정이에요. 원래 정보로 이어서 보여 드려요. 방금 본 결과는 저장하지 않았어요.'
+
+  it('문구는 R65-2 원문 그대로다', () => {
+    expect(EXISTING_ACCOUNT_NOTICE).toBe(NOTICE)
+  })
+
+  it('서버 진행 단계가 끝(2 이상)인 기존 계정은 메인 탭으로 가고, 알림이 그 위에 한 번 보인다', async () => {
+    fillOnboardingAnswers()
+    const { client } = makeFakeClient({ profile: { id: 'user-1', onboarding_step: 3 }, assessment: { id: 'a' } })
+    setSupabaseForTest(client)
+    const bridge = await startApp('/auth')
+    act(() => bridge.emitUrl('ondolog://auth/callback?code=EXIST3'))
+    await settle(10)
+    expect(screenName()).toBe('main')
+    expect(screen.getAllByText(NOTICE)).toHaveLength(1)
+  })
+
+  it('방금 본 결과가 없었으면(저장하지 않은 것이 없으므로) 알림이 없다', async () => {
+    useSessionStore.getState().resetSession()
+    const { client } = makeFakeClient({ profile: { id: 'user-1', onboarding_step: 3 }, assessment: { id: 'a' } })
+    setSupabaseForTest(client)
+    const bridge = await startApp('/auth')
+    act(() => bridge.emitUrl('ondolog://auth/callback?code=EXIST4'))
+    await settle(10)
+    expect(screen.queryByText(/이미 가입한 계정이에요/)).toBeNull()
+  })
+
+  it('끝 화면 경로(/end)는 없다 - 알 수 없는 경로는 첫 화면', async () => {
+    await startApp('/end')
+    expect(screenName()).toBe('intro')
   })
 })
 
@@ -206,14 +241,5 @@ describe('E4 결과 화면이 두 번 열리지 않는다', () => {
     act(() => { vi.advanceTimersByTime(400) })
     expect(push).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith('brief')
-  })
-})
-
-describe('계정 뒤 끝 화면', () => {
-  it('계정이 있으면 "처음부터 다시 보기"가 없다 (온보딩으로 돌아가는 길 0)', () => {
-    useAuthStore.getState().setUserId('user-1')
-    const nav = { push: vi.fn(), back: vi.fn(), reset: vi.fn(), replace: vi.fn(), enterAccount: vi.fn() }
-    render(<MemoryRouter><EndScreen nav={nav} /></MemoryRouter>)
-    expect(screen.queryByText('처음부터 다시 보기')).toBeNull()
   })
 })

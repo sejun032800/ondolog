@@ -10,6 +10,556 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
+## `74-` 앱 전체를 웹으로 (메인 세션 진행, 2026-11-09 시작) - 새 세션은 이 절만 보고 다음 묶음부터
+
+지시: `.claude/state/prompts/phase-7/PM_directive_74-web-full-app.md`(원본, 우선) · `74-ui-builder-full-app.md`(묶음별 할 일) · `74-main-session-dispatch-full-app.md`(진행 방식). 멈춤 조건은 셋(절대 규칙 · 마이그레이션 · 허가 밖 의존성/네이티브 파일)뿐, 나머지는 아래 "결정 기록"에 한 줄.
+
+### 진행 상태
+
+| 묶음 | 상태 | 커밋할 파일 |
+|---|---|---|
+| 74-0 초기화 스크립트 | 완료 | `scripts/ops/resetTestAccount.ts` · `scripts/ops/resetTestAccountCheck.ts` · `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` |
+| 74-1 앱 뼈대 | 완료 | `web/src/app/routes.ts` · `web/src/app/backRules.ts` · `web/src/app/backRules.vitest.ts` · `web/src/app/routeTable.tsx` · `web/src/app/sheets.tsx` · `web/src/app/inviteEntry.ts` · `web/src/app/useAccountData.ts` · `web/src/app/shell.vitest.tsx` · `web/src/tabs/TabBar.tsx` · `web/src/tabs/TabIcons.tsx` · `web/src/tabs/TabFrame.tsx` · `web/src/tabs/MainTab.tsx` · `web/src/tabs/ChatTab.tsx` · `web/src/tabs/FeedTab.tsx` · `web/src/tabs/MagazineTab.tsx` · `web/src/tabs/SettingsTab.tsx` · `web/src/components/Sheet.tsx` · `web/src/components/ConfirmDialog.tsx` · `web/src/components/Skeleton.tsx` · `web/src/components/EmptyState.tsx` · `web/src/components/ToastHost.tsx` · `web/src/components/ConnectionBanner.tsx` · `web/src/components/CoupleGate.tsx` · `web/src/components/components.vitest.tsx` · `web/src/connection/connectionMonitor.ts` · `web/src/connection/useOfflineProbe.ts` · `web/src/connection/chatQueueSignal.ts` · `web/src/connection/connection.vitest.tsx` · `web/src/stores/toastStore.ts` · `web/src/stores/sheetStore.ts` · `web/src/stores/coupleStore.ts` · `web/src/stores/profileStore.ts` · `web/src/stores/stores.vitest.ts` · `web/src/platform/motion.ts` · `web/src/App.tsx` · `web/src/navigation.tsx` · `web/src/screens.tsx` · `web/src/styles.css` · `web/src/testSupport.ts` · `web/src/appFlow.vitest.tsx` · `web/src/auth/client.ts` · `web/src/auth/finalize.ts` · `web/src/auth/finalize.vitest.ts` · `web/src/config/env.ts` · `web/src/dev/ChatTrial.tsx` (삭제) · `web/src/dev/chatFeel.vitest.tsx` (삭제) · `web/src/dev/chatTrial.vitest.tsx` (삭제) · `web/src/dev/chatTrialGate.ts` (삭제) · `web/src/dev/fakeMessages.ts` (삭제) · `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` |
+| 74-2 온보딩 2부 | 완료 | 새 파일 + 74-1 파일 중 다시 바뀐 것을 합친 목록(이름 하나씩): `web/src/couple/coupleApi.ts` · `web/src/couple/useStartDateRecheck.ts` · `web/src/features/couple/InviteScreen.tsx` · `web/src/features/couple/CodeBoxes.tsx` · `web/src/features/couple/StartDateScreen.tsx` · `web/src/features/couple/coupleApi.vitest.ts` · `web/src/features/couple/couple.vitest.tsx` · `web/src/testSupportCouple.ts` · `web/src/app/routes.ts` · `web/src/app/backRules.ts` · `web/src/app/backRules.vitest.ts` · `web/src/app/routeTable.tsx` · `web/src/app/inviteEntry.ts` · `web/src/app/shell.vitest.tsx` · `web/src/App.tsx` · `web/src/appFlow.vitest.tsx` · `web/src/auth/finalize.ts` · `web/src/auth/useAccountFinalize.ts` · `web/src/auth/useBootSession.ts` · `web/src/codeInput.tsx` · `web/src/platform/bridge.ts` · `web/src/screens.tsx` · `web/src/screens.vitest.tsx` · `web/src/styles.css` · `web/src/testSupport.ts` · `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` |
+| 74-3 메인 | 완료 | 새 파일: `web/src/features/main/MainView.tsx` · `web/src/features/main/useMainData.ts` · `web/src/features/main/issueSeen.ts` · `web/src/features/main/main.vitest.tsx` · `web/src/app/viewerEntry.ts` / 다시 바뀐 74-1~2 파일: `web/src/tabs/MainTab.tsx` · `web/src/app/routeTable.tsx` · `web/src/App.tsx` · `web/src/styles.css` · `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` |
+| 74-4 피드 · 업로드 | 완료 | 새 파일: `web/src/features/feed/exifr.d.ts` · `web/src/features/feed/photoPicker.ts` · `web/src/features/feed/feedData.ts` · `web/src/features/feed/FeedView.tsx` · `web/src/features/feed/DateDetailScreen.tsx` · `web/src/features/feed/StopEditScreen.tsx` · `web/src/features/feed/RecordSheet.tsx` · `web/src/features/feed/feedTestSupport.ts` · `web/src/features/feed/feed.vitest.tsx` · `web/src/features/feed/feedFlow.vitest.tsx` · `web/src/features/feed/photoPicker.vitest.ts` · `web/src/components/PhotoViewer.tsx` · `web/src/components/zoomMath.ts` · `web/src/components/zoom.vitest.tsx` · `web/src/photoQueue/webPhotoFs.ts` · `web/src/photoQueue/photoQueueStore.ts` · `web/src/photoQueue/photoQueueHub.ts` · `web/src/photoQueue/usePhotoQueueResume.ts` · `web/src/photoQueue/photoQueue.vitest.tsx` · `web/public/fonts/MaruBuri-Regular.ttf` / 다시 바뀐 74-1~3 파일: `web/src/tabs/FeedTab.tsx` · `web/src/app/routes.ts` · `web/src/app/routeTable.tsx` · `web/src/app/backRules.ts` · `web/src/app/backRules.vitest.ts` · `web/src/app/sheets.tsx` · `web/src/stores/sheetStore.ts` · `web/src/navigation.tsx` · `web/src/App.tsx` · `web/src/styles.css` / 새 의존성: `web/package.json` · `web/package-lock.json`(`exifr@7.1.3` 한 줄) / `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` |
+| 74-5 채팅 | 완료 | 새 파일: `web/src/features/chat/ChatView.tsx` · `useChatMessages.ts` · `chatApi.ts` · `textQueueHub.ts` · `useChatQueueResume.ts` · `useSignedMedia.ts` · `localPreview.ts` · `StoryViewer.tsx` · `chatPhotoActions.ts` · `chatTestSupport.ts` · `chat.vitest.tsx` · `chatData.vitest.tsx` · `web/src/platform/useKeyboardOpen.ts` · `web/src/platform/chatComposer.vitest.tsx` · `web/src/components/PhoneLayer.tsx` / 다시 바뀐 파일: `web/src/platform/useChatComposer.ts`(300ms 시간 방식 삭제, 입력 이벤트 방식) · `web/src/tabs/ChatTab.tsx` · `web/src/app/routeTable.tsx` · `web/src/App.tsx` · `web/src/styles.css` · `web/src/components/CoupleGate.tsx` · `web/src/components/PhotoViewer.tsx` · `web/src/features/feed/photoPicker.ts` · `web/src/features/feed/feedTestSupport.ts` · `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` (새 경로 0 - 스토리 · 사진 뷰어는 화면 위 덮개라 규칙표 변경 없음, 새 의존성 0, `web/android` 변경 0) |
+| 74-6 서재 · 뷰어 | 완료 | 새 파일: `web/src/features/magazine/libraryData.ts` · `LibraryView.tsx` · `viewerData.ts` · `IssueViewer.tsx` · `ViewerHost.tsx` · `magazineTestSupport.ts` · `magazine.vitest.tsx` · `web/src/stores/viewerOpenStore.ts` / 다시 바뀐 파일: `web/src/tabs/MagazineTab.tsx`(빈 틀 -> 서재) · `web/src/App.tsx`(`<ViewerHost>` 한 줄) · `web/src/components/PhotoViewer.tsx`(`ZoomableImage`에 `onError`) · `web/src/features/main/issueSeen.ts`(`useIssueOpenedSignal`) · `web/src/features/main/useMainData.ts`(그 번호를 보면 "열어 봄"을 다시 읽음) · `web/src/styles.css` · `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` (새 경로 0 - 뷰어는 덮개라 규칙표 변경 없음, 새 의존성 0, `web/android` 변경 0, 루트 · RN 변경 0) |
+| 74-7 설정 | 완료 | 새 파일: `web/src/features/settings/parts.tsx` · `web/src/features/settings/SettingsView.tsx` · `web/src/features/settings/useSettingsSummary.ts` · `web/src/features/settings/settingsData.ts` · `web/src/features/settings/accountActions.ts` · `web/src/features/settings/appInfo.ts` · `web/src/features/settings/ProfileScreen.tsx` · `web/src/features/settings/CoupleScreen.tsx` · `web/src/features/settings/DissolutionGrace.tsx` · `web/src/features/settings/PhraseConfirm.tsx` · `web/src/features/settings/UnlinkScreen.tsx` · `web/src/features/settings/WithdrawScreen.tsx` · `web/src/features/settings/WithdrawCancelScreen.tsx` · `web/src/features/settings/PersonalityScreen.tsx` · `web/src/features/settings/SettingsResultScreen.tsx` · `web/src/features/settings/RetestScreen.tsx` · `web/src/features/settings/PrivacyScreen.tsx` · `web/src/features/settings/AboutScreen.tsx` · `web/src/features/settings/useDissolutionNotice.ts` · `web/src/features/settings/settingsTestSupport.ts` · `web/src/features/settings/settings.vitest.tsx` · `web/src/features/settings/settingsFlow.vitest.tsx` · `web/src/stores/dissolutionStore.ts` / 다시 바뀐 74-1~6 파일: `web/src/tabs/SettingsTab.tsx` · `web/src/app/routes.ts` · `web/src/app/routeTable.tsx` · `web/src/app/backRules.ts` · `web/src/app/backRules.vitest.ts` · `web/src/app/useAccountData.ts` · `web/src/App.tsx` · `web/src/navigation.tsx` · `web/src/screens.tsx` · `web/src/auth/finalize.ts` · `web/src/auth/useBootSession.ts` · `web/src/auth/useAccountFinalize.ts` · `web/src/stores/profileStore.ts` · `web/src/platform/bridge.ts` · `web/src/testSupport.ts` · `web/src/testSupportCouple.ts` · `web/src/styles.css` / `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` (새 경로 10개 · 새 의존성 0 · `web/android` 변경 0 · 루트 · RN 변경 0 · 서버 새 RPC 0) |
+| 74-8 마무리 | 완료 | 새 파일: `web/src/platform/imageSave.ts` · `web/src/platform/imageSave.vitest.ts` · `docs/74-exploration-guide.md` / 다시 바뀐 파일: `web/src/platform/bridge.ts`(`saveImage` 공유 시트 방식 · `SaveResult`에 `cancelled`) · `web/src/features/chat/chatPhotoActions.ts` · `web/src/features/chat/ChatView.tsx` · `web/src/features/chat/chat.vitest.tsx` · `web/src/screens.tsx` / `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` (새 경로 0 · 새 의존성 0 · `web/android` 변경 0 · 루트 · RN 변경 0) |
+
+시작 지점: 커밋 `17222d1`(작업 트리 깨끗, ROADMAP `2026-11-09-r75`, PM 지시서 · 두 프롬프트 커밋됨 확인).
+
+### 디자인 · 기준 자료 위치 (단계 0-3)
+
+| 자료 | 위치 | 비고 |
+|---|---|---|
+| Nocturne v5 보드 | `docs/design/nocturne/` — 화면 `screens/*.jpg` 109장 · 목록 `screens_index.csv` · 보드 `boards/*.jpg` 13장 · 현재판 판정 `CURRENT.md` | 캔버스 HTML은 `canvas/N-R44-Voice.dc.html`(patch8) · `nocturne/canvas/N-R43-App-States.dc.html`(patch7) · `nocturne/canvas/Tokens.dc.html`(patch7) 셋만 있음. `CURRENT.md`가 말하는 `Components` · `N-R31-App-Fixes` · `P1-Cover-Note` · `N-S-D3-Magazine` HTML은 저장소에 없음 → 해당 화면은 JPG + 웹 데모 값 |
+| patch3~8 | `docs/design/nocturne/CHANGES.md`(patch1~5 포함 여부는 본문) · `CHANGES_patch3.md` · `CHANGES_patch8.md` · `nocturne/CHANGES_patch6.md` · `nocturne/CHANGES_patch7.md` · `nocturne/CURRENT.md` | patch4 · patch5 별도 파일 없음(`CHANGES.md` · `CURRENT.md` 표로 대신) |
+| 모션 명세 v2 | **저장소에 없음.** 가까운 것: `docs/ONDOLOG_DESIGN.md` §6 모션 · `boards/02_X1-Motion-Main.jpg` | 결정 기록 참조 — 웹 데모 값(이미 `web/`에 들어온 이징 · 시간)으로 대신 |
+| 웹 데모 | 소스 zip은 저장소 밖(`73-`에서 `web/`로 반입 완료). 연출 값은 `web/src/styles.css` · `web/src/ui.tsx` · `web/src/navigation.tsx` | |
+| `51-device-checklist.md` | `docs/51-device-checklist.md` | |
+| `51b-` 결함 표 B1~B18 | `.claude/state/prompts/phase-7/PM_directive_51b-device-fixes.md` 37~54행 | F1~F3는 ROADMAP R75-5 · PM 지시서 §1(F1 뒤로 가기 · F2 이미지 저장 · F3 데모 끝 화면/기존 계정 알림) |
+| 토큰 · UI 킷 | `docs/design/tokens/*.v2.ts.txt` · `docs/design/ui-kit/` · 탭 아이콘 `docs/design/nocturne/nocturne/icons/` | |
+
+### 묶음 나누는 방식
+
+`74-ui-builder-full-app.md` §2 표 그대로(74-0 → 74-8). 루트 관문(jest · tsc · Python)은 74-0 · 74-3 · 74-6 · 74-8 끝에.
+
+### 74-0 명령 (Proteur가 먼저 써 볼 수 있음)
+
+(저장소 루트 PowerShell. 환경 변수는 PC에 이미 설정돼 있으면 생략: `$env:ONDOLOG_SUPABASE_URL = '<프로젝트 주소>'` 한 줄, `$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = '<서비스 키>'` 한 줄. 값은 이 파일에 쓰지 않음)
+
+미리 보기(아무것도 지우지 않음):
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=<프로젝트 ref>.supabase.co --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일>
+```
+
+실제 삭제:
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=<프로젝트 ref>.supabase.co --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일> --apply
+```
+
+시험(원격 없음): `deno test --no-check --no-lock --unstable-sloppy-imports scripts/ops/resetTestAccountCheck.ts` (9개 통과)
+
+### 누적 표 (묶음마다 자기 행을 더한다 — 74-8이 끝 보고로 묶는다)
+
+**화면 대응표** — 화면 ID · 웹 파일 위치 · 보드 대조(같음 / 다름 + 이유)
+
+| 화면 ID | 웹 파일 | 보드 대조 |
+|---|---|---|
+| 탭 바 | `web/src/tabs/TabBar.tsx` · `TabIcons.tsx` | 같음(보드 `tab_icons.md` 경로 · 값). 바 바탕만 불투명 `#0A0814`(B5) |
+| 탭 5개 빈 틀 | `web/src/tabs/*Tab.tsx` · `TabFrame.tsx` | 자리 표시(각 묶음이 채움) |
+| I01 커플 게이트 | `web/src/components/CoupleGate.tsx` · `app/sheets.tsx` | 같음(문구 · 두 원 · 버튼 둘). PNG + RN 값 기준 |
+| I02 연결 끊김 띠 | `web/src/components/ConnectionBanner.tsx` · `connection/*` | 같음 |
+| I03 불러오는 중 | `web/src/components/Skeleton.tsx` | 같음(.06~.12 · 1.6초) |
+| I04 빈 상태 | `web/src/components/EmptyState.tsx` | 같음 |
+| I05 되돌릴 수 없는 확인 | `web/src/components/ConfirmDialog.tsx` | 같음 |
+| I06 토스트 | `web/src/components/ToastHost.tsx` · `stores/toastStore.ts` | 같음 |
+| 공용 시트 부품 | `web/src/components/Sheet.tsx` | A12 법적 문서 시트가 이것으로 옮겨 감 |
+| A17 연인 초대 | `web/src/features/couple/InviteScreen.tsx`(`mode='onboarding'`) | 같음(제목 · 부제 · MY CODE · [복사하기] · [공유하기] · "상대에게 코드를 받았어요 →" · 아래 "나중에 할게요 · 솔로예요"). 코드는 서버 발급. 발급 전 상태(코드 자리에 [초대 코드 만들기])는 보드에 없어 RN 문구로 |
+| A18 초대 코드 입력 | 같은 파일 + `CodeBoxes.tsx` | 같음(← · 두 줄 제목 · 6칸 · 안내 문장 · [연결하기]). 오류 문구는 patch7 A18 ⓒ(자기 코드만 따로, 나머지 무효는 한 문구) |
+| 커플 초대(I01에서) | 같은 `InviteScreen`(`mode='gate'`) · 경로 `couple-invite` | RN `couple-gate` 모달 -> 웹은 스택 화면. A17/A18과 같은 모양에 ←를 더하고 건너뛰기를 뺌 |
+| A19 사귄 날짜 + 커플 닉네임 | `web/src/features/couple/StartDateScreen.tsx` | 같음(두 원 · "…과 연결됐어요" · 날짜 · 닉네임 · [시작하기]). 날짜 칸 오른쪽 → 화살표는 보드에만 있고 입력 칸이라 뺌(RN 동일) |
+| A20 상대가 정한 날짜 확인 | 같은 파일(`mode='onboarding'` · `'recheck'`) · 경로 `start-date-recheck` | 같음(SINCE 카드 · 안내 · [확인했어요]) |
+| B03 메인 - 아직 잴 기록 없음 | `web/src/features/main/MainView.tsx`(`layout.state='B03'`) | 같음(01 OUR TEMPERATURE 자리에 "아직 온도를 잴 기록이 없어요" · D+N · 02 FIRST STEP -> 채팅 · 03 FIRST ISSUE). 활동 있음 + 저장값 없음은 같은 틀에 "첫 온도는 기록한 다음 날 나와요"(r69). 보드의 상단 "끌어내리면 우리의 하늘" 힌트는 MVP 조정표대로 뺌 |
+| B04 메인 - 기념일 당일 | 같은 파일(`'B04'`) | 같음(TODAY 히어로 "300일" · "오늘로 함께한 지 300일이에요" · 온도 칩은 저장값이 있을 때만) |
+| B05 메인 - 미연결 | 같은 파일(`DisconnectedBody`) · `<CoupleGate fallback>` | 같음(36.5° 발광 없음 · "연인과 연결하면 두 사람의 온도로 바뀌어요" · 02 MY LOVE TYPE 카드 · [연인 초대하기]). 보드 카드의 "결과 자세히 보기 →"는 RN에도 없어 뺌 · 힌트 줄 뺌 |
+| B06 메인 - 새 호 도착 | 같은 파일(`NewIssueCard`) | 같음(표지 글로우 · VOL.NN · "N월호가 꽂혔어요" · [읽기] · 03 NEXT ISSUE). 보드의 "0% →"는 누르는 곳이 없는 카드로 둠("제작 현황"은 범위 밖) |
+| B01 메인 - 연결(온도) | 같은 파일(`'B01'`) | 같음(rose 발광 숫자 · D+N · 마일스톤 칩 · 지난 호 다시 읽기 · 다음 호 카드). 보드의 02 THIS WEEK 인용 칸은 MVP 조정표대로 뺌 |
+| 하늘(메인 배경) | `web/src/App.tsx`(`skyFor('main')`) · `ui.tsx SkyLayer` | 같음(offset `viewOffsetPt.main` · 장막 .42 · 하단 장막 460px). 끌어내리기 · 하늘(C) · 유성은 범위 밖이라 0 |
+| 온도 | `web/src/features/main/MainView.tsx`(`GlowNumeral`) · `stores/coupleStore.ts` | 저장값 읽기만(계산 0). 미연결 · 프로파일 미완 = 36.5 고정(발광 없음, textSub) |
+| A09 공유 카드 | (화면 없음) | 이미지로만 존재(A08 [공유하기]가 `share/resultCard.ts`로 생성). 전체 화면 미리보기는 지움 |
+| A10 약관 동의 문구(R74-10) | `web/src/screens.tsx`의 `ALL_CONSENT_NOTE` | 보드 A10에 문구가 없어 지시서 문구 그대로 |
+| E01 피드 | `web/src/tabs/FeedTab.tsx` · `features/feed/FeedView.tsx`(`FeedChapterView` · `MonthChapterHeader` · `DateCard`) · `feedData.ts`(`useFeed`) | 같음(월 머리 112 숫자 · 영문 달 · 대표 카드 + 원문 한 줄 + 2열 · 오른쪽 월 바로 가기 · + 버튼). CURRENT.md 바뀐 점대로 머리는 "메모 N · 사진 N · 데이트 N"(별 0). 피드형/지도형 토글은 지도가 범위 밖이라 뺌. PNG는 옛 판이라 CURRENT.md 표 우선 |
+| E13 피드 - 혼자 기록 | 같은 파일(`SoloBanner`) · `<CoupleGate fallback>` | 같음(두 원 · "혼자서도 기록할 수 있어요" · 초대 →). 기록할 커플 행이 없으면 문구가 "초대 코드를 만들면 기록할 수 있어요"로 바뀌고 + 버튼은 비활성(RN 그대로). [초대 →]는 I01 시트 한 번. 커플 행을 읽기 전에는 배너 자체가 없다(문구가 번쩍 바뀌지 않게) |
+| E03 데이트 상세 | `features/feed/DateDetailScreen.tsx`(경로 `date-detail?id=`) | 같음(위 사진 + 장막 · 머리 · 메모 · stop 타임라인 · [사진 더하기]). CURRENT.md대로 내 사진 · 메모에 `⋯` 삭제 진입점 + 확인 시트(남의 기록에는 0). 사진을 누르면 크게 보기(RN에는 없던 것 - 74-4 지시) |
+| E10 사진 직접 추가 | (화면 없음) | CURRENT.md "없앤다 - 시스템 사진 선택기로 대체". E03 [사진 더하기]가 바로 선택기를 열고 고른 사진을 그 데이트에 올린다(RN `/upload?dateId=`와 같은 `recordDate` 호출 - 날짜 고정 · 장소 · 메모 없음) |
+| E11 데이트 기록 쓰기 | `features/feed/RecordSheet.tsx`(시트 `record`, `app/sheets.tsx`) | 같음(✕ · PHOTOS · 날짜/시간/장소 목록 · MEMO · [기록 남기기]). CURRENT.md대로 **시간 칸은 조건부**(이름 있는 장소 0 + 고른 사진에 촬영 시각 전무일 때만)와 안내 문구 2종. 칸의 모양은 보드 자료가 PNG(옛 판)뿐이라 해석했다 - 결정 기록 [74-4] 시간 칸 |
+| E15 장소 고치기 | `features/feed/StopEditScreen.tsx`(경로 `stop-edit?id=&stop=`) | 같음(← · "장소" · 이름 입력 · 도착 시각). 보드의 검색 결과 · "FROM PHOTO" 위치 제안은 지도(범위 밖)라 없음 - RN과 같다 |
+| F01 채팅 | `web/src/tabs/ChatTab.tsx` · `features/chat/ChatView.tsx`(`ChatConversation` · `ChatHeader` · `StoryStrip` · `TextMessage` · `PhotoMessage` · `Composer`) · `useChatMessages.ts` | 같음(이름 · D+N · 스토리 줄 · 날짜 구분 · 말풍선 · 끝까지 붙는 사진 · 입력 알약). 말풍선 등장 220ms · 끝 유지는 73-1c 값. 읽음 = 숫자 1(rose) |
+| F02 채팅 미연결 | 같은 파일(`ChatDisconnected`) · `CoupleGate fallback` | 같음(patch7 대로 둘째 문장 "잡지의 재료" 없음). 시트가 아니라 화면 안 카드(B4), 두 버튼은 바로 초대(B12) |
+| F03 스토리 보기 | `features/chat/StoryViewer.tsx` | 같음(위 막대 정지 표시 · 이름 + 몇 시간 전 · ✕ · 좌우 절반 넘기기 · "스토리는 24시간 동안 보여요"). 시트가 아니라 폰 틀 위 덮개, 뒤로 가기 = 닫기만 |
+| F04 첨부 | `ChatView.tsx`(`AttachSheetBody`) | [앨범] + [카메라](웹 입력 `capture`). "최근 사진" 격자는 없음(사진 라이브러리를 훑지 않는다 R13-2) - 결정 기록 |
+| F05 보내는 중 · 다시 보내기 | `ChatView.tsx`(`Meta` · `OfflineBanner`) | 같음(말풍선 .55 · "보내는 중" · rose 테두리 [다시 보내기] · 안내 줄 · 스피너 0) |
+| F06 사진 크게 보기 | `ChatView.tsx` + 공용 `components/PhotoViewer.tsx`(`heading` · `footer`) | 같음(✕ · 이름 + 날짜시각 · [저장] [공유]). 저장은 `chatPhotoActions.saveChatPhoto` 한 곳(74-8이 바꿔 끼움) |
+| 말풍선 복사 | `ChatView.tsx`(`CopyMenuBody`) | 보낸 글 길게 누르기 -> 앱이 그리는 [복사] 시트 -> `navigator.clipboard` |
+| 사진 크게 보기 | `web/src/components/PhotoViewer.tsx` · `zoomMath.ts` | 보드 F06(채팅 사진)의 ✕ · 이름 · 사진 틀을 따른 공용 부품. 74-6 서재 뷰어도 `ZoomableImage` · `zoomMath`를 쓸 수 있다 |
+| D01 매거진 서재 | `web/src/tabs/MagazineTab.tsx` · `features/magazine/LibraryView.tsx`(`LibraryShelf` · `NextIssueCard`) · `libraryData.ts` | 같음(머리 "매거진" · NEXT ISSUE 카드(큰 월 숫자 · 실루엣 · 정지 진행선 · % · 재료 두 줄) · LIBRARY N권 · 2열 표지 + 표지 밖 "VOL.NN" + "N월호"). 보드 PNG의 표지 안 글자(ONDOLOG · 문장)는 표지 이미지가 그린다 - 표지 위에 얹는 것 0(R21-3). "제작 현황 →"는 D02가 범위 밖이라 뺌 |
+| D14 서재 - 첫 호 시작 | 같은 파일(`FirstIssue` · `ShelfHint`) | 같음(실루엣 · FIRST ISSUE · "첫 호를 만들기 시작했어요" · 진행선 · % · "발행한 호가 여기에 꽂혀요"). 초안이 없으면 0% |
+| D16 매거진 - 미연결 | 같은 파일(`Unconnected`) · `<CoupleGate fallback>` | 같음(실루엣 · "두 사람의 첫 호가 들어갈 자리" · 안내 · [연인 초대하기] -> `openInvite('intro')`) |
+| D10 속표지 | `features/magazine/IssueViewer.tsx`(`FrontMatter`) | 종이 바탕(#F1ECE4) · 워드마크 · 닉네임 · 표지 · "N월호" · 이름 · 실린 코너(지면 제목) · [읽기] · [PDF 내려받기] · 고지. **고지 문구는 CURRENT.md §1 / R31-9의 교체 문장**(`magazineCopy.FRONT_MATTER_NOTICE`, 보드 PNG의 옛 문장은 쓰지 않음). 표지 이미지는 보드의 가로 그림이 아니라 RN대로 1 : 1.414 세로 표지 |
+| D11 뷰어 | 같은 파일(`PageReader`) | 밤 바탕 · ← · "N월호" · "8 / 19" · 쪽 이미지 한 장. 보드의 [목차] 버튼 · 아래 쪽 썸네일 띠는 **뺌**(D12 숨김 R31-8 + RN도 없음) |
+| D12 목차 | (없음) | **숨김** - 쪽 번호 매니페스트가 없다(R48-1이 지움). `@/services/issueManifest`는 늘 null, 진입 버튼 0. 시험이 null · 버튼 없음을 지킴 |
+| 쪽 넘기기 · 확대 | `IssueViewer.tsx`(`PageReader`) + 공용 `components/PhotoViewer.tsx`(`ZoomableImage`) · `zoomMath.ts` | 배율 1에서 옆으로 밀면 앞뒤 쪽(220ms 슬라이드 + 페이드 CSS, `prefers-reduced-motion` 즉시) · 두 번 누르기 2.5배 · 핀치 1~4배 · 끌기 · 방향키. 직접 구현, 라이브러리 0 |
+| PDF 열기 | `IssueViewer.tsx` | [PDF 내려받기] -> 디지털 PDF 새 서명 주소(10분) -> 다리 `bridge.openBrowser`(앱의 시스템 브라우저). 앱 안에서 PDF를 그리지 않음 - 결정 기록 [74-6] [허가 요청] |
+| H01 · H02 설정 목록 | `web/src/tabs/SettingsTab.tsx` · `features/settings/SettingsView.tsx` · `useSettingsSummary.ts` | 같음(ACCOUNT · COUPLE · PERSONALITY · PRIVACY · ETC 그룹, 값 + → 줄). 갈 곳이 없는 항목은 보드에 있어도 숨김(RN `HIDDEN_SETTINGS_ITEMS` 그대로: OUR SKY · 구독 · 사진 · 알림 · 데이터 · 생체정보 등). 값은 읽히기 전 I03 뼈대(B14), 다녀오면 직전 값 먼저. 해제 유예 중에는 연인 줄이 "해제 예정"(RN은 "연결 전") |
+| H03 프로필 | `features/settings/ProfileScreen.tsx` · 경로 `settings-profile` | 같음(이름 · 성별 · 생년월일(읽기) · 연결된 계정 · 로그아웃 · 회원 탈퇴 · 머리 [저장]). 보드의 "사진 바꾸기"는 프로필 사진 칸이 없어 뺌(RN 동일) |
+| H04 커플 | `features/settings/CoupleScreen.tsx` · 경로 `settings-couple` | 같음(연결 카드 · 사귄 날짜 · 커플 닉네임 · [연결 해제] + 안내). patch7 ⓓ대로 날짜 안내를 **날짜 줄 바로 아래**에(RN은 입력 모습에만). 미연결 = I01 카드 |
+| H14 연결 해제 - 유예 중 | 같은 파일 + `DissolutionGrace.tsx`(`DissolutionGraceBody`) | 같음(DISCONNECTING · N일 · 날짜 · 안내 4줄 · PDF 줄). 보드의 "밤 12시"는 서버 값과 안 맞아 날짜만. 상대 쪽은 patch7 ⓔ(주어 바뀜 · 취소 버튼 자리에 이유 문장) |
+| H14 연결 해제 - 문구 입력 | `features/settings/UnlinkScreen.tsx` + `PhraseConfirm.tsx`(I05 문구 입력) · 경로 `settings-unlink` | 같음(patch7 ⓖ: 확인어 `해제합니다`, 안내 + PDF 저장 안내 + 입력이 한 화면). 틀리면 [해제 요청하기] 꺼짐 |
+| H05 성격 프로필 | `features/settings/PersonalityScreen.tsx` · 경로 `settings-personality` | 같음(결과 카드 + 세 줄). patch7 H05의 애착 슬롯대로 카드에 애착 이름(안정형 등)을 보임 - RN은 MASTER 10-5-3을 이유로 뺐으나 웹 A14가 이미 같은 이름을 보인다(결정 기록 [74-7]) |
+| A14 · A15 · A16 설정 모드 | `features/settings/SettingsResultScreen.tsx` · 경로 `settings-result`(`?view=override`) + `screens.tsx`의 `DetailBody`(`onBack` 있고 `onNext` 없음) · `CoreOverrideView` | 같음(온보딩 A14~A16 본문 부품 재사용, 값은 서버 저장 결과, [다음] 없이 ← ). B17: 코어 목록 아래 여백 |
+| H06 재검사 확인 · 흐름 | `PersonalityScreen.tsx`(`RetestConfirmBody` 시트) + `features/settings/RetestScreen.tsx` · 경로 `retest` | 확인 시트 문장은 보드 그대로(RN RetestConfirm과 같음). 시트는 가운데 카드가 아니라 공용 `Sheet`(R18-2 "확인은 시트"). A04~A07은 한 경로 안의 두 단계로 재사용, 마지막 문항 뒤 바로 저장 |
+| H11 개인정보 & 약관 | `features/settings/PrivacyScreen.tsx` · 경로 `settings-privacy` | 같음(문서 3줄 + 마케팅 토글). 생체정보 · 데이터 내려받기 줄과 보드의 "3개월" 안내는 뺌(RN 동일). 문서는 A12 `LegalSheet`(공용 `Sheet`) |
+| H16 회원 탈퇴 | `features/settings/WithdrawScreen.tsx` + `PhraseConfirm.tsx` · 경로 `settings-withdraw` | 같음(7일 뒤 지워지는 것 · 남는 것(커플일 때만) · "연결도 함께 해제돼요" · PDF 안내 · 확인어 `탈퇴합니다`) |
+| 탈퇴 유예 화면(RN `withdraw-cancel`) | `features/settings/WithdrawCancelScreen.tsx` · 경로 `withdraw-cancel` | 보드에 없어 H14 유예 화면 형식을 빌림(RN 동일): WITHDRAWING · 남은 날짜 · 안내 3줄 · [탈퇴 취소하기] · [로그아웃]. 로그인 · 앱 시작 때 단계보다 먼저 |
+| H19 앱 정보 · 문의 | `features/settings/AboutScreen.tsx` · 경로 `settings-about` | 같음(글자표 + 버전 · 문의하기 · 이용약관 · 개인정보 처리방침). "· 최신"과 오픈소스 라이선스는 뺌(RN 동일). 버전 = `web/package.json` |
+| 해제 알림 | `features/settings/useDissolutionNotice.ts`(Shell, 탭 화면에서만) | RN `useDissolutionNotice`와 같음(상대가 요청했으면 앱에 들어올 때 처음 한 번 H14 유예 화면, 내가 개시자면 0, 같은 해제 id는 한 번) |
+| 본인 기록 삭제 | `features/feed/DateDetailScreen.tsx`(`⋯` + 확인 시트) · RPC `fn_delete_own_entry` | E03 행 참조. 내 사진 · 메모에만 진입점, 확인 전 호출 0 |
+| 사진 큐 | `web/src/photoQueue/*`(`photoQueueHub` · `photoQueueStore` · `webPhotoFs` · `usePhotoQueueResume`) | 보드 화면 없음(채팅 사진 · 스토리의 영속 큐). 앱을 다시 켜면 이어 보냄 |
+| EXIF | `features/feed/photoPicker.ts`(`exifr@7.1.3` lite) | 보드 화면 없음. 촬영 시각만 읽고 위치는 읽지 않음([74-4]) |
+| 닉네임 | A19 행 참조 | 사귄 날짜와 한 화면(`StartDateScreen`)에서 정함. 별도 화면 만들지 않음([74-2]) |
+| 채팅 실시간 · 읽음 | `features/chat/useChatMessages.ts` · `chatApi.ts` | F01 행 참조. 채널 구독 + 읽음 `neq` 갱신 |
+| 채팅 사진 | `features/chat/ChatView.tsx`(`PhotoMessage`) + `photoQueue/*` | F01 · F06 행 참조 |
+| 채팅 스토리 | `features/chat/StoryViewer.tsx` · `ChatView.tsx`(`StoryStrip`) | F03 행 참조 |
+| 전송 큐 | `features/chat/textQueueHub.ts` · `useChatQueueResume.ts` | F05 행 참조. 앱 시작 · 복귀 때 이어 보냄 |
+| 메우기 | `features/chat/useChatMessages.ts`(구독 확정 뒤 빠진 메시지 채움) | 루트 `chatGapFill` 규칙 그대로 |
+| E10 (사진 직접 추가) | (화면 없음) | **만들지 않음** - CURRENT.md "시스템 선택기로 대체". E03 [사진 더하기]가 같은 일을 함 |
+| D12 (목차) | (화면 없음) | **만들지 않음(숨김)** - 쪽 번호 매니페스트가 없음([74-6]) |
+
+**PM 지시서 §1 대조 결과(74-8)** - 대조한 항목 **58개**: 온보딩 마무리 A17 · A18 · A19 · A20 · 사귄 날짜 · 닉네임(6) / B03 · B05 · B06 · B04 · 하늘 · 온도(6) / E01 · E03 · E10 · E11 · E13 · E15 · 본인 기록 삭제 · 사진 큐 · EXIF(9) / D01 · D10 · D11 · D12 · D14 · D16 · 넘김 · 확대 · PDF(9) / F01~F06(6) · 실시간 · 읽음 · 사진 · 스토리 · 전송 큐 · 메우기(6) = 12 / H01~H06(6) · H11 · H14 · H16 · H19 = 10 / I01~I06(6). 웹에 있음 **56**, 화면 없음 **2**(E10 대체 · D12 숨김, 이유는 위 두 행). 빠진 행 0.
+
+**RN 행동 단언 이전표** — 묶음 · RN 시험 파일 · 행동 단언 수 · 옮긴 수 · 옮긴 Vitest 파일 · 못 옮긴 것과 이유
+
+| 묶음 | RN 시험 | 단언 수 | 옮긴 수 | Vitest | 못 옮긴 것 · 이유 |
+|---|---|---|---|---|---|
+| 74-2 | `__tests__/services/coupleConnect.test.ts` | 4 | 4(+RPC 오류 3종 웹 경로 1) | `features/couple/coupleApi.vitest.ts` | - |
+| 74-2 | `__tests__/services/coupleStartApi.test.ts` | 7 | 7 | 같은 파일 | - |
+| 74-2 | `__tests__/services/onboardingStep.test.ts` | 3 | 3(완료 3 불변 · 순서대로 올라감 · 나중에 뒤 2로 안 내려감) | 같은 파일 | "길이 4 이하 모든 순서 1000+ 조합"은 웹 함수가 정본 `advanceOnboardingStep`을 그대로 부르므로(조건 `.lt`) 루트 jest가 계속 지킴 |
+| 74-2 | `__tests__/utils/coupleStart.test.ts` | 순수 규칙 14 | 3(묶음 단언) | 같은 파일 | 웹이 `@/utils/coupleStart`를 그대로 가져다 쓰므로 세부(조합 · 형식 오류)는 루트 jest가 지킴 |
+| 74-2 | `__tests__/utils/afterLogin.test.ts`(`resumePathFor`) | 1 | 1 + 웹 판정 5 | 같은 파일 | `decideAfterLogin`은 이전 묶음 `finalize.vitest.ts`가 이미 지킴 |
+| 74-2 | `__tests__/utils/settingsRules.test.ts`(`needsStartDateConfirm`) | 4 | 1(묶음) | 같은 파일 | - |
+| 74-2 | `__tests__/components/u6Onboarding2.test.tsx`(A17 · A18 · A19 · A20 · 재개) | 약 30 | 약 30 | `features/couple/couple.vitest.tsx` | A14~A16(상세 결과 · 코어 고치기)과 "공유 버튼 없음"은 74-2 범위 밖(웹 A08 공유가 정식); `invite-code` 길게 눌러 복사(`selectable`)는 웹에선 [복사하기] 버튼 + `user-select: all`로 대체 |
+| 74-2 | `__tests__/components/u7Settings.test.tsx`(A20 재표시 4) | 4 | 4 | `features/couple/couple.vitest.tsx` | H04 설정 > 커플 단언은 74-7 몫 |
+| 74-2 | `__tests__/components/u6ExistingAccount.test.tsx`(단계별 재개) | 7 | 7 | `features/couple/couple.vitest.tsx`(`앱을 닫았다 열면` 표) + `appFlow.vitest.tsx`(F3) | A11 로그인 길 단언은 이전 묶음에서 이미 옮김 |
+| 74-3 | `__tests__/components/u1Main.test.tsx` | 약 28 | 약 28(상태 넷 + B04 + B06 보임/숨김 + 36.5 발광 없음 + MVP 뺀 것) | `features/main/main.vitest.tsx` | 하단 장막 스타일 값 단언은 CSS 값이라 App 시험이 `.veil` .42 · `.bottomVeil` 켜짐으로 대신. RN `useFocusEffect`는 마운트 + `visibilitychange` 재읽기로 바뀜 |
+| 74-3 | `__tests__/services/issueSeen.test.ts` | 5 | 5 | 같은 파일(Preferences 메모리 사본) | - |
+| 74-3 | `mainScreen` · `relationshipDays` · `magazine` · `mainApi` · `magazineApi` 시험 | - | 0 | - | 웹이 `@/utils` · `@/services`를 그대로 가져다 쓰므로(사본 0) 루트 jest가 계속 지킴. 웹 시험은 가짜 클라이언트로 훅까지 상태 4가지를 돌림 |
+| 74-4 | `__tests__/components/u2Feed.test.tsx` | 15 | 9(월 머리 문구 · 대표 카드 원문 한 줄 · E13 배너 둘 · FAB 비활성 · 타임라인 시각 · 장소 줄 -> E15 · 00:00 · 지우기는 내 것만 · 확인 문구) | `features/feed/feed.vitest.tsx` | U0 손질 5(그레인 크기 · textFaint · lilacText)는 RN 스타일 값이라 안 옮김 · I05 "보이지 않으면 안 그린다"는 웹 시트가 눌렀을 때만 생겨 따로 없음 |
+| 74-4 | `__tests__/services/dateRecordApi.test.ts` | 38 | 웹 경로로 약 20(기록 순서 · manual/확인됨 · stop · 사진 행 · 메모 · 파생 칸 · 메모만/같은 날짜 더하기 · 업로드 실패 · 규칙 6 · 삭제 RPC만 · stop 시각 R30-2) | `feed.vitest.tsx` | 웹이 `@/services/dateRecordApi`를 그대로 가져다 쓰므로(사본 0) 38건 전체는 루트 jest가 계속 지킨다. 웹은 가짜 클라이언트로 화면 경로를 지나며 같은 결과가 나오는지만 본다 |
+| 74-4 | `__tests__/utils/dateRecord.test.ts` · `dateRecordTimezone.test.ts`(EXIF 날짜 규칙 포함) | 50 | 0(순수 규칙은 루트 jest) + 웹 새 12 | `features/feed/photoPicker.vitest.ts` | 웹 쪽 새 시험: 손으로 만든 EXIF JPEG에서 촬영 시각 · 시간대 · DateTimeDigitized/DateTime 대체 · EXIF 없음 = null(수정 시각 안 씀) · GPS 파일에서도 lat/lng null · 가로세로 · 방향 · 확장자 · 30장 제한 |
+| 74-4 | `__tests__/hooks/chatPhotoQueue.test.tsx` | 6 | 6(메시지 끊김 -> 재시작 객체 1 · 행 1(+한 번 더) · 올리기 끊김 · 스토리 응답 끊김 · 스토리 올리기 끊김 · 복사본 사라짐 · 취소) | `web/src/photoQueue/photoQueue.vitest.tsx` | 말풍선 목록 · `hasQueued` 같은 채팅 화면 상태 단언은 74-5(채팅 화면)가 이어받는다 - 여기서는 허브 · 서버 · 기기 저장으로 확인 |
+| 74-4 | `__tests__/hooks/chatQueueResume.test.tsx` | 5 | 5(앱 시작 이어 보내기 · 복귀 즉시 재개 · 동시 업로드 0 · 커플 아님은 안 돎 · 로그아웃해도 큐 유지 -> 다음 로그인에 이어 감) + 커플 확인 중(loading)에는 큐를 끊지 않음 1 | 같은 파일 | 글(텍스트) 큐 단언은 74-5 - 사진 쪽만 옮김 |
+| 74-4 | `__tests__/utils/chatPhotoQueue.test.ts` | 10 | 0 | - | 웹이 `@/utils/chatPhotoQueue` · `chatPhotoQueueRunner`를 그대로 가져다 쓰므로 루트 jest가 계속 지킴. 웹 새 시험: 기기 저장 키(RN과 같음) · 깨진 저장 = 빈 큐 · 파일 복사/읽기/지우기(Filesystem 가짜) 3 |
+| 74-5 | `__tests__/components/u4Chat.test.tsx` | 약 25 | 약 22(F02 게이팅 3 · F01 상태 · 보내기 · 안내 줄 · F05 5종 · 사진 · F04 · 스토리 올리기 · 사진 뷰어 · 스토리 뷰어) | `features/chat/chat.vitest.tsx`(25) | RN 스타일 값(색 · 폰트 이름) 단언은 CSS라 안 옮김. InviteSheet(F02 시트) 단언은 시트가 화면 안 카드로 바뀌어 74-2 `couple.vitest.tsx`가 지킴 |
+| 74-5 | `__tests__/hooks/useRealtimeGapFill.test.tsx` · `chatQueueResume.test.tsx`(글 쪽) · `chatPhotoQueue.test.tsx`(채팅 말풍선 쪽) | 약 12 | 약 12 + 웹 새(채널 이름 · 읽음 neq · 지운 행 거름 · 취소 · 소진 후 다시 보내기) | `features/chat/chatData.vitest.tsx`(30) | - |
+| 74-5 | `__tests__/services/chatCore.test.ts` · `utils/chatMessages.test.ts` · `chatRetryQueue.test.ts` · `chatQueue.test.ts` · `chatGapFill.test.ts` | - | 0(웹 허브를 거친 행동은 위 파일) | - | 웹이 `@/services/chatCore` · `@/utils/*`를 그대로 가져다 쓰므로 루트 jest가 계속 지킴 |
+| 74-5 | (신규) 한글 조합 R73-2 | - | 18 | `platform/chatComposer.vitest.tsx` | 삼성형 · Gboard형 이벤트 순서 흉내: "ㅋㅋ" 바로 보내기 · "안녕" 뒤 0ms "ㅎ" · 조합 중 엔터 한 번 · 연속 세 번 · 포커스 유지 |
+| 74-6 | `__tests__/components/u3Library.test.tsx` | 약 19 | 약 18(VOL 라벨 · 표지 위 글자 0 · moon은 Vol만 · 표지 누르기 · 다음 호 카드(정지 값 · 재료 줄 · 못 셌으면 없음 · 제작 현황 0) · D14 · D16 · 본문 분기 3 · 오류 · 뼈대 · 속표지 값 · 고지 문장 · 종이 · 읽기 · 닫기 · PDF 경로 없음 · 목차 없음) | `features/magazine/magazine.vitest.tsx` | `pageFromOffset`(스크롤 위치 -> 쪽 번호)은 웹이 스크롤이 아니라 밀기 단위라 해당 없음 -> 밀기 시험으로 대체 |
+| 74-6 | `__tests__/components/u3MagazineTab.test.tsx` | 5 | 5(D16 + 초대 · 연결 전 미확정 · D14 · 서재 + 다음 호 카드 + 뷰어로 · 로딩 뼈대) | 같은 파일 | 뷰어로 가는 길은 RN `router.push` -> 웹 `openIssueViewer` 입구 |
+| 74-6 | `__tests__/components/u3ViewerModal.test.tsx` | 9 | 9(속표지 -> 읽기 -> 뒤로 · 닫기 · 1쪽 서명 · 열어 봄 기록 · 보던 쪽 기억 · PDF 열기 3종 · 못 읽은 호) | 같은 파일 | AsyncStorage -> Preferences 키 같음. `Linking.openURL` -> `bridge.openBrowser` |
+| 74-6 | `__tests__/services/magazineApi.test.ts` · `utils/magazine.test.ts` · `hooks` | - | 0(루트 순수 파일을 `@/`로 가져다 쓰고 루트 jest 1771이 계속 지킴) | - | 화면이 그것을 부르는 호출 수준(issues_public만 · published_at 조건 · 인쇄 칸 · 버킷 0 · 서명 경로)만 위 파일에서 다시 확인 |
+| 74-6 | (신규) B13 서재 상태 순서 · 뷰어 입구 · 넘기기 | - | 12 | `magazine.vitest.tsx` | 뼈대 -> 서재 / 뼈대 -> D14 한 방향 · 연결 전 미확정 · 다시 읽기 중 · 실패 · 탭 돌아옴 · 호 늘어남에서 상태 안 오감 / 입구 -> 덮개 · 뒤로 가기는 덮개만 · 경로 바뀌면 닫힘 / 밀기 · 방향키 · 확대 중 안 넘어감 · 이미지 오류 한 번 재시도 |
+| 74-4 | `__tests__/` 본인 기록 삭제 · stop 시각 · 피드 묶음 | - | 위 표에 포함 | `feed.vitest.tsx` | 삭제: `fn_delete_own_entry` RPC만(직접 update 0) · 확인 전 호출 0 · 취소 0 · 실패 토스트 · 남의 기록 진입점 0 |
+| 74-7 | `__tests__/components/u7Settings.test.tsx`(H01~H06 · H11) | 약 45 | 약 40(숨김 항목 없음 · 남은 줄 모두 갈 곳 · 생년월일 읽기 전용 · 이름 0 · 21자 · 사귄 날짜 한 번의 UPDATE(set_by 나 · confirmed null) · 미래 날짜 불가 · 닉네임 0 · 1 · 20 · 21 · 오버라이드가 쓰는 칸 · 재검사 1회 비활성 · 재검사가 함수 호출 하나 · 23505 = 이미 사용 · 로그아웃 · 마케팅 켜기 · 끄기 · 실패 되돌림) | `features/settings/settings.vitest.tsx`(81건 중) | 상대 쪽 A20 재표시 4건은 74-2 `couple.vitest.tsx`가 이미 지킴 · RN 스타일 값(색 · 서체) 단언은 CSS라 안 옮김 |
+| 74-7 | `__tests__/components/u7Dissolution.test.tsx`(H14 · H16 · 유예) | 약 30 | 약 28(양쪽 유예 화면 · 개시자 취소 있음 · 상대 취소 없음 + 이유 · 서버 값 기준 남은 날짜 · 문구 일치 · 서로 다른 확인어 · 요청/취소 함수 호출 하나 · 직접 쓰기 0 · 오류 문구 · 유예 로그인 먼저 · 탈퇴 취소 뒤 원래 단계) | 같은 파일 + `settingsFlow.vitest.tsx`(21건) | `useFocusEffect` -> 마운트 + `visibilitychange` |
+| 74-7 | `__tests__/services/settingsCore.test.ts` · `dissolutionCore.test.ts` · `utils/dissolution.test.ts` · `settingsRules.test.ts` · `supportMail.test.ts` | - | 0(루트 순수 파일을 `@/`로 가져다 쓰고 루트 jest가 계속 지킴) | - | 화면이 그것을 부르는 호출 수준(쓰는 칸 · 함수 이름 · 인자 · 오류 코드 처리)만 위 파일에서 다시 확인. 실행 함수(`execute_dissolution` 등) 호출 0은 한 흐름에서 부른 함수 이름 전체를 모아 단언 |
+| 74-7 | `__tests__/hooks/useDissolutionNotice.test.tsx` · `resolveResumePath.test.ts`(유예 먼저) | 약 8 | 약 10(상대가 요청했을 때 한 번 · 같은 id 재복귀 0 · 내가 개시자 0 · 요청 없음 0 · 탭이 아니면 읽지도 않음 · 읽기 실패 조용 · 앱 전체에서 메인 위 한 번 · 유예 시각이 있으면 단계 무관 withdraw-cancel · 서버 더 부르지 않음 · 앱 시작과 로그인 직후 모두) | `settingsFlow.vitest.tsx` | AppState `active` -> `visibilitychange` |
+| 74-7 | `__tests__/app/settingsAbout.test.tsx`(H19) | 약 8 | 8(버전 값 · "최신" 0 · 오픈소스 0 · mailto 주소 = 상수 · 제목 · 본문 세 줄 · 계정 id · 커플 id · 이름 · 이메일 0 · 열 수 없을 때 토스트 · 약관 시트) | `settings.vitest.tsx` | 버전 출처가 Expo 설정에서 `web/package.json`으로 바뀜 |
+| 74-7 | (신규) 웹 뒤로 가기 · 로그아웃 | - | 신규 약 14 | `backRules.vitest.ts`(경로 10 더함) · `settingsFlow.vitest.tsx` | 설정 -> 프로필 -> 탈퇴 한 단계씩 · 시트만 닫기 · 재검사 단계 · 유예 화면 하드웨어 뒤로 = 종료 / ← = 로그아웃 · 로그아웃 뒤 계정 잠금 풀림 · 채팅 큐 키 유지(Preferences 가짜) · 서버 로그아웃 실패 시 scope local |
+| 74-8 | (신규) F2 이미지 저장 | - | 신규 4 | `platform/imageSave.vitest.ts` + `chat.vitest.tsx`(저장 시험 2) | 이름이 매번 다름(같은 밀리초여도 무작위 칸) · 결과 카드와 채팅 사진이 같은 다리 함수 · 실패 = `failed`만 + 안내 문장 + 로그 0 · 앱 저장은 캐시 쓰기 + 공유 시트 |
+| **합계** | 위 RN 시험 파일 전체(행동 단언만) | 약 392 | **약 283** | - | 나머지 약 109는 루트 순수 파일을 `@/`로 가져다 쓰므로 루트 jest 101파일 1771건이 계속 지킨다(묶음별 행 참조). "약"은 RN 시험이 "약 N"으로 센 값의 합. 묶음별 옮긴 수 / 전체: 74-2 60/74 · 74-3 33/33 · 74-4 40/124 · 74-5 34/37 · 74-6 32/33 · 74-7 84/91 |
+
+**B1~B18 · F1~F3 막는 위치** — 번호 · 막는 시험 또는 확인 위치
+
+| 번호 | 위치 |
+|---|---|
+| B4 · B12 (채팅) | `features/chat/chat.vitest.tsx`(F02 시트 저절로 0 · 두 버튼 바로 초대 · 시트 안 열림) |
+| B4 | `components/components.vitest.tsx`(시트 한 번 · 카드엔 손잡이 없음 · 조회 전 0) · `app/shell.vitest.tsx`(탭을 옮기면 시트 닫힘) · `stores/stores.vitest.ts`(시트 한 칸) |
+| B5 | `styles.css`의 탭 바 · 탭 화면 · 시트 면 단색 `#0A0814`(시험 아닌 확인 항목 - 전환 중 흰 프레임은 실기기 녹화로) |
+| B12 | `components/components.vitest.tsx`(카드 버튼은 시트를 다시 열지 않고 `openInvite`로 바로) |
+| F1 | `app/backRules.vitest.ts`(규칙표 · 경로별 결과표) · `app/shell.vitest.tsx` |
+| B6 | `features/couple/couple.vitest.tsx`(공유 문구 "온도록에서 연결해요! 초대 코드: CODE" · 옛 이름 0) |
+| B9 | `features/couple/couple.vitest.tsx`(코드 칸 `autocapitalize=characters` · 대문자 변환 · 열리면 포커스). 키보드가 칸을 가리지 않는 것은 실기기 확인(`platform/keyboardFocus`) |
+| B12 | `features/couple/couple.vitest.tsx`(I01 -> 초대에서 같은 문구 시트 없이 바로 코드 발급 · 입구 중복 쌓임 0) |
+| B18 | `screens.vitest.tsx`(마케팅 기본 꺼짐 · 전체 동의 해제 시 꺼짐) |
+| F3 | `appFlow.vitest.tsx`(알림 원문 · 메인 위 한 번 · 결과 없으면 0 · `/end` 없음) |
+| B13/B14(메인) | `features/main/main.vitest.tsx`(연결 여부 · 사실 · 호 목록이 읽히기 전에는 뼈대만, 새 호 카드가 떴다 사라지지 않음, 조회 중에도 미연결 B05는 바로) |
+| R74-10 | `screens.vitest.tsx`(정확한 문장 · "전체 동의" 줄 바로 아래 · 누르기 전부터) |
+| B4(기록 시트) | `features/feed/feed.vitest.tsx`(+ 버튼 두 번 눌러도 시트 하나) · `feedFlow.vitest.tsx`(뒤로 가기는 시트만 닫음 · 탭을 옮기면 닫힘) |
+| B5(피드 · 상세 · 장소 면) | 시험 아닌 확인 항목 - `.screen.solid`(`#0A0814`) · 시트 면 `var(--ink)`. 사진 크게 보기 면도 단색. 전환 중 흰 프레임은 실기기 녹화로 |
+| B9(E11 · E15 입력 칸) | 실기기 확인 항목 - 칸마다 `platform/keyboardFocus`(전역)가 키보드 위로 스크롤. 장소 · 날짜 · 도착 시각 · 메모 칸이 가려지지 않는지 |
+| B10(피드 맨 위) | 실기기 확인 항목 - `.feedTab::before`가 맨 위 안전 영역을 바탕색으로 덮는다(스크롤한 내용이 상태 표시줄 아래로 비치지 않는지) |
+| B13/B14(피드) | `feed.vitest.tsx`(불러오는 동안 I03 뼈대 · 커플 행을 읽기 전에는 E13 배너도 I01 카드도 없음 · 오류는 [다시 불러오기]) |
+| F1(스택 화면) | `app/backRules.vitest.ts`(`date-detail` · `stop-edit` 경로표) · `feedFlow.vitest.tsx`(카드 -> 상세 -> 장소 -> ← -> ← -> 피드 · 하드웨어 뒤로 가기 · 사진 크게 보기 열림 중에는 그것만 닫음) |
+| B13(매거진) | `features/magazine/magazine.vitest.tsx`("B13 로드 상태가 오가지 않는다" 6건: 서재 상태를 MutationObserver로 순서 기록 -> `loading -> shelf` / `loading -> first`만 · 연결 전 D16 · D14 미확정 · 다시 읽기 중 · 실패해도 서재 유지 · 탭 돌아와도 뼈대 안 거침). 원인(RN): 연결 여부 · 조회 상태 · 호 수가 따로 바뀌며 화면이 중간 상태를 그림 -> 웹은 한 방향 단계(`idle -> loaded | failed`) + 직전 값 기억 |
+| B5(서재 · 뷰어) | 시험 아닌 확인 항목 - 탭 화면 `.screen.solid` · 덮개 바탕은 단색(종이 `#F1ECE4` / 밤 `var(--ink)`). 전환 중 흰 프레임은 실기기 녹화로 |
+| B10(서재 맨 위) | 실기기 확인 항목 - `.magazineTab::before`가 맨 위 안전 영역을 바탕색으로 덮는다 |
+| F1(뷰어) | `magazine.vitest.tsx`(하드웨어 뒤로 가기 = 덮개만 닫음, 앞 화면 · 앱 종료로 안 샘 · 닫은 뒤 평소 뒤로 가기 복귀 · 경로 바뀌면 닫힘) |
+| B14(설정) | `features/settings/settings.vitest.tsx`(H01 값 자리 뼈대 -> 사라짐 · 다녀오면 직전 값 먼저 · H03 · H04 · H14 · 탈퇴 유예 읽는 동안 뼈대, 미연결 카드가 번쩍이지 않음) |
+| B15 | `settings.vitest.tsx` · `settingsFlow.vitest.tsx`(탈퇴 취소 -> 토스트 "탈퇴를 취소했어요" + 원래 단계 · 해제 취소 -> "해제를 취소했어요") |
+| B10(설정) | 실기기 확인 항목 - 푸시 화면 머리(`.pushHeader`)가 맨 위 안전 영역 아래에서 시작하고 본문만 스크롤 · 설정 탭 머리(`.tabHeader`)는 스크롤 밖 |
+| B9(H14 · H16 · H03 · H04 입력 칸) | 실기기 확인 항목 - 입력 칸이 모두 스크롤 본문(`.setBody`) 안에 있어 `platform/keyboardFocus`가 키보드 위로 올림. 확인 버튼은 본문 밖 아래 고정(`.setFooter`)이라 창이 줄면 키보드 위에 남는다 |
+| B17 | `settings.vitest.tsx`(코어 목록 아래 여백 >= 54). 목록과 버튼은 따로 배치라 가려질 일이 없지만 여백도 둠. `.setBody` 아래 여백도 버튼 높이 이상 |
+| F1(설정 스택) | `app/backRules.vitest.ts`(경로 10 결과표) · `settingsFlow.vitest.tsx`(하드웨어 뒤로 가기 한 단계씩 · 시트만 닫기 · 재검사 안 단계 · 유예 화면 = 종료) |
+
+**B1~B18 · F1~F3 전체 21행 (74-8 총정리)** - 번호 · 웹에서 막는 곳 · 시험 파일 또는 확인 방법
+
+| 번호 | 막는 위치 |
+|---|---|
+| B1 로그인 콜백 404 · PGRST303 | `auth/callback.ts` + `auth/callback.vitest.ts`(주소 해석) · `auth/loginFlow.vitest.tsx`(교환 실패 -> "로그인하지 못했어요" + [다시 시도], 오류 원문 · 코드 화면 0 / 첫 조회 PGRST303 한 번 재시도) · `auth/finalize.vitest.ts`(재시도 1회, 두 번이면 던짐) |
+| B2 동의 문장 안 보임 | `screens.vitest.tsx` "A10 약관 동의 (B2 · B18 · E6)" - 항목 문장 · "전체 동의" 라벨 · "(선택)" 표시 |
+| B3 Android 글자 칸 폭 | **해당 없음** - RN `Text`가 Android에서 폭을 줄이던 문제. 웹뷰는 CSS 박스라 같은 원인이 없다. 대신 실기기에서 시스템 글자 크기 최대 화면 확인(탐방 안내 7장) |
+| B4 채팅 탭 초대 시트 반복 | `features/chat/chat.vitest.tsx`(F02 시트 저절로 0) · `components/components.vitest.tsx` · `app/shell.vitest.tsx` · `stores/stores.vitest.ts` |
+| B5 흰 화면 번쩍임 | 시험 아닌 확인 항목 - 단색 `#0A0814` 면. 실기기 녹화로 흰 프레임 0 |
+| B6 공유 문구 "온돌로그" | `features/couple/couple.vitest.tsx`(공유 문구 + 옛 이름 0) |
+| B7 기존 계정 재온보딩 안내 | `appFlow.vitest.tsx`(알림 원문 · 메인 위 한 번 · 결과 없으면 0) · `auth/loginFlow.vitest.tsx`(로그인 부제 "새로 가입하면 방금 본 결과가 계정에 저장돼요.") |
+| B8 간이 MBTI | `quickMbti.vitest.ts`(문항 -> 글자 대응 + 16조합 전수) |
+| B9 키보드가 입력 가림 | `couple.vitest.tsx`(코드 칸 대문자 · 포커스) + 실기기 확인(`platform/keyboardFocus`) |
+| B10 상태 표시줄 비침 | 실기기 확인 - `.feedTab::before` · `.magazineTab::before` · `.pushHeader` |
+| B11 카카오 버튼 진행 표시 | `auth/loginFlow.vitest.tsx`("이동 중"으로 바뀌고 다시 눌리지 않음) |
+| B12 카드 시트 한 번 더 | `components.vitest.tsx` · `couple.vitest.tsx` · `main.vitest.tsx`(초대 버튼이 시트를 거치지 않고 초대로) |
+| B13 매거진 빈 상태 깜빡임 | `features/magazine/magazine.vitest.tsx`(6건) · `main.vitest.tsx` · `feed.vitest.tsx` |
+| B14 설정 값 늦게 채움 | `features/settings/settings.vitest.tsx`(I03 뼈대) · `feed.vitest.tsx` |
+| B15 취소 뒤 알림 | `settings.vitest.tsx` · `settingsFlow.vitest.tsx` |
+| B16 메인 초대 시트 문구 | `main.vitest.tsx`(초대 버튼 = 초대 화면, 잠금 안내 시트 0) |
+| B17 코어 목록 마지막 줄 | `settings.vitest.tsx`(아래 여백 >= 54) |
+| B18 마케팅 기본값 | `screens.vitest.tsx`(기본 꺼짐 · 전체 동의 해제 시 꺼짐) |
+| F1 뒤로 가기 | `app/backRules.vitest.ts`(41건) · `app/shell.vitest.tsx` · `feedFlow.vitest.tsx` · `magazine.vitest.tsx` · `settingsFlow.vitest.tsx` · `chat.vitest.tsx`(덮개만 닫음) |
+| F2 이미지 저장 | `platform/imageSave.vitest.ts`(4) · `chat.vitest.tsx`(저장 이름 · 실패 안내) · `screens.vitest.tsx`(저장 -> 토스트 / 실패 안내). 갤러리 노출은 실기기 확인([74-8] 판단) |
+| F3 데모 끝 화면 / 기존 계정 알림 | `appFlow.vitest.tsx`(알림 원문 · 메인 위 한 번 · 결과 없으면 0 · `/end` 없음) |
+
+**뒤로 가기 표** — 원본은 코드의 규칙표(74-1이 만든 파일). 여기에는 파일 경로와 경로 수만.
+
+- `web/src/app/backRules.ts`(`BACK_RULES`) - 19경로(온보딩 12 · 탭 5 · 스택 2: `couple-invite` · `start-date-recheck`; 74-2에서 `share` 삭제 · `start-date` 추가). 시험 `web/src/app/backRules.vitest.ts`(경로별 4조합 결과표 · 라우터 표 = 규칙표 키 일치).
+- 74-4: 스택 둘 더함(`date-detail` · `stop-edit`, 둘 다 뒤로 = 앞 화면) -> 21경로(온보딩 12 · 탭 5 · 스택 4). 화면에 실리는 값(데이트 id · 장소 id)은 `nav.push(name, { params })` -> 주소 끝 `?id=&stop=`.
+- 74-6: 새 경로 0(뷰어는 `PhoneLayer` 덮개 - `useBackHandler`가 열려 있는 동안 먼저 받아 덮개째 닫는다). 21경로 그대로.
+- 74-7: 스택 10경로 더함 -> **31경로**(온보딩 12 · 탭 5 · 스택 14). `settings-profile` · `settings-couple` · `settings-unlink` · `settings-personality` · `settings-result` · `retest` · `settings-privacy` · `settings-about` · `settings-withdraw` = 뒤로 = 앞 화면 / `withdraw-cancel` = **종료**(RN 루트 화면 동작, 화면의 ← 는 로그아웃). 화면 안 단계의 뒤로 가기는 화면이 `useBackHandler`로 받는다: `settings-couple` 입력 모습(날짜 · 닉네임) -> 줄 목록으로 · `retest`의 5문항 첫 문항 -> MBTI 단계, MBTI 단계 -> H05, 저장 중에는 삼킴 · `settings-result`의 A16 -> A14(설정에서 곧바로 연 `?view=override`는 H05로) · H06 확인 시트는 시트만 닫음.
+
+**뒤로 가기 표 펼침 (74-8)** - 원본은 `web/src/app/backRules.ts`의 `BACK_RULES`(**31경로**). 시험은 `web/src/app/backRules.vitest.ts` **41건**(구조 5 + 표 덮음 1 + 경로별 31 + 고정 규칙 4). 경로마다 4조합(계정 없음 / 있음 x 깊이 1 / 2)을 단언한다.
+
+| 경로 | 영역 | 계정 없음 (1 / 2) | 계정 있음 (1 / 2) |
+|---|---|---|---|
+| intro | 온보딩 | 종료 / 종료 | 종료 / 종료 |
+| basic · mbti · quiz · brief · consent · underage · auth · callback | 온보딩 | 종료 / 앞 화면 | 종료 / 종료 |
+| detail · invite · start-date | 온보딩(계정 구간) | 종료 / 앞 화면 | 종료 / 종료 |
+| couple-invite · start-date-recheck | 스택 | 종료 / 앞 화면 | 메인 / 앞 화면 |
+| date-detail · stop-edit | 스택 | 종료 / 앞 화면 | 메인 / 앞 화면 |
+| settings-profile · settings-couple · settings-unlink · settings-personality · settings-result · retest · settings-privacy · settings-about · settings-withdraw | 스택 | 종료 / 앞 화면 | 메인 / 앞 화면 |
+| withdraw-cancel | 스택(루트) | 종료 / 종료 | 종료 / 종료 (화면의 ← 는 로그아웃) |
+| main | 탭 | 종료 / 종료 | 종료 / 종료 |
+| chat · feed · magazine · settings | 탭 | 메인 / 메인 | 메인 / 메인 |
+
+(묶음 수 31 = 위 줄의 경로를 하나씩 센 값: 1 + 8 + 3 + 2 + 2 + 9 + 1 + 1 + 4.) 덮개(경로 아님)가 열려 있을 때는 표까지 오지 않는다 - `platform/backStack.ts`의 등록 함수가 먼저 받아 그 덮개만 닫는다:
+
+| 덮개 | 뒤로 가기 결과 | 시험 |
+|---|---|---|
+| 시트(`Sheet` · `ConfirmDialog` 포함) | 시트만 닫음 | `shell.vitest.tsx` · `feedFlow.vitest.tsx` · `settingsFlow.vitest.tsx` · `components.vitest.tsx` |
+| 사진 크게 보기(`PhotoViewer`) | 사진 보기만 닫음 | `feedFlow.vitest.tsx` · `chat.vitest.tsx` |
+| 스토리 보기(`StoryViewer` · `PhoneLayer`) | 스토리만 닫음 | `chat.vitest.tsx` |
+| 서재 뷰어(`IssueViewer` · `PhoneLayer`) | 덮개째 닫음(앞 화면 · 앱 종료로 안 샘, 경로가 바뀌면 닫힘) | `magazine.vitest.tsx` |
+| 화면 안 단계(재검사 · 커플 입력 · A16 -> A14) | 한 단계 앞으로, 표까지 오지 않음 | `settingsFlow.vitest.tsx` |
+| 등록 함수 자체 | 가장 나중에 등록한 것부터 | `platform/backStack.vitest.ts` |
+
+**한글 조합 이벤트 시험 목록 (74-8)** - `web/src/platform/chatComposer.vitest.tsx` **18건**(삼성형 · Gboard형 이벤트 순서를 흉내 냄):
+1. `judgeResidue` - 같은 글자 = 잔여 · 뒤에 새 글자가 붙음 = 새 글자만 · 관계없음 = 새로 침
+2. "ㅋㅋ" 바로 보내기 - 두 번째 ㅋ가 아직 조합 중일 때 바로 보내도 둘 다 간다 · 입력 칸은 빈다
+3. "ㅋㅋ" 삼성형 - 보낸 뒤 키보드가 조합 글자를 다시 넣어도 지워진다(빈 말풍선 · 잔여 0)
+4. "안녕" 보낸 뒤 0ms "ㅎ" - 삼성형 A(잔여가 다시 들어온 뒤 새 조합)
+5. 같은 상황 삼성형 B(묵은 조합이 이어져 "안녕ㅎ")
+6. 같은 상황 Gboard형(조합 끝이 "안녕"을 값에 확정, 곧바로 새 조합)
+7. 같은 상황 Gboard형 순서 뒤바뀜(새 조합이 먼저 붙고 묵은 조합이 나중에 끝남)
+8. 조합 중 엔터는 한 번만 보냄(두 번째 엔터 무시)
+9. 잔여 글자만 남은 상태의 엔터는 보내지 않음
+10. 공백만 있는 입력은 보내지 않음
+11. 연속 세 번 보내기 - 삼성형
+12. 연속 세 번 보내기 - Gboard형
+13. 엔터와 버튼을 섞어도 순서가 같음
+14. 조합이 이미 끝난 뒤 보냈으면 걸어 두지 않음(같은 글자를 바로 다시 쳐도 남음)
+15. 보낸 뒤 조합이 아닌 입력(영문 · 붙여넣기)이 오면 묵은 조합을 버림
+16. 조합 중이던 글자와 관계없는 조합 글자는 처음부터 받음
+17. 보내기 버튼은 누름 시작의 기본 동작을 막아 세 번 보내도 포커스가 입력 칸에 있음
+18. 보내는 동안 포커스가 빠졌으면 보낸 뒤 입력 칸으로 돌려놓음(안전망)
+
+### Proteur가 할 일 — 커밋 명령 (메인 세션, 74-8 뒤)
+
+묶음마다 나눠 커밋하지 않고 **두 번**으로 나눈다: 74-1~8은 같은 작업 트리에서 이어서 돌아 여러 묶음이 같은 파일(`App.tsx` · `styles.css` · `routes.ts` 등)을 고쳤으므로, 묶음별 커밋은 중간 상태를 되살릴 수 없다(빌드 안 되는 커밋이 생김). 되돌릴 지점은 ① 74-0만 ② 74-1~8 전체. 저장소 루트 PowerShell에서 한 줄씩. 지운 파일(`web/src/dev/*` 5개)도 `git add`로 지운 것이 올라간다.
+
+커밋 1 (74-0):
+
+```
+git add scripts/ops/resetTestAccount.ts
+git add scripts/ops/resetTestAccountCheck.ts
+git commit -m "74-0 시험 계정 초기화 스크립트"
+```
+
+커밋 2 (74-1~8, 상태 파일 포함):
+
+```
+git add docs/74-exploration-guide.md
+git add web/package.json
+git add web/package-lock.json
+git add web/public/fonts/MaruBuri-Regular.ttf
+git add web/src/App.tsx
+git add web/src/app/backRules.ts
+git add web/src/app/backRules.vitest.ts
+git add web/src/app/inviteEntry.ts
+git add web/src/app/routes.ts
+git add web/src/app/routeTable.tsx
+git add web/src/app/sheets.tsx
+git add web/src/app/shell.vitest.tsx
+git add web/src/app/useAccountData.ts
+git add web/src/app/viewerEntry.ts
+git add web/src/appFlow.vitest.tsx
+git add web/src/auth/client.ts
+git add web/src/auth/finalize.ts
+git add web/src/auth/finalize.vitest.ts
+git add web/src/auth/useAccountFinalize.ts
+git add web/src/auth/useBootSession.ts
+git add web/src/codeInput.tsx
+git add web/src/components/components.vitest.tsx
+git add web/src/components/ConfirmDialog.tsx
+git add web/src/components/ConnectionBanner.tsx
+git add web/src/components/CoupleGate.tsx
+git add web/src/components/EmptyState.tsx
+git add web/src/components/PhoneLayer.tsx
+git add web/src/components/PhotoViewer.tsx
+git add web/src/components/Sheet.tsx
+git add web/src/components/Skeleton.tsx
+git add web/src/components/ToastHost.tsx
+git add web/src/components/zoom.vitest.tsx
+git add web/src/components/zoomMath.ts
+git add web/src/config/env.ts
+git add web/src/connection/chatQueueSignal.ts
+git add web/src/connection/connection.vitest.tsx
+git add web/src/connection/connectionMonitor.ts
+git add web/src/connection/useOfflineProbe.ts
+git add web/src/couple/coupleApi.ts
+git add web/src/couple/useStartDateRecheck.ts
+git add web/src/dev/chatFeel.vitest.tsx
+git add web/src/dev/ChatTrial.tsx
+git add web/src/dev/chatTrial.vitest.tsx
+git add web/src/dev/chatTrialGate.ts
+git add web/src/dev/fakeMessages.ts
+git add web/src/features/chat/chat.vitest.tsx
+git add web/src/features/chat/chatApi.ts
+git add web/src/features/chat/chatData.vitest.tsx
+git add web/src/features/chat/chatPhotoActions.ts
+git add web/src/features/chat/chatTestSupport.ts
+git add web/src/features/chat/ChatView.tsx
+git add web/src/features/chat/localPreview.ts
+git add web/src/features/chat/StoryViewer.tsx
+git add web/src/features/chat/textQueueHub.ts
+git add web/src/features/chat/useChatMessages.ts
+git add web/src/features/chat/useChatQueueResume.ts
+git add web/src/features/chat/useSignedMedia.ts
+git add web/src/features/couple/CodeBoxes.tsx
+git add web/src/features/couple/couple.vitest.tsx
+git add web/src/features/couple/coupleApi.vitest.ts
+git add web/src/features/couple/InviteScreen.tsx
+git add web/src/features/couple/StartDateScreen.tsx
+git add web/src/features/feed/DateDetailScreen.tsx
+git add web/src/features/feed/exifr.d.ts
+git add web/src/features/feed/feed.vitest.tsx
+git add web/src/features/feed/feedData.ts
+git add web/src/features/feed/feedFlow.vitest.tsx
+git add web/src/features/feed/feedTestSupport.ts
+git add web/src/features/feed/FeedView.tsx
+git add web/src/features/feed/photoPicker.ts
+git add web/src/features/feed/photoPicker.vitest.ts
+git add web/src/features/feed/RecordSheet.tsx
+git add web/src/features/feed/StopEditScreen.tsx
+git add web/src/features/magazine/IssueViewer.tsx
+git add web/src/features/magazine/libraryData.ts
+git add web/src/features/magazine/LibraryView.tsx
+git add web/src/features/magazine/magazine.vitest.tsx
+git add web/src/features/magazine/magazineTestSupport.ts
+git add web/src/features/magazine/viewerData.ts
+git add web/src/features/magazine/ViewerHost.tsx
+git add web/src/features/main/issueSeen.ts
+git add web/src/features/main/main.vitest.tsx
+git add web/src/features/main/MainView.tsx
+git add web/src/features/main/useMainData.ts
+git add web/src/features/settings/AboutScreen.tsx
+git add web/src/features/settings/accountActions.ts
+git add web/src/features/settings/appInfo.ts
+git add web/src/features/settings/CoupleScreen.tsx
+git add web/src/features/settings/DissolutionGrace.tsx
+git add web/src/features/settings/parts.tsx
+git add web/src/features/settings/PersonalityScreen.tsx
+git add web/src/features/settings/PhraseConfirm.tsx
+git add web/src/features/settings/PrivacyScreen.tsx
+git add web/src/features/settings/ProfileScreen.tsx
+git add web/src/features/settings/RetestScreen.tsx
+git add web/src/features/settings/settings.vitest.tsx
+git add web/src/features/settings/settingsData.ts
+git add web/src/features/settings/settingsFlow.vitest.tsx
+git add web/src/features/settings/SettingsResultScreen.tsx
+git add web/src/features/settings/settingsTestSupport.ts
+git add web/src/features/settings/SettingsView.tsx
+git add web/src/features/settings/UnlinkScreen.tsx
+git add web/src/features/settings/useDissolutionNotice.ts
+git add web/src/features/settings/useSettingsSummary.ts
+git add web/src/features/settings/WithdrawCancelScreen.tsx
+git add web/src/features/settings/WithdrawScreen.tsx
+git add web/src/navigation.tsx
+git add web/src/photoQueue/photoQueue.vitest.tsx
+git add web/src/photoQueue/photoQueueHub.ts
+git add web/src/photoQueue/photoQueueStore.ts
+git add web/src/photoQueue/usePhotoQueueResume.ts
+git add web/src/photoQueue/webPhotoFs.ts
+git add web/src/platform/bridge.ts
+git add web/src/platform/chatComposer.vitest.tsx
+git add web/src/platform/imageSave.ts
+git add web/src/platform/imageSave.vitest.ts
+git add web/src/platform/motion.ts
+git add web/src/platform/useChatComposer.ts
+git add web/src/platform/useKeyboardOpen.ts
+git add web/src/screens.tsx
+git add web/src/screens.vitest.tsx
+git add web/src/stores/coupleStore.ts
+git add web/src/stores/dissolutionStore.ts
+git add web/src/stores/profileStore.ts
+git add web/src/stores/sheetStore.ts
+git add web/src/stores/stores.vitest.ts
+git add web/src/stores/toastStore.ts
+git add web/src/stores/viewerOpenStore.ts
+git add web/src/styles.css
+git add web/src/tabs/ChatTab.tsx
+git add web/src/tabs/FeedTab.tsx
+git add web/src/tabs/MagazineTab.tsx
+git add web/src/tabs/MainTab.tsx
+git add web/src/tabs/SettingsTab.tsx
+git add web/src/tabs/TabBar.tsx
+git add web/src/tabs/TabFrame.tsx
+git add web/src/tabs/TabIcons.tsx
+git add web/src/testSupport.ts
+git add web/src/testSupportCouple.ts
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "74-1~8 로그인 뒤 앱 전체 웹 이전"
+```
+
+### Proteur가 돌릴 것 (관문이 권한 검사에 막힌 경우)
+
+(없음)
+
+### 결정 기록
+
+형식 `[묶음] 무엇을 · 왜 · 다른 길`. 실기기 확인 없이 사전 허가를 쓴 줄은 앞에 `[판단]`.
+
+- [74-준비] 모션 명세 v2가 저장소에 없음 · 지시서가 "없는 것은 웹 데모 값으로 대신"이라 함 · 다른 길: Proteur에게 파일을 받아 다음 수정 지시서에서 대조
+- [74-준비] 캔버스 HTML 4종(`Components` · `N-R31-App-Fixes` · `P1-Cover-Note` · `N-S-D3-Magazine`)이 저장소에 없음 · 해당 화면은 `screens/*.jpg`와 `CURRENT.md`의 바뀐 점 표를 기준으로 함 · 다른 길: 파일을 받아 다시 대조
+- [74-0] 초기화 스크립트 시험은 루트 jest가 줍지 않는 이름으로 두고 `deno test`로 파일을 지정해 돌린다 · 루트 jest 101 · 1771이 "그대로"여야 하고 `scripts/ops`는 루트 tsc 밖, 실행 도구 Deno는 이미 `scripts/ops`가 쓰는 것 · 다른 길: jest `.test.ts`로 두면 루트 수가 바뀜
+- [74-4 · 메인 세션] 사진 위치(GPS)를 읽지 않아 사진 행 lat/lng가 늘 null — RN은 읽어 `data_entries.lat/lng`에 넣음. "읽지 않는다"는 PM 지시서가 아니라 메인 세션 위임문에서 나온 조건이라 RN 행동과 다름 · 위치를 덜 모으는 쪽이 보수적이고 이 칸을 쓰는 곳이 없어(코너는 `date_stops`만) 그대로 둠, PM 확인 필요 · 다른 길: `features/feed/photoPicker.ts`의 `gps` 두 곳을 켜 RN과 같게
+- [74-0] 연결된 커플 판정을 `user_b_id`가 채워진 커플 행이 하나라도 있으면(active · dissolving · dissolved 모두)으로 넓힘 · RN은 active만 connected로 보지만 해제된 행도 상대 데이터가 같은 행 아래라 지우면 상대 것까지 사라짐 · 다른 길: active만 거부
+- [74-0] 발행된 호 = 그 사용자 커플 issues의 `published_at`이 있는 것 · 마이그레이션 009 · fn_publish_issue 기준 · 다른 길: 호 존재 전체
+- [74-0] 지우는 순서 Storage -> 커플 행(하위 cascade) -> 인증 사용자 · couples가 profiles를 RESTRICT로 막아 커플을 먼저 지워야 하고, Storage는 행이 남아 있어야 중간에 멈춰도 다시 돌릴 수 있음 · 다른 길: 사용자부터(불가)
+- [74-0] 시험 파일은 `resetTestAccountCheck.ts`, 순수 흐름과 접속을 port로 분리해 `supabaseOps` 불러오기는 실행 때만(dynamic import) · 시험이 npm 패키지 없이 돎 · 다른 길: 한 파일에 모두
+- [74-0] 이메일 조회는 auth admin `listUsers`를 쪽 넘기며 메모리에서 대소문자 무시 비교 · supabase-js에 이메일 직접 조회 없음 · 다른 길: SQL(원격 스키마 조회라 배제)
+- [74-1] 파일 구조: 경로 이름 = `web/src/app/routes.ts`(온보딩 · 탭 · 스택 목록) · 그리는 법 = `app/routeTable.tsx` · 뒤로 가기 = `app/backRules.ts`. 탭 화면은 `web/src/tabs/<이름>Tab.tsx`(지금 빈 틀 `TabFrame`), 탭 위 스택 화면은 `web/src/features/<영역>/`(폴더는 첫 화면이 생길 때 만든다 - `screens.tsx` 파일과 이름이 겹치지 않게 `screens/`는 안 씀), 시트는 `stores/sheetStore.ts`의 `SheetId` + `app/sheets.tsx`, 공용 부품은 `components/`, 저장소는 `stores/`, 연결 상태는 `connection/`. **새 화면을 더할 때 할 일: `routes.ts`에 이름 -> `routeTable.tsx`에 그리는 법 -> `backRules.ts`에 규칙 -> 이 표의 화면 대응표 한 줄**(셋 중 하나라도 빠지면 tsc와 `backRules.vitest.ts`가 실패).
+- [74-1] 뒤로 가기 규칙표를 새로 `app/backRules.ts`로 쓰고(`resolveBack` 순수 함수) `navigation.tsx`가 그것을 부른다. `platform/backStack.ts`(시트 · 뷰어 등록)는 그대로 - 열린 시트가 표보다 먼저 받는다 · 다른 길: backStack 확장(등록 함수와 규칙이 섞여 시험이 어려움)
+- [74-1] 탭 규칙: 메인 = 종료, 다른 탭 = 메인으로(`replace`). RN `(tabs)/_layout.tsx`에 backBehavior 지정이 없어 React Navigation 기본 `firstRoute`와 같아 RN을 따른 것. 탭끼리는 `replace`라 깊이가 늘지 않는다.
+- [74-1] 계정이 생긴 뒤(`enterAccount`)에는 "온보딩 경로면 종료"로 바꿨다(전에는 계정 뒤 모든 뒤로 가기가 종료). 이후 스택 화면은 `previous`로 탭에 돌아온다. 앞 화면이 없는 스택 · 알 수 없는 경로는 계정이면 메인, 아니면 종료(아무 동작 없는 화면 0).
+- [74-1] `Nav` 타입은 `navigation.tsx`로 옮기고 `screens.tsx`가 다시 내보낸다(`ScreenName`은 `app/routes.ts`). 온보딩 화면 동작은 그대로, `LegalSheet`(A12)만 공용 `Sheet` 부품으로 갈아 끼움(열기/닫기 연출 · 뒤로 가기 동작 동일, 바깥 면 색을 `rgba(10,8,20,.66)`으로 - 보드 I05 값).
+- [74-1] 지움: `EndScreen` · `/end` · `web/src/dev/*`(채팅 시험 + 한글 조합 시험 `chatFeel.vitest.tsx`) · 첫 화면 "채팅 시험" 버튼. `useChatComposer.ts` · `useStickToEnd.ts` · `build:trial`은 그대로. 한글 조합 시험은 74-5가 입력 이벤트 방식으로 다시 쓴다. 개발용 안내(`AuthScreen`의 설정 비었음)는 `config/env.ts`의 `isDevBuild()`로 이어짐.
+- [74-1] 서버 진행 단계 2 이상 -> `main`(`webRouteForStep`). **자리 남김(해당 화면이 생기면 채운다)**: 커플 연결 + 사귄 날짜 없음 -> 사귄 날짜(74-2) · 닉네임 미설정(74-2) · 탈퇴 유예 `deleted_at`(74-7, 값은 `stores/profileStore`가 이미 읽음). "나중에 할게요" · "솔로예요"(`InviteScreen`)는 지금 `enterAccount('main')`만 한다 - RN의 `completeOnboardingWithoutCouple`(진행 단계 COMPLETE 저장)은 74-2가 채움(그 전에는 앱을 다시 켜면 단계 1이라 초대 화면으로 돌아옴).
+- [74-1] I01: 탭 화면은 화면 안 카드(`CoupleNeeded`, 손잡이 없음), 시트(`couple-gate`)는 `useCoupleAction()`으로 사용자가 커플 기능을 누를 때만 **한 번**(시트 한 칸 `sheetStore.open`이 열려 있으면 무시, 경로가 바뀌면 `closeAll`). 두 버튼은 `app/inviteEntry.ts`의 `openInvite('intro'|'enter')` - **74-2가 `setInviteEntry`로 실제 이동을 꽂는다**(그 전에는 토스트 "초대 화면은 곧 열려요"). 보드 I01/I05는 저장소의 PNG만 있어(`N-S-H4-Settings` · `N-S-I-States` HTML 없음) PNG + RN 구현 값으로 만듦.
+- [74-1] 탭 바: 보드 `tab_icons.md` 경로 원문(RN 경로는 보드와 달라 보드를 따름), 18px · 선 1.6, 활성 = rose + 글로우 · 글자 text 600, 점 없음. 바탕은 보드의 `rgba(10,8,20,.92)` 대신 `#0A0814` 단색(B5 지시). 탭 바 12px 띄움 · 높이 64 · 반경 22.
+- [74-1] 연출 값: 화면 전환 `rise` 260ms ease-out(웹 데모) · 탭 이동 크로스페이드 180ms(`tabIn`) · 시트 열기 380ms `cubic-bezier(.2,.9,.25,1)` / 닫기 260ms(웹 데모 값) · 토스트 떠오름 220ms. 모션 명세 v2는 저장소에 없고 `02_X1-Motion-Main.jpg`는 메인 화면(74-3) 전용 연출이라 여기엔 쓰지 않음. `prefers-reduced-motion`이면 새 부품 연출은 즉시.
+- [74-1] I02 연결 상태: `navigator.onLine` · 이벤트 + 확인 요청으로 된다 -> `@capacitor/network` **설치 0**. 끊김 = 감싼 fetch 거부(RN과 같음) + 브라우저 `offline` 이벤트, 풀기 = 확인 요청 응답만(`online`은 증거가 아님). 확인 요청 규칙은 RN 그대로(15초 간격 · 8초 제한 · 헤더 0 · 정리 때 abort · 겹침 0). 웹에서 바꾼 것: AppState `active` 대신 `visibilitychange`(보임), `online` 이벤트는 15초 간격을 기다리지 않고 한 번 시도. `auth/client.ts`의 `createWebClient`가 감싼 fetch와 확인 요청을 등록. 채팅 자리 규칙은 `connection/chatQueueSignal.ts`(`setChatQueueWaiting`) - **74-5가 글 · 사진 큐의 대기 유무를 여기에 알린다**.
+- [74-1] 저장소: 세션 = 기존 `auth/stores.ts`의 `useAuthStore`(앱 시작 때 `useBootSession`이 채움), 내 프로필 = `stores/profileStore.ts`(`fetchProfile` 재사용, RN의 생체정보 · 대표사진 부분은 범위 밖이라 안 옮김), 커플 = `stores/coupleStore.ts`(RN `coupleStore.refresh`와 같은 질의 + 미연결 36.5 고정 + 저장 온도는 읽기만). 계정 구간에 들어오면 `app/useAccountData.ts`가 두 곳을 읽고 로그인이 사라지면 비운다. 조회 오류 시 이미 연결로 알던 값은 지우지 않는다(RN은 미연결로 덮음) - 다른 길: RN 그대로.
+- [74-1] 토스트(`stores/toastStore.ts` + `ToastHost`) 한 번에 하나, 3초. 새 의존성 0 · `web/android` 변경 0 · 루트 · RN 변경 0.
+- [74-2] 파일: `couple/coupleApi.ts`(RN `coupleApi`의 웹판 - 클라이언트를 인자로 받음. 연결은 `@/services/coupleConnectCore`의 `connectCouple`, 진행 단계는 `@/services/onboardingStepCore`의 `advanceOnboardingStep`을 그대로 가져다 씀) · `couple/useStartDateRecheck.ts` · `features/couple/{InviteScreen,CodeBoxes,StartDateScreen}.tsx`. 시험 보조 `testSupportCouple.ts`(상태 있는 가짜 클라이언트). 새 경로: `start-date`(온보딩) · `couple-invite` · `start-date-recheck`(스택, 뒤로 = 앞 화면). 새 의존성 0 · `web/android` 변경 0 · 서버 새 RPC 0.
+- [74-2] A17 코드는 서버 코드다: 화면 무작위 코드를 지웠다. RN대로 **열기만 해서는 커플 행을 만들지 않고**(읽기만) [초대 코드 만들기]를 눌러야 발급한다. 단 I01에서 `couple-invite`를 [초대 코드 보내기]로 열었을 때는 이미 요청한 것이라 바로 발급(B12 - RN `InviteSheet`가 같은 문구 시트를 한 번 더 열던 것을 없앰). 보드 A17의 [복사하기]는 RN이 클립보드 의존성 때문에 뺐지만 웹은 `navigator.clipboard`가 되어 보드대로 둠(실패하면 코드를 토스트로). 4초마다 읽어 상대가 입력했는지 확인(RN 그대로), 연결되면 한 번만 A19로.
+- [74-2] 공유 글: `bridge.shareText`(`@capacitor/share`의 `text`, 기존 플러그인) 추가 - 문구 "온도록에서 연결해요! 초대 코드: CODE"(B6). 웹 개발 서버는 `navigator.share`, 못 열면 코드를 토스트로 보여 줌. 브랜드 오기: `web/src`에 옛 이름("온돌로그" 등)은 남아 있지 않다(시험이 공유 문구에 `온돌로그|온도로그|ONDOLOG` 0 단언).
+- [74-2] 코드 입력(A18, B9): 보드의 6칸 모양을 투명한 `<input>` 하나가 덮는 방식(`CodeBoxes`). `autocapitalize=characters` · `autocorrect=off` · 입력은 `normalizeCodeInput`(대문자 + 영숫자 6자리). 키보드가 칸을 가리지 않는 것은 기존 `platform/keyboardFocus`(창이 키보드만큼 줄고 칸을 가운데로 스크롤)에 기댐 - 실기기 확인 항목.
+- [74-2] I01 -> 초대: Shell이 `setInviteEntry`를 꽂아 탭 위에 스택 `couple-invite`를 쌓는다(`openInvite`가 단계 `intro`/`enter`를 `setPendingInviteStep`으로 적어 두고 화면이 그려질 때 한 번 읽음). 온보딩의 `invite` 경로를 탭 위에 쌓으면 규칙표(계정 있으면 온보딩 뒤로 = 종료) 때문에 못 돌아오므로 별도 스택 경로를 만듦(RN은 `couple-gate` 모달). gate에서 연결되면 진행 단계는 건드리지 않고 사귄 날짜로(RN `couple-gate`와 같음). 이미 그 화면이면 다시 쌓지 않음.
+- [74-2] "나중에 할게요" · "솔로예요": RN 그대로 둘 다 `completeOnboardingWithoutCouple`(진행 단계 3, 올리기만) 뒤 메인 - **커플 행은 만들지 않는다**(열린 항목 "U2 혼자 기록의 커플 행"은 RN 동작 그대로라 PM 결정 대기 상태 유지, 74-4가 기록 버튼 비활성을 만질 때 이 점을 안다). 다시 켜면 단계 3이라 메인으로 가고 초대로 돌아오지 않는다(시험).
+- [74-2] 단계 판정: `webRouteForStep(step, ctx)`(순수, RN `resumePathFor`) + `resolveWebRoute(db, userId, step)`(단계 2일 때만 active 커플을 읽어 `connectedWithoutStartDate`를 채움. 조회 실패는 RN `coupleStore.refresh`처럼 미연결 -> 메인). `useBootSession` · `useAccountFinalize`가 이것을 부름. RN은 단계 3에서도 커플 스토어를 새로 읽지만 갈리는 결과가 없어 읽지 않음(웹은 `useAccountData`가 계정 구간 진입 때 읽음). **닉네임 미설정 -> 별도 화면은 만들지 않음**: RN에도 그런 판정이 없고 닉네임은 A19에서 날짜와 함께 정한다(74-1 주석의 "닉네임 미설정(74-2)"은 이 뜻으로 닫음). 탈퇴 유예(`deleted_at`)는 `resolveWebRoute` 주석에 자리 표시(74-7: RN은 유예면 단계보다 먼저 탈퇴 취소 화면).
+- [74-2] 사귄 날짜(A19/A20): 규칙은 RN 그대로(`setOrConfirmStartDate` 먼저 입력한 값 적용, 닉네임은 날짜를 정한 쪽만 씀, 미래 불가 KST). 입력은 "YYYY.MM.DD" 숫자 입력(피커 0, RN 동일). 마무리 = 단계 3 -> `enterAccount('main')`. 재표시(`useStartDateRecheck`): Shell이 탭 화면에서만 켜고(시작 · 탭 진입 · `visibilitychange` visible), 같은 (커플, 정한 사람, 날짜)는 한 번만 열고, `start-date-recheck`로 푸시(`urgent`). 이 길은 확인만 쓰고 단계는 안 쓰며, 끝나면 `reset('main')`(RN `dismissTo('/main')`). 확인 · 저장 뒤 `coupleStore.refresh`로 메인이 바로 새 값을 봄.
+- [74-2] F3: 기존 계정 알림 문구는 **바꾸지 않았다**(R65-2 원문 그대로). 문구가 끝 화면을 가리키지 않고("원래 정보로 이어서 보여 드려요. 방금 본 결과는 저장하지 않았어요."), 이제 단계 2 이상 계정은 메인 탭에 내리며 알림이 그 위에 한 번 뜨므로 사실에 맞다. 방금 본 결과가 있었을 때만 보이는 조건 · 6초 자동 닫힘 · 눌러 닫기는 그대로. 시험이 원문 · 메인 위 한 번 · 결과가 없었으면 알림 0 · `/end` 없음을 지킴. 다른 길: 문구를 줄이기(사실이 같아 이득 없음).
+- [74-2] R74-10: "전체 동의" 줄 안(`ConsentRow`의 `helper`)에 "선택 항목인 마케팅 정보 수신도 함께 동의돼요."를 고정 노출(누르기 전부터, 눌러도 유지). 옛 후보 문구("...함께 켜져요") 삭제, `ALL_CONSENT_NOTE`를 export해 시험이 정확한 글자와 줄 위치(전체 동의 줄 바로 아래, 다음은 구분선)를 단언. 마케팅 기본 꺼짐(B18)은 `screens.vitest.tsx`가 계속 단언.
+- [74-2] A09: 보드 `screens_index.csv`의 A09는 "공유 카드 이미지 · 1080x1920"(화면 틀이 아니라 만들어지는 **이미지**)이고 A08 [공유하기]가 그 이미지를 OS 공유 시트로 보내는 것으로 이미 대체됨(`share/resultCard.ts`). 전체 화면 `ShareCardScreen` · 경로 `share` · 하늘 `share` 설정 · 뒤로 가기 규칙은 어디서도 열리지 않아 **지움**(경로 목록 · 규칙표 · 라우터 표 · 시험 표에서 함께). 다른 길: 되살리기(보드 흐름에 A09를 여는 버튼이 없음).
+- [74-3] 파일: `features/main/{MainView,useMainData,issueSeen}` + `tabs/MainTab.tsx`(훅 결과를 `MainView`에 넘기고 버튼 목적지만 정함). 순수 규칙은 루트 `@/utils/mainScreen` · `relationshipDays` · `magazine` · `@/services/mainApi` · `magazineApi`(클라이언트 인자)를 그대로 가져다 씀(사본 0). 새 의존성 0 · `web/android` 변경 0 · 서버 새 RPC 0 · 새 경로 0(규칙표 변경 없음 - 뷰어는 74-6이 경로를 만들 때 `viewerEntry`에 꽂는다).
+- [74-3] 버튼 목적지: 채팅 링크 = `nav.replace('chat')` · [연인 초대하기] = `openInvite('intro')`(RN은 `couple-gate` 모달, 웹은 74-2의 `couple-invite`; I01 시트를 한 번 더 거치지 않음 - B12와 같은 원칙) · [읽기] · 지난 호 = `app/viewerEntry.ts`의 `openIssueViewer`. 뷰어(74-6)가 `setViewerEntry`로 실제 이동을 꽂고 **호를 열 때 `features/main/issueSeen.markIssueOpened(userId, issueId)`를 불러야** B06 카드가 사라진다. 꽂기 전에는 토스트 "매거진 뷰어는 곧 열려요". 다음 호 카드는 누르는 곳이 없다(D02 범위 밖).
+- [74-3] 안 열어 본 새 호: RN AsyncStorage -> Capacitor Preferences(키 `ondolog.issueOpened.<user>.<issue>` 그대로, 서버 쓰기 0, 실패는 조용히). 로그인 이후 구간이라 영속 저장이 허용되는 편의 표시.
+- [74-3] 하늘: `App.tsx skyFor('main')` = offset `viewOffsetPt.main` · 장막 .42 · 하단 장막 · 유성 0 · 이동 1200ms(첫 로그인 직후 인트로 하늘에서 내려옴). 메인 화면 바탕만 투명(`.mainTab`), 다른 탭은 단색 그대로라 B5 흰 프레임 보호 유지(하늘은 불투명도 0 -> 1로만 켜지고 phone 바탕이 `--ink`). 하늘 흐름(40초 24px) · 유성 · 손잡이 숨쉬기는 끌어내리기(C) 쪽 연출이라 넣지 않음 - 다른 길: 24px 흘러가는 연출만 따로 넣기(`SkyLayer`의 이미지 transform 위에 래퍼가 필요해 74-8에서).
+- [74-3] 모션: 보드 02_X1-Motion-Main 값 - 등장 ease `cubic-bezier(.2,.8,.2,1)` 720ms, 칸 사이 80ms 간격, 위로 16px에서 떠오름(카운트업 · 블러 0). `prefers-reduced-motion`이면 즉시.
+- [74-3] 깜빡임 0: 연결 여부(`unknown`/`loading`) · 활동 · 프로파일 · 호 목록 · "열어 봄"이 **이번 호 목록 기준으로** 다 읽히기 전에는 I03 뼈대(`MainFacts.openedFor === 호 id 키`). 다시 읽을 때(`visibilitychange`)는 값을 비우지 않는다. 미연결(B05)은 연결 전용 조회를 하지 않으므로 뼈대 없이 바로. 조회 오류 처리는 RN 그대로(활동 읽기 실패 = 저장값 유무, 프로파일 읽기 실패 = 완료로 봄, 호 오류 = 호 칸 숨김).
+- [74-3] 온도: 계산 0 - `coupleStore`가 읽은 `daily_temperature` 최신 저장값만. 미연결 · 프로파일 미완 = 36.5 고정(`dim`, 발광 없음), 저장값 없음 = B03 문구. patch8의 B01 "시작 온도 보조 문구"(온도가 잘 맞는 유형일수록 시작 온도가 조금 높아요 ...)는 RN 메인에도 없고 74 지시서에 자리가 없어 넣지 않음 - 다른 길: 이 문구를 어느 상태에 둘지 정해 주면 추가.
+- [74-3] 자정 경계: 메인이 떠 있는 동안 1분마다 시각을 새로 잡아 날짜 라벨 · D+N이 바뀜(RN은 렌더 때만).
+- [74-4] 파일: `features/feed/{feedData(읽기 훅 · 피드 재읽기 신호) · FeedView(E01 · E13 그리기) · DateDetailScreen(E03) · StopEditScreen(E15) · RecordSheet(E11) · photoPicker(웹 입력 + EXIF)}` + `tabs/FeedTab.tsx` + 공용 `components/{PhotoViewer · zoomMath}` + `photoQueue/*`. 서버 조회 · 쓰기는 루트 `@/services/dateRecordApi`(클라이언트를 인자로 받는 순수 파일)를 그대로 가져다 쓴다 - 새 RPC · 테이블 · 정책 0, 사본 0. 새 경로 `date-detail` · `stop-edit`(스택) · 새 시트 `record`.
+- [74-4] 화면에 값을 싣는 길: `nav.push(name, { params })`가 `?key=value`를 붙이고 화면은 `useRouteParams()`로 읽는다(`navigation.tsx`). 주소에 실려 있어 뒤로 갔다 돌아와도 같은 데이트가 열린다(RN `useLocalSearchParams`와 같은 성격). 경로 판정(`routeOfPathname`)은 pathname만 보므로 규칙표 · 라우터 표는 그대로 이름 키. 다른 길: 메모리 저장소에 마지막 값을 두는 `inviteEntry` 방식(E03 -> E15 -> 뒤로 때 덮어써질 수 있어 안 씀).
+- [74-4] 사진 고르기 = 웹 입력(`<input type="file" accept="image/*" multiple>`, 한 번에 30장). `@capacitor/camera` 설치 0 · `web/android` 변경 0. 웹뷰의 파일 선택기가 원본 바이트 · 촬영 시각(EXIF)을 그대로 주는지는 실기기에서 확인한다 - **[판단]** 웹 입력만으로 두고 실기기에서 EXIF가 비거나 원본이 줄어 오면 그때 `@capacitor/camera`(이미 사전 허가)로 바꾼다(사진 선택기 한 함수 `chooseFiles`만 갈아 끼우면 된다). 취소 이벤트(`cancel`)를 안 주는 웹뷰에서는 선택기가 닫혀도 대기 중 약속이 남을 수 있으나 화면은 기다리지 않는다.
+- [74-4] EXIF 라이브러리 = `exifr@7.1.3`(정확한 버전, `--save-exact`, package.json 한 줄 + lock 7줄), **lite 묶음**(JPEG · HEIC만, 가장 작은 쪽 아래 - mini는 HEIC가 없어 삼성 고효율 사진을 놓침). 이유: 파일(`File`)을 그대로 받아 앞부분만 읽고, 사진 선택기가 주는 JPEG · HEIC에서 촬영 시각을 읽는다. 다른 길: `@capacitor/camera`의 EXIF(웹 입력이 안 될 때만). 알아 둘 것 둘(시험으로 고정): ① 옵션 `tiff: true`를 주면 라이브러리가 모든 IFD(위치 포함)를 켜 버린다 - 블록마다(`ifd0` · `exif`는 태그 목록, `gps: false`)만 정한다. ② 태그를 **번호**로 고른다(0x9004는 이름이 `CreateDate`, 0x0132는 `ModifyDate`라 이름 표기에 기대지 않는다). 읽은 값은 우리 이름의 작은 객체로 돌려주고, 시각은 글자 그대로(`reviveValues: false`) 루트 `photoFromPickerAsset`(KST 기본 · `OffsetTimeOriginal` 우선 · 읽을 수 없으면 null)에 넘긴다. 파일 수정 시각은 촬영 시각으로 쓰지 않는다(RN과 같음).
+- [74-4] **GPS: 읽지도 보내지도 않는다**(지시). RN은 `exif: true`로 위치도 받아 `data_entries.lat/lng`에 넣었다(56- 지시서) - 지시가 "RN을 확인해 같은 쪽으로"라고도 해서 어긋난다: RN을 따르면 읽는 것이다. **지시의 명시 문장("읽지도 보내지도 않는다")을 따랐다** - 사진 행의 `lat` · `lng`는 늘 null. 근거: 사진의 `lat/lng`는 조판 · 생성 어디에서도 쓰이지 않는다(코너 입력은 `date_stops.lat/lng`만 읽는다 - `_shared/corners/dateArchive.ts` · `inputAssembly.ts`). 시험이 위치가 든 JPEG에서도 null · 읽은 태그에 위치 이름 0을 단언한다. PM이 RN대로 읽기를 원하면 `photoFromFile`의 `exif` 객체에 GPS 칸 네 개와 `readExifTags`의 `gps`만 켜면 된다(루트 `exifGps`가 이미 있다).
+- [74-4] E10을 없앴다(CURRENT.md): E03 [사진 더하기]가 바로 시스템 선택기를 열어 고른 사진을 곧바로 올린다. 호출은 RN E10과 같은 `recordDate`(날짜 고정 · 장소 · 메모 없음 -> 그 날짜에 stop이 있으면 사진은 규칙 4로 배치, 없는데 촬영 시각도 없으면 R30-2 문구를 토스트로 알리고 아무것도 쓰지 않는다). 확인 단계(올리기 전 미리보기)는 없다 - 다른 길: 선택 뒤 미리보기 시트(E10 비슷한 화면이 되므로 안 만듦).
+- [74-4] **E11 시간 칸(해석 - PM 확인 요청)**: CURRENT.md "시간 칸이 조건부(stop 없음 + 촬영 시각 전무일 때만), 안내 문구 2종"을 이렇게 읽었다. 시간 칸은 `이름 있는 장소 0 && 사진 있음 && 사진에 촬영 시각 0`일 때만 보이고("시간 · 장소와 도착 시각이 필요해요", 누르면 장소 칸이 열림), 그 밖에는 시각이 사진 · 장소에서 정해지므로 칸이 없다(RN은 항상 사진 시각 폭을 보였다). 안내 문구 2종 = 사진 아래 "사진의 촬영 시각으로 날짜를 먼저 채웠어요" / "촬영 시각이 없어 오늘 날짜로 채웠어요"(RN에 있던 것). 이름 없는 stop의 도착 시각을 **직접 입력**하는 칸으로 만들지 않은 이유: 루트 `planStops` · `recordDate`가 이름 없는 stop의 시각 입력을 받지 않는다(루트 수정 금지) - 시각을 정하려면 장소 이름 + 도착 시각을 쓴다(RN 그대로). 디자인이 입력 칸을 뜻했다면 루트 `recordDate`/`planStops`에 "이름 없는 stop의 도착 시각" 입력이 필요하다(PM 판정 후).
+- [74-4] E11은 RN처럼 모달이므로 앱 시트(`record`, 전체 높이)로 만들었다(`SheetId`에 더하고 `app/sheets.tsx`에 본문). 시트는 한 번에 하나 · 탭을 옮기면 닫힘 · 뒤로 가기는 시트만 닫음(74-1 규칙). 저장하면 `useFeedSignal.bump()`로 열려 있는 피드 · 상세가 다시 읽는다. 올리는 중에 시트가 닫히면 미리보기 주소는 올리기가 끝난 뒤 놓는다.
+- [74-4] E03 `⋯`: 내가 올린 사진(오른쪽 위) · 메모(오른쪽)에만 44px 누름 영역의 `⋯`가 있고, 누르면 아래에서 올라오는 확인 시트(제목 "이 사진을 지울까요?" / "이 메모를 지울까요?" + "지운 사진은 되돌릴 수 없어요. 이미 발행된 호에서는 지워지지 않아요." + [지우기] rose 선 · [취소])가 열린다. RN은 "지우기" 글자 칩 + I05 가운데 카드였다 - CURRENT.md의 "확인 시트"를 따랐다. 서버는 RN과 같은 RPC `fn_delete_own_entry`만(직접 update 0), 확인 전 호출 0. 지운 뒤 화면 · 피드를 다시 읽는다.
+- [74-4] **사진 영속 큐 = 채팅(사진 메시지 · 24시간 스토리)이 쓰는 큐**다(RN `chatQueueHub` · `photoQueueFs` · `photoQueueStore`). RN의 데이트 기록(E11)은 큐를 쓰지 않으므로 웹도 쓰지 않는다. 74-4는 큐의 **웹 기반**을 만들었고 채팅 화면(74-5)이 붙는다: `photoQueue/photoQueueHub.ts`의 `photoQueueHub`(`attach` · `detach` · `kick` · `subscribe({onMessage, onStory, onPhotoQueue, onPhotoLost})` · `enqueue(photo, kind)` · `getPhotoQueue()`가 러너 `add/retryNow/cancel`을 줌). 규칙 파일은 루트 것을 그대로 가져다 쓴다(`@/utils/chatPhotoQueueRunner`(백오프 2s->32s · 5회 · 영구 실패 즉시 멈춤 · 같은 항목 겹침 0) · `@/services/chatPhotoCore`(경로 = `clientId`에서 정해짐 · 409 = 성공 · `client_msg_id` 23505 = 이미 전송 · 스토리는 같은 경로 행이 있으면 안 넣음) · `@/utils/chatPhotoQueue`). **74-5가 할 일**: 글 큐는 74-5가 같은 방식으로 옆에 둔다. 채팅 화면은 `photoQueueHub.subscribe`로 확정 행 · 큐 변화를 받고 `enqueue`로 사진을 넣는다(`blob:` 주소 + 확장자 + mime). 큐 대기 유무를 `connection/chatQueueSignal.setChatQueueWaiting`에 알리는 일도 74-5 몫.
+- [74-4] 큐 저장소 선택(보수적): 파일 복사본 = `@capacitor/filesystem`의 `Directory.Data`(앱 데이터 폴더 실제 파일 - RN `Paths.document`와 같은 성격, 시스템 정리 · 웹뷰 저장소 비움에 휩쓸리지 않음), 큐 항목 목록 = `@capacitor/preferences`(이미 로그인 세션이 쓰는 곳, 키 `chat_photo_queue:{coupleId}:{userId}` RN과 같음). 다른 길: IndexedDB(Blob을 그대로 저장해 base64 부풀림이 없으나 웹뷰 저장소라 정리 대상이 될 수 있어 안 씀). 대가: 네이티브에서 Filesystem은 base64로 쓰므로 큰 사진은 일시적으로 메모리를 더 쓴다 - 실기기에서 12MP 사진 여러 장을 한꺼번에 넣어 볼 항목(탐방 안내에 추가). 큐는 로그인 이후 구간이라 영속 저장이 허용된다(온보딩 비로그인 구간 규칙과 무관).
+- [74-4] 큐 재개 시점(65-): `photoQueue/usePhotoQueueResume`을 Shell에 한 번(`App.tsx`) - 앱 시작(로그인 + 커플 연결 확인 직후 `resolveChatQueueTarget`) 허브에 붙여 저장된 항목을 이어서 보내고, 앱이 다시 보일 때(`visibilitychange` = RN AppState `active`) 바로 이어 보낸다. 로그아웃 · 미연결이면 타이머만 멈추고 **기기 저장은 지우지 않는다**(다음 로그인에 이어 감). 커플 확인이 다시 도는 중(`loading`)에는 큐를 끊지 않는다. 같은 (커플, 사용자)로 `attach`를 여러 번 불러도 큐는 하나(동시 업로드 0).
+- [74-4] 사진 크게 보기: `components/PhotoViewer.tsx`(+ 한 장 면 `ZoomableImage`, 계산은 `zoomMath.ts` 순수 함수) - 핀치(1~4배) · 두 번 누르기(2.5배 <-> 처음) · 끌기(면 밖으로 안 나감) · 배율 1에서 옆으로 밀어 앞뒤 사진. 포인터 이벤트 직접 구현, 라이브러리 0. 열려 있는 동안 하드웨어 뒤로 가기는 이것만 닫는다(`useBackHandler`). 사진 목록이 줄어도 없는 칸을 가리키지 않는다. 74-6 서재 뷰어가 `ZoomableImage`(한 장 면)를 가져다 쓰면 된다. 터치로만 만들어 실기기 확인 항목: 핀치 · 두 번 누르기 · 옆으로 넘기기 손맛.
+- [74-4] 세리프: 두 사람의 원문(메모 · 인용)은 보드 토큰대로 MaruBuri. 웹에는 이 글꼴이 없어 `assets/fonts/MaruBuri-Regular.ttf`를 `web/public/fonts/`로 **복사**했다(3.3MB, 새 의존성 아님 · RN 파일 변경 0, `font-display: swap`). 다른 길: 시스템 세리프(`serif`)만 쓰기(안드로이드 한글 세리프 보장이 없어 디자인과 달라짐). APK가 3.3MB 커지는 것이 부담이면 이 파일 한 개와 `styles.css`의 `@font-face` 한 줄을 빼면 `serif`로 내려간다(PM 판단).
+- [74-4] 피드 재읽기: 마운트 · `visibilitychange` · 기록 · 삭제 · 장소 수정 뒤(`useFeedSignal`)에 다시 읽고, 다시 읽는 동안 이미 받은 값은 지우지 않는다. 피드 맨 위 안전 영역은 `.feedTab::before`로 덮어(B10) 스크롤한 내용이 상태 표시줄 아래로 비치지 않게 했다. 월 바로 가기(오른쪽 숫자)는 둘 이상의 달일 때만, 누르면 그 달로 부드럽게 스크롤.
+- [74-4] 혼자 기록의 커플 행(열린 항목): RN 그대로 - 기록할 커플 행(pending · active)이 없으면 + 버튼 · "첫 기록 남기기"가 비활성이고 E13 배너가 이유를 적는다. 커플 행을 만들지 않는다(시험이 `couples` 쓰기 0을 단언). 74-2의 "나중에 · 솔로예요"가 행을 안 만들므로 그 사용자는 초대 코드를 만들기 전에는 기록할 수 없다 - PM 결정 대기 상태 그대로(열린 항목 "U2 혼자 기록의 커플 행").
+- [74-4] 새 의존성 `exifr@7.1.3` 하나. `web/android` 변경 0(`cap sync` 변경 없음) · RN · 루트 변경 0 · 서버 새 RPC · 마이그레이션 0.
+- [74-5] 한글 조합: `useChatComposer`의 300ms 시간 가드를 **지우고** 입력 이벤트(`compositionstart/update/end` · `beforeinput`/`input`의 `inputType`)로 구분. 보낸 문자열은 입력 칸(DOM) 값에서 읽고, 조합 중에 보냈을 때만 그 조합 글자를 "묵은 조합"(`stale`)으로 적어 같은 글자의 재입력(`insertCompositionText`)은 지우고, 묵은 글자 뒤에 새 글자가 붙으면 새 글자만 남기고, `compositionend` 확정 글자(값 끝 또는 앞)도 지운다. 관계없는 조합 글자 · `insertText` · 지우기는 사용자 입력으로 보고 묵은 조합을 버린다. 잔여만 든 칸의 엔터는 보내지 않는다. **실기기 확인(삼성 키보드 · Gboard)은 탐방 안내 몫** - 키보드 앱이 실제로 이 이벤트 순서로 주는지는 jsdom으로 증명 못 함. 다른 길: 시간 가드(R73-2가 지움).
+- [74-5] 파일: `features/chat/{ChatView · useChatMessages · chatApi · textQueueHub · useChatQueueResume · useSignedMedia · localPreview · StoryViewer · chatPhotoActions}` + `platform/useKeyboardOpen` + `components/PhoneLayer`. 전송 · 사진 · 서명은 루트 `@/services/chatCore` · `chatPhotoCore`와 `@/utils/*`를 그대로 씀(사본 0). 글 큐는 `textQueueHub`(RN `chatQueueHub`의 글 쪽, Preferences 키 `chat_queue:{coupleId}` RN과 같음)로 사진 허브 옆에. 새 경로 0 · 새 의존성 0 · 서버 새 RPC 0.
+- [74-5] 스토리 · 사진 크게 보기 · 첨부 · 복사 메뉴는 경로가 아니라 `PhoneLayer`(폰 틀에 붙는 포털)로 탭 바 위에 그린다 - 탭 화면이 자기 쌓임 맥락이라 안에서 그리면 탭 바에 가려짐. 뒤로 가기는 `useBackHandler`(열린 것 하나만 닫음). 다른 길: 경로 + 규칙표(RN 모달과 비슷하나 탭 위 스택이라 채팅 상태가 사라짐).
+- [74-5] **[판단] F04 [카메라]**: 웹 입력 `capture="environment"`(한 장)로 연다. Capacitor 안드로이드 웹뷰가 이를 카메라 인텐트로 처리하고 앱 매니페스트에 카메라 권한이 없어도 동작해야 하나 **실기기에서 확인 못 함**. 안 열리면 `ChatView.tsx`의 `CHAT_CAMERA_ENABLED`를 false로(버튼 사라짐, 비워 둠). `@capacitor/camera` 설치 0. "최근 사진" 격자는 만들지 않음(사진 라이브러리를 훑지 않는다 R13-2 - 웹 입력으로는 불가능).
+- [74-5] F06 [저장] · [공유]: 다리의 `saveImage` · `shareImage` 사용. 파일 이름은 `ondolog-chat-날짜-시각-밀리초.확장자`로 매번 다름. 갤러리 노출 · 재설치 뒤 성공(F2)은 74-8이 `saveChatPhoto` 한 곳을 바꿔 끼움. 실패는 토스트(원인 · 경로 로그 0).
+- [74-5] 말풍선 복사: "RN 동작을 따른다"를 이렇게 읽음 - RN 말풍선은 길게 누르면 보내는 중 · 실패 글만 전송 취소, 보낸 글에는 동작 없음. 웹은 PM이 1b에서 남긴 "앱이 직접 그리는 메뉴" 줄(가)을 더해 **보낸 글을 길게 누르면 [복사] 시트**(클립보드), 보내는 중 · 실패는 RN대로 취소. 글자 선택 · 시스템 메뉴는 여전히 0. 다른 길: 복사 메뉴 없이 RN과 완전히 같게(PM 확인).
+- [74-5] 미연결 F02: 시트가 아니라 화면 안 카드(`CoupleNeeded`에 `copy` 인자 추가, 문구 "상대만 있으면 돼요 / 채팅은 연인과 연결되면 열려요."). 둘째 문장은 RN처럼 뺌(디자인에 알릴 것 - 열린 항목 ③은 그대로).
+- [74-5] 키보드: 채팅에서 키보드가 열리면(글자 칸 포커스 + 창 높이 120px 넘게 줄어듦, `useKeyboardOpen`) 탭 바를 비키고 입력줄 아래 여백을 12로 줄임(RN `keyboardVisible`). 실기기 확인 항목.
+- [74-5] 지운 행 거름: 읽음 갱신(`markMessagesRead`)이 돌려주는 행 중 `deleted_at`이 있는 것은 화면 상태에 합치지 않음 - RN은 거르지 않아 지운 메시지가 되살아날 틈이 있었음. 질의 자체는 RN과 같음.
+- [74-5] 올리는 중 사진 말풍선 미리보기: 큐의 `localUri`가 앱 데이터 폴더 상대 경로라 `<img>`가 못 읽어, 복사본 파일을 읽어 `blob:` 주소를 만들어 그림(`localPreview`, 화면을 떠나면 놓음). 큰 사진은 base64 읽기로 일시적으로 메모리를 더 씀 - 실기기 확인.
+- [74-5] 실시간 첫 수신 지연(열린 항목 ④): 가짜 서버로는 재현 불가(구독 + `SUBSCRIBED` 메우기가 빠진 메시지를 채우는 것까지 시험) - 실기기에서 첫 수신이 늦으면 보고.
+- [74-6] 파일: `features/magazine/{libraryData(D01 읽기 훅) · LibraryView(D01 · D14 · D16 그리기) · viewerData(D10 · D11 읽기 훅) · IssueViewer(속표지 · 뷰어 · 덮개) · ViewerHost}` + `stores/viewerOpenStore` + `tabs/MagazineTab`. 서버 조회는 루트 `@/services/magazineApi` · `dateRecordApi.fetchDisplayNames` · `@/utils/magazine` · `@/store/viewerStore`(보던 쪽, 메모리) · `@/constants/magazineCopy` · `@/services/issueManifest`를 그대로 씀(사본 0). 새 RPC · 테이블 · 정책 0. **issues_public 뷰만** 읽고 인쇄용(`magazine-print`) 버킷 · 경로 · 칸은 한 곳도 없음(시험이 호출 수준에서 확인).
+- [74-6] 뷰어는 경로가 아니라 `PhoneLayer` 덮개 · `ViewerHost`를 Shell에 한 번(`App.tsx`) - `app/viewerEntry.setViewerEntry`에 `viewerOpenStore.open`을 꽂아 메인 B06 [읽기] · 지난 호 다시 읽기 · 서재 표지가 같은 문을 지남. 이유: 시트 · 채팅 뷰어(74-5)와 같은 방식이라 아래 탭 상태 보존 + 뒤로 가기는 덮개만(`useBackHandler`) + 규칙표 변경 0. 경로가 바뀌면 닫힘(시트와 같음). 다른 길: 스택 경로 `magazine-viewer` + 규칙표(RN 모달과 가깝지만 서재 목록 상태 · 스크롤이 사라짐).
+- [74-6] 하드웨어 뒤로 가기: 속표지에서도 뷰어에서도 **덮개째 닫음**(RN 모달 pop과 같음). 화면의 ←는 뷰어 -> 속표지. 다른 길: 뷰어에서 뒤로 가기 = 속표지로(PM 취향 - 지시서의 "뷰어가 열려 있으면 뒤로 가기 = 뷰어만 닫기"는 덮개째 닫기로 읽음).
+- [74-6] **[허가 요청] PDF 열기**: RN과 같이 `pdf_digital_path` 서명 주소(10분, `magazine` 버킷, 디지털만)를 시스템에 넘긴다 - 웹은 `bridge.openBrowser`(이미 있는 `@capacitor/browser`, 설치 0). 앱 안에서 PDF를 그리려면 PDF 렌더링 라이브러리(허가 밖)가 필요해 **설치하지 않았다**. 안드로이드 Chrome 커스텀 탭은 PDF를 내려받기로 넘기므로 "내려받기"라는 버튼 이름과 맞다. 실기기 확인: 탭이 열리고 내려받아지는지. 인앱 보기를 원하면 요청할 문장: "서재 뷰어에서 PDF를 앱 안에서 보여 주기 위해 PDF 렌더링 웹 라이브러리 1개(예: pdf.js) 설치를 허가해 주세요. 쪽 이미지(매니페스트) 방식 대안은 이미 [읽기]가 제공합니다." 웹 브라우저 개발 실행(`webBridge.openBrowser` = 현재 창 이동)에서는 앱을 떠나므로 PDF 확인은 앱에서.
+- [74-6] D12 목차는 만들지 않음(숨김): 쪽 번호 매니페스트가 없고(R48-1이 지움) RN도 진입 버튼이 없다. 보드의 [목차] 버튼과 아래 쪽 썸네일 띠도 같은 이유로 뺌. D13(정렬 · 검색)과 겹치는 서재 목록 기능은 RN이 쓴 화면 ID 기준으로 **최신순 한 가지 목록**뿐 - D13으로 가는 버튼 0, D02 "제작 현황 →" 0.
+- [74-6] 서재 읽기 = RN `useLibrary`와 같은 질의(`fetchPublishedIssues` + `fn_issue_progress` + 기간 안 count) · 표지 서명. **B13**: 한 방향 단계(`idle -> loaded | failed`)로 두고 받은 값은 다시 읽기(마운트 · `visibilitychange`)에서 비우지 않음, 다시 읽기가 실패해도 받아 둔 값이면 오류 화면으로 안 바뀜(RN은 `error`를 켜 값이 있어도 오류 화면). 탭을 옮겼다 돌아와도 직전 값(커플 단위, 표지 서명 주소 유효 시간 안에서만 - 만료 직전이면 버림)을 먼저 보여 뼈대를 안 거침. 다른 길: 매번 뼈대부터(깜빡임이 남음). 메인의 `useLibrary`(`useMainData.ts`)는 그대로 둠 - 메인 카드용이라 `reload` · 기억이 없음(다음 정리에서 합칠 수 있음).
+- [74-6] 메인 B06 카드 걷기: 뷰어가 덮개라 메인이 아래에 그대로 떠 있어 `visibilitychange`가 안 옴 -> `issueSeen.markIssueOpened`가 성공하면 `useIssueOpenedSignal` 번호를 올리고 `useMainFacts`가 그 번호가 바뀌면 "열어 봄"(과 사실 두 가지)을 다시 읽음(받은 값은 안 비움). 호를 열자마자(호 읽기가 끝난 시점) 남김 - RN과 같음.
+- [74-6] 넘기기: RN은 가로 FlatList 페이징(끌면서 따라옴), 웹은 `ZoomableImage`의 밀기 판정(64px) + 220ms 슬라이드 · 페이드 한 장씩(끌기를 따라오는 연출 0) - 74-4가 만든 한 장 면을 그대로 써 확대 계산 · 손맛이 사진 뷰어와 같음. 이웃 쪽 서명 주소는 지금 쪽 +-1을 받고 이미지도 미리 받아 둠. 쪽 이미지가 안 열리면 그 쪽만 서명 주소를 버리고 한 번 다시 받음(`ZoomableImage`에 `onError` 추가). 터치로만 만들어 **실기기 확인**: 밀기 손맛 · 핀치 · 두 번 누르기 · 슬라이드 연출. 방향키는 PC 개발 확인용.
+- [74-6] 이름 줄 "세준 · 서영": RN과 같이 [나, 상대] 순서로 `profiles.display_name`(읽기 실패는 빈 문자열). 닉네임은 `coupleStore.nickname`.
+- [74-6] 폰트: 속표지 워드마크 · "N월호" · 코너 제목은 세리프(MaruBuri, 74-4가 들여온 파일 재사용). 보드 토큰의 MaruBuri-Light는 웹에 없어 Regular로(보드와 굵기 차이는 실기기에서 판단).
+- [74-6] 루트 관문: 루트 tsc 0 · jest 101파일 1771건 그대로(루트 변경 0).
+- [74-7] 파일: `features/settings/{SettingsView · useSettingsSummary(H01) · ProfileScreen(H03) · CoupleScreen + DissolutionGrace(H04 · H14 유예) · PhraseConfirm + UnlinkScreen(H14) + WithdrawScreen(H16) + WithdrawCancelScreen(유예) · PersonalityScreen(H05 · H06 시트) · SettingsResultScreen(A14~A16 설정 모드) · RetestScreen(A04~A07 -> 저장) · PrivacyScreen(H11) · AboutScreen(H19) · useDissolutionNotice · accountActions(로그아웃) · parts(목록 · 토글 · 틀) · settingsData · appInfo}` + `stores/dissolutionStore.ts` + `tabs/SettingsTab.tsx`. 서버 쓰기는 루트 `@/services/settingsCore` · `dissolutionCore` · `personalityCore.overrideEnneagramCore`를 클라이언트 인자로 그대로 가져다 쓴다(사본 0). 새 RPC · 테이블 · 정책 0. 쓰는 칸은 `settingsCore` 머리 표 그대로(profiles 이름 · 성별 · 마케팅 동의 시각 / couples 사귄 날짜 3칸 · 닉네임). `deleted_at` · `purge_scheduled_at` · `birth_date` · `onboarding_step` · `couple_dissolutions` · `retest_used` 등은 앱이 직접 쓰지 않는다.
+- [74-7] 새 경로 10개(스택): `settings-profile` · `settings-couple` · `settings-unlink` · `settings-personality` · `settings-result` · `retest` · `settings-privacy` · `settings-about` · `settings-withdraw` · `withdraw-cancel`. 전부 `routes.ts` -> `routeTable.tsx` -> `backRules.ts` -> 시험 표(`backRules.vitest.ts`)에 더했다. RN의 `result-detail?source=settings`는 `settings-result?view=`로, `mbti?retest=1` -> `love-quiz?retest=1` 두 화면은 **경로 하나 `retest`** 안의 두 단계로 옮겼다 - 이유: 웹 이동 층에는 `dismissTo`가 없어 끝난 뒤 H05로 한 번에 돌아오려면 한 경로 안이어야 하고, 온보딩 부품(`MbtiScreen` · `LoveQuizScreen`)은 `nav.push('quiz'/'brief')`로 다음을 부르므로 `RetestScreen`이 가짜 `Nav`를 넘겨 단계 이동 · 저장으로 바꿔 받는다(온보딩 코드는 `nav` 인자만 쓰므로 수정 0). 다른 길: 경로 둘 + 깊이만큼 `back` 반복(연타 대기와 부딪혀 불안정).
+- [74-7] 단계 판정 자리 채움: `resolveWebRoute(db, userId, step, deletedAt?)` - 유예 시각(`profiles.deleted_at`)이 있으면 단계와 무관하게 `withdraw-cancel`(RN `resolveResumePath`의 `WITHDRAW_CANCEL_PATH`). `finalizeAfterLogin`의 기존 계정 결과에 `deletedAt`을 더해 로그인 직후(`useAccountFinalize`)와 앱 시작(`useBootSession`) 두 길이 같은 판정을 지난다. 유예 판정은 서버를 더 부르지 않는다(이미 읽은 프로필 값). 취소하면 `resolveWebRoute(..., null)`로 원래 단계를 다시 정해 `enterAccount` + 토스트 "탈퇴를 취소했어요"(B15). 유예 화면 뒤로 가기 = RN 그대로: 하드웨어 뒤로 = 앱 종료(규칙표 `exit`), 화면의 ← = 로그아웃.
+- [74-7] 로그아웃: `settingsCore.performLogout`(메모리 스토어 비움 -> `signOut`) + 서버 로그아웃이 오류로 끝나면(끊긴 연결에서 supabase-js는 세션을 안 지운다) `signOut({ scope: 'local' })`로 이 기기의 Preferences 세션을 반드시 지움 - RN에는 없던 보강. 끝나면 어떤 경우에도 `nav.reset('intro')`(첫 화면). 채팅 큐(글 · 사진) 키는 건드리지 않는다(시험이 Preferences 가짜로 확인). `navigation.tsx`: `reset('intro')`는 계정 잠금(`accountLocked`)을 푼다 - 안 풀면 로그아웃 뒤 다시 가입하는 온보딩에서 뒤로 가기가 전부 앱 종료가 된다(기존 코드의 숨은 결함).
+- [74-7] 해제 알림: RN `useDissolutionNotice`를 `features/settings/useDissolutionNotice.ts`로 - Shell이 탭 화면에서만 켜고(`useStartDateRecheck`와 같은 자리), 탭이 처음 열릴 때와 `visibilitychange` 보임에 해제 상태를 읽어 **상대가 개시한** 진행 중 해제가 있으면 `settings-couple`을 urgent 푸시. 같은 해제 id는 앱을 켠 동안 한 번. 내가 개시자면 0. 그 화면이 H14 유예 화면(상대 쪽)이다. 푸시 알림 없음. A20 재표시와 같은 순간에 둘 다 열리면 둘 다 쌓인다(드묾, 뒤로 가기로 하나씩).
+- [74-7] 해제 · 탈퇴 취소 뒤 토스트(B15): 해제 취소 "해제를 취소했어요"(`fn_cancel_dissolution` 성공 뒤, 화면이 연결 화면으로 바뀐 상태에서) / 탈퇴 취소 "탈퇴를 취소했어요". 둘 다 `showToast`(I06 공용).
+- [74-7] 문구 입력(I05): `PhraseConfirm`(웹판) - 확인어 H14 `해제합니다` · H16 `탈퇴합니다`(루트 `isPhraseMatch` 그대로: 앞뒤 공백만 무시, 서로의 확인어로는 안 켜짐). PDF 안내 줄은 `nav.replace('magazine')` - RN은 `push('/(tabs)/magazine')`이라 돌아오면 이 화면이었으나 웹 탭 이동은 `replace`(규칙표: 탭 뒤로 = 메인)라 돌아오지 않고 메인으로 간다. 다른 길: 매거진을 스택으로(범위 밖 변경). 해제 요청 성공 직후 연결 상태를 다시 읽으면 미연결로 바뀌어 안내 카드가 번쩍이므로 요청이 끝난 뒤에는 카드로 바꾸지 않는다.
+- [74-7] [판단] H19 문의: 받는 주소는 루트 `@/constants/support`의 `SUPPORT_EMAIL`(`TODO_SUPPORT_EMAIL` 자리표시자 - 이메일 0 원칙과 충돌 없음, RN과 같은 상수라 Proteur가 그 한 줄만 바꾸면 웹도 따라감). 메일 열기는 다리에 `openMail`을 더해(웹뷰를 `mailto:`로 이동 - Capacitor 안드로이드는 http 아닌 주소를 시스템 인텐트로 넘김, 새 의존성 0) 예외가 나면 토스트로 주소를 안내. **메일 앱이 하나도 없을 때 웹뷰가 예외를 주는지는 실기기 확인 항목**(안 주면 토스트 없이 아무 일도 안 일어남). 다른 길: `@capacitor/browser`로 열기(커스텀 탭은 mailto를 못 다룸). OS 줄은 userAgent에서 읽은 "Android 14" 꼴(루트 `osLabel`은 모르는 OS 이름을 그대로 씀, "API"를 붙이지 않음).
+- [74-7] 앱 버전: RN은 Expo 설정 값, 웹은 `web/package.json`의 `version`(0.1.0)을 JSON import로 읽는다(package.json 수정 0). 안드로이드 `versionName`("1.0")은 네이티브 파일이라 웹에서 읽을 수 없고 손으로 고치지 않는다 - 둘이 다르면 화면에는 웹 값이 보인다(PM이 출시 때 맞출 것).
+- [74-7] patch7 반영: H04 날짜 안내를 날짜 줄 설명으로(ⓓ) · H14 상대 쪽 주어 · 취소 자리 이유(ⓔ) · H16 유예 화면이 먼저(ⓕ) · 확인어 서로 다름 + 두 화면 모두 PDF 안내(ⓖ) · H05 애착 슬롯. **H05 애착 이름**: patch7 H05는 "{attachment} 슬롯"으로 이름을 보이라고 하고 웹 A14도 이미 `ATTACHMENT_LABEL_KO`를 쓰므로 따랐으나, 상수 주석은 "사용자 노출 문구는 아니다(MASTER 10-5-3)"이고 RN은 이 이유로 뺐다 - PM 확인 필요(빼려면 `PersonalityScreen`의 meta 한 곳 + A14 meta 한 곳).
+- [74-7] 공통 화면 부품 수정(`screens.tsx`): `DetailBody`를 export하고 `onNext`를 선택으로, `onBack`을 더함(설정 모드는 [다음] 없이 ←) / 온보딩 `ResultDetailScreen`의 A16 본문을 `CoreOverrideView`로 빼 설정 모드가 같이 씀(고른 값 상태는 그 안, 목록 아래 여백 54 = 버튼 높이 이상, B17) / `LegalSheet` export(H11 · H19가 씀). 온보딩 동작은 그대로(`screens.vitest.tsx` 통과).
+- [74-7] 목록 값(B14): `useSettingsSummary`가 이름 · 로그인 방식 · 성격 라벨 · 연인 이름을 읽기 전까지 뼈대, 읽은 뒤에는 같은 사용자의 직전 값을 모듈 변수에 기억해 하위 화면에 다녀와도 뼈대로 되돌리지 않는다(사용자가 바뀌면 안 씀). 연인 줄은 해제 유예 중 "해제 예정"(RN은 `status`가 active만 잡아 "연결 전"으로 오해하게 보임).
+- [74-7] 시험 보조: `testSupportCouple.ts`에 `is` · `neq` 필터 · 그 밖의 표(`extraTables`) · `failUpdates` · `signOut` 가짜 · `signOutCalls`를 더했다(74-2 시험은 그대로 통과). `testSupport.ts`의 가짜 다리에 `openMail`. 새 의존성 0 · `web/android` 변경 0(cap sync 변경 0) · 루트 · RN 변경 0 · 서버 새 RPC 0 · 마이그레이션 0.
+- [74-8] **F2 이미지 저장 한 길**: 결과 공유 카드(`screens.tsx`)와 채팅 사진(`ChatView.tsx` -> `chatPhotoActions.saveChatPhoto`)이 모두 `platform/imageSave.ts`의 `saveImageToDevice`를 지난다. 파일 이름은 이 함수가 매번 새로 정한다: `ondolog-<result|chat>-<날짜>-<시각>-<밀리초>-<무작위 4자>.<확장자>` - 같은 이름 덮어쓰기와 "이전 설치가 만든 파일을 못 쓴다"를 피한다(무작위 칸은 파일 이름에만 쓰이며 채점과 무관). 실패는 `failed`만 돌려주고 호출한 쪽이 토스트로 안내한다(결과 카드 "저장하지 못했어요" · 채팅 사진 "사진을 저장하지 못했어요. 다시 시도해 주세요"). 시트를 닫은 `cancelled` · `shared`는 안내 없음. 원인 · 경로 · 이름은 로그에 남기지 않는다(시험이 console 호출 0 단언). 다른 길: 두 곳이 각자 이름 만들기(F2 재발).
+- [74-8] **[판단] F2 갤러리 노출**: 앱(Capacitor)의 `saveImage`를 **공유 시트로 저장**하는 방식으로 정했다(캐시에 새 이름으로 쓰고 `Share.share`). 근거: `@capacitor/filesystem`의 `Documents`/`ExternalStorage`에 직접 쓰면 파일은 생기지만 갤러리가 새 파일을 알아채는 **미디어 스캔(네이티브 MediaStore 등록)**이 있어야 보이는데, 그것은 새 플러그인이나 `web/android` 손수정이 필요하고 허가 목록에 없다. 그리고 Android 10 이상에서 이전 설치가 만든 파일은 새 설치가 덮어쓰지 못해 F2의 원인이 되는 길이다. 공유 시트는 사용자가 사진/갤러리 앱 등 저장할 곳을 고른다. 실기기 확인: ① 시트에서 사진 앱에 저장되는지 ② 재설치 뒤에도 실패하지 않는지(탐방 안내 7장). 사진 앱에 바로 저장되는 한 번에 끝나는 방식을 원하면 요청할 문장: "미디어 스캔(MediaStore 등록)을 위한 Capacitor 저장 플러그인 1개 설치를 허가해 주세요." `SaveResult`에 `cancelled`를 더했다(시트를 닫음).
+- [74-8] 탐방 안내 `docs/74-exploration-guide.md`: `51-device-checklist.md` 49항목을 앱 쓰는 순서(첫 사용자 -> 연결 -> 기록 -> 채팅 -> 서재 -> 끊김 띠 -> 설정 -> 해제 · 탈퇴는 맨 끝)로 재배열. 두 번째 계정 항목은 "계정 준비 뒤". 추가 `+` 14항목(Gboard 셋 · 로그인 중 강제 종료 · 재설치 뒤 이미지 저장 · 글자 크기 최대 · EXIF · 큰 사진 큐 · 카메라 capture 등). 51 문서는 고치지 않았다.
+- [74-메인 세션] 커밋을 묶음별이 아니라 두 번(74-0 / 74-1~8)으로 나눔 · 여러 묶음이 같은 파일을 고쳐 묶음별 커밋은 빌드되지 않는 중간 상태가 됨 · 다른 길: 묶음마다 작업 트리를 커밋하며 돌리기(사람 커밋이 필요해 R75-1과 맞지 않음)
+- [74-2] RN 앱 · 루트 · `web/android` 변경 0. `web/.env` 값 출력 0. `web/src/ui.tsx`의 `Wordmark`는 A09 삭제로 쓰는 곳이 없어졌으나 남겨 둠(다음 묶음이 쓸 수 있음).
+
 ## 웹 앱 `web/` (`73-` 묶음 1 · 2, ui-builder) - 원격 쓰기는 실기기 로그인 · 저장뿐
 
 Proteur의 Windows PowerShell 기준. **명령은 한 줄씩 따로 친다**(`;` · `&&` · 파이프 0 - R71-2). 저장소 경로: `C:\Users\sejun\OneDrive\바탕 화면\ONDOLOG\ondolog`
@@ -63,7 +613,7 @@ npx cap open android
 - 내부 결정(묶음 2): 앱 시작 때 저장된 로그인이 있으면 서버 단계 화면으로 바로 간다(확인이 4초 넘게 걸리면 첫 화면). 계정이 생긴 뒤(`enterAccount`)에는 뒤로 가기 = 앱 종료. 이동은 350ms 안의 연타를 무시한다.
 - 내부 결정(묶음 2): "전체 동의" 아래 문장 "선택 항목(마케팅 정보 수신)도 함께 켜져요"는 보드 A10에 없는 **후보 문구**(디자인 확인 필요, R65-4).
 - 내부 결정(묶음 2): 이미지 저장은 `Documents/ONDOLOG/`에 쓰고, 못 쓰면(Android 10+ 권한 때문에 가능성 있음) 공유 시트로 대신한다. 갤러리에 바로 뜨는지는 실기기에서 확인 필요.
-- 열린 문제(묶음 2): 웹 초대 화면(A17)의 코드는 화면에서 만든 무작위 값이고 서버에 저장되지 않는다(RN은 `coupleApi`). 로그인한 계정에게는 거짓 코드다 - 커플 연결을 옮기기 전에 이 화면을 막을지 PM 결정 필요. A09 공유 카드(밤하늘) 화면은 결과 화면의 공유 버튼이 OS 공유 시트로 바뀌어 더 이상 어디서도 열리지 않는다(삭제 여부 PM 결정).
+- (74-2에서 해결 - 초대 코드는 서버 발급, A09 전체 화면은 지움) 열린 문제(묶음 2): 웹 초대 화면(A17)의 코드는 화면에서 만든 무작위 값이고 서버에 저장되지 않는다(RN은 `coupleApi`). 로그인한 계정에게는 거짓 코드다 - 커플 연결을 옮기기 전에 이 화면을 막을지 PM 결정 필요. A09 공유 카드(밤하늘) 화면은 결과 화면의 공유 버튼이 OS 공유 시트로 바뀌어 더 이상 어디서도 열리지 않는다(삭제 여부 PM 결정).
 
 ## 열린 항목
 
@@ -86,7 +636,7 @@ npx cap open android
 | 조판 `55-3` 원격 실증(시험 호 4권 렌더 · 발행 회귀) — 명령 작성 완료, **실행은 사람**. 실제 커플 발행은 PM 판정 뒤(R29-2) | 대기(사람) | `scripts/ops/out/55-3-run.ps1` · 이 파일 "조판 v1.2.2 맞춤 (`55-3`)" 절 |
 | UI 기반 U0 (`53`) — 실기기 확인 대기. `experimental_backgroundImage` 사진 장막·`boxShadow`·폰트·탭 아이콘 발광은 시뮬 불가라 `51-` 재빌드 뒤 확인. 위 worklets 행은 `53`에서 해소(react-native-worklets 0.10.1 설치) | 열림 | 이 파일 "UI 기반 U0 (`53`)" 절 |
 | **U2 본인 기록 삭제 막힘 (`56`)** — 클라이언트가 지울 방법이 DB에 없다(data_entries DELETE 정책 없음, 소프트 삭제 UPDATE는 SELECT 정책 때문에 RLS 거부 - 원격에서 확인). PM 결정 필요: RPC 또는 정책 마이그레이션 -> R30-1로 RPC 결정, `023_delete_own_entry.sql` 작성(`57-` A), **원격 적용·실증 완료**, 앱 UI는 `57-` C에서 만듦(실기기 확인 대기) | 앱 쪽 해소 | 이 파일 "본인 기록 삭제 UI · stop 시각 (`57-` C)" 절 |
-| **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) | 같은 절 |
+| **U2 혼자 기록의 커플 행 (`56`, 규칙 6)** — 커플 행은 초대 코드를 발급해야 생긴다(`InvitePanel.handleIssue` -> `getOrCreateInvite`). 온보딩 "나중에"는 행을 안 만든다. 행이 없으면 기록 버튼 비활성 | 열림(PM 결정) - 웹 74-2도 RN 그대로(나중에 · 솔로는 행을 안 만듦), 74-4가 기록 버튼 비활성 처리 시 참고 | 같은 절 |
 | **U4 채팅 (`62`)** — 실기기 확인 대기(`51-`). PM 결정 4: ① 사진 보내기의 영속 큐(지금은 앱을 닫으면 올리는 중인 사진이 사라짐) ② F04 [카메라]·"최근 사진"·F06 [저장]·[공유]·F02 [복사하기] 보류(카메라 권한 `app.json`·새 의존성 필요) ③ 보드 F02의 둘째 문장("잡지의 재료")은 규칙 9로 뺌 - 디자인에 알릴 것 ④ 실시간 첫 수신 지연 1회(원인 미확인) | 열림 | 이 파일 "U4 채팅 (`62-`)" 절 |
 
 ## 확인 요청 시간 제한 · 헤더 시험 · Python 측정 래퍼 (`72c-`, 2026-11-05, ui-builder) - 원격 0

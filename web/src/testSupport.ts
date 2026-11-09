@@ -15,6 +15,8 @@ export interface DbCall {
 export interface FakeDbOptions {
   profile?: Record<string, unknown> | null
   assessment?: Record<string, unknown> | null
+  /** couples 조회가 돌려줄 행(없으면 null = 미연결). */
+  couple?: Record<string, unknown> | null
   /** profiles 조회가 차례로 돌려줄 오류(없으면 정상). */
   readErrors?: Array<{ code: string } | undefined>
 }
@@ -27,6 +29,8 @@ export function makeFakeDb(opts: FakeDbOptions = {}) {
     const chain = () => b
     b.select = chain
     b.eq = chain
+    b.or = chain
+    b.in = chain
     b.order = chain
     b.limit = chain
     b.maybeSingle = async () => {
@@ -35,6 +39,7 @@ export function makeFakeDb(opts: FakeDbOptions = {}) {
         const err = readErrors.shift()
         if (err) return { data: null, error: err }
       }
+      if (table === 'couples') return { data: opts.couple ?? null, error: null }
       return { data: table === 'profiles' ? (opts.profile ?? null) : (opts.assessment ?? null), error: null }
     }
     b.insert = (payload: unknown) => {
@@ -111,8 +116,10 @@ export function makeFakeBridge(overrides: Partial<NativeBridge> = {}): FakeBridg
     exitApp: vi.fn(),
     hideSplash: vi.fn(),
     openBrowser: vi.fn(async () => {}),
+    openMail: vi.fn(async () => 'opened' as const),
     closeBrowser: vi.fn(),
     shareImage: vi.fn(async () => 'shared' as const),
+    shareText: vi.fn(async () => 'shared' as const),
     saveImage: vi.fn(async () => 'saved' as const),
     ...overrides,
     emitUrl: (url) => urlCb?.(url),

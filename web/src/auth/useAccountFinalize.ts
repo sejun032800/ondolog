@@ -7,7 +7,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useSessionStore } from '@/store/sessionStore'
 import type { Nav } from '../screens'
 import { getSupabase } from './client'
-import { EXISTING_ACCOUNT_NOTICE, finalizeAfterLogin, webRouteForStep } from './finalize'
+import { EXISTING_ACCOUNT_NOTICE, finalizeAfterLogin, resolveWebRoute } from './finalize'
 import { useAuthStore, useNoticeStore } from './stores'
 
 export type FinalizeStatus = 'idle' | 'saving' | 'failed'
@@ -32,8 +32,9 @@ export function useAccountFinalize(nav: Nav): { status: FinalizeStatus; start: (
           // 기존 계정: 저장 0. 메모리의 답 · 동의는 버리고 서버 진행 단계로. 방금 본 결과가 있었던 경우에만 한 번 알린다.
           useSessionStore.getState().resetSession()
           if (outcome.hadResult) useNoticeStore.getState().show(EXISTING_ACCOUNT_NOTICE)
+          const route = await resolveWebRoute(db, userId, outcome.step, outcome.deletedAt)
           setStatus('idle')
-          n.enterAccount(webRouteForStep(outcome.step))
+          n.enterAccount(route)
         } else if (outcome.kind === 'saved') {
           useSessionStore.getState().resetSession()
           setStatus('idle')
