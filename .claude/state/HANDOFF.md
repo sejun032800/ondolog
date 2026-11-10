@@ -27,8 +27,43 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 74-6 서재 · 뷰어 | 완료 | 새 파일: `web/src/features/magazine/libraryData.ts` · `LibraryView.tsx` · `viewerData.ts` · `IssueViewer.tsx` · `ViewerHost.tsx` · `magazineTestSupport.ts` · `magazine.vitest.tsx` · `web/src/stores/viewerOpenStore.ts` / 다시 바뀐 파일: `web/src/tabs/MagazineTab.tsx`(빈 틀 -> 서재) · `web/src/App.tsx`(`<ViewerHost>` 한 줄) · `web/src/components/PhotoViewer.tsx`(`ZoomableImage`에 `onError`) · `web/src/features/main/issueSeen.ts`(`useIssueOpenedSignal`) · `web/src/features/main/useMainData.ts`(그 번호를 보면 "열어 봄"을 다시 읽음) · `web/src/styles.css` · `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` (새 경로 0 - 뷰어는 덮개라 규칙표 변경 없음, 새 의존성 0, `web/android` 변경 0, 루트 · RN 변경 0) |
 | 74-7 설정 | 완료 | 새 파일: `web/src/features/settings/parts.tsx` · `web/src/features/settings/SettingsView.tsx` · `web/src/features/settings/useSettingsSummary.ts` · `web/src/features/settings/settingsData.ts` · `web/src/features/settings/accountActions.ts` · `web/src/features/settings/appInfo.ts` · `web/src/features/settings/ProfileScreen.tsx` · `web/src/features/settings/CoupleScreen.tsx` · `web/src/features/settings/DissolutionGrace.tsx` · `web/src/features/settings/PhraseConfirm.tsx` · `web/src/features/settings/UnlinkScreen.tsx` · `web/src/features/settings/WithdrawScreen.tsx` · `web/src/features/settings/WithdrawCancelScreen.tsx` · `web/src/features/settings/PersonalityScreen.tsx` · `web/src/features/settings/SettingsResultScreen.tsx` · `web/src/features/settings/RetestScreen.tsx` · `web/src/features/settings/PrivacyScreen.tsx` · `web/src/features/settings/AboutScreen.tsx` · `web/src/features/settings/useDissolutionNotice.ts` · `web/src/features/settings/settingsTestSupport.ts` · `web/src/features/settings/settings.vitest.tsx` · `web/src/features/settings/settingsFlow.vitest.tsx` · `web/src/stores/dissolutionStore.ts` / 다시 바뀐 74-1~6 파일: `web/src/tabs/SettingsTab.tsx` · `web/src/app/routes.ts` · `web/src/app/routeTable.tsx` · `web/src/app/backRules.ts` · `web/src/app/backRules.vitest.ts` · `web/src/app/useAccountData.ts` · `web/src/App.tsx` · `web/src/navigation.tsx` · `web/src/screens.tsx` · `web/src/auth/finalize.ts` · `web/src/auth/useBootSession.ts` · `web/src/auth/useAccountFinalize.ts` · `web/src/stores/profileStore.ts` · `web/src/platform/bridge.ts` · `web/src/testSupport.ts` · `web/src/testSupportCouple.ts` · `web/src/styles.css` / `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` (새 경로 10개 · 새 의존성 0 · `web/android` 변경 0 · 루트 · RN 변경 0 · 서버 새 RPC 0) |
 | 74-8 마무리 | 완료 | 새 파일: `web/src/platform/imageSave.ts` · `web/src/platform/imageSave.vitest.ts` · `docs/74-exploration-guide.md` / 다시 바뀐 파일: `web/src/platform/bridge.ts`(`saveImage` 공유 시트 방식 · `SaveResult`에 `cancelled`) · `web/src/features/chat/chatPhotoActions.ts` · `web/src/features/chat/ChatView.tsx` · `web/src/features/chat/chat.vitest.tsx` · `web/src/screens.tsx` / `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` (새 경로 0 · 새 의존성 0 · `web/android` 변경 0 · 루트 · RN 변경 0) |
+| 74-h1 급한 수정 | 완료 (미커밋) | 아래 "74-h1 커밋 명령"의 파일 목록. 범위: ① 재로그인 상태 비움 ② 혼자 기록 닫기(R30-3) ③ 애착 이름 ④ 코드 칸 ⑤ 기존 계정 알림 ⑥ 탐방 안내. 새 경로 0 · 새 의존성 0 · 마이그레이션 0 · 원격 0 · `web/android` · 루트 · RN 변경 0 |
 
 시작 지점: 커밋 `17222d1`(작업 트리 깨끗, ROADMAP `2026-11-09-r75`, PM 지시서 · 두 프롬프트 커밋됨 확인).
+
+### 74-h1 커밋 명령 (Proteur, 74-h1 뒤 - 지시서 `PM_directive_74-h1-hotfix.md` · R77-2)
+
+커밋 파일(이름 하나씩, 명령은 한 줄씩):
+
+```
+git add docs/74-exploration-guide.md
+git add web/src/App.tsx
+git add web/src/attachmentNames.ts
+git add web/src/auth/callback.ts
+git add web/src/features/couple/CodeBoxes.tsx
+git add web/src/features/couple/InviteScreen.tsx
+git add web/src/features/couple/couple.vitest.tsx
+git add web/src/features/feed/DateDetailScreen.tsx
+git add web/src/features/feed/FeedView.tsx
+git add web/src/features/feed/RecordSheet.tsx
+git add web/src/features/feed/feed.vitest.tsx
+git add web/src/features/feed/feedData.ts
+git add web/src/features/settings/PersonalityScreen.tsx
+git add web/src/features/settings/SettingsResultScreen.tsx
+git add web/src/features/settings/accountActions.ts
+git add web/src/features/settings/settings.vitest.tsx
+git add web/src/hotfix74h1.vitest.tsx
+git add web/src/screens.tsx
+git add web/src/styles.css
+git add web/src/tabs/FeedTab.tsx
+git add scripts/ops/resetTestAccount.ts
+git add scripts/ops/resetTestAccountCheck.ts
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "74-h1 급한 수정: 재로그인 상태 비움 · 혼자 기록 닫기 · 애착 이름 · 코드 칸 · 기존 계정 알림"
+```
+
+(`scripts/ops/resetTestAccount.ts` · `resetTestAccountCheck.ts`는 74-h1 §1 - 메인 세션이 위임문 허가대로 미리 보기에 상대 사용자 · 탈퇴 유예 · 유예 시작일 줄만 더함. 지우는 동작 같음. `deno test` 10 통과.)
 
 ### 디자인 · 기준 자료 위치 (단계 0-3)
 
@@ -559,6 +594,17 @@ git commit -m "74-1~8 로그인 뒤 앱 전체 웹 이전"
 - [74-8] 탐방 안내 `docs/74-exploration-guide.md`: `51-device-checklist.md` 49항목을 앱 쓰는 순서(첫 사용자 -> 연결 -> 기록 -> 채팅 -> 서재 -> 끊김 띠 -> 설정 -> 해제 · 탈퇴는 맨 끝)로 재배열. 두 번째 계정 항목은 "계정 준비 뒤". 추가 `+` 14항목(Gboard 셋 · 로그인 중 강제 종료 · 재설치 뒤 이미지 저장 · 글자 크기 최대 · EXIF · 큰 사진 큐 · 카메라 capture 등). 51 문서는 고치지 않았다.
 - [74-메인 세션] 커밋을 묶음별이 아니라 두 번(74-0 / 74-1~8)으로 나눔 · 여러 묶음이 같은 파일을 고쳐 묶음별 커밋은 빌드되지 않는 중간 상태가 됨 · 다른 길: 묶음마다 작업 트리를 커밋하며 돌리기(사람 커밋이 필요해 R75-1과 맞지 않음)
 - [74-2] RN 앱 · 루트 · `web/android` 변경 0. `web/.env` 값 출력 0. `web/src/ui.tsx`의 `Wordmark`는 A09 삭제로 쓰는 곳이 없어졌으나 남겨 둠(다음 묶음이 쓸 수 있음).
+
+- [74-h1 ①] D1 원인: **코드·jsdom 모두에서 재현하지 못함**(진짜 인증 클라이언트 + 가짜 네트워크로 세 순서 통과, 수정 전후 동일). 읽어서 찾은 결함 둘만 고침: (a) 같은 앱 링크가 한 번 더 들어오면(두 번째 콜백 화면이 빈 칸을 보고 "로그인하지 못했어요") (b) 로그아웃이 콜백 칸 · 처리한 코드 표시 · 알림 · 서재 기억 · 설정 요약 기억을 비우지 않음. 실기기 로그가 있어야 확정 · 출처: 자체 판단 · R77-2
+- [74-h1 ①] 전체 로그아웃이 던져도(거부) 이 기기 세션을 지우도록 `scope: local` 폴백을 던짐에도 적용 · 출처: 자체 판단 · R77-2
+- [74-h1 ②] 연결(active) 전에는 기록 쓰기를 닫음 - 대기(pending) 행이 있어도 닫음 · 판정 한 곳 `isRecordable`(`feedData.ts`) · 출처: PM 지시서 · R30-3 · R77-1
+- [74-h1 ②] E13 보드(`E13.jpg`)의 문구 "혼자서도 기록할 수 있어요"는 R30-3과 모순이라 쓰지 않음. 비활성 상태의 보드가 없어 기존 비활성 문구("초대 코드를 만들면 기록할 수 있어요") + 보드의 아래 줄("연결하면 두 사람 기록이 하나로 합쳐져요") 유지 · 대기 행이 있는 사람에게도 같은 문구(보드 없음, PM 확인 필요) · 출처: 자체 판단 · R30-3 · R77-1
+- [74-h1 ②] 기록 시트가 직접 열려도(닫힌 상태) 입력 칸 없이 이유 + [초대하러 가기](초대 화면으로)만 보임 · 데이트 상세 [사진 더하기]도 비활성 + 같은 이유 한 줄 · 출처: PM 지시서 · R77-1
+- [74-h1 ③] 애착 표시 이름은 정본 `@/constants/attachmentDisplay`(MASTER 10-5-3 표)를 `web/src/attachmentNames.ts` 한 곳에서 씀. 안정은 표에 항목이 없어 **이름을 보이지 않음**(줄에서 칸을 뺌: "INFJ · 애니어그램 4") - 안정형이라는 말도 금지이고 지어내지 않기 위해 · PM 확인 필요 · 출처: 자체 판단 · R76-5 · MASTER 10-5-3
+- [74-h1 ④] 코드 칸 "이미 다른 사람과 연결된 코드는 쓸 수 없어요"를 처음부터 깔아 두던 안내 줄에서 빼고 23505 오류일 때만 보임. 이전 시험의 "보드의 안내 문장이 항상 보인다"를 바꿈 · 출처: PM 지시서 · R77-2
+- [74-h1 ④] 코드 칸에 `type=text` · `lang=en` 추가(자동 대문자 · 자동 고침 끔 · 영문 키보드는 이미 있었음). 한글 키보드로 열린 기기에서는 속성만으로 영문 키보드가 보장되지 않음(실기기 확인) · 출처: 자체 판단 · R77-2
+- [74-h1 ⑤] 알림: 3초 · 탭 이동(도착 화면을 벗어나면) 닫힘 · 위치 `--top`+4px, 글 13px · 로그인 직후의 콜백 -> 계정 화면 이동은 "옮김"으로 세지 않음 · 출처: PM 지시서 · R65-2 · R74-5 · R77-2
+- [74-h1 ⑥] 탐방 안내 "녹화에서 빼기"에 문의하기(메일 앱)를 더함, 탈퇴 취소 시험 기한은 "§1-c 결과 뒤 메인 세션이 채움" 자리 · 출처: PE 위임문 · R77-6
 
 ## 웹 앱 `web/` (`73-` 묶음 1 · 2, ui-builder) - 원격 쓰기는 실기기 로그인 · 저장뿐
 

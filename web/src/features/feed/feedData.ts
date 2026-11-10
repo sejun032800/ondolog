@@ -35,6 +35,14 @@ function useReloadOnVisible(reload: () => void): void {
 // 기록할 커플 행(규칙 6) - 만들지 않는다
 // ---------------------------------------------------------------------------
 
+/**
+ * 기록 쓰기가 열려 있는가(R30-3 · R77-1). **연결된(active) 커플일 때만** 연다. 초대 코드만 만든 대기(pending) 행이나 행이 없는 사람은 닫힌다 -
+ * 혼자 기록은 MVP에서 열지 않는다(연결될 때 합치는 규칙이 없다, 병합은 M4). 첫 기록 버튼 · + 버튼 · 기록 시트 · 데이트 상세의 [사진 더하기]가 모두 이 한 판정을 쓴다.
+ */
+export function isRecordable(couple: RecordingCouple | null): boolean {
+  return couple !== null && couple.status === 'active'
+}
+
 export interface RecordingCoupleState {
   loading: boolean
   couple: RecordingCouple | null

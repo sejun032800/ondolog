@@ -29,6 +29,7 @@
  * 서비스 키: 기존 운영 스크립트와 같다 - 환경변수 ONDOLOG_SUPABASE_URL · ONDOLOG_SUPABASE_SERVICE_ROLE_KEY 만(`supabaseOps.connectOps`).
  *   개발 프로젝트 판별: 접속 URL 의 ref 를 supabase/.temp/linked-project.json 의 name(ondolog) · ref 와 대조(`opsGuards.assertDevelopmentProject`).
  * 출력: "표 이름: 행 수" · "Storage: 파일 수" · 거부 이유뿐. 이메일 · id · 키 · 주소 · ref 는 쓰지 않는다.
+ *   74-h1 §1(확인만): 미리 보기에 "상대 사용자: 예/아니오" · "탈퇴 유예: 예/아니오" · 유예 시작일(KST 날짜만) 줄을 더한다. 지우는 동작은 같다.
  * 금지: demo_responses 읽기/쓰기 · execute_dissolution · apply_retention_policy · run_due_dissolutions 호출 · 마이그레이션 · db push.
  *
  * 사용 (저장소 루트에서; 미리 보기가 기본, 실제로 지우려면 --apply):
@@ -87,6 +88,15 @@ export interface ResetPort {
   removeFiles(bucket: string, prefix: string): Promise<number>
   deleteRows(table: string, column: string, ids: readonly string[]): Promise<void>
   deleteUser(userId: string): Promise<void>
+  /** 74-h1 §1 - 탈퇴 유예(profiles.deleted_at, 027) 시작 시각. 없으면 null. 읽기만. */
+  withdrawalStartedAt(userId: string): Promise<string | null>
+}
+
+/** ISO 시각 -> KST 날짜(YYYY-MM-DD). 시각은 내지 않는다. */
+export function kstDateOnly(iso: string): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return '알 수 없음'
+  return new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
 export interface ResetArgs {
@@ -142,6 +152,13 @@ export async function runReset(connect: () => Promise<ResetPort>, args: ResetArg
   for (const bucket of USER_BUCKETS) files += await port.countFiles(bucket, userId)
 
   const lines = [args.apply ? '실행: 지운 수' : '미리 보기(지우지 않음): 지울 수']
+  if (!args.apply) {
+    // 74-h1 §1 확인 줄 - 숫자 · 예/아니오 · 날짜만.
+    const startedAt = await port.withdrawalStartedAt(userId)
+    lines.push(`상대 사용자: ${couples.some((c) => c.user_b_id !== null) ? '예' : '아니오'}`)
+    lines.push(`탈퇴 유예: ${startedAt === null ? '아니오' : '예'}`)
+    if (startedAt !== null) lines.push(`탈퇴 유예 시작일(KST): ${kstDateOnly(startedAt)}`)
+  }
   for (const [table, n] of rows) lines.push(`${table}: ${n}`)
   lines.push('auth 사용자: 1')
   lines.push(`Storage: ${files}`)
@@ -237,6 +254,11 @@ export function makePort(client: Db): ResetPort {
     async deleteUser(userId) {
       const { error } = await client.auth.admin.deleteUser(userId)
       must('인증 사용자 삭제', error)
+    },
+    async withdrawalStartedAt(userId) {
+      const { data, error } = await client.from('profiles').select('deleted_at').eq('id', userId).maybeSingle()
+      must('profiles 조회', error)
+      return (data?.deleted_at as string | null | undefined) ?? null
     },
   }
 }

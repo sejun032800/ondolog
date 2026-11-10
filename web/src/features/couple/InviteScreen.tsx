@@ -35,7 +35,6 @@ export const INVITE_COPY = {
   later: '나중에 할게요',
   solo: '솔로예요',
   enterTitle: '받은 코드를\n입력해주세요',
-  enterHint: '이미 다른 사람과 연결된 코드는 쓸 수 없어요',
   connect: '연결하기',
   redeemError: '연결하지 못했어요. 다시 시도해주세요.',
   issueFailed: '코드를 만들지 못했어요. 다시 시도해주세요.',
@@ -204,7 +203,6 @@ export function InviteScreen({ nav, bridge, mode = 'onboarding', initialStep = '
         footer={<PrimaryButton label={INVITE_COPY.connect} onClick={() => void redeem()} disabled={busy || entered.length < INVITE_CODE_LENGTH} />}
       >
         <CodeBoxes value={entered} onChange={setEntered} />
-        <p className="t-sub c-mute" style={{ marginTop: 18 }} data-testid="invite-enter-hint">{INVITE_COPY.enterHint}</p>
         {error ? <p className="t-sub c-sub" style={{ marginTop: 14 }} role="alert" data-testid="invite-error">{error}</p> : null}
       </OnboardingScreen>
     )

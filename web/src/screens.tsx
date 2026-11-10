@@ -14,7 +14,7 @@ import { MBTI_ENNEAGRAM_PREVALENCE } from '@/constants/enneagramPrevalence'
 import { LEGAL_DOCUMENTS, type LegalDocumentKey } from '@/constants/legalDocuments'
 import { COMPATIBILITY, COMPATIBILITY_FRAMING_TEXT } from '@/constants/compatibility'
 import { COMPATIBILITY_START_TEMPERATURE_NOTICE } from '@/constants/resultDetailCopy'
-import { ATTACHMENT_LABEL_KO } from '@/constants/attachment'
+import { personalityMetaLine } from './attachmentNames'
 import type { EnneagramCore } from '@/constants/enneagram'
 import { computeLoveTypeCode } from '@/engine/loveTypeInference'
 import { getEnneagramCandidates } from '@/utils/enneagramCandidates'
@@ -676,7 +676,7 @@ export function ResultDetailScreen({ nav }: { nav: Nav }) {
       key={round}
       labelEn={label?.labelEn ?? loveTypeCode}
       labelKo={label?.labelKo ?? loveTypeCode}
-      meta={`${mbti} · 애니어그램 ${effectiveCore} · ${ATTACHMENT_LABEL_KO[result.attachment]}`}
+      meta={personalityMetaLine({ mbti, core: effectiveCore, attachment: result.attachment })}
       description={description}
       big5={result.big5}
       sternberg={result.sternberg}

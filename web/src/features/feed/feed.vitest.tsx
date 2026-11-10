@@ -80,11 +80,14 @@ describe('피드 부품 (E01 · E13)', () => {
     expect(onOpen).toHaveBeenCalledWith('d1')
   })
 
-  it('E13 배너: 기록할 수 있으면 디자인 문구, 없으면 이유를 글로 적는다', () => {
-    const { rerender } = render(<SoloBanner canRecord onInvite={() => {}} />)
-    expect(screen.getByText('혼자서도 기록할 수 있어요')).toBeTruthy()
-    rerender(<SoloBanner canRecord={false} onInvite={() => {}} />)
-    expect(screen.getByText('초대 코드를 만들면 기록할 수 있어요')).toBeTruthy()
+  it('E13 배너(연결 전 = 기록 닫힘, R30-3): 이유를 글로 적고 "혼자서도 기록할 수 있어요"는 어디에도 없다 · [초대 →]', () => {
+    const onInvite = vi.fn()
+    render(<SoloBanner onInvite={onInvite} />)
+    expect(screen.getByTestId('solo-title').textContent).toBe('초대 코드를 만들면 기록할 수 있어요')
+    expect(screen.getByText('연결하면 두 사람 기록이 하나로 합쳐져요')).toBeTruthy()
+    expect(document.body.textContent).not.toContain('혼자서도 기록할 수 있어요')
+    fireEvent.click(screen.getByLabelText('초대'))
+    expect(onInvite).toHaveBeenCalledTimes(1)
   })
 
   it('FAB: 비활성이면 눌러도 전달되지 않는다', () => {
@@ -143,7 +146,7 @@ describe('피드 탭 (E01 · E13) - 가짜 서버', () => {
     expect((await screen.findByTestId('month-counts-2026-10')).textContent).toBe('메모 1 · 사진 1 · 데이트 1')
   })
 
-  it('연결된 유저: E13 배너가 없다 · 미연결 유저: 합쳐진 보기 대신 배너(혼자 기록)가 있고 기록은 된다(커플 행이 있을 때)', async () => {
+  it('연결된 유저: E13 배너가 없다 · 미연결 유저(대기 행이 있어도): 합쳐진 보기 대신 배너가 있고 기록은 닫혀 있다(R30-3)', async () => {
     useDb({ dates, entries })
     const { unmount } = render(<FeedTab nav={makeFakeNav()} />)
     await screen.findByTestId('chapter-2026-10')
@@ -158,8 +161,11 @@ describe('피드 탭 (E01 · E13) - 가짜 서버', () => {
     expect(screen.queryByTestId('solo-banner')).toBeNull()
     expect(screen.queryByTestId('couple-needed')).toBeNull()
     await screen.findByTestId('chapter-2026-10')
-    expect(await screen.findByText('혼자서도 기록할 수 있어요')).toBeTruthy()
-    await waitFor(() => expect((screen.getByTestId('feed-add-fab') as HTMLButtonElement).disabled).toBe(false))
+    expect(await screen.findByText('초대 코드를 만들면 기록할 수 있어요')).toBeTruthy()
+    expect(screen.queryByText('혼자서도 기록할 수 있어요')).toBeNull()
+    expect((screen.getByTestId('feed-add-fab') as HTMLButtonElement).disabled).toBe(true) // 대기(pending) 행이 있어도 닫힘
+    fireEvent.click(screen.getByTestId('feed-add-fab'))
+    expect(useSheetStore.getState().current).toBeNull()
   })
 
   it('규칙 6: 기록할 커플 행이 없으면 FAB 비활성 + 이유를 글로 적고, 커플 행을 만들지 않는다 · [초대 →]는 I01 시트를 한 번 연다', async () => {
@@ -541,10 +547,35 @@ describe('E11 데이트 기록 쓰기', () => {
   it('규칙 6: 기록할 커플 행이 없으면 기록은 꺼져 있고 이유를 적는다 - 커플 행을 만들지 않는다', async () => {
     const db = useDb({ couples: [] })
     render(<RecordSheetBody />)
-    expect(await screen.findByTestId('no-couple-note')).toBeTruthy()
-    fireEvent.change(screen.getByTestId('memo-input'), { target: { value: '메모' } })
-    expect(saveBtn().disabled).toBe(true)
+    expect(await screen.findByTestId('record-sheet-closed')).toBeTruthy()
+    expect(screen.queryByTestId('memo-input')).toBeNull() // 입력 칸 자체가 없다
+    expect(screen.queryByRole('button', { name: '기록 남기기' })).toBeNull()
     expect(db.writes).toEqual([])
+  })
+
+  it('R30-3 연결 전 기록 시트 직접 진입(대기 행): 이유 + 초대 안내만 보이고 기록 저장 · 커플 행 생성 호출이 0이다', async () => {
+    const db = useDb({ couples: [{ id: 'c1', status: 'pending', user_a_id: 'me', user_b_id: null }] })
+    render(<RecordSheetBody />)
+    expect((await screen.findByTestId('record-closed-title')).textContent).toBe('초대 코드를 만들면 기록할 수 있어요')
+    expect(screen.getByText('초대하러 가기')).toBeTruthy()
+    expect(screen.queryByTestId('memo-input')).toBeNull()
+    expect(screen.queryByTestId('pick-photos')).toBeNull()
+    expect(db.writes).toEqual([]) // dates · date_stops · data_entries · couples 어느 표에도 쓰기 0
+    expect(db.uploads).toEqual([])
+    expect(db.rpcCalls).toEqual([])
+  })
+
+  it('R30-3 데이트 상세: 연결 전에는 [사진 더하기]가 닫혀 있고 눌러도 기록 저장이 불리지 않는다', async () => {
+    const db = useDb({ couples: [{ id: 'c1', status: 'pending', user_a_id: 'me', user_b_id: null }], dates: [dateRow('d1', '2026-10-15')], entries: [photoRow('p1')] })
+    render(<MemoryRouter initialEntries={['/date-detail?id=d1']}><DateDetailScreen nav={makeFakeNav()} /></MemoryRouter>)
+    const btn = (await screen.findByTestId('detail-add-photos')) as HTMLButtonElement
+    await waitFor(() => expect(screen.getByTestId('detail-add-closed')).toBeTruthy())
+    expect(btn.disabled).toBe(true)
+    picker.next = [photo('a', T1)]
+    fireEvent.click(btn)
+    await act(async () => { await new Promise((r) => setTimeout(r, 30)) })
+    expect(db.writes).toEqual([])
+    expect(db.uploads).toEqual([])
   })
 
   it('✕는 시트를 닫는다 · 헤더 제목은 "데이트 기록"', async () => {

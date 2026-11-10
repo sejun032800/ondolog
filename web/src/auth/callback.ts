@@ -31,10 +31,24 @@ export function parseCallback(url: string): CallbackParams {
 }
 
 let inbox: CallbackParams | null = null
+/** 이 실행에서 받아들인 코드(메모리뿐). 같은 앱 링크가 한 번 더 들어오면 두 번째 콜백 화면이 빈 칸을 보고 "로그인하지 못했어요"가 되는 일을 막는다. */
+const accepted = new Set<string>()
 
 export const callbackInbox = {
   put(params: CallbackParams): void {
     inbox = params
+  },
+  /**
+   * 앱 링크가 들어왔을 때의 접수. 이미 접수한 코드면 false(무시), 아니면 칸에 넣고 true.
+   * 코드가 없는 링크(오류 등)는 매번 접수한다 - 실패 화면을 보여 줘야 하기 때문이다.
+   */
+  accept(params: CallbackParams): boolean {
+    if (params.code) {
+      if (accepted.has(params.code)) return false
+      accepted.add(params.code)
+    }
+    inbox = params
+    return true
   },
   /** 한 번 꺼내면 비운다. */
   take(): CallbackParams | null {
@@ -85,8 +99,15 @@ export function exchangeCodeOnce(client: WebSupabase, code: string): Promise<Exc
   return run
 }
 
-/** 시험용. */
-export function resetCallbackStateForTest(): void {
+/**
+ * 로그인 왕복이 남긴 메모리 표시를 모두 비운다: 콜백 코드 칸 · 접수한 코드 · 코드 교환 기록("처리함" 표시).
+ * 로그아웃 · 탈퇴 요청이 부른다 - 안 비우면 다음 로그인이 이전 로그인의 표시를 물려받는다.
+ */
+export function resetCallbackState(): void {
   exchanges.clear()
+  accepted.clear()
   inbox = null
 }
+
+/** 시험용(이름만 남긴 별칭). */
+export const resetCallbackStateForTest = resetCallbackState

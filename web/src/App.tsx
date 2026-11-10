@@ -42,10 +42,21 @@ function skyFor(screen: ScreenName | null, introPhase: 'splash' | 'start', panne
   }
 }
 
-/** 한 번 보이고 사라지는 알림(기존 계정 안내 등). 눌러도 닫힌다. */
-const NOTICE_MS = 6000
-function NoticeBanner() {
+/**
+ * 한 번 보이고 사라지는 알림(기존 계정 안내 등). 약 3초 뒤 닫히고, 눌러도 닫히고, 알림이 도착한 화면에서 다른 화면(탭 이동 포함)으로 옮기면 바로 닫힌다(D10 · R74-5).
+ * 도착 화면 = 콜백 화면을 벗어난 첫 화면 - 알림은 로그인 직후 켜지고 곧 계정 화면으로 이동하므로, 그 이동은 "옮김"으로 세지 않는다.
+ */
+export const NOTICE_MS = 3000
+export function NoticeBanner() {
   const message = useNoticeStore((s) => s.message)
+  const { pathname } = useLocation()
+  const landedAt = useRef<string | null>(null)
+  useEffect(() => {
+    if (!message) { landedAt.current = null; return }
+    if (routeOfPathname(pathname) === 'callback') return
+    if (landedAt.current === null) landedAt.current = pathname
+    else if (landedAt.current !== pathname) useNoticeStore.getState().clear()
+  }, [message, pathname])
   useEffect(() => {
     if (!message) return
     const t = window.setTimeout(() => useNoticeStore.getState().clear(), NOTICE_MS)
@@ -136,7 +147,7 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
     bridge.closeBrowser()
     // 같은 코드의 앱 링크가 두 번 들어와도 한 번만 처리한다.
     if (params.code && hasExchanged(params.code)) return
-    callbackInbox.put(params)
+    if (!callbackInbox.accept(params)) return
     if (screenRef.current === 'callback') nav.replace('callback')
     else nav.push('callback', { urgent: true })
   }), [bridge, nav])

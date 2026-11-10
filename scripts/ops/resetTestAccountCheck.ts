@@ -29,7 +29,7 @@ interface Fake {
   calls: string[]
 }
 
-function fake(opts: { users?: string[]; couples?: CoupleLite[]; published?: boolean } = {}): Fake {
+function fake(opts: { users?: string[]; couples?: CoupleLite[]; published?: boolean; withdrawalAt?: string | null } = {}): Fake {
   const calls: string[] = []
   const port: ResetPort = {
     findUserIds: (e) => {
@@ -53,6 +53,7 @@ function fake(opts: { users?: string[]; couples?: CoupleLite[]; published?: bool
       calls.push('deleteUser')
       return Promise.resolve()
     },
+    withdrawalStartedAt: () => Promise.resolve(opts.withdrawalAt ?? null),
   }
   return { port, calls }
 }
@@ -96,6 +97,19 @@ Deno.test('미리 보기는 삭제 호출을 하지 않고 표별 숫자를 낸�
   assert(!f.calls.some(DELETING), 'no delete')
   assert(r.lines.includes('data_entries: 3'), 'table count line')
   assert(r.lines.includes('Storage: 4'), 'storage line')
+})
+
+Deno.test('74-h1: 미리 보기에 상대 유무 · 탈퇴 유예 · 시작일(KST 날짜만) 줄이 있고 삭제는 없다', async () => {
+  const none = await runReset(() => Promise.resolve(fake().port), { email: EMAIL, apply: false })
+  assert(none.lines.includes('상대 사용자: 아니오'), 'partner no')
+  assert(none.lines.includes('탈퇴 유예: 아니오'), 'withdrawal no')
+  assert(!none.lines.some((l) => l.startsWith('탈퇴 유예 시작일')), 'no start date')
+  const f = fake({ withdrawalAt: '2026-11-09T16:30:00+00:00' })
+  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: false })
+  assert(r.lines.includes('탈퇴 유예: 예'), 'withdrawal yes')
+  assert(r.lines.includes('탈퇴 유예 시작일(KST): 2026-11-10'), 'kst date')
+  assert(!r.lines.join(' ').includes('16:30'), 'no time')
+  assert(!f.calls.some(DELETING), 'no delete')
 })
 
 Deno.test('--apply: Storage -> 커플 행 -> 사용자 순서', async () => {

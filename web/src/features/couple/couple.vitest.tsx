@@ -200,9 +200,23 @@ describe('A18 초대 코드 입력', () => {
     expect(Array.from(document.querySelectorAll('.codeBoxCell')).map((e) => e.textContent).join('')).toBe('P4N8XQ')
   })
 
-  it('보드의 안내 문장이 항상 보인다', async () => {
+  it('"이미 다른 사람과 연결된 코드는…" 문장은 처음에는 없다(그 오류일 때만 보인다 - 아래 23505 시험)', async () => {
     await openEnter()
-    expect(screen.getByTestId('invite-enter-hint').textContent).toBe('이미 다른 사람과 연결된 코드는 쓸 수 없어요')
+    expect(screen.queryByTestId('invite-enter-hint')).toBeNull()
+    expect(screen.queryByTestId('invite-error')).toBeNull()
+    expect(document.body.textContent).not.toContain('이미 다른 사람과 연결된')
+  })
+
+  it('코드 칸은 영문 키보드로 열린다 - 자동 대문자 · 자동 고침 · 자동 완성 · 맞춤법 검사 끔', async () => {
+    await openEnter()
+    const el = input()
+    expect(el.getAttribute('inputmode')).toBe('text')
+    expect(el.getAttribute('autocapitalize')).toBe('characters')
+    expect(el.getAttribute('autocorrect')).toBe('off')
+    expect(el.getAttribute('autocomplete')).toBe('off')
+    expect(el.getAttribute('spellcheck')).toBe('false')
+    expect(el.getAttribute('lang')).toBe('en')
+    expect(el.getAttribute('type')).toBe('text')
   })
 
   it.each([

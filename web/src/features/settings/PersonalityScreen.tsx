@@ -9,7 +9,7 @@
  * 이 화면은 읽기만 한다 - 쓰기는 재검사 저장(`RetestScreen`)과 오버라이드(`SettingsResultScreen`)가 한다. 읽는 동안은 I03 뼈대(B14).
  */
 import { useEffect, useState } from 'react'
-import { ATTACHMENT_LABEL_KO } from '@/constants/attachment'
+import { personalityMetaLine } from '../../attachmentNames'
 import type { EnneagramCore } from '@/constants/enneagram'
 import { LOVE_TYPE_LABEL_BY_CODE } from '@/constants/loveTypeLabels'
 import { computeLoveTypeCode } from '@/engine/loveTypeInference'
@@ -95,8 +95,7 @@ export function PersonalityScreen({ nav }: { nav: Nav }) {
           <p className="t-kicker c-orchid personalityEn" data-testid="personality-label-en">{label?.labelEn ?? code}</p>
           <p className="t-display c-text" data-testid="personality-label-ko">{label?.labelKo ?? code}</p>
           <p className="t-sub c-sub" data-testid="personality-meta">
-            {ready?.assessment ? `${ready.assessment.mbti} · ` : ''}
-            {`애니어그램 ${effectiveCore} · ${ATTACHMENT_LABEL_KO[profile.attachment]}`}
+            {personalityMetaLine({ mbti: ready?.assessment?.mbti, core: effectiveCore, attachment: profile.attachment })}
           </p>
         </div>
       ) : null}

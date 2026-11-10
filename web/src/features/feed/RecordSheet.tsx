@@ -22,7 +22,9 @@ import { useAuthStore } from '../../auth/stores'
 import { useSheetClose } from '../../components/Sheet'
 import { showToast } from '../../stores/toastStore'
 import { PrimaryButton } from '../../ui'
-import { useFeedSignal, useRecordingCouple } from './feedData'
+import { isRecordable, useFeedSignal, useRecordingCouple } from './feedData'
+import { SOLO_CLOSED_TITLE } from './FeedView'
+import { openInvite } from '../../app/inviteEntry'
 import { pickPhotos, readLocalBytes, releasePhotoUrls, type WebPickedPhoto } from './photoPicker'
 
 export const RECORD_COPY = {
@@ -30,7 +32,10 @@ export const RECORD_COPY = {
   exifFilled: '사진의 촬영 시각으로 날짜를 먼저 채웠어요',
   noExif: '촬영 시각이 없어 오늘 날짜로 채웠어요',
   timeNeeded: '장소와 도착 시각이 필요해요',
-  noCouple: '초대 코드를 만들면 기록할 수 있어요',
+  /** 연결 전 닫힘(R30-3) - 이유 + 초대 안내. */
+  closedTitle: SOLO_CLOSED_TITLE,
+  closedBody: '연결하면 두 사람 기록이 하나로 합쳐져요',
+  closedInvite: '초대하러 가기',
 } as const
 
 function placesLabel(places: readonly PlaceInput[]): string {
@@ -83,7 +88,9 @@ export function RecordSheetBody() {
   useEffect(() => { if (!dateTouched) setDateOn(exifDate) }, [dateTouched, exifDate])
 
   const hasExif = capturedAts.some((c) => c !== null)
-  const coupleId = recording.couple?.id ?? null
+  // 연결(active) 전에는 기록 쓰기가 닫힌다(R30-3 · R77-1). 대기(pending) 행이 있어도 닫힌다.
+  const recordable = isRecordable(recording.couple)
+  const coupleId = recordable ? recording.couple!.id : null
   const hasNamedPlace = places.some((p) => p.name.trim().length > 0)
   // 시간 칸 조건: stop 없음(이름 있는 장소 0) + 촬영 시각 전무(사진은 있다).
   const showTimeRow = photos.length > 0 && !hasNamedPlace && !hasExif
@@ -92,7 +99,7 @@ export function RecordSheetBody() {
   const stopError = !stopPlan.ok ? stopTimeErrorMessage(stopPlan.error) : null
   const hasContent = photos.length > 0 || memo.trim().length > 0
   const canSave = hasContent && coupleId !== null && userId !== null && isValidDateOn(dateOn) && stopError === null && !saving
-  const noCouple = !recording.loading && recording.couple === null
+  const closed = !recording.loading && !recordable
 
   const addPhotos = async () => {
     try {
@@ -150,6 +157,23 @@ export function RecordSheetBody() {
   const openPlaces = () => {
     if (places.length === 0) setPlaces([{ name: '', arrivalClock: '' }])
     setPanel(panel === 'places' ? null : 'places')
+  }
+
+  if (closed) {
+    return (
+      <div className="recordSheet" data-testid="record-sheet-closed">
+        <div className="sheetHeader">
+          <button type="button" className="sheetClose press" aria-label="닫기" onClick={close}>✕</button>
+          <h2 className="t-title c-text">{RECORD_COPY.title}</h2>
+          <span className="sheetHeaderSpacer" aria-hidden="true" />
+        </div>
+        <div className="recordClosed">
+          <p className="t-title c-text" data-testid="record-closed-title">{RECORD_COPY.closedTitle}</p>
+          <p className="t-sub c-mute">{RECORD_COPY.closedBody}</p>
+          <PrimaryButton label={RECORD_COPY.closedInvite} onClick={() => openInvite('intro')} />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -255,7 +279,6 @@ export function RecordSheetBody() {
       </div>
 
       <div className="recordFooter">
-        {noCouple ? <p className="t-caption c-mute" data-testid="no-couple-note">{RECORD_COPY.noCouple}</p> : null}
         {hasContent && stopError !== null ? <p className="t-caption c-mute" data-testid="stop-time-error">{stopError}</p> : null}
         <PrimaryButton label={saving ? '남기는 중이에요' : '기록 남기기'} onClick={() => void save()} disabled={!canSave} />
       </div>

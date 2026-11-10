@@ -736,7 +736,7 @@ describe('H05 성격 프로필', () => {
     await open()
     expect(byId('personality-label-en').textContent).toMatch(/^[A-Z]+$/)
     expect(byId('personality-label-ko').textContent?.length).toBeGreaterThan(0)
-    expect(byId('personality-meta').textContent).toBe('INFJ · 애니어그램 4 · 안정형')
+    expect(byId('personality-meta').textContent).toBe('INFJ · 애니어그램 4')
     expect(byId('personality-row-view').textContent).toContain('결과 다시 보기')
     expect(byId('personality-row-override').textContent).toContain('몇 번이든 바꿀 수 있어요')
     expect(byId('personality-row-retest').textContent).toContain('계정당 한 번 · 아직 쓰지 않았어요')
@@ -810,7 +810,7 @@ describe('A14 · A15 · A16 설정 모드(결과 다시 보기 · 코어 고치�
   it('A14: 서버에 저장된 결과를 그대로 보인다 - [다음]이 없고 ← 가 있다. 읽기만 한다(쓰기 0)', async () => {
     const { db, nav } = await open('/settings-result')
     expect(screen.getByText('BIG FIVE')).toBeTruthy()
-    expect(screen.getByText('INFJ · 애니어그램 4 · 안정형')).toBeTruthy()
+    expect(screen.getByText('INFJ · 애니어그램 4')).toBeTruthy()
     expect(screen.queryByText('다음')).toBeNull()
     fireEvent.click(screen.getByLabelText('뒤로'))
     expect(nav.back).toHaveBeenCalledTimes(1)

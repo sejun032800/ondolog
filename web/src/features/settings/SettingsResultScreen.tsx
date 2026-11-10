@@ -6,7 +6,7 @@
  * 오버라이드 저장은 온보딩과 같은 함수(`overrideEnneagramCore`): `enneagram_override` · `override_count` · `override_updated_at` · `love_type_code`만 쓴다. 횟수 제한 없음.
  */
 import { useEffect, useState } from 'react'
-import { ATTACHMENT_LABEL_KO } from '@/constants/attachment'
+import { personalityMetaLine } from '../../attachmentNames'
 import type { EnneagramCore } from '@/constants/enneagram'
 import { LOVE_TYPE_LABEL_BY_CODE } from '@/constants/loveTypeLabels'
 import { computeLoveTypeCode } from '@/engine/loveTypeInference'
@@ -110,7 +110,7 @@ export function SettingsResultScreen({ nav }: { nav: Nav }) {
       key={round}
       labelEn={label?.labelEn ?? loveTypeCode}
       labelKo={label?.labelKo ?? loveTypeCode}
-      meta={`${assessment.mbti} · 애니어그램 ${effectiveCore} · ${ATTACHMENT_LABEL_KO[profile.attachment]}`}
+      meta={personalityMetaLine({ mbti: assessment.mbti, core: effectiveCore, attachment: profile.attachment })}
       description={buildDescription({ core: effectiveCore, attachment: profile.attachment, big5, sternberg })}
       big5={big5}
       sternberg={sternberg}

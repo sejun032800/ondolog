@@ -19,6 +19,9 @@ export function CodeBoxes({ value, onChange }: { value: string; onChange: (next:
       <input
         ref={inputRef}
         className="codeBoxesInput"
+        type="text"
+        name="invite-code"
+        lang="en"
         value={value}
         maxLength={INVITE_CODE_LENGTH}
         autoCapitalize="characters"

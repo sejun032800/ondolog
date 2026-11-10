@@ -9,6 +9,9 @@ import { EmptyState } from '../../components/EmptyState'
 import { Skeleton } from '../../components/Skeleton'
 import type { FeedChapter, FeedState } from './feedData'
 
+/** 연결 전 E13 배너의 제목(= 이유). 기록 시트가 직접 열렸을 때도 같은 문장을 쓴다. */
+export const SOLO_CLOSED_TITLE = '초대 코드를 만들면 기록할 수 있어요'
+
 export function monthCountsLabel({ memoTotal, photoTotal, dateTotal }: { memoTotal: number; photoTotal: number; dateTotal: number }): string {
   return `메모 ${memoTotal} · 사진 ${photoTotal} · 데이트 ${dateTotal}`
 }
@@ -97,13 +100,17 @@ export function FeedChapterView({ chapter, urls, names, onOpenDate }: {
   )
 }
 
-/** E13 혼자 기록 - 미연결 유저의 피드 머리 카드. 기록할 커플 행이 아직 없으면(규칙 6) 그 사실을 글로 적는다. */
-export function SoloBanner({ canRecord, onInvite }: { canRecord: boolean; onInvite: () => void }) {
+/**
+ * E13 혼자 기록 - 미연결 유저의 피드 머리 카드. **연결 전에는 기록이 닫혀 있다**(R30-3 · R77-1) - 이유와 초대 안내를 적는다.
+ * 보드(`E13.jpg`)의 "혼자서도 기록할 수 있어요"는 R30-3과 맞지 않아 쓰지 않는다(결정 기록). 문구는 기존 비활성 문구 그대로, 아래 줄은 보드 원문이다.
+ * 연결된 커플에게는 이 카드가 그려지지 않는다(`CoupleGate` fallback).
+ */
+export function SoloBanner({ onInvite }: { onInvite: () => void }) {
   return (
     <div className="soloBanner" data-testid="solo-banner">
       <div className="soloAvatars" aria-hidden="true"><i className="me" /><i className="empty" /></div>
       <div className="soloText">
-        <p className="soloTitle">{canRecord ? '혼자서도 기록할 수 있어요' : '초대 코드를 만들면 기록할 수 있어요'}</p>
+        <p className="soloTitle" data-testid="solo-title">{SOLO_CLOSED_TITLE}</p>
         <p className="t-caption c-mute">연결하면 두 사람 기록이 하나로 합쳐져요</p>
       </div>
       <button type="button" className="soloInvite press" aria-label="초대" onClick={onInvite}>{'초대 →'}</button>
@@ -111,7 +118,7 @@ export function SoloBanner({ canRecord, onInvite }: { canRecord: boolean; onInvi
   )
 }
 
-/** 업로드 버튼(FAB, 56 원). 기록할 커플 행이 없으면(규칙 6) 비활성 - 이유는 화면의 배너가 글로 적는다. */
+/** 업로드 버튼(FAB, 56 원). 연결 전에는 비활성 - 이유는 화면의 배너가 글로 적는다. */
 export function AddFab({ onPress, disabled }: { onPress: () => void; disabled?: boolean }) {
   return (
     <button type="button" className={`feedFab press ${disabled ? 'off' : 'on'}`} aria-label="데이트 기록하기" data-testid="feed-add-fab" disabled={disabled} onClick={onPress}>

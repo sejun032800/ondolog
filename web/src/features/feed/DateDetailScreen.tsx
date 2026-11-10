@@ -20,7 +20,8 @@ import { Skeleton } from '../../components/Skeleton'
 import { PhotoViewer, type ViewerPhoto } from '../../components/PhotoViewer'
 import { useRouteParams, type Nav } from '../../navigation'
 import { showToast } from '../../stores/toastStore'
-import { useDateDetail, useFeedSignal, type DetailStop } from './feedData'
+import { isRecordable, useDateDetail, useFeedSignal, useRecordingCouple, type DetailStop } from './feedData'
+import { SOLO_CLOSED_TITLE } from './FeedView'
 import { pickPhotos, readLocalBytes, releasePhotoUrls } from './photoPicker'
 
 type Pending = { id: string; kind: 'photo' | 'memo' }
@@ -98,6 +99,10 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
   const [adding, setAdding] = useState(false)
   const [viewerAt, setViewerAt] = useState<number | null>(null)
 
+  // 연결(active) 전에는 사진 더하기도 닫힌다(R30-3 · R77-1) - 이미 저장된 기록은 보이되 새 기록은 쓰지 않는다.
+  const recording = useRecordingCouple(viewerId)
+  const canAdd = isRecordable(recording.couple)
+
   const date = detail.date
   const allPhotos = detail.stops.flatMap((s) => s.photos)
   const cover = allPhotos.find((p) => p.storage_path && detail.urls[p.storage_path])
@@ -124,7 +129,7 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
   }
 
   const addPhotos = async () => {
-    if (!date || adding) return
+    if (!date || adding || !canAdd) return
     const db = getSupabase() as unknown as Db | null
     if (!db || !viewerId) return
     let picked: Awaited<ReturnType<typeof pickPhotos>> = []
@@ -228,9 +233,10 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
               ))}
             </div>
 
-            <button type="button" className="btn ghost press" disabled={adding} onClick={() => void addPhotos()} data-testid="detail-add-photos">
+            <button type="button" className="btn ghost press" disabled={adding || !canAdd} onClick={() => void addPhotos()} data-testid="detail-add-photos">
               {adding ? '올리는 중이에요' : '사진 더하기'}
             </button>
+            {!canAdd && !recording.loading ? <p className="t-caption c-mute" data-testid="detail-add-closed">{SOLO_CLOSED_TITLE}</p> : null}
           </div>
         ) : null}
       </div>
