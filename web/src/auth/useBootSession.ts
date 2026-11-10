@@ -9,6 +9,9 @@ import { getSupabase } from './client'
 import { fetchProfile, resolveWebRoute } from './finalize'
 import { withJwtRetry } from './retry'
 import { useAuthStore } from './stores'
+import { IS_TRIAL_BUILD } from '../config/env'
+import { safeKind, useTrialDiag } from '../platform/trialDiag'
+import { useAccountProblemStore } from '../stores/accountProblemStore'
 
 /** 네트워크가 막혀 확인이 길어져도 첫 화면은 이 시간 안에 보인다. */
 export const BOOT_TIMEOUT_MS = 4000
@@ -29,24 +32,33 @@ export function useBootSession(nav: Nav): boolean {
     const { data: sub } = db.auth.onAuthStateChange((_event, session) => {
       useAuthStore.getState().setUserId(session?.user.id ?? null)
     })
-    void (async () => {
+    // 세션 확인 -> 서버 진행 단계 -> 화면. 세션이 있는데 서버 상태를 못 읽으면 조용히 첫 화면으로 보내지 않고 안내 화면(다시 시도 · 로그아웃)을 보인다(빈 화면 0, 74-h2 ⓪-c).
+    const attempt = async () => {
+      let signedIn = false
       try {
         const { data } = await db.auth.getSession()
         const id = data.session?.user.id
         if (id) {
+          signedIn = true
           useAuthStore.getState().setUserId(id)
           const profile = await withJwtRetry(() => fetchProfile(db, id))
           if (profile && !cancelled) {
             const route = await resolveWebRoute(db, id, profile.onboarding_step, profile.deleted_at)
             if (!cancelled) navRef.current.enterAccount(route)
           }
+          // 프로필이 아직 없는 계정(가입 저장 전)은 첫 화면에서 다시 시작한다 - 답 · 동의를 받은 뒤 로그인하면 `finalizeAfterLogin`이 저장한다.
         }
-      } catch {
-        // 조용히 첫 화면으로 간다.
+      } catch (e) {
+        if (signedIn && !cancelled) {
+          if (IS_TRIAL_BUILD) useTrialDiag.getState().record('state', safeKind(e))
+          useAccountProblemStore.getState().show({ retry: () => void attempt() })
+        }
+        // 세션 자체를 못 읽었으면(저장된 로그인 없음으로 본다) 조용히 첫 화면으로 간다.
       } finally {
         finish()
       }
-    })()
+    }
+    void attempt()
     return () => {
       cancelled = true
       window.clearTimeout(timer)

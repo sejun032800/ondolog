@@ -6,6 +6,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { useSessionStore } from '@/store/sessionStore'
 import type { Nav } from '../screens'
+import { IS_TRIAL_BUILD } from '../config/env'
+import { safeKind, useTrialDiag } from '../platform/trialDiag'
 import { getSupabase } from './client'
 import { EXISTING_ACCOUNT_NOTICE, finalizeAfterLogin, resolveWebRoute } from './finalize'
 import { useAuthStore, useNoticeStore } from './stores'
@@ -43,7 +45,8 @@ export function useAccountFinalize(nav: Nav): { status: FinalizeStatus; start: (
           setStatus('idle')
           n.reset(outcome.kind === 'answers' ? 'basic' : 'consent')
         }
-      } catch {
+      } catch (e) {
+        if (IS_TRIAL_BUILD) useTrialDiag.getState().record('finalize', safeKind(e))
         setStatus('failed')
       } finally {
         running.current = false

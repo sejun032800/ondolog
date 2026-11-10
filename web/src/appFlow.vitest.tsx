@@ -97,7 +97,8 @@ describe('로그인 왕복 (앱 링크 -> 콜백 -> 저장 -> 계정 화면)', (
 
   it('기존 계정은 알림이 한 번 보이고 눌러서 닫을 수 있다', async () => {
     fillOnboardingAnswers()
-    const { client } = makeFakeClient({ profile: { id: 'user-1', onboarding_step: 0 }, assessment: { id: 'a' } })
+    const { client } = makeFakeClient({ profile: { id: 'user-1', onboarding_step: 0 }, // 이 가짜 서버는 검사 · 성격 프로필 읽기에 같은 행을 돌려주므로 두 표의 칸을 모두 가진 행을 준다(A14는 서버 값을 그린다).
+      assessment: { id: 'a', mbti: 'INFJ', q1: 'A', enneagram_core: 4, enneagram_inferred: 4, attachment: 'secure', big_e: 40, big_o: 70, big_a: 60, big_c: 55, big_n: 35, stern_intimacy: 60, stern_passion: 50, stern_commitment: 55 } })
     setSupabaseForTest(client)
     const bridge = await startApp('/auth')
     act(() => bridge.emitUrl('ondolog://auth/callback?code=EXIST1'))
@@ -118,7 +119,8 @@ describe('기존 계정 알림 (F3 - 끝 화면이 없는 흐름)', () => {
 
   it('서버 진행 단계가 끝(2 이상)인 기존 계정은 메인 탭으로 가고, 알림이 그 위에 한 번 보인다', async () => {
     fillOnboardingAnswers()
-    const { client } = makeFakeClient({ profile: { id: 'user-1', onboarding_step: 3 }, assessment: { id: 'a' } })
+    const { client } = makeFakeClient({ profile: { id: 'user-1', onboarding_step: 3 }, // 이 가짜 서버는 검사 · 성격 프로필 읽기에 같은 행을 돌려주므로 두 표의 칸을 모두 가진 행을 준다(A14는 서버 값을 그린다).
+      assessment: { id: 'a', mbti: 'INFJ', q1: 'A', enneagram_core: 4, enneagram_inferred: 4, attachment: 'secure', big_e: 40, big_o: 70, big_a: 60, big_c: 55, big_n: 35, stern_intimacy: 60, stern_passion: 50, stern_commitment: 55 } })
     setSupabaseForTest(client)
     const bridge = await startApp('/auth')
     act(() => bridge.emitUrl('ondolog://auth/callback?code=EXIST3'))
@@ -129,7 +131,8 @@ describe('기존 계정 알림 (F3 - 끝 화면이 없는 흐름)', () => {
 
   it('방금 본 결과가 없었으면(저장하지 않은 것이 없으므로) 알림이 없다', async () => {
     useSessionStore.getState().resetSession()
-    const { client } = makeFakeClient({ profile: { id: 'user-1', onboarding_step: 3 }, assessment: { id: 'a' } })
+    const { client } = makeFakeClient({ profile: { id: 'user-1', onboarding_step: 3 }, // 이 가짜 서버는 검사 · 성격 프로필 읽기에 같은 행을 돌려주므로 두 표의 칸을 모두 가진 행을 준다(A14는 서버 값을 그린다).
+      assessment: { id: 'a', mbti: 'INFJ', q1: 'A', enneagram_core: 4, enneagram_inferred: 4, attachment: 'secure', big_e: 40, big_o: 70, big_a: 60, big_c: 55, big_n: 35, stern_intimacy: 60, stern_passion: 50, stern_commitment: 55 } })
     setSupabaseForTest(client)
     const bridge = await startApp('/auth')
     act(() => bridge.emitUrl('ondolog://auth/callback?code=EXIST4'))

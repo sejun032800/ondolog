@@ -99,6 +99,41 @@ export function kstDateOnly(iso: string): string {
   return new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
+/** 사용자 조회가 실패했을 때 나오는 오류 문구(`must('사용자 조회', ...)`와 같은 글자). */
+export const LOOKUP_FAILED_MESSAGE = '사용자 조회 실패'
+
+/** 넣은 키가 공개 키로 보일 때 한 줄(74-h2 ④, R78-3). 키 값과 그 일부는 쓰지 않는다. */
+export const PUBLIC_KEY_HINT = '서비스 키가 아니에요. 대시보드의 service_role(또는 Secret) 키를 넣어 주세요.'
+
+/**
+ * 키 **형식**만 보고 공개 키인지 가린다(판별 결과만 돌려주고 키 값은 어디에도 내지 않는다).
+ *  - 새 형식: 접두어 `sb_publishable_` = 공개, `sb_secret_` = 서비스.
+ *  - JWT 형식(점 두 개): 가운데 조각을 풀어 `role`이 `anon`이면 공개, `service_role`이면 서비스. 풀리지 않으면 모른다.
+ */
+export function looksLikePublicKey(key: string | undefined): boolean {
+  if (!key) return false
+  if (key.startsWith('sb_publishable_')) return true
+  if (key.startsWith('sb_secret_')) return false
+  const parts = key.split('.')
+  if (parts.length !== 3) return false
+  try {
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const json = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))
+    const role = (JSON.parse(json) as { role?: unknown }).role
+    return role === 'anon'
+  } catch {
+    return false
+  }
+}
+
+/** 실행이 중단됐을 때 내보낼 줄들: 중단 문구 + (사용자 조회 실패이고 키가 공개 키로 보이면) 안내 한 줄. */
+export function failureLines(error: unknown, key: string | undefined): string[] {
+  const message = error instanceof Error ? error.message : '알 수 없는 오류'
+  const lines = [`중단: ${message}`]
+  if (message === LOOKUP_FAILED_MESSAGE && looksLikePublicKey(key)) lines.push(PUBLIC_KEY_HINT)
+  return lines
+}
+
 export interface ResetArgs {
   readonly email: string
   readonly apply: boolean
@@ -183,7 +218,7 @@ type Db = any
 const CHUNK = 100
 
 function must(what: string, error: { message: string } | null): void {
-  if (error) throw new Error(`${what} 실패`)
+  if (error) throw new Error(`${what} 실패`) // '사용자 조회 실패' = LOOKUP_FAILED_MESSAGE
 }
 
 export function makePort(client: Db): ResetPort {
@@ -279,7 +314,8 @@ if (import.meta.main) {
     if (outcome.kind === 'refused') Deno.exit(1)
   } catch (error) {
     // 오류 문구에는 인자·id 가 들어가지 않는다(위 코드). 출력 직전 방어선도 한 번 더 통과한다.
-    out(`중단: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
+    // 사용자 조회가 실패했고 넣은 키가 공개 키 형식이면 안내 한 줄을 더한다(키 값은 출력하지 않는다).
+    for (const line of failureLines(error, Deno.env.get('ONDOLOG_SUPABASE_SERVICE_ROLE_KEY'))) out(line)
     Deno.exit(1)
   }
 }

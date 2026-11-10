@@ -7,6 +7,10 @@ import { OpsStopError } from './opsGuards.ts'
 import {
   COUPLE_BUCKETS,
   COUPLE_CASCADE_TABLES,
+  failureLines,
+  LOOKUP_FAILED_MESSAGE,
+  looksLikePublicKey,
+  PUBLIC_KEY_HINT,
   parseResetArgs,
   runReset,
   type CoupleLite,
@@ -156,4 +160,36 @@ Deno.test('인자 읽기', () => {
     }
     assert(threw, `should throw: ${bad.length}`)
   }
+})
+
+// ── 74-h2 ④ 공개 키 안내 ───────────────────────────────────────────────────────────────────────────
+// 시험용 가짜 키는 시험 안에서 조립한다(진짜 키가 아니다). 형식만 흉내 낸다.
+const b64url = (o: unknown) => btoa(JSON.stringify(o)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+const jwtWithRole = (role: string) => `${b64url({ alg: 'HS256' })}.${b64url({ role })}.sig-not-real`
+
+Deno.test('74-h2 ④: 키 형식 판별 - anon JWT · sb_publishable_ = 공개, service_role JWT · sb_secret_ = 서비스, 모르면 아님', () => {
+  eq(looksLikePublicKey(jwtWithRole('anon')), true, 'anon jwt')
+  eq(looksLikePublicKey('sb_publishable_fake-not-real'), true, 'publishable')
+  eq(looksLikePublicKey(jwtWithRole('service_role')), false, 'service jwt')
+  eq(looksLikePublicKey('sb_secret_fake-not-real'), false, 'secret')
+  eq(looksLikePublicKey(undefined), false, 'undefined')
+  eq(looksLikePublicKey('not-a-key'), false, 'garbage')
+  eq(looksLikePublicKey('a.b.c'), false, 'undecodable jwt')
+})
+
+Deno.test('74-h2 ④: 사용자 조회 실패 + 공개 키 형식이면 안내 한 줄이 나오고, 출력에 키 문자열이 0이다', () => {
+  for (const key of [jwtWithRole('anon'), 'sb_publishable_fake-not-real']) {
+    const lines = failureLines(new Error(LOOKUP_FAILED_MESSAGE), key)
+    eq(lines, [`중단: ${LOOKUP_FAILED_MESSAGE}`, PUBLIC_KEY_HINT], 'lines')
+    const text = lines.join(' ')
+    assert(!text.includes(key), 'key leaked')
+    for (const part of key.split('.')) assert(part.length < 8 || !text.includes(part), 'key part leaked')
+    assert(text.includes('service_role'), 'hint text')
+  }
+})
+
+Deno.test('74-h2 ④: 서비스 키이거나 다른 실패면 안내 줄이 없다', () => {
+  eq(failureLines(new Error(LOOKUP_FAILED_MESSAGE), jwtWithRole('service_role')).length, 1, 'service key')
+  eq(failureLines(new Error('couples 조회 실패'), jwtWithRole('anon')).length, 1, 'other failure')
+  eq(failureLines('not an error', jwtWithRole('anon')).length, 1, 'non-error')
 })

@@ -9,6 +9,7 @@
 import { SETTINGS_GROUPS, socialProviderLabel, type SettingsItemKey } from '@/utils/settingsRules'
 import { computeDaysTogetherKst } from '@/utils/relationshipDays'
 import { useAuthStore } from '../../auth/stores'
+import { IS_TRIAL_BUILD } from '../../config/env'
 import type { Nav } from '../../navigation'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { useDissolutionStore } from '../../stores/dissolutionStore'
@@ -76,6 +77,14 @@ export function SettingsView({ nav }: { nav: Nav }) {
           </ListGroup>
         </section>
       ))}
+      {/* 시험 빌드 전용(74-h2 ③): 앱 정보 아래. 운영 빌드에서는 이 줄이 번들에서 빠진다. */}
+      {IS_TRIAL_BUILD ? (
+        <section className="setSection">
+          <ListGroup>
+            <ListRow label="키보드 시험" onPress={() => nav.push('keyboard-test')} testId="settings-row-keyboard-test" />
+          </ListGroup>
+        </section>
+      ) : null}
     </>
   )
 }

@@ -706,3 +706,8 @@ input { font: inherit; }
 .retestSheet { display: flex; flex-direction: column; gap: 12px; padding: 14px 24px 24px; }
 .aboutBrand { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 0 12px; }
 @media (prefers-reduced-motion: reduce) { .setToggle, .setToggle i { transition: none; } }
+
+/* 시험 빌드 전용 진단 줄(74-h2) - 운영 빌드에서는 이 줄을 그리는 코드가 빠진다. */
+.trialDiag { margin-top: 10px; font-size: 11px; line-height: 16px; color: var(--textFaint); word-break: break-all; }
+.kbTest { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+.kbTest label { font-size: 13px; color: var(--textSub); }

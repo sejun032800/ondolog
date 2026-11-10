@@ -210,13 +210,14 @@ describe('A18 초대 코드 입력', () => {
   it('코드 칸은 영문 키보드로 열린다 - 자동 대문자 · 자동 고침 · 자동 완성 · 맞춤법 검사 끔', async () => {
     await openEnter()
     const el = input()
-    expect(el.getAttribute('inputmode')).toBe('text')
+    expect(el.getAttribute('inputmode')).toBe('email') // 74-h2 ③: 영문 자판으로 열릴 가능성이 가장 높은 조합
     expect(el.getAttribute('autocapitalize')).toBe('characters')
     expect(el.getAttribute('autocorrect')).toBe('off')
     expect(el.getAttribute('autocomplete')).toBe('off')
     expect(el.getAttribute('spellcheck')).toBe('false')
     expect(el.getAttribute('lang')).toBe('en')
     expect(el.getAttribute('type')).toBe('text')
+    expect(screen.getByTestId('invite-code-hint').textContent).toBe('영문으로 바꿔 입력해 주세요') // 오류 문구 자리와 별개의 줄
   })
 
   it.each([

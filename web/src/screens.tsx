@@ -28,8 +28,14 @@ import { saveImageToDevice, saveNotice } from './platform/imageSave'
 import { callbackInbox, exchangeCodeOnce, startKakaoLogin } from './auth/callback'
 import { getSupabase } from './auth/client'
 import { useAccountFinalize } from './auth/useAccountFinalize'
+import { useOnboardingResult } from './auth/useOnboardingResult'
+import { AccountProblemView } from './components/AccountProblem'
+import { Skeleton } from './components/Skeleton'
+import { logoutToStart } from './features/settings/accountActions'
 import { useAuthStore } from './auth/stores'
-import { isDevBuild } from './config/env'
+import { IS_TRIAL_BUILD, isDevBuild } from './config/env'
+import { TrialDiag } from './components/TrialDiag'
+import { useTrialDiag } from './platform/trialDiag'
 import { Sheet, useSheetClose } from './components/Sheet'
 import { renderResultCardImage } from './share/resultCard'
 import {
@@ -547,21 +553,54 @@ export function CallbackScreen({ nav, bridge }: { nav: Nav; bridge: NativeBridge
   const kakao = useKakaoStart(bridge)
   const [exchange, setExchange] = useState<'working' | 'failed' | 'done'>('working')
   const startedRef = useRef(false)
+  const proceededRef = useRef(false)
+
+  // 로그인이 이뤄졌다(세션 확인됨) -> 계정 마무리로. 두 번 시작하지 않는다.
+  const proceed = useCallback((userId: string) => {
+    if (proceededRef.current) return
+    proceededRef.current = true
+    useAuthStore.getState().setUserId(userId)
+    setExchange('done')
+    finalize.start()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 실패 화면을 띄우기 전 안전장치(74-h2 ①-a): 현재 세션이 유효하면 실패 화면 없이 정상 흐름으로 보낸다(세션 교환은 성공했는데 화면만 실패로 덮이는 일 방지).
+  const failLogin = useCallback(async (step: 'link' | 'exchange', kind: string) => {
+    const client = getSupabase()
+    try {
+      const id = client ? (await client.auth.getSession()).data.session?.user.id : undefined
+      if (id) { proceed(id); return }
+    } catch {
+      // 세션을 못 읽으면 실패로 둔다.
+    }
+    if (IS_TRIAL_BUILD) useTrialDiag.getState().record(step, kind)
+    setExchange('failed')
+  }, [proceed])
 
   useEffect(() => {
     if (startedRef.current) return
     startedRef.current = true
     const cb = callbackInbox.take()
     const client = getSupabase()
-    if (!cb || !cb.code || cb.failed || !client) { setExchange('failed'); return }
+    if (!client) { void failLogin('link', IS_TRIAL_BUILD ? 'no_client' : ''); return }
+    if (!cb || !cb.code || cb.failed) { void failLogin('link', IS_TRIAL_BUILD ? (!cb ? 'empty_inbox' : cb.failed ? 'error_param' : 'no_code') : ''); return }
     void exchangeCodeOnce(client, cb.code).then((r) => {
-      if (!r.ok) { setExchange('failed'); return }
-      useAuthStore.getState().setUserId(r.userId)
-      setExchange('done')
-      finalize.start()
+      if (!r.ok) { void failLogin('exchange', r.kind); return }
+      proceed(r.userId)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 실패 화면이 떠 있는 동안에도 세션이 생기면(교환이 뒤늦게 성공) 정상 흐름으로 넘어간다.
+  useEffect(() => {
+    if (exchange !== 'failed') return
+    const client = getSupabase()
+    const sub = client?.auth.onAuthStateChange?.((_event, session) => {
+      if (session?.user.id) proceed(session.user.id)
+    })
+    return () => sub?.data.subscription.unsubscribe()
+  }, [exchange, proceed])
 
   const working = exchange === 'working' || (exchange === 'done' && finalize.status !== 'failed')
   // 교환 · 저장이 도는 동안 뒤로 가기는 받지 않는다(중간에 빠져나가 두 번 처리되지 않게).
@@ -580,11 +619,14 @@ export function CallbackScreen({ nav, bridge }: { nav: Nav; bridge: NativeBridge
             <p className="t-sub c-rose" style={{ textAlign: 'center' }} role="alert">로그인하지 못했어요</p>
             <PrimaryButton label={kakao.pending ? '카카오로 이동 중이에요' : '다시 시도'} disabled={kakao.pending} onClick={() => void kakao.start()} />
             {kakao.error ? <p className="t-sub c-rose" style={{ textAlign: 'center' }} role="alert">{LOGIN_FAILED}</p> : null}
+            {IS_TRIAL_BUILD ? <TrialDiag /> : null}
           </>
         ) : saveFailed ? (
           <>
             <p className="t-sub c-rose" style={{ textAlign: 'center' }} role="alert">저장하지 못했어요. 다시 시도해주세요.</p>
             <PrimaryButton label="다시 시도" onClick={finalize.start} />
+            <LinkButton label="로그아웃" onClick={() => void logoutToStart(nav)} />
+            {IS_TRIAL_BUILD ? <TrialDiag /> : null}
           </>
         ) : (
           <PrimaryButton label="로그인하는 중이에요" disabled />
@@ -644,44 +686,74 @@ export function CoreOverrideView({ effectiveCore, onBack, onConfirm, saving = fa
   )
 }
 
+/**
+ * A14 · A15 · A16 온보딩 결과 상세. **서버에 저장된 결과**를 읽어 그린다(RN `useResultDetail` onboarding 모드와 같은 순서 - `auth/useOnboardingResult.ts`):
+ * 최신 검사를 읽고 -> 성격 프로필을 처음 한 번 만들고(만들었을 때만 진행 단계를 올린다) -> 그린다. 그래서 새 계정이 첫 로그인한 직후에도, 앱을 다시 켜 단계 0으로 들어와도 같은 화면이다.
+ * 검사가 없거나 읽기가 실패하면 빈 화면 대신 안내 화면(다시 시도 · 로그아웃)이다. 코어 고치기(A16)는 정본 `overrideEnneagramCore`로 저장한다.
+ */
 export function ResultDetailScreen({ nav }: { nav: Nav }) {
-  const { result, mbti, q1 } = useSessionStore()
-  const [override, setOverride] = useState<EnneagramCore | null>(null)
+  const userId = useAuthStore((s) => s.userId)
+  const { state, reload, override } = useOnboardingResult(userId)
   const [view, setView] = useState<'detail' | 'override'>('detail')
   const [round, setRound] = useState(0)
-  if (!result || !mbti || !q1) return null
+  const [saving, setSaving] = useState(false)
+  const [overrideError, setOverrideError] = useState(false)
 
-  const inferred = result.enneagramCore as EnneagramCore
-  const effectiveCore = override ?? inferred
-  const loveTypeCode = computeLoveTypeCode(effectiveCore, result.attachment) // 실효 코어 기준(R40-4)
+  if (state.status === 'loading') {
+    return (
+      <div className="screen solid" data-testid="detail-loading">
+        <div className="content" style={{ paddingTop: 'calc(var(--top) + 48px)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Skeleton width="40%" height={14} />
+          <Skeleton width="70%" height={36} radius={12} />
+          <Skeleton height={160} radius={24} />
+        </div>
+      </div>
+    )
+  }
+  if (state.status !== 'ready') {
+    return <AccountProblemView onRetry={reload} onLogout={() => void logoutToStart(nav)} />
+  }
+
+  const { assessment, profile } = state
+  const inferred = profile.enneagram_inferred as EnneagramCore
+  const effectiveCore = (profile.enneagram_effective ?? profile.enneagram_inferred) as EnneagramCore
+  const loveTypeCode = computeLoveTypeCode(effectiveCore, profile.attachment) // 실효 코어 기준(R40-4)
   const label = LOVE_TYPE_LABEL_BY_CODE[loveTypeCode]
-  const candidates = override ? [] : getEnneagramCandidates(q1, inferred)
+  const big5 = { bigE: assessment.big_e, bigO: assessment.big_o, bigA: assessment.big_a, bigC: assessment.big_c, bigN: assessment.big_n }
+  const sternberg = { intimacy: assessment.stern_intimacy, passion: assessment.stern_passion, commitment: assessment.stern_commitment }
 
   if (view === 'override') {
+    const leave = () => { setOverrideError(false); setView('detail') }
+    const confirm = async (selected: EnneagramCore) => {
+      if (selected === effectiveCore) { leave(); return }
+      setSaving(true)
+      setOverrideError(false)
+      const ok = await override(selected)
+      setSaving(false)
+      if (ok) { setRound((r) => r + 1); leave() } else setOverrideError(true)
+    }
     return (
       <CoreOverrideView
         effectiveCore={effectiveCore}
-        onBack={() => setView('detail')}
-        onConfirm={(selected) => {
-          if (selected !== effectiveCore) { setOverride(selected === inferred ? null : selected); setRound((r) => r + 1) }
-          setView('detail')
-        }}
+        onBack={leave}
+        onConfirm={(selected) => void confirm(selected)}
+        saving={saving}
+        error={overrideError ? '저장하지 못했어요. 다시 시도해주세요.' : null}
       />
     )
   }
 
-  const description = buildDescription({ core: effectiveCore, attachment: result.attachment, big5: result.big5, sternberg: result.sternberg })
   return (
     <DetailBody
       key={round}
       labelEn={label?.labelEn ?? loveTypeCode}
       labelKo={label?.labelKo ?? loveTypeCode}
-      meta={personalityMetaLine({ mbti, core: effectiveCore, attachment: result.attachment })}
-      description={description}
-      big5={result.big5}
-      sternberg={result.sternberg}
+      meta={personalityMetaLine({ mbti: assessment.mbti, core: effectiveCore, attachment: profile.attachment })}
+      description={buildDescription({ core: effectiveCore, attachment: profile.attachment, big5, sternberg })}
+      big5={big5}
+      sternberg={sternberg}
       core={effectiveCore}
-      candidates={candidates}
+      candidates={profile.enneagram_override ? [] : getEnneagramCandidates(assessment.q1, inferred)}
       onMismatch={() => setView('override')}
       onNext={() => { nav.push('invite') }}
     />

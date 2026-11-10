@@ -308,9 +308,13 @@ describe('③ D3 애착 이름 - 원래 이름은 화면에 없고 재프레이�
     expectReframed(name)
     cleanup()
 
-    fillOnboardingAnswers()
-    const current = useSessionStore.getState().result
-    useSessionStore.setState({ result: { ...current!, attachment } })
+    // 온보딩 결과 상세(A14)는 74-h2부터 서버에 저장된 검사를 읽는다(성격 프로필이 없으면 처음 한 번 만든다).
+    const onboardingDb = makeCoupleDb({
+      profiles: [{ ...ME, onboarding_step: 0 }],
+      couples: [],
+      extraTables: { personality_profiles: [], personality_assessments: [{ ...ASSESSMENT, enneagram_core: 4, attachment }], couple_dissolutions: [] },
+    })
+    setSupabaseForTest(onboardingDb.client)
     render(<MemoryRouter><ResultDetailScreen nav={makeFakeNav()} /></MemoryRouter>)
     await settle(1500)
     expectReframed(name)

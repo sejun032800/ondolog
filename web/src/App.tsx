@@ -5,7 +5,11 @@ import { useAppNav, type Nav } from './navigation'
 import { handleHardwareBack } from './platform/backStack'
 import { callbackInbox, hasExchanged, isCallbackUrl, parseCallback } from './auth/callback'
 import { useBootSession } from './auth/useBootSession'
+import { IS_TRIAL_BUILD } from './config/env'
+import { useListenerCount, useTrialDiag } from './platform/trialDiag'
+import { AccountProblemHost, RenderGuard } from './components/AccountProblem'
 import { useNoticeStore } from './auth/stores'
+import { useAccountProblemStore } from './stores/accountProblemStore'
 import { defaultBridge, type NativeBridge } from './platform/bridge'
 import { ALL_ROUTES, isTabRoute, routeOfPathname, type ScreenName } from './app/routes'
 import { ROUTE_ELEMENTS } from './app/routeTable'
@@ -131,26 +135,36 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
   }, [bridge])
 
   // 하드웨어 뒤로 가기 = 앱 안 뒤로 가기. 첫 화면에서만 앱 종료.
-  useEffect(() => bridge.onBackButton(() => handleHardwareBack({
-    canGoBack,
-    goBack: nav.back,
-    exitApp: bridge.exitApp,
-  })), [bridge, canGoBack, nav])
+  // 안내 화면(AccountProblemHost)이 덮고 있으면 그 뒤 화면으로 가지 않고 앱을 닫는다(덮개는 다시 시도 · 로그아웃으로만 벗는다).
+  useEffect(() => bridge.onBackButton(() => {
+    if (useAccountProblemStore.getState().problem) { bridge.exitApp(); return }
+    handleHardwareBack({ canGoBack, goBack: nav.back, exitApp: bridge.exitApp })
+  }), [bridge, canGoBack, nav])
 
   // 앱 링크(ondolog://auth/callback)로 돌아오면: 코드는 메모리 한 칸에만 넣고, 브라우저를 닫고, 콜백 화면으로 간다.
   // 이미 콜백 화면이면(다시 시도) 그 자리를 바꾼다. 코드 · 주소는 라우터 경로 · 화면 · 로그에 남지 않는다.
+  // 74-h2 ①-b: 리스너는 **앱 생애에 한 번만** 등록한다(deps는 `bridge`뿐). `nav`는 화면을 옮길 때마다 새 함수가 되므로(react-router `useNavigate`가 경로가 바뀌면 새로 만들어진다)
+  // ref로 읽는다 - 안 그러면 화면을 옮길 때마다 해제 -> 재등록이 일어나고, 해제가 비동기라 잠깐 두 리스너가 같이 살아 같은 링크를 두 번 받을 수 있다.
   const screenRef = useRef(screen)
   screenRef.current = screen
-  useEffect(() => bridge.onAppUrlOpen((url) => {
-    if (!isCallbackUrl(url)) return
-    const params = parseCallback(url)
-    bridge.closeBrowser()
-    // 같은 코드의 앱 링크가 두 번 들어와도 한 번만 처리한다.
-    if (params.code && hasExchanged(params.code)) return
-    if (!callbackInbox.accept(params)) return
-    if (screenRef.current === 'callback') nav.replace('callback')
-    else nav.push('callback', { urgent: true })
-  }), [bridge, nav])
+  const navRef = useRef(nav)
+  navRef.current = nav
+  useEffect(() => {
+    if (IS_TRIAL_BUILD) useListenerCount.getState().inc()
+    const off = bridge.onAppUrlOpen((url) => {
+      if (!isCallbackUrl(url)) return
+      const params = parseCallback(url)
+      const seq = IS_TRIAL_BUILD ? useTrialDiag.getState().bumpLink() : 0
+      bridge.closeBrowser()
+      // 같은 코드의 앱 링크가 두 번 들어와도 한 번만 처리한다.
+      if (params.code && hasExchanged(params.code)) return
+      if (!callbackInbox.accept(params)) return
+      if (IS_TRIAL_BUILD && seq > 0 && (!params.code || params.failed)) useTrialDiag.getState().record('link', params.failed ? 'error_param' : 'no_code')
+      if (screenRef.current === 'callback') navRef.current.replace('callback')
+      else navRef.current.push('callback', { urgent: true })
+    })
+    return () => { if (IS_TRIAL_BUILD) useListenerCount.getState().dec(); off() }
+  }, [bridge])
 
   // 폰 프레임 크기(PC) / 전체 화면(모바일)
   const [mobile, setMobile] = useState(false)
@@ -176,7 +190,7 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
           <SkyLayer sky={sky} />
         </div>
         <div key={location.key} style={{ position: 'absolute', inset: 0 }} data-screen={screen ?? 'unknown'}>
-          <ScreenRoutes nav={nav} bridge={bridge} ready={ready && bootDone} onPhase={onPhase} />
+          <RenderGuard nav={nav}><ScreenRoutes nav={nav} bridge={bridge} ready={ready && bootDone} onPhase={onPhase} /></RenderGuard>
         </div>
         {onTab && !(screen === 'chat' && keyboardOpen) ? <TabBar active={screen} onSelect={(tab) => { if (tab !== screen) nav.replace(tab) }} /> : null}
         <SheetHost />
@@ -184,6 +198,7 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
         <ConnectionBanner inChat={screen === 'chat'} />
         <ToastHost aboveTabBar={onTab} />
         <NoticeBanner />
+        <AccountProblemHost nav={nav} />
         <div className="grain" />
       </div>
     </div>

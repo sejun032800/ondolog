@@ -21,3 +21,9 @@ export function readRemoteEnv(env: EnvLike = import.meta.env as EnvLike): Remote
 export function isDevBuild(env: { DEV: boolean; MODE: string } = import.meta.env): boolean {
   return env.DEV === true || env.MODE === 'trial'
 }
+
+/**
+ * 시험 빌드 표시용 상수 - `isDevBuild`와 같은 판정이지만 **값이 빌드 때 정해지는 상수**라, 운영 빌드에서는 `if (IS_TRIAL_BUILD)` / `IS_TRIAL_BUILD ? <A/> : null` 쪽 코드가
+ * 번들러가 통째로 걷어낸다(진단 표시 · 키보드 시험 화면의 문자열이 운영 번들에 0 - `dist` 검색으로 확인한다). 시험 빌드에만 보일 것은 이 상수로만 가른다.
+ */
+export const IS_TRIAL_BUILD: boolean = import.meta.env.DEV === true || import.meta.env.MODE === 'trial'

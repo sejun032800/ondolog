@@ -103,7 +103,7 @@ describe('E11 기록 시트', () => {
     const bridge = makeFakeBridge()
     render(<App bridge={bridge} initialPath="/feed" />)
     await screen.findByTestId('chapter-2026-10')
-    await waitFor(() => expect((screen.getByTestId('feed-add-fab') as HTMLButtonElement).disabled).toBe(false))
+    await waitFor(() => expect(screen.getByTestId('feed-add-fab').getAttribute('aria-disabled')).toBeNull())
     fireEvent.click(screen.getByTestId('feed-add-fab'))
     expect(await screen.findByTestId('record-sheet')).toBeTruthy()
     act(() => bridge.emitBack())
@@ -115,7 +115,7 @@ describe('E11 기록 시트', () => {
   it('탭을 옮기면 열려 있던 기록 시트도 닫힌다(B4)', async () => {
     render(<App bridge={makeFakeBridge()} initialPath="/feed" />)
     await screen.findByTestId('chapter-2026-10')
-    await waitFor(() => expect((screen.getByTestId('feed-add-fab') as HTMLButtonElement).disabled).toBe(false))
+    await waitFor(() => expect(screen.getByTestId('feed-add-fab').getAttribute('aria-disabled')).toBeNull())
     fireEvent.click(screen.getByTestId('feed-add-fab'))
     await screen.findByTestId('record-sheet')
     fireEvent.click(screen.getByTestId('tab-chat')) // (시트의 어두운 면이 탭 바를 덮는 것은 실기기 확인 - 경로가 바뀌면 시트는 닫힌다)

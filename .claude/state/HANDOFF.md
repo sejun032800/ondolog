@@ -29,6 +29,8 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 74-8 마무리 | 완료 | 새 파일: `web/src/platform/imageSave.ts` · `web/src/platform/imageSave.vitest.ts` · `docs/74-exploration-guide.md` / 다시 바뀐 파일: `web/src/platform/bridge.ts`(`saveImage` 공유 시트 방식 · `SaveResult`에 `cancelled`) · `web/src/features/chat/chatPhotoActions.ts` · `web/src/features/chat/ChatView.tsx` · `web/src/features/chat/chat.vitest.tsx` · `web/src/screens.tsx` / `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md` (새 경로 0 · 새 의존성 0 · `web/android` 변경 0 · 루트 · RN 변경 0) |
 | 74-h1 급한 수정 | 완료 (미커밋) | 아래 "74-h1 커밋 명령"의 파일 목록. 범위: ① 재로그인 상태 비움 ② 혼자 기록 닫기(R30-3) ③ 애착 이름 ④ 코드 칸 ⑤ 기존 계정 알림 ⑥ 탐방 안내. 새 경로 0 · 새 의존성 0 · 마이그레이션 0 · 원격 0 · `web/android` · 루트 · RN 변경 0 |
 
+| 74-h2 급한 수정 | 완료 (미커밋, 폰 확인 대기) | 아래 "74-h2 커밋 명령"의 파일 목록. 범위: ⓪ 새 계정 첫 로그인 뒤 빈 화면(R79-1) ① D1 리스너 · 세션 안전장치 · 진단 표시 ② 연결 전 기록 반응 ③ 키보드 시험 ④ 초기화 스크립트 공개 키 안내 ⑤ 애착 칸(정본이 빈 값). 마이그레이션 0 · `supabase/` 0 · 원격 0 · 새 패키지 0 · `web/android` · 루트 · RN 변경 0 |
+
 시작 지점: 커밋 `17222d1`(작업 트리 깨끗, ROADMAP `2026-11-09-r75`, PM 지시서 · 두 프롬프트 커밋됨 확인).
 
 ### 74-h1 커밋 명령 (Proteur, 74-h1 뒤 - 지시서 `PM_directive_74-h1-hotfix.md` · R77-2)
@@ -65,6 +67,61 @@ git commit -m "74-h1 급한 수정: 재로그인 상태 비움 · 혼자 기록 
 
 (`scripts/ops/resetTestAccount.ts` · `resetTestAccountCheck.ts`는 74-h1 §1 - 메인 세션이 위임문 허가대로 미리 보기에 상대 사용자 · 탈퇴 유예 · 유예 시작일 줄만 더함. 지우는 동작 같음. `deno test` 10 통과.)
 
+### 74-h2 커밋 명령 (Proteur, 74-h2 뒤 - 덧붙임 `docs/74-h2-addendum-new-account-blank.md` · 위임문 `74-h2-dispatch-hotfix.md` · R78 · R79-1)
+
+**저장소 맨 위 폴더에서 친다.** 한 줄씩:
+
+```
+git add scripts/ops/resetTestAccount.ts
+git add scripts/ops/resetTestAccountCheck.ts
+git add web/src/App.tsx
+git add web/src/app/backRules.ts
+git add web/src/app/backRules.vitest.ts
+git add web/src/app/routeTable.tsx
+git add web/src/app/routes.ts
+git add web/src/appFlow.vitest.tsx
+git add web/src/auth/callback.ts
+git add web/src/auth/callback.vitest.ts
+git add web/src/auth/useAccountFinalize.ts
+git add web/src/auth/useBootSession.ts
+git add web/src/auth/useOnboardingResult.ts
+git add web/src/components/AccountProblem.tsx
+git add web/src/components/TrialDiag.tsx
+git add web/src/config/env.ts
+git add web/src/features/couple/CodeBoxes.tsx
+git add web/src/features/couple/couple.vitest.tsx
+git add web/src/features/feed/DateDetailScreen.tsx
+git add web/src/features/feed/FeedView.tsx
+git add web/src/features/feed/feed.vitest.tsx
+git add web/src/features/feed/feedFlow.vitest.tsx
+git add web/src/features/settings/KeyboardTestScreen.tsx
+git add web/src/features/settings/SettingsView.tsx
+git add web/src/hotfix74h1.vitest.tsx
+git add web/src/hotfix74h2.vitest.tsx
+git add web/src/platform/trialDiag.ts
+git add web/src/screens.tsx
+git add web/src/stores/accountProblemStore.ts
+git add web/src/styles.css
+git add web/src/tabs/FeedTab.tsx
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "74-h2 hotfix: server-backed result detail for new accounts, no-blank account states, link listener once, pre-connect record reaction, keyboard trial screen, reset script key hint"
+```
+
+(74-h1 커밋 파일과 겹치는 것은 이미 커밋돼 있으면 `M`으로 표시된다. 운영 번들에는 진단 표시 · 키보드 시험 문자열이 0 - `dist` 검색. 폰 확인은 `npm run build:trial` -> `npx cap sync android`.)
+
+**Proteur 폰 확인 순서 (시험 빌드 `build:trial`)**
+
+1. 초기화 스크립트 미리 보기 -> `--apply`로 시험 계정을 다시 지운다(반쪽 계정 정리)
+2. 앱 삭제 -> 재설치 -> 처음 가입하는 사람 흐름 -> 카카오 -> **빈 화면 없이 결과 상세** -> [다음] -> 초대
+3. 앱 완전 종료 -> 재실행 -> 같은 화면(초대)
+4. 성격 프로필(설정)에 방금 고른 결과가 저장돼 있음
+5. 로그인 -> 로그아웃 -> 같은 실행에서 로그인, 두 번 반복. 실패하면 화면 아래 작은 글씨(진단)를 그대로 적어 보내기
+6. 피드에서 흐린 + 버튼 -> "연인과 연결되면 기록할 수 있어요" + [초대하러 가기]
+7. 설정 맨 아래 -> 키보드 시험: 네 칸 중 영문 자판으로 열리는 칸 번호(삼성 키보드 / Gboard 각각)
+8. 초대 -> 코드 입력: 칸 아래 "영문으로 바꿔 입력해 주세요" 보임, 영문 자판으로 열리는지
+9. 성격 프로필 애착 칸: 안정이면 이름 칸이 없는 것이 정상(정본 표에 안정 항목 없음)
+
 ### 디자인 · 기준 자료 위치 (단계 0-3)
 
 | 자료 | 위치 | 비고 |
@@ -81,23 +138,40 @@ git commit -m "74-h1 급한 수정: 재로그인 상태 비움 · 혼자 기록 
 
 `74-ui-builder-full-app.md` §2 표 그대로(74-0 → 74-8). 루트 관문(jest · tsc · Python)은 74-0 · 74-3 · 74-6 · 74-8 끝에.
 
-### 74-0 명령 (Proteur가 먼저 써 볼 수 있음)
+### 74-0 명령 (Proteur가 먼저 써 볼 수 있음) - 74-h2 ④로 바뀜
 
-(저장소 루트 PowerShell. 환경 변수는 PC에 이미 설정돼 있으면 생략: `$env:ONDOLOG_SUPABASE_URL = '<프로젝트 주소>'` 한 줄, `$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = '<서비스 키>'` 한 줄. 값은 이 파일에 쓰지 않음)
+**저장소 맨 위 폴더에서 친다**(PowerShell). 이 PC에서만 도는 스크립트다. 키는 화면에 보이지 않게 넣는다.
 
-미리 보기(아무것도 지우지 않음):
-
-```
-deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=<프로젝트 ref>.supabase.co --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일>
-```
-
-실제 삭제:
+1. 값 넣기(PC에 이미 있으면 생략). 붙여넣기는 **마우스 오른쪽 클릭**이다:
 
 ```
-deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=<프로젝트 ref>.supabase.co --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일> --apply
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
 ```
 
-시험(원격 없음): `deno test --no-check --no-lock --unstable-sloppy-imports scripts/ops/resetTestAccountCheck.ts` (9개 통과)
+   (줄을 칠 때마다 입력 칸이 나온다. 첫 줄에는 프로젝트 주소, 둘째 줄에는 **서비스 키**(대시보드의 service_role 또는 Secret 키)를 넣는다. 공개 키(anon / publishable)를 넣으면 "서비스 키가 아니에요" 안내가 나온다.)
+
+2. 네트워크 허용 범위를 주소에서 읽는다(ref를 직접 적지 않는다):
+
+```
+$h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
+```
+
+3. 미리 보기(아무것도 지우지 않음):
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일>
+```
+
+4. 실제 삭제:
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일> --apply
+```
+
+끝나면 **PowerShell 창을 닫는다**(창 안의 환경 변수에 키가 남아 있다).
+
+시험(원격 없음): `deno test --no-check --no-lock --unstable-sloppy-imports scripts/ops/resetTestAccountCheck.ts` (13개 통과)
 
 ### 누적 표 (묶음마다 자기 행을 더한다 — 74-8이 끝 보고로 묶는다)
 
@@ -496,6 +570,19 @@ git commit -m "74-1~8 로그인 뒤 앱 전체 웹 이전"
 
 형식 `[묶음] 무엇을 · 왜 · 다른 길`. 실기기 확인 없이 사전 허가를 쓴 줄은 앞에 `[판단]`.
 
+- [74-h2 ⓪] 웹 A14(`ResultDetailScreen`)를 메모리가 아니라 서버 최신 검사로 그린다: 검사 읽기 -> `ensurePersonalityProfileCore` -> 만들었을 때만 `advanceOnboardingStep(RESULT)`(RN `useResultDetail` onboarding 모드와 같은 순서, 정본 함수를 웹 클라이언트로 부름) · 원인: 가입 직후 `resetSession()`이 메모리 결과를 비운 뒤 A14가 메모리만 읽고 `return null` · 서버(트리거 · RPC · 정책) 변경 0 · 출처: PE 위임문(덧붙임) + R79-1 · 다른 길: 가입 뒤 메모리를 비우지 않기(재실행 때 또 빈 화면이라 불충분)
+- [74-h2 ⓪] A16 코어 고치기를 정본 `overrideEnneagramCore`로 서버에 저장(RN과 같음). 이전 웹은 메모리 오버라이드였음 · 범위가 작아 함께 맞춤 · 출처: PE 위임문(덧붙임 b) · 다른 길: 보고만
+- [74-h2 ⓪] 빈 화면 0: 안내 화면(`AccountProblemView`: [다시 시도] · [로그아웃])을 세 곳에 둔다 - A14 검사 없음/읽기 오류(화면 안), 부팅 중 서버 상태 읽기 오류(앱 덮개 `AccountProblemHost`, 새 경로 없음), 그리고 화면 그리기 중 예상 못 한 오류(`RenderGuard`) · 덮개로 한 이유: 새 경로는 뒤로 가기 규칙표 · 경로표를 늘리는데 Part 9에 없는 화면 · 출처: PE 위임문(덧붙임 c) + 자체 판단 · 다른 길: 경로로 추가
+- [74-h2 ⓪] 세션은 있는데 프로필 행이 없는 계정의 재실행은 첫 화면(온보딩부터)으로 보낸다(안내 화면 아님) · 답 · 동의를 받은 뒤 로그인하면 `finalizeAfterLogin`이 저장하므로 막힌 상태가 아니다 · 출처: 자체 판단 · 다른 길: 안내 화면
+- [74-h2 ⓪] 알려진 빈틈(고치지 않음): `ensure`가 성공하고 `advanceOnboardingStep`만 실패하면 다음 읽기에서 `created: false`라 단계가 0에 남는다(RN 동일) - 단계 0이면 다시 결과 상세로 오고 [다음]으로 초대에 갈 수 있어 막히지 않는다 · 출처: 자체 판단 · 다른 길: 항상 호출(위임문은 "만들었을 때만")
+- [74-h2 ①] 앱 링크 리스너 등록 deps를 `[bridge]`로 좁힘, `nav`는 ref. 원인: `nav`가 경로가 바뀔 때마다 새 함수(react-router `useNavigate`)라 화면을 옮길 때마다 해제 -> 재등록되고 해제가 비동기라 잠깐 두 리스너가 산다 · 출처: PE 위임문 ① b-1 · 다른 길: 모듈 변수 가드
+- [74-h2 ①] 콜백 화면: 실패 화면 전에 `getSession`으로 세션 유효성 확인 -> 유효하면 정상 흐름, 실패 화면 중에도 `onAuthStateChange`로 세션이 생기면 넘어감 · 출처: PE 위임문 ① a
+- [74-h2 ①] 진단 표시는 `IS_TRIAL_BUILD`(빌드 때 정해지는 상수) 뒤에만 둠. 실패 단계(링크 받음 / 코드 교환 / 계정 마무리 / 상태 읽기 / 결과 읽기) + 안전한 분류(`code`/`name`만, 메시지 0) + 접수 순번. 운영 번들에서 문자열 0 확인 · 출처: PE 위임문 ① c · 다른 길: `isDevBuild()`(번들 제거 보장 약함)
+- [74-h2 ②] 연결 전 + 버튼 · 첫 기록 버튼 · 데이트 상세 [사진 더하기]는 `disabled`를 풀고 눌림이 살아 있음(흐림은 `aria-disabled`), 누르면 h1 기록 시트의 닫힘 안내(이유 + [초대하러 가기])가 열림. 문구 "연인과 연결되면 기록할 수 있어요" · 보조 문장은 지금 것 유지(보드 E13 문구를 이 세션에서 확인하지 못함) · 출처: PE 위임문 ② + R30-3 · R78-3
+- [74-h2 ③] 코드 칸 조합: `inputMode="email"`(+ `type="text"`, 기존 `lang="en"` 유지). 근거: Chromium이 inputmode=email을 안드로이드 이메일 입력 형식으로 넘겨 삼성 키보드 · Gboard가 영문(@ . 키) 자판으로 여는 경우가 가장 많음, `type="email"`은 글자 수 제한 · 선택 영역 조작이 막혀 피함. 폰 확인 전 추정 · 출처: PE 위임문 ③ + R78-3(폰 확인 후 확정)
+- [74-h2 ③] 키보드 시험 화면은 경로 `keyboard-test`(스택, 뒤로 = 앞 화면, 규칙표 F1에 한 줄). 운영 빌드에서는 줄 · 화면 코드가 빠지고 경로 이름 글자와 CSS 클래스 이름만 남음(그리지 않음) · 출처: PE 위임문 ③
+- [74-h2 ④] `--allow-net` 범위: 사람이 ref를 적지 않도록 PowerShell에서 `([Uri]$env:ONDOLOG_SUPABASE_URL).Host`를 읽어 `--allow-net=$h`로 넣는다(스크립트 변경 없이 범위를 한 호스트로 유지) · 공개 키 판별은 `sb_publishable_` 접두어 또는 JWT `role: anon`만(키 값 출력 0) · 출처: PE 위임문 ④ + R78-3
+- [74-h2 ⑤] 애착 칸이 빈 이유: 정본 `ATTACHMENT_REFRAME_KO.secure = null`이고 MASTER 10-5-3 표에 안정 항목이 없음 -> 웹이 표를 잘못 읽은 곳 없음(네 값 시험으로 확인), 정본 변경 0 · 출처: PE 위임문 ⑤ + R76-5
 - [74-준비] 모션 명세 v2가 저장소에 없음 · 지시서가 "없는 것은 웹 데모 값으로 대신"이라 함 · 다른 길: Proteur에게 파일을 받아 다음 수정 지시서에서 대조
 - [74-준비] 캔버스 HTML 4종(`Components` · `N-R31-App-Fixes` · `P1-Cover-Note` · `N-S-D3-Magazine`)이 저장소에 없음 · 해당 화면은 `screens/*.jpg`와 `CURRENT.md`의 바뀐 점 표를 기준으로 함 · 다른 길: 파일을 받아 다시 대조
 - [74-0] 초기화 스크립트 시험은 루트 jest가 줍지 않는 이름으로 두고 `deno test`로 파일을 지정해 돌린다 · 루트 jest 101 · 1771이 "그대로"여야 하고 `scripts/ops`는 루트 tsc 밖, 실행 도구 Deno는 이미 `scripts/ops`가 쓰는 것 · 다른 길: jest `.test.ts`로 두면 루트 수가 바뀜

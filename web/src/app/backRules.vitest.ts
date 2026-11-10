@@ -76,6 +76,7 @@ describe('경로별 뒤로 가기 결과표', () => {
     ['settings-withdraw', exit, previous, toMain, previous],
     // 탈퇴 유예 화면: 루트로 들어오는 화면이라 하드웨어 뒤로 = 앱 종료(RN 동작). 화면의 ← 는 로그아웃(`settings.vitest.tsx`).
     ['withdraw-cancel', exit, exit, exit, exit],
+    ['keyboard-test', exit, previous, toMain, previous],
     ['main', exit, exit, exit, exit],
     ['chat', toMain, toMain, toMain, toMain],
     ['feed', toMain, toMain, toMain, toMain],

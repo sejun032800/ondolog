@@ -16,6 +16,8 @@ import { StartDateScreen } from '../features/couple/StartDateScreen'
 import { DateDetailScreen } from '../features/feed/DateDetailScreen'
 import { StopEditScreen } from '../features/feed/StopEditScreen'
 import { AboutScreen } from '../features/settings/AboutScreen'
+import { KeyboardTestScreen } from '../features/settings/KeyboardTestScreen'
+import { IS_TRIAL_BUILD } from '../config/env'
 import { CoupleScreen } from '../features/settings/CoupleScreen'
 import { PersonalityScreen } from '../features/settings/PersonalityScreen'
 import { PrivacyScreen } from '../features/settings/PrivacyScreen'
@@ -75,6 +77,8 @@ export const ROUTE_ELEMENTS: Record<ScreenName, (c: RouteCtx) => ReactElement | 
   'settings-about': (c) => <AboutScreen nav={c.nav} bridge={c.bridge} />,
   'settings-withdraw': (c) => <WithdrawScreen nav={c.nav} />,
   'withdraw-cancel': (c) => <WithdrawCancelScreen nav={c.nav} />,
+  // 시험 빌드에서만 그린다. 운영 빌드에서는 상수 `IS_TRIAL_BUILD`가 false라 화면 코드가 번들에서 빠진다.
+  'keyboard-test': (c) => (IS_TRIAL_BUILD ? <KeyboardTestScreen nav={c.nav} /> : null),
   main: (c) => <MainTab nav={c.nav} />,
   chat: (c) => <ChatTab bridge={c.bridge} />,
   feed: (c) => <FeedTab nav={c.nav} />,

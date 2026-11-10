@@ -17,7 +17,8 @@ export function FeedTab({ nav }: { nav: Nav }) {
   const recording = useRecordingCouple(userId)
   const feed = useFeed(userId !== null)
   const canRecord = isRecordable(recording.couple)
-  const openRecord = () => { if (canRecord) useSheetStore.getState().open('record') }
+  // 연결 전에도 시트를 연다 - 기록 시트가 닫힘 안내(이유 + [초대하러 가기])를 보이고 저장 함수는 부르지 않는다(74-h2 ②).
+  const openRecord = () => { useSheetStore.getState().open('record') }
 
   return (
     <div className="screen solid tabScreen feedTab" data-testid="tab-screen-feed">
@@ -27,7 +28,7 @@ export function FeedTab({ nav }: { nav: Nav }) {
         <CoupleGate fallback={recording.loading ? <></> : <SoloBanner onInvite={() => useSheetStore.getState().open('couple-gate')} />}>
           {null}
         </CoupleGate>
-        <FeedView feed={feed} canRecord={canRecord} onOpenDate={(id) => nav.push('date-detail', { params: { id } })} onAdd={openRecord} />
+        <FeedView feed={feed} onOpenDate={(id) => nav.push('date-detail', { params: { id } })} onAdd={openRecord} />
       </div>
       <AddFab disabled={!canRecord} onPress={openRecord} />
     </div>

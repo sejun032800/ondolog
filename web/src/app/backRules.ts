@@ -47,6 +47,8 @@ export const BACK_RULES: Record<ScreenName, BackRule> = {
   'settings-withdraw': { area: 'stack', back: 'previous' },
   // 탈퇴 유예 화면(RN `/withdraw-cancel`): 로그인 직후 루트로 들어오는 화면이라 앞 화면이 없다 - 하드웨어 뒤로 = 앱 종료. 화면의 ← 는 로그아웃(화면이 직접 처리).
   'withdraw-cancel': { area: 'stack', back: 'exit' },
+  // 키보드 시험(74-h2 ③, 시험 빌드 전용): 앞 화면(설정 탭)으로.
+  'keyboard-test': { area: 'stack', back: 'previous' },
   // 탭
   main: { area: 'tab', back: 'exit' },
   chat: { area: 'tab', back: { to: 'main' } },

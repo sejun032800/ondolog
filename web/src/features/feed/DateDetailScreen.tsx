@@ -20,6 +20,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { PhotoViewer, type ViewerPhoto } from '../../components/PhotoViewer'
 import { useRouteParams, type Nav } from '../../navigation'
 import { showToast } from '../../stores/toastStore'
+import { useSheetStore } from '../../stores/sheetStore'
 import { isRecordable, useDateDetail, useFeedSignal, useRecordingCouple, type DetailStop } from './feedData'
 import { SOLO_CLOSED_TITLE } from './FeedView'
 import { pickPhotos, readLocalBytes, releasePhotoUrls } from './photoPicker'
@@ -233,7 +234,7 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
               ))}
             </div>
 
-            <button type="button" className="btn ghost press" disabled={adding || !canAdd} onClick={() => void addPhotos()} data-testid="detail-add-photos">
+            <button type="button" className="btn ghost press" disabled={adding} aria-disabled={!canAdd || undefined} onClick={() => { if (canAdd) void addPhotos(); else if (!recording.loading) useSheetStore.getState().open('record') }} data-testid="detail-add-photos">
               {adding ? '올리는 중이에요' : '사진 더하기'}
             </button>
             {!canAdd && !recording.loading ? <p className="t-caption c-mute" data-testid="detail-add-closed">{SOLO_CLOSED_TITLE}</p> : null}

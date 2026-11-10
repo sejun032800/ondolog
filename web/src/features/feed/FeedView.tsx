@@ -10,7 +10,7 @@ import { Skeleton } from '../../components/Skeleton'
 import type { FeedChapter, FeedState } from './feedData'
 
 /** 연결 전 E13 배너의 제목(= 이유). 기록 시트가 직접 열렸을 때도 같은 문장을 쓴다. */
-export const SOLO_CLOSED_TITLE = '초대 코드를 만들면 기록할 수 있어요'
+export const SOLO_CLOSED_TITLE = '연인과 연결되면 기록할 수 있어요'
 
 export function monthCountsLabel({ memoTotal, photoTotal, dateTotal }: { memoTotal: number; photoTotal: number; dateTotal: number }): string {
   return `메모 ${memoTotal} · 사진 ${photoTotal} · 데이트 ${dateTotal}`
@@ -118,18 +118,20 @@ export function SoloBanner({ onInvite }: { onInvite: () => void }) {
   )
 }
 
-/** 업로드 버튼(FAB, 56 원). 연결 전에는 비활성 - 이유는 화면의 배너가 글로 적는다. */
+/**
+ * 업로드 버튼(FAB, 56 원). 연결 전에는 흐리게(`off`) 보이지만 **눌림은 살아 있다** - 누르면 이유 + [초대하러 가기](기록 시트의 닫힘 안내)가 나온다(74-h2 ②, 눌러도 반응 없는 상태 0).
+ * `disabled` 속성은 쓰지 않는다(스크린 리더에도 "연결되면 열려요"로 읽히도록 `aria-disabled`).
+ */
 export function AddFab({ onPress, disabled }: { onPress: () => void; disabled?: boolean }) {
   return (
-    <button type="button" className={`feedFab press ${disabled ? 'off' : 'on'}`} aria-label="데이트 기록하기" data-testid="feed-add-fab" disabled={disabled} onClick={onPress}>
+    <button type="button" className={`feedFab press ${disabled ? 'off' : 'on'}`} aria-label="데이트 기록하기" aria-disabled={disabled || undefined} data-testid="feed-add-fab" onClick={onPress}>
       +
     </button>
   )
 }
 
-export function FeedView({ feed, canRecord, onOpenDate, onAdd }: {
+export function FeedView({ feed, onOpenDate, onAdd }: {
   feed: FeedState
-  canRecord: boolean
   onOpenDate: (dateId: string) => void
   onAdd: () => void
 }) {
@@ -153,7 +155,6 @@ export function FeedView({ feed, canRecord, onOpenDate, onAdd }: {
           body={'사진 몇 장과 한 줄이면 충분해요.\n이번 호의 재료가 돼요.'}
           actionLabel="첫 기록 남기기"
           onAction={onAdd}
-          actionDisabled={!canRecord}
           testId="feed-empty"
         />
       ) : (

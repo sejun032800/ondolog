@@ -55,13 +55,13 @@ describe('코드 교환', () => {
   it('실패하면 ok: false만 돌려주고 오류 원문은 돌려주지 않는다', async () => {
     const { client } = makeFakeClient({ exchange: async () => ({ data: { session: null }, error: { message: 'secret detail' } }) })
     const r = await exchangeCodeOnce(client, 'bad')
-    expect(r).toEqual({ ok: false })
+    expect(r).toEqual({ ok: false, kind: 'unknown' })
     expect(JSON.stringify(r)).not.toContain('secret')
   })
 
   it('던져도 ok: false', async () => {
     const { client } = makeFakeClient({ exchange: async () => { throw new Error('network') } })
-    expect(await exchangeCodeOnce(client, 'boom')).toEqual({ ok: false })
+    expect(await exchangeCodeOnce(client, 'boom')).toEqual({ ok: false, kind: 'Error' })
   })
 })
 

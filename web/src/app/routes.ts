@@ -24,12 +24,13 @@ export const TAB_ROUTES = ['main', 'chat', 'feed', 'magazine', 'settings'] as co
  *  - 설정(74-7, 모두 뒤로 = 앞 화면): `settings-profile`(H03) · `settings-couple`(H04, 해제 유예 중이면 H14 유예 모습) · `settings-unlink`(H14 문구 입력) ·
  *    `settings-personality`(H05) · `settings-result`(A14 · A15 설정 모드, `?view=override`면 A16부터) · `retest`(H06 뒤 A04~A07, 한 경로 안의 두 단계) ·
  *    `settings-privacy`(H11) · `settings-about`(H19) · `settings-withdraw`(H16 문구 입력).
+ *  - `keyboard-test`(74-h2 ③): 시험 빌드 전용 키보드 시험(설정 탭 맨 아래 줄). 운영 빌드에서는 화면 · 줄이 빠지고 이 경로는 아무것도 그리지 않는다. 뒤로 = 앞 화면.
  *  - `withdraw-cancel`(74-7): 탈퇴 유예 중인 계정이 로그인하거나 앱을 열면 단계보다 먼저 오는 화면(RN `/withdraw-cancel`). 뒤로 가기 = 앱 종료(RN: 루트 화면이라 하드웨어 뒤로 = 종료), 화면의 ← 는 로그아웃(RN `onBack={logout}`).
  */
 export const STACK_ROUTES = [
   'couple-invite', 'start-date-recheck', 'date-detail', 'stop-edit',
   'settings-profile', 'settings-couple', 'settings-unlink', 'settings-personality', 'settings-result', 'retest',
-  'settings-privacy', 'settings-about', 'settings-withdraw', 'withdraw-cancel',
+  'settings-privacy', 'settings-about', 'settings-withdraw', 'withdraw-cancel', 'keyboard-test',
 ] as const
 
 export type OnboardingRoute = (typeof ONBOARDING_ROUTES)[number]
