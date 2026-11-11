@@ -24,9 +24,10 @@ import { RecordSheetBody } from './RecordSheet'
 import { StopEditScreen } from './StopEditScreen'
 
 const picker = vi.hoisted(() => ({ next: [] as unknown[] }))
-vi.mock('./photoPicker', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./photoPicker')>()
-  return { ...actual, pickPhotos: vi.fn(async () => picker.next), readLocalBytes: vi.fn(async () => new ArrayBuffer(8)) }
+// 고르기 · 읽기는 가짜(웹 입력은 jsdom에서 열 수 없다). 입구 시트(앨범 · 카메라)와 저장은 진짜 부품이다.
+vi.mock('./feedPhotoStage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./feedPhotoStage')>()
+  return { ...actual, pickFeedPhotos: vi.fn(async () => picker.next), readStagedBytes: vi.fn(async () => new ArrayBuffer(8)) }
 })
 
 function photo(key: string, capturedAt: string | null, over: Partial<WebPickedPhoto> = {}): WebPickedPhoto {
@@ -327,6 +328,7 @@ describe('E03 데이트 상세', () => {
     picker.next = [photo('f1', null)]
     const before = useFeedSignal.getState().version
     fireEvent.click(screen.getByTestId('detail-add-photos'))
+    fireEvent.click(await screen.findByTestId('chat-attach-album')) // 채팅과 같은 입구 시트
     await waitFor(() => expect(db.uploads).toHaveLength(1))
     await waitFor(() => expect(useFeedSignal.getState().version).toBe(before + 1))
     expect(db.uploads[0].path).toMatch(/^c1\/[0-9a-f-]+\.jpg$/)
@@ -342,6 +344,7 @@ describe('E03 데이트 상세', () => {
     await screen.findByTestId('detail-title')
     picker.next = [photo('f1', null)]
     fireEvent.click(screen.getByTestId('detail-add-photos'))
+    fireEvent.click(await screen.findByTestId('chat-attach-album')) // 채팅과 같은 입구 시트
     expect(await screen.findByText('사진에 촬영 시각이 없어요. 첫 장소의 도착 시각을 써 주세요')).toBeTruthy()
     expect(db.uploads).toEqual([])
     expect(db.writes).toEqual([])
@@ -353,6 +356,7 @@ describe('E03 데이트 상세', () => {
     await screen.findByTestId('detail-title')
     picker.next = []
     fireEvent.click(screen.getByTestId('detail-add-photos'))
+    fireEvent.click(await screen.findByTestId('chat-attach-album')) // 채팅과 같은 입구 시트
     await act(async () => { await Promise.resolve() })
     expect(db.uploads).toEqual([])
     expect(db.writes).toEqual([])
@@ -447,6 +451,7 @@ describe('E11 데이트 기록 쓰기', () => {
   const pick = async (photos: WebPickedPhoto[], total: number = photos.length) => {
     picker.next = photos
     await act(async () => { fireEvent.click(screen.getByTestId('pick-photos')) })
+    await act(async () => { fireEvent.click(await screen.findByTestId('chat-attach-album')) })
     await screen.findByText(`${total}장 골랐어요`)
   }
   const saveBtn = () => screen.getByRole('button', { name: '기록 남기기' }) as HTMLButtonElement
@@ -505,6 +510,7 @@ describe('E11 데이트 기록 쓰기', () => {
     await pick([photo('a', T1)])
     picker.next = [photo('a', T1), photo('b', T2)]
     fireEvent.click(screen.getByTestId('pick-photos'))
+    fireEvent.click(await screen.findByTestId('chat-attach-album'))
     await screen.findByText('2장 골랐어요')
     fireEvent.click(screen.getAllByLabelText('이 사진 빼기')[0])
     expect(screen.getByTestId('photo-count').textContent).toBe('1장 골랐어요')

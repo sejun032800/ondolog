@@ -12,20 +12,24 @@
  * - 메모는 데이트 단위다. 기록할 커플 행이 없으면(규칙 6) 기록 버튼은 비활성이고 이유를 글로 적는다.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { recordDate, type Db } from '@/services/dateRecordApi'
+import type { Db } from '@/services/dateRecordApi'
 import {
   defaultDateOn, formatClockInput, formatDateDotted, formatDateInput, isValidDateOn, planStops, stopTimeErrorMessage, todayKst, type PlaceInput,
 } from '@/utils/dateRecord'
-import { generateUuidV4 } from '@/utils/uuid'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
+import { PhotoDiag } from '../../components/PhotoDiag'
+import { PhotoSourceSheet } from '../../components/PhotoSourceSheet'
 import { useSheetClose } from '../../components/Sheet'
+import { IS_TRIAL_BUILD } from '../../config/env'
+import { useTrialDiag } from '../../platform/trialDiag'
 import { showToast } from '../../stores/toastStore'
 import { PrimaryButton } from '../../ui'
 import { isRecordable, useFeedSignal, useRecordingCouple } from './feedData'
 import { SOLO_CLOSED_TITLE } from './FeedView'
 import { openInvite } from '../../app/inviteEntry'
-import { pickPhotos, readLocalBytes, releasePhotoUrls, type WebPickedPhoto } from './photoPicker'
+import { pickFeedPhotos, releaseStaged, type StagedPhoto } from './feedPhotoStage'
+import { saveFeedRecord, savablePhotos } from './feedSave'
 
 export const RECORD_COPY = {
   title: '데이트 기록',
@@ -66,7 +70,7 @@ export function RecordSheetBody() {
   const recording = useRecordingCouple(userId)
   const bump = useFeedSignal((s) => s.bump)
 
-  const [photos, setPhotos] = useState<WebPickedPhoto[]>([])
+  const [photos, setPhotos] = useState<StagedPhoto[]>([])
   const [dateOn, setDateOn] = useState<string>(() => todayKst(new Date()))
   const [dateTouched, setDateTouched] = useState(false)
   const [places, setPlaces] = useState<PlaceInput[]>([])
@@ -74,16 +78,17 @@ export function RecordSheetBody() {
   const [panel, setPanel] = useState<Panel>(null)
   const [dateText, setDateText] = useState('')
   const [saving, setSaving] = useState(false)
+  const [sourceOpen, setSourceOpen] = useState(false)
 
-  // 시트가 닫힐 때 미리보기 주소를 놓는다(올리는 중에 닫혔다면 올리기가 끝난 뒤 `save`가 놓는다).
+  // 시트가 닫힐 때 복사본 · 미리보기 주소를 놓는다(올리는 중에 닫혔다면 올리기가 끝난 뒤 `save`가 놓는다).
   const photosRef = useRef(photos)
   photosRef.current = photos
   const savingRef = useRef(false)
   savingRef.current = saving
-  useEffect(() => () => { if (!savingRef.current) releasePhotoUrls(photosRef.current) }, [])
+  useEffect(() => () => { if (!savingRef.current) releaseStaged(photosRef.current) }, [])
 
   // 규칙 2 - 날짜 기본값은 사진 중 가장 이른 촬영 시각의 날짜. 사용자가 바꾸기 전까지만 따라간다.
-  const capturedAts = useMemo(() => photos.map((p) => p.capturedAt), [photos])
+  const capturedAts = useMemo(() => savablePhotos(photos).map((p) => p.capturedAt), [photos])
   const exifDate = useMemo(() => defaultDateOn(capturedAts, new Date()), [capturedAts])
   useEffect(() => { if (!dateTouched) setDateOn(exifDate) }, [dateTouched, exifDate])
 
@@ -93,23 +98,26 @@ export function RecordSheetBody() {
   const coupleId = recordable ? recording.couple!.id : null
   const hasNamedPlace = places.some((p) => p.name.trim().length > 0)
   // 시간 칸 조건: stop 없음(이름 있는 장소 0) + 촬영 시각 전무(사진은 있다).
-  const showTimeRow = photos.length > 0 && !hasNamedPlace && !hasExif
+  const showTimeRow = savablePhotos(photos).length > 0 && !hasNamedPlace && !hasExif
 
   const stopPlan = useMemo(() => planStops(places, dateOn, capturedAts), [places, dateOn, capturedAts])
   const stopError = !stopPlan.ok ? stopTimeErrorMessage(stopPlan.error) : null
-  const hasContent = photos.length > 0 || memo.trim().length > 0
+  const hasContent = savablePhotos(photos).length > 0 || memo.trim().length > 0
   const canSave = hasContent && coupleId !== null && userId !== null && isValidDateOn(dateOn) && stopError === null && !saving
   const closed = !recording.loading && !recordable
 
-  const addPhotos = async () => {
+  const addPhotos = async (capture: boolean) => {
+    if (IS_TRIAL_BUILD) useTrialDiag.getState().clearPhoto()
     try {
-      const picked = await pickPhotos()
+      const picked = await pickFeedPhotos(capture)
       if (picked.length === 0) return
       setPhotos((prev) => {
-        const known = new Set(prev.map((p) => p.fileKey))
+        const known = new Set(prev.filter((p) => !p.failed).map((p) => p.fileKey))
         const fresh = picked.filter((p) => !known.has(p.fileKey))
-        releasePhotoUrls(picked.filter((p) => known.has(p.fileKey))) // 이미 있는 사진의 새 미리보기 주소는 바로 놓는다
-        return [...prev, ...fresh]
+        releaseStaged(picked.filter((p) => known.has(p.fileKey))) // 이미 있는 사진의 새 복사본 · 미리보기 주소는 바로 놓는다
+        // 같은 파일을 다시 골랐다면 읽기 실패 자리표시는 새 것으로 바뀐다.
+        const freshKeys = new Set(fresh.map((p) => p.fileKey))
+        return [...prev.filter((p) => !(p.failed && freshKeys.has(p.fileKey))), ...fresh]
       })
     } catch {
       showToast('사진을 고르지 못했어요')
@@ -118,9 +126,15 @@ export function RecordSheetBody() {
 
   const removePhoto = (key: string) => {
     setPhotos((prev) => {
-      releasePhotoUrls(prev.filter((p) => p.fileKey === key))
+      releaseStaged(prev.filter((p) => p.fileKey === key))
       return prev.filter((p) => p.fileKey !== key)
     })
+  }
+
+  /** 읽기에 실패한 칸: 그 칸을 빼고 입구 시트를 다시 연다. */
+  const repick = (key: string) => {
+    removePhoto(key)
+    setSourceOpen(true)
   }
 
   const updatePlace = (index: number, patch: Partial<PlaceInput>) =>
@@ -131,13 +145,9 @@ export function RecordSheetBody() {
     if (!canSave || !coupleId || !userId || !db) return
     setSaving(true)
     try {
-      const result = await recordDate(
-        db,
-        { readBytes: readLocalBytes, newId: generateUuidV4 },
-        { coupleId, userId, dateOn, places, photos, memo },
-      )
+      const result = await saveFeedRecord(db, { coupleId, userId, dateOn, places, photos: savablePhotos(photos), memo })
       if (result.failedPhotos > 0) showToast(`일부 사진은 올리지 못했어요. ${result.failedPhotos}장은 다시 올려 주세요`)
-      releasePhotoUrls(photos)
+      releaseStaged(photos)
       bump()
       close()
     } catch {
@@ -188,20 +198,24 @@ export function RecordSheetBody() {
         <div className="fieldGroup">
           <div className="rowBetween">
             <span className="t-kicker c-mute">PHOTOS</span>
-            <span className="t-caption c-mute" data-testid="photo-count">{photos.length > 0 ? `${photos.length}장 골랐어요` : '사진을 골라 주세요'}</span>
+            <span className="t-caption c-mute" data-testid="photo-count">{savablePhotos(photos).length > 0 ? `${savablePhotos(photos).length}장 골랐어요` : '사진을 골라 주세요'}</span>
           </div>
           <div className="thumbGrid">
-            {photos.map((p) => (
+            {photos.map((p) => p.failed ? (
+              <button key={p.fileKey} type="button" className="thumb press" aria-label="다시 고르기" data-testid="repick-photo" onClick={() => repick(p.fileKey)}>
+                <span className="t-caption c-sub">다시 고르기</span>
+              </button>
+            ) : (
               <button key={p.fileKey} type="button" className="thumb press" aria-label="이 사진 빼기" onClick={() => removePhoto(p.fileKey)}>
                 <img src={p.uri} alt="" draggable={false} />
                 <span className="thumbX" aria-hidden="true">✕</span>
               </button>
             ))}
-            <button type="button" className="thumb addTile press" aria-label="사진 더 고르기" data-testid="pick-photos" onClick={() => void addPhotos()}>
+            <button type="button" className="thumb addTile press" aria-label="사진 더 고르기" data-testid="pick-photos" onClick={() => setSourceOpen(true)}>
               <span aria-hidden="true">+</span>
             </button>
           </div>
-          {photos.length > 0 ? (
+          {savablePhotos(photos).length > 0 ? (
             <p className="t-caption c-mute" data-testid="exif-note">
               {hasExif && !dateTouched ? RECORD_COPY.exifFilled : hasExif ? '' : RECORD_COPY.noExif}
             </p>
@@ -281,7 +295,11 @@ export function RecordSheetBody() {
       <div className="recordFooter">
         {hasContent && stopError !== null ? <p className="t-caption c-mute" data-testid="stop-time-error">{stopError}</p> : null}
         <PrimaryButton label={saving ? '남기는 중이에요' : '기록 남기기'} onClick={() => void save()} disabled={!canSave} />
+        {IS_TRIAL_BUILD ? <PhotoDiag /> : null}
       </div>
+      {sourceOpen ? (
+        <PhotoSourceSheet testId="feed-attach-sheet" onAlbum={() => void addPhotos(false)} onCamera={() => void addPhotos(true)} onClosed={() => setSourceOpen(false)} />
+      ) : null}
     </div>
   )
 }

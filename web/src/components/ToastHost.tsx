@@ -4,6 +4,8 @@
  * Shell에 하나만 둔다.
  */
 import { useEffect } from 'react'
+import { IS_TRIAL_BUILD } from '../config/env'
+import { PhotoDiag } from './PhotoDiag'
 import { TOAST_DURATION_MS, useToastStore } from '../stores/toastStore'
 
 export function ToastHost({ aboveTabBar }: { aboveTabBar: boolean }) {
@@ -24,6 +26,7 @@ export function ToastHost({ aboveTabBar }: { aboveTabBar: boolean }) {
           <button type="button" className="toastAction" data-testid="toast-action" onClick={() => { hide(); toast.onAction?.() }}>{toast.actionLabel}</button>
         ) : null}
       </div>
+      {IS_TRIAL_BUILD && toast.message.includes('사진') ? <PhotoDiag testId="photo-diag-toast" /> : null}
     </div>
   )
 }

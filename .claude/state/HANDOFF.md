@@ -31,7 +31,54 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 
 | 74-h2 급한 수정 | 완료 (미커밋, 폰 확인 대기) | 아래 "74-h2 커밋 명령"의 파일 목록. 범위: ⓪ 새 계정 첫 로그인 뒤 빈 화면(R79-1) ① D1 리스너 · 세션 안전장치 · 진단 표시 ② 연결 전 기록 반응 ③ 키보드 시험 ④ 초기화 스크립트 공개 키 안내 ⑤ 애착 칸(정본이 빈 값). 마이그레이션 0 · `supabase/` 0 · 원격 0 · 새 패키지 0 · `web/android` · 루트 · RN 변경 0 |
 
+| 74-h4 피드 사진 F1 · B1 | 완료 (미커밋, 폰 확인 대기) | 아래 "74-h4 커밋 명령"의 파일 목록. 범위: 피드 사진 입구(채팅과 같은 [앨범]/[카메라] 시트) · 고르는 단계에서 File 자체 읽기 + 앱 캐시 복사본 · 썸네일 / "다시 고르기" · 카메라 시각 · 시험 빌드 사진 진단. 마이그레이션 0 · `supabase/` 0 · 원격 쓰기 0(원격은 edge 로그 읽기 2회) · 새 패키지 0 · `web/android` · 루트 · RN 변경 0 |
+
 시작 지점: 커밋 `17222d1`(작업 트리 깨끗, ROADMAP `2026-11-09-r75`, PM 지시서 · 두 프롬프트 커밋됨 확인).
+
+### 74-h4 결정 기록 (메인 세션 · ui-builder, 2026-11-11, 위임문 `74-h4-dispatch-feed-photo.md` · R82-1)
+
+| 결정 | 출처 |
+|---|---|
+| 원인 = ② 읽기. 피드 저장(UTC 08:48:43)에 `POST dates` 201 · `POST data_entries` 201(메모 1) · `PATCH dates` 204만 있고 `entries` 버킷 업로드 요청 0건(3회 재시도 모두 네트워크 전). 같은 폰 1분 전 `messages` · `stories` 업로드 200. → `readLocalBytes`(`fetch(blob:)`)가 던짐. 썸네일 빈 칸도 같은 선택기 `blob:` 주소 | 원격 edge 로그 읽기(메인 세션) · `photoPicker.ts:172` · `RecordSheet.tsx`(이전 196) |
+| ⑤ Storage 정책은 원인 아님(entries · messages 정책 동형) → 마이그레이션 없이 진행 | `015_storage_policies.sql` |
+| 웹 피드만 선택기 참조를 저장 순간까지 들고 있다가 읽었다. 채팅(`copyIn`) · RN(`expo-image-picker` 캐시 복사)은 고른 직후 앱 소유 사본을 만든다 → 피드도 고르는 단계에서 File 자체를 읽고(`arrayBuffer` → FileReader) 앱 캐시 `feed-photo-picks/`에 복사, 업로드는 복사본만 읽음. WebView 내부 메커니즘은 코드로 확정 불가 — 폰 확인 몫 | R82-1 · 위임문 §2 ① |
+| 복사 실패 시 그 사진만 메모리 바이트로 대체(사진을 잃지 않음) | ui-builder 판단(위임문에 없음) |
+| 입구: 채팅 시트를 `components/PhotoSourceSheet.tsx`로 빼 공용. 채팅 testid · 문구 그대로 | 위임문 §2 ② |
+| 카메라 사진은 EXIF 촬영 시각이 없으면 지금 시각 | 위임문 §2 ④ |
+| 영속 큐 없음(RN 피드에도 없음). `recordDate` 그대로 | 위임문 §2 ① |
+| 진단: 고르기 / 읽기 / 압축 / 올리기 / 행 저장 + `safeKind`. 압축은 RN이 원본 그대로라 발생 0. "사진"이 든 토스트 아래에도 진단 줄 | 위임문 §2 ⑤ · ui-builder 판단(토스트 조건) |
+| B1: 앨범 입력은 채팅과 같은 `accept=image/*` + multiple. 네이티브 · `@capacitor/camera` 우회는 넣지 않음 — 폰 B에서 여전히 문서 선택기가 뜨면 그때 판단 | 위임문 §2 ② · 머리말 |
+
+### 74-h4 커밋 명령 (Proteur, 74-h4 뒤)
+
+**저장소 맨 위 폴더에서 친다.** 한 줄씩:
+
+```
+git add web/src/components/PhotoDiag.tsx
+git add web/src/components/PhotoSourceSheet.tsx
+git add web/src/components/ToastHost.tsx
+git add web/src/features/chat/ChatView.tsx
+git add web/src/features/feed/DateDetailScreen.tsx
+git add web/src/features/feed/RecordSheet.tsx
+git add web/src/features/feed/feed.vitest.tsx
+git add web/src/features/feed/feedPhotoDiagProd.vitest.tsx
+git add web/src/features/feed/feedPhotoStage.ts
+git add web/src/features/feed/feedPhotoStage.vitest.tsx
+git add web/src/features/feed/feedSave.ts
+git add web/src/platform/trialDiag.ts
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "74-h4 feed photo: read picked files at pick time into app cache copies, shared album/camera entry sheet, retry tile, trial-only photo diagnostics"
+```
+
+**Proteur 폰 확인 순서 (`npm run build:trial` → `npx cap sync android`, 두 폰에 각각 설치 — USB는 한 대씩)**
+
+1. 폰 A: 피드 + → [앨범] → 사진 1장 → 썸네일 보임 → 저장 → 사진 1장으로 저장됨
+2. 폰 A: 피드 + → [카메라] → 찍기 → 저장
+3. 폰 B: 피드 + → [앨범] → **문서 선택기가 아니라 갤러리** → 사진 → 저장
+4. 상대 폰 피드에 사진이 보이는지
+5. 날짜가 사진 촬영일로 채워졌는지
+6. 실패하면 화면 아래 진단 글자를 그대로 적어 보내기
 
 ### 74-h1 커밋 명령 (Proteur, 74-h1 뒤 - 지시서 `PM_directive_74-h1-hotfix.md` · R77-2)
 

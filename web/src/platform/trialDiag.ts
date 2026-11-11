@@ -7,6 +7,13 @@ import { create } from 'zustand'
 
 export type DiagStep = 'link' | 'exchange' | 'finalize' | 'state' | 'detail'
 
+/** 피드 사진 실패 단계(74-h4): 고르기 / 읽기 / 압축 / 업로드 / 행 저장. 압축은 RN이 원본 그대로라 단계만 두고 발생 0. */
+export type PhotoStep = 'pick' | 'read' | 'compress' | 'upload' | 'rows'
+export interface PhotoDiagEntry {
+  step: PhotoStep
+  kind: string
+}
+
 export interface DiagEntry {
   step: DiagStep
   /** 짧은 분류(영문 소문자 · 숫자 · 밑줄 · 대문자 코드). 오류 원문이 아니다. */
@@ -22,6 +29,10 @@ interface DiagState {
   bumpLink: () => number
   record: (step: DiagStep, kind: string) => void
   clear: () => void
+  /** 마지막 사진 실패(단계 + 짧은 분류). 새 고르기 · 저장을 시작할 때 지운다. */
+  photo: PhotoDiagEntry | null
+  recordPhoto: (step: PhotoStep, kind: string) => void
+  clearPhoto: () => void
 }
 
 export const useTrialDiag = create<DiagState>((set, get) => ({
@@ -34,6 +45,10 @@ export const useTrialDiag = create<DiagState>((set, get) => ({
   },
   record: (step, kind) => set({ last: { step, kind, seq: get().linkSeq } }),
   clear: () => set({ last: null }),
+  photo: null,
+  // 한 번의 시도에서 가장 먼저 난 실패를 남긴다(뒤따르는 연쇄 실패가 덮어쓰지 않게).
+  recordPhoto: (step, kind) => { if (get().photo === null) set({ photo: { step, kind } }) },
+  clearPhoto: () => set({ photo: null }),
 }))
 
 /** 오류 객체에서 짧은 분류만 뽑는다: `code`(문자열) 또는 `name`이 안전한 글자뿐일 때만, 아니면 `unknown`. 메시지는 읽지 않는다. */

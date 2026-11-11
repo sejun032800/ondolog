@@ -15,6 +15,7 @@ import { computeDaysTogetherKst } from '@/utils/relationshipDays'
 import { useAuthStore } from '../../auth/stores'
 import { CoupleGate, CoupleNeeded } from '../../components/CoupleGate'
 import { PhoneLayer } from '../../components/PhoneLayer'
+import { PhotoSourceSheet, PHOTO_CAMERA_ENABLED, PHOTO_SOURCE_COPY } from '../../components/PhotoSourceSheet'
 import { PhotoViewer } from '../../components/PhotoViewer'
 import { Sheet, useSheetClose } from '../../components/Sheet'
 import { Skeleton } from '../../components/Skeleton'
@@ -40,14 +41,14 @@ export const MESSAGE_COPY = {
   offline: '연결이 끊겼어요. 다시 연결되면 이어서 보내요',
 } as const
 
-export const COMPOSER_COPY = { placeholder: '메시지 보내기', album: '앨범', camera: '카메라', attach: '첨부', send: '보내기' } as const
+export const COMPOSER_COPY = { placeholder: '메시지 보내기', album: PHOTO_SOURCE_COPY.album, camera: PHOTO_SOURCE_COPY.camera, attach: '첨부', send: '보내기' } as const
 export const CHAT_COPY = { addStory: '올리기', posting: '올리는 중', myStory: '나', copy: '복사', copied: '복사했어요', copyFailed: '복사하지 못했어요' } as const
 
 /** F02 - 보드의 둘째 문장("여기서 나눈 대화가 온도와 잡지의 재료가 돼요")은 patch7 · 규칙 9로 뺐다. */
 export const CHAT_DISCONNECTED_COPY = { title: '상대만 있으면 돼요', body: '채팅은 연인과 연결되면 열려요.' } as const
 
 /** F04 [카메라]: 웹 입력 `capture`로 연다. 기기에서 안 열리면 이 값만 false로(버튼이 사라진다). 결정 기록 [74-5] 카메라. */
-export const CHAT_CAMERA_ENABLED = true
+export const CHAT_CAMERA_ENABLED = PHOTO_CAMERA_ENABLED
 
 /** 길게 누르기(ms). */
 export const LONG_PRESS_MS = 500
@@ -240,19 +241,6 @@ export function Composer({ onSend, onAttach, keyboardOpen }: { onSend: (body: st
         <input className="composerInput" placeholder={COMPOSER_COPY.placeholder} aria-label={COMPOSER_COPY.placeholder} data-testid="chat-input" {...inputProps} />
         <button type="button" className={`sendBtn press ${hasText ? 'on' : ''}`} aria-label={COMPOSER_COPY.send} aria-disabled={!hasText} data-testid="chat-send" {...sendButtonProps}>↑</button>
       </div>
-    </div>
-  )
-}
-
-/** F04 첨부 시트 - [앨범] · [카메라]. 보드의 "최근 사진" 격자는 넣지 않았다(사진 라이브러리를 훑지 않는다 - R13-2, 결정 기록 [74-5]). */
-function AttachSheetBody({ onAlbum, onCamera }: { onAlbum: () => void; onCamera: () => void }) {
-  const close = useSheetClose()
-  return (
-    <div className="attachBody" data-testid="chat-attach-sheet-body">
-      <button type="button" className="attachOption press" data-testid="chat-attach-album" onClick={() => { close(); onAlbum() }}>{COMPOSER_COPY.album}</button>
-      {CHAT_CAMERA_ENABLED ? (
-        <button type="button" className="attachOption press" data-testid="chat-attach-camera" onClick={() => { close(); onCamera() }}>{COMPOSER_COPY.camera}</button>
-      ) : null}
     </div>
   )
 }
@@ -460,11 +448,7 @@ export function ChatConversation({ bridge, hubs, now = () => new Date() }: ChatC
       <Composer onSend={(body) => { if (canSendBody(body)) void chat.sendText(body) }} onAttach={() => setAttachOpen(true)} keyboardOpen={keyboardOpen} />
 
       {attachOpen ? (
-        <PhoneLayer>
-          <Sheet variant="auto" testId="chat-attach-sheet" onClosed={() => setAttachOpen(false)}>
-            <AttachSheetBody onAlbum={() => void pickAndSendPhotos(false)} onCamera={() => void pickAndSendPhotos(true)} />
-          </Sheet>
-        </PhoneLayer>
+        <PhotoSourceSheet testId="chat-attach-sheet" onAlbum={() => void pickAndSendPhotos(false)} onCamera={() => void pickAndSendPhotos(true)} onClosed={() => setAttachOpen(false)} />
       ) : null}
       {copyText !== null ? (
         <PhoneLayer>

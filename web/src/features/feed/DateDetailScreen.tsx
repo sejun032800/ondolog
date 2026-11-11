@@ -10,20 +10,24 @@
  * - 본인 기록 삭제(R30-1): **내가 올린** 사진 · 메모에만 `⋯`가 보인다(남의 것에는 진입점 0). `⋯` -> 확인 시트(되돌릴 수 없고, 이미 발행된 호에서는 지워지지 않는다) -> `fn_delete_own_entry` RPC만.
  */
 import { useState } from 'react'
-import { canDeleteEntry, deleteOwnEntry, recordDate, StopTimeInputError, type Db } from '@/services/dateRecordApi'
+import { canDeleteEntry, deleteOwnEntry, StopTimeInputError, type Db } from '@/services/dateRecordApi'
 import { buildDateHead, kstTimeOf } from '@/utils/dateRecord'
-import { generateUuidV4 } from '@/utils/uuid'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
+import { PhotoDiag } from '../../components/PhotoDiag'
+import { PhotoSourceSheet } from '../../components/PhotoSourceSheet'
 import { Sheet, useSheetClose } from '../../components/Sheet'
 import { Skeleton } from '../../components/Skeleton'
 import { PhotoViewer, type ViewerPhoto } from '../../components/PhotoViewer'
+import { IS_TRIAL_BUILD } from '../../config/env'
+import { useTrialDiag } from '../../platform/trialDiag'
 import { useRouteParams, type Nav } from '../../navigation'
 import { showToast } from '../../stores/toastStore'
 import { useSheetStore } from '../../stores/sheetStore'
 import { isRecordable, useDateDetail, useFeedSignal, useRecordingCouple, type DetailStop } from './feedData'
 import { SOLO_CLOSED_TITLE } from './FeedView'
-import { pickPhotos, readLocalBytes, releasePhotoUrls } from './photoPicker'
+import { pickFeedPhotos, releaseStaged, type StagedPhoto } from './feedPhotoStage'
+import { saveFeedRecord, savablePhotos } from './feedSave'
 
 type Pending = { id: string; kind: 'photo' | 'memo' }
 
@@ -98,6 +102,7 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
   const [pending, setPending] = useState<Pending | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [sourceOpen, setSourceOpen] = useState(false)
   const [viewerAt, setViewerAt] = useState<number | null>(null)
 
   // 연결(active) 전에는 사진 더하기도 닫힌다(R30-3 · R77-1) - 이미 저장된 기록은 보이되 새 기록은 쓰지 않는다.
@@ -129,32 +134,35 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
     }
   }
 
-  const addPhotos = async () => {
+  const addPhotos = async (capture: boolean) => {
     if (!date || adding || !canAdd) return
     const db = getSupabase() as unknown as Db | null
     if (!db || !viewerId) return
-    let picked: Awaited<ReturnType<typeof pickPhotos>> = []
+    if (IS_TRIAL_BUILD) useTrialDiag.getState().clearPhoto()
+    let picked: StagedPhoto[] = []
     try {
-      picked = await pickPhotos()
+      picked = await pickFeedPhotos(capture)
     } catch {
       showToast('사진을 고르지 못했어요')
       return
     }
     if (picked.length === 0) return
+    const usable = savablePhotos(picked)
+    if (usable.length === 0) {
+      showToast('사진을 고르지 못했어요')
+      return
+    }
     setAdding(true)
     try {
-      const result = await recordDate(
-        db,
-        { readBytes: readLocalBytes, newId: generateUuidV4 },
-        { coupleId: date.couple_id, userId: viewerId, dateOn: date.date_on, places: [], photos: picked, memo: '' },
-      )
-      if (result.failedPhotos > 0) showToast(`일부 사진은 올리지 못했어요. ${result.failedPhotos}장은 다시 올려 주세요`)
+      const result = await saveFeedRecord(db, { coupleId: date.couple_id, userId: viewerId, dateOn: date.date_on, places: [], photos: usable, memo: '' })
+      const failed = result.failedPhotos + (picked.length - usable.length)
+      if (failed > 0) showToast(`일부 사진은 올리지 못했어요. ${failed}장은 다시 올려 주세요`)
       bump()
       await detail.reload()
     } catch (e) {
       showToast(e instanceof StopTimeInputError ? e.message : '사진을 올리지 못했어요')
     } finally {
-      releasePhotoUrls(picked)
+      releaseStaged(picked)
       setAdding(false)
     }
   }
@@ -234,9 +242,10 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
               ))}
             </div>
 
-            <button type="button" className="btn ghost press" disabled={adding} aria-disabled={!canAdd || undefined} onClick={() => { if (canAdd) void addPhotos(); else if (!recording.loading) useSheetStore.getState().open('record') }} data-testid="detail-add-photos">
+            <button type="button" className="btn ghost press" disabled={adding} aria-disabled={!canAdd || undefined} onClick={() => { if (canAdd) setSourceOpen(true); else if (!recording.loading) useSheetStore.getState().open('record') }} data-testid="detail-add-photos">
               {adding ? '올리는 중이에요' : '사진 더하기'}
             </button>
+            {IS_TRIAL_BUILD ? <PhotoDiag /> : null}
             {!canAdd && !recording.loading ? <p className="t-caption c-mute" data-testid="detail-add-closed">{SOLO_CLOSED_TITLE}</p> : null}
           </div>
         ) : null}
@@ -245,6 +254,10 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
       <button type="button" className="detailBack press" aria-label="뒤로" onClick={nav.back}>←</button>
 
       {viewerAt !== null ? <PhotoViewer photos={viewerPhotos} startIndex={viewerAt} title={head?.title} onClose={() => setViewerAt(null)} /> : null}
+
+      {sourceOpen ? (
+        <PhotoSourceSheet testId="detail-attach-sheet" onAlbum={() => void addPhotos(false)} onCamera={() => void addPhotos(true)} onClosed={() => setSourceOpen(false)} />
+      ) : null}
 
       {pending ? (
         <Sheet variant="auto" testId="sheet-delete-entry" onClosed={() => setPending(null)}>
