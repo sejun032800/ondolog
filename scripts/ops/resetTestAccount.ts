@@ -37,6 +37,15 @@
  *     --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY \
  *     --allow-net=<프로젝트 ref>.supabase.co --allow-read=supabase/.temp/linked-project.json \
  *     scripts/ops/resetTestAccount.ts <이메일> [--apply]
+ *
+ * ── 74-h3 시험 커플 모드 (R81-1) ─────────────────────────────────────────────────────────────────────
+ * 이메일을 2개 주면 커플 모드: `resetTestAccount.ts <이메일1> <이메일2> [--with-issues] [--apply]`.
+ *   대상: 두 이메일이 각각 정확히 1명(서로 다른 2명)이고, 두 사람이 함께 든 커플 행이 있으며, 둘이 든 어느 커플 행에도
+ *   제3자가 없을 때(서로가 유일한 상대. 상태 무관 - active · pending 모두. 상대 없는 혼자 초대 행은 함께 지운다).
+ *   순서: 1) Storage(커플 접두 버킷 + avatars 두 사용자 접두) -> (--with-issues) issues 행 -> 2) 커플 행(cascade 13개 표)
+ *         -> 3) 두 인증 사용자(profiles 등 cascade).
+ *   발행 호: 기본 거부. --with-issues 일 때만 그 커플의 호와 매거진 파일(magazine · magazine-print)까지 지운다.
+ *   거부: 다른 상대와 연결 · 사용자가 정확히 2명이 아님 · 두 사람이 같은 커플이 아님 · 개발 프로젝트 아님 · (플래그 없이) 발행 호 있음.
  */
 import { OpsStopError, redactSecrets } from './opsGuards.ts'
 
@@ -72,8 +81,12 @@ export const USER_BUCKETS = ['avatars'] as const
 
 export interface CoupleLite {
   readonly id: string
+  readonly user_a_id: string
   readonly user_b_id: string | null
 }
+
+/** 매거진 파일 버킷(커플 접두) - 커플 모드 미리 보기의 "매거진 파일" 수. */
+export const MAGAZINE_BUCKETS = ['magazine', 'magazine-print'] as const
 
 /** 접속 부분 - 실제는 service_role 클라이언트, 시험은 가짜. */
 export interface ResetPort {
@@ -211,6 +224,104 @@ export async function runReset(connect: () => Promise<ResetPort>, args: ResetArg
   return { kind: 'applied', lines }
 }
 
+// ── 74-h3 시험 커플 모드 ─────────────────────────────────────────────────────────────────────────
+
+export interface CoupleResetArgs {
+  readonly emails: readonly [string, string]
+  readonly apply: boolean
+  readonly withIssues: boolean
+}
+
+export type AnyResetArgs = { readonly mode: 'single'; readonly args: ResetArgs } | { readonly mode: 'couple'; readonly args: CoupleResetArgs }
+
+/** 실행 인자 -> 단독(이메일 1) / 커플(이메일 2) 모드. 단독 모드는 parseResetArgs 그대로. 메시지에 인자 값을 넣지 않는다. */
+export function parseAnyResetArgs(argv: readonly string[]): AnyResetArgs {
+  const positional = argv.filter((a) => !a.startsWith('--'))
+  if (positional.length !== 2) {
+    if (argv.includes('--with-issues')) throw new OpsStopError('--with-issues 는 이메일 2개(커플 모드)와만 쓴다')
+    return { mode: 'single', args: parseResetArgs(argv) }
+  }
+  let apply = false
+  let withIssues = false
+  for (const a of argv) {
+    if (a === '--apply') apply = true
+    else if (a === '--with-issues') withIssues = true
+    else if (a.startsWith('--')) throw new OpsStopError('알 수 없는 인수가 있다')
+  }
+  if (!positional.every((e) => e.includes('@'))) throw new OpsStopError('커플 모드 인수는 카카오 계정 이메일 2개(와 선택 --with-issues · --apply)여야 한다')
+  const [a, b] = positional.map((e) => e.trim())
+  if (a.toLowerCase() === b.toLowerCase()) throw new OpsStopError('두 이메일이 같다')
+  return { mode: 'couple', args: { emails: [a, b], apply, withIssues } }
+}
+
+/** 커플 모드 흐름 - 판정 -> 집계 -> (apply 일 때만) 정한 순서로 삭제. 출력은 숫자 · 예/아니오뿐. */
+export async function runCoupleReset(connect: () => Promise<ResetPort>, args: CoupleResetArgs): Promise<ResetOutcome> {
+  let port: ResetPort
+  try {
+    port = await connect()
+  } catch (error) {
+    if (error instanceof OpsStopError) return refuse('개발 프로젝트가 아니거나 확인할 수 없다')
+    throw error
+  }
+
+  const found = [await port.findUserIds(args.emails[0]), await port.findUserIds(args.emails[1])]
+  if (found.some((ids) => ids.length !== 1)) return refuse('두 이메일에 걸리는 사용자가 정확히 2명이 아니다')
+  const userA = found[0][0]
+  const userB = found[1][0]
+  if (userA === userB) return refuse('두 이메일에 걸리는 사용자가 정확히 2명이 아니다')
+  const pair = new Set([userA, userB])
+
+  const byId = new Map<string, CoupleLite>()
+  for (const u of [userA, userB]) for (const c of await port.listCouples(u)) byId.set(c.id, c)
+  const couples = [...byId.values()]
+  const members = (c: CoupleLite) => [c.user_a_id, c.user_b_id].filter((m): m is string => m !== null)
+  if (couples.some((c) => members(c).some((m) => !pair.has(m)))) return refuse('어느 한쪽이 다른 상대와 연결되어 있다')
+  if (!couples.some((c) => c.user_b_id !== null && pair.has(c.user_a_id) && pair.has(c.user_b_id) && c.user_a_id !== c.user_b_id)) {
+    return refuse('두 사람이 같은 커플이 아니다')
+  }
+  const coupleIds = couples.map((c) => c.id)
+  const published = await port.hasPublishedIssue(coupleIds)
+  if (published && !args.withIssues) return refuse('발행된 호가 있다(지우려면 --with-issues)')
+
+  const rows: [string, number][] = [['couples', coupleIds.length]]
+  for (const table of COUPLE_CASCADE_TABLES) rows.push([table, await port.count(table, 'couple_id', coupleIds)])
+  for (const [table, column] of USER_CASCADE_TABLES) rows.push([table, await port.count(table, column, [userA, userB])])
+
+  let files = 0
+  let magazineFiles = 0
+  for (const bucket of COUPLE_BUCKETS) {
+    for (const id of coupleIds) {
+      const n = await port.countFiles(bucket, id)
+      files += n
+      if ((MAGAZINE_BUCKETS as readonly string[]).includes(bucket)) magazineFiles += n
+    }
+  }
+  for (const bucket of USER_BUCKETS) for (const u of [userA, userB]) files += await port.countFiles(bucket, u)
+  const issueCount = rows.find(([t]) => t === 'issues')?.[1] ?? 0
+
+  const lines = [args.apply ? '실행(커플 모드): 지운 수' : '미리 보기(커플 모드, 지우지 않음): 지울 수']
+  lines.push(`발행 호 있음: ${published ? '예' : '아니오'}`)
+  lines.push(`호(issues): ${issueCount}`)
+  lines.push(`매거진 파일(magazine · magazine-print): ${magazineFiles}`)
+  for (const [table, n] of rows) lines.push(`${table}: ${n}`)
+  lines.push('auth 사용자: 2')
+  lines.push(`Storage: ${files}`)
+  if (!args.apply) {
+    lines.push(args.withIssues ? '실제로 지우려면 --with-issues --apply' : '실제로 지우려면 --apply')
+    return { kind: 'previewed', lines }
+  }
+
+  // 1) Storage -> (--with-issues) 호 -> 2) 커플 행(하위 cascade) -> 3) 두 인증 사용자(profiles 등 cascade)
+  for (const bucket of COUPLE_BUCKETS) for (const id of coupleIds) await port.removeFiles(bucket, id)
+  for (const bucket of USER_BUCKETS) for (const u of [userA, userB]) await port.removeFiles(bucket, u)
+  if (args.withIssues && issueCount > 0) await port.deleteRows('issues', 'couple_id', coupleIds)
+  await port.deleteRows('couples', 'id', coupleIds)
+  await port.deleteUser(userA)
+  await port.deleteUser(userB)
+  lines.push('완료')
+  return { kind: 'applied', lines }
+}
+
 // ── 실제 접속 (service_role) ─────────────────────────────────────────────────────────────────────
 
 // deno-lint-ignore no-explicit-any
@@ -253,7 +364,7 @@ export function makePort(client: Db): ResetPort {
       return ids
     },
     async listCouples(userId) {
-      const { data, error } = await client.from('couples').select('id, user_b_id').or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+      const { data, error } = await client.from('couples').select('id, user_a_id, user_b_id').or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
       must('couples 조회', error)
       return data ?? []
     },
@@ -304,12 +415,13 @@ if (import.meta.main) {
   let secrets: readonly string[] = []
   const out = (line: string) => console.log(redactSecrets(line, secrets))
   try {
-    const args = parseResetArgs(Deno.args)
-    const outcome = await runReset(async () => {
+    const parsed = parseAnyResetArgs(Deno.args)
+    const connect = async () => {
       const conn = await connectOps()
       secrets = conn.secrets
       return makePort(conn.client)
-    }, args)
+    }
+    const outcome = parsed.mode === 'couple' ? await runCoupleReset(connect, parsed.args) : await runReset(connect, parsed.args)
     for (const line of outcome.lines) out(line)
     if (outcome.kind === 'refused') Deno.exit(1)
   } catch (error) {

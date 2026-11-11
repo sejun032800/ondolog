@@ -8,6 +8,9 @@ import {
   COUPLE_BUCKETS,
   COUPLE_CASCADE_TABLES,
   failureLines,
+  MAGAZINE_BUCKETS,
+  parseAnyResetArgs,
+  runCoupleReset,
   LOOKUP_FAILED_MESSAGE,
   looksLikePublicKey,
   PUBLIC_KEY_HINT,
@@ -41,7 +44,7 @@ function fake(opts: { users?: string[]; couples?: CoupleLite[]; published?: bool
       assert(e === EMAIL, 'email passed')
       return Promise.resolve(opts.users ?? [USER])
     },
-    listCouples: () => Promise.resolve(opts.couples ?? [{ id: COUPLE, user_b_id: null }]),
+    listCouples: () => Promise.resolve(opts.couples ?? [{ id: COUPLE, user_a_id: USER, user_b_id: null }]),
     hasPublishedIssue: () => Promise.resolve(opts.published ?? false),
     count: (table) => Promise.resolve(table === 'data_entries' ? 3 : 1),
     countFiles: (bucket) => Promise.resolve(bucket === 'entries' ? 4 : 0),
@@ -81,7 +84,7 @@ Deno.test('거부 2: 사용자 0명 / 2명 이상', async () => {
 })
 
 Deno.test('거부 3: 커플로 연결된 계정 (user_b 채워진 행)', async () => {
-  const f = fake({ couples: [{ id: COUPLE, user_b_id: 'partner-id' }] })
+  const f = fake({ couples: [{ id: COUPLE, user_a_id: USER, user_b_id: 'partner-id' }] })
   const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true })
   eq(r.kind, 'refused', 'kind')
   assert(!f.calls.some(DELETING), 'no delete')
@@ -192,4 +195,167 @@ Deno.test('74-h2 ④: 서비스 키이거나 다른 실패면 안내 줄이 없�
   eq(failureLines(new Error(LOOKUP_FAILED_MESSAGE), jwtWithRole('service_role')).length, 1, 'service key')
   eq(failureLines(new Error('couples 조회 실패'), jwtWithRole('anon')).length, 1, 'other failure')
   eq(failureLines('not an error', jwtWithRole('anon')).length, 1, 'non-error')
+})
+
+// ── 74-h3 시험 커플 모드 (R81-1) ───────────────────────────────────────────────────────────────────
+const EMAIL_B = 'partner@example.com'
+const USER_B = 'user-id-3333'
+const PAIR: CoupleLite = { id: COUPLE, user_a_id: USER, user_b_id: USER_B }
+
+function fakeCouple(
+  opts: { users?: Record<string, string[]>; couples?: Record<string, CoupleLite[]>; published?: boolean; issues?: number } = {},
+): Fake {
+  const calls: string[] = []
+  const users = opts.users ?? { [EMAIL]: [USER], [EMAIL_B]: [USER_B] }
+  const couples = opts.couples ?? { [USER]: [PAIR], [USER_B]: [PAIR] }
+  const port: ResetPort = {
+    findUserIds: (e) => {
+      calls.push('findUserIds')
+      return Promise.resolve(users[e] ?? [])
+    },
+    listCouples: (u) => Promise.resolve(couples[u] ?? []),
+    hasPublishedIssue: () => Promise.resolve(opts.published ?? false),
+    count: (table) => Promise.resolve(table === 'issues' ? (opts.issues ?? 0) : table === 'data_entries' ? 3 : 1),
+    countFiles: (bucket) => Promise.resolve(bucket === 'entries' ? 4 : bucket === 'magazine' ? 2 : bucket === 'magazine-print' ? 1 : 0),
+    removeFiles: (bucket, prefix) => {
+      calls.push(`removeFiles:${bucket}:${prefix}`)
+      return Promise.resolve(0)
+    },
+    deleteRows: (table) => {
+      calls.push(`deleteRows:${table}`)
+      return Promise.resolve()
+    },
+    deleteUser: (u) => {
+      calls.push(`deleteUser:${u}`)
+      return Promise.resolve()
+    },
+    withdrawalStartedAt: () => Promise.resolve(null),
+  }
+  return { port, calls }
+}
+
+const C_DELETING = (c: string) => c.startsWith('removeFiles') || c.startsWith('deleteRows') || c.startsWith('deleteUser')
+const coupleArgs = (o: { apply?: boolean; withIssues?: boolean } = {}) => ({
+  emails: [EMAIL, EMAIL_B] as const,
+  apply: o.apply ?? true,
+  withIssues: o.withIssues ?? false,
+})
+
+async function expectRefused(f: Fake, args = coupleArgs()): Promise<void> {
+  const r = await runCoupleReset(() => Promise.resolve(f.port), args)
+  eq(r.kind, 'refused', 'kind')
+  eq(r.lines.length, 1, 'one line')
+  assert(!f.calls.some(C_DELETING), 'no delete')
+}
+
+Deno.test('74-h3 거부: 개발 프로젝트가 아니면 접속 단계에서 멈춘다', async () => {
+  const r = await runCoupleReset(() => Promise.reject(new OpsStopError('x')), coupleArgs())
+  eq(r.kind, 'refused', 'kind')
+  eq(r.lines.length, 1, 'one line')
+})
+
+Deno.test('74-h3 거부: 이메일에 걸리는 사용자가 정확히 2명이 아님 (0명 · 한쪽 2명 · 같은 사람)', async () => {
+  for (const users of [
+    { [EMAIL]: [USER], [EMAIL_B]: [] },
+    { [EMAIL]: [USER, 'x'], [EMAIL_B]: [USER_B] },
+    { [EMAIL]: [USER], [EMAIL_B]: [USER] },
+  ]) {
+    await expectRefused(fakeCouple({ users }))
+  }
+})
+
+Deno.test('74-h3 거부: 어느 한쪽이 다른 상대와 연결됨', async () => {
+  const other: CoupleLite = { id: 'couple-other', user_a_id: USER_B, user_b_id: 'third-person' }
+  await expectRefused(fakeCouple({ couples: { [USER]: [PAIR], [USER_B]: [PAIR, other] } }))
+})
+
+Deno.test('74-h3 거부: 두 사람이 같은 커플이 아님 (각자 혼자 초대 행만)', async () => {
+  const a: CoupleLite = { id: 'c-a', user_a_id: USER, user_b_id: null }
+  const b: CoupleLite = { id: 'c-b', user_a_id: USER_B, user_b_id: null }
+  await expectRefused(fakeCouple({ couples: { [USER]: [a], [USER_B]: [b] } }))
+})
+
+Deno.test('74-h3 거부: 발행 호가 있고 --with-issues 가 없음 (미리 보기 · apply 모두)', async () => {
+  for (const apply of [false, true]) await expectRefused(fakeCouple({ published: true, issues: 1 }), coupleArgs({ apply }))
+})
+
+Deno.test('74-h3 미리 보기: 지우지 않고 호 수 · 매거진 파일 수를 낸다', async () => {
+  const f = fakeCouple({ published: true, issues: 2 })
+  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ apply: false, withIssues: true }))
+  eq(r.kind, 'previewed', 'kind')
+  assert(!f.calls.some(C_DELETING), 'no delete')
+  assert(r.lines.includes('발행 호 있음: 예'), 'published line')
+  assert(r.lines.includes('호(issues): 2'), 'issue count')
+  assert(r.lines.includes('매거진 파일(magazine · magazine-print): 3'), 'magazine files')
+  assert(r.lines.includes('auth 사용자: 2'), 'two users')
+  assert(r.lines.includes('Storage: 7'), 'storage total')
+})
+
+Deno.test('74-h3 --apply (발행 호 없음): Storage -> 커플 행 -> 두 사용자, issues 직접 삭제 없음', async () => {
+  const f = fakeCouple()
+  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs())
+  eq(r.kind, 'applied', 'kind')
+  eq(
+    f.calls.filter(C_DELETING),
+    [
+      ...COUPLE_BUCKETS.map((b) => `removeFiles:${b}:${COUPLE}`),
+      `removeFiles:avatars:${USER}`,
+      `removeFiles:avatars:${USER_B}`,
+      'deleteRows:couples',
+      `deleteUser:${USER}`,
+      `deleteUser:${USER_B}`,
+    ],
+    'order',
+  )
+})
+
+Deno.test('74-h3 --with-issues --apply: 매거진 파일 포함 Storage -> issues -> 커플 행 -> 두 사용자', async () => {
+  const f = fakeCouple({ published: true, issues: 1 })
+  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ withIssues: true }))
+  eq(r.kind, 'applied', 'kind')
+  const del = f.calls.filter(C_DELETING)
+  for (const b of MAGAZINE_BUCKETS) assert(del.includes(`removeFiles:${b}:${COUPLE}`), `magazine bucket ${b}`)
+  eq(del.slice(-4), ['deleteRows:issues', 'deleteRows:couples', `deleteUser:${USER}`, `deleteUser:${USER_B}`], 'tail order')
+  assert(del.indexOf('deleteRows:issues') > del.lastIndexOf(`removeFiles:avatars:${USER_B}`), 'storage first')
+})
+
+Deno.test('74-h3 서로가 유일한 상대면 혼자 초대 행도 함께 지운다', async () => {
+  const solo: CoupleLite = { id: 'c-solo', user_a_id: USER, user_b_id: null }
+  const f = fakeCouple({ couples: { [USER]: [PAIR, solo], [USER_B]: [PAIR] } })
+  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs())
+  eq(r.kind, 'applied', 'kind')
+  assert(r.lines.includes('couples: 2'), 'two couple rows')
+  assert(f.calls.includes('removeFiles:entries:c-solo'), 'solo storage')
+})
+
+Deno.test('74-h3 출력에 이메일 · id 가 없다', async () => {
+  for (const apply of [false, true]) {
+    const f = fakeCouple({ published: true, issues: 1 })
+    const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ apply, withIssues: true }))
+    const text = r.lines.join('\n')
+    for (const secret of [EMAIL, EMAIL_B, 'example.com', USER, USER_B, COUPLE]) assert(!text.includes(secret), `leak: ${secret}`)
+    assert(!text.includes('demo_responses'), 'demo_responses')
+  }
+})
+
+Deno.test('74-h3 인자 읽기: 이메일 1개는 단독 모드 그대로, 2개는 커플 모드', () => {
+  eq(parseAnyResetArgs([EMAIL]), { mode: 'single', args: { email: EMAIL, apply: false } }, 'single')
+  eq(parseAnyResetArgs([EMAIL, '--apply']), { mode: 'single', args: { email: EMAIL, apply: true } }, 'single apply')
+  eq(parseAnyResetArgs([EMAIL, EMAIL_B]), { mode: 'couple', args: { emails: [EMAIL, EMAIL_B], apply: false, withIssues: false } }, 'couple')
+  eq(
+    parseAnyResetArgs([EMAIL, EMAIL_B, '--with-issues', '--apply']),
+    { mode: 'couple', args: { emails: [EMAIL, EMAIL_B], apply: true, withIssues: true } },
+    'couple flags',
+  )
+  for (const bad of [[EMAIL, '--with-issues'], [EMAIL, 'noemail'], [EMAIL, EMAIL.toUpperCase()], [EMAIL, EMAIL_B, '--force'], [EMAIL, EMAIL_B, 'c@x.y']]) {
+    let threw = false
+    try {
+      parseAnyResetArgs(bad)
+    } catch (e) {
+      threw = true
+      const m = String((e as Error).message)
+      assert(!m.includes('noemail') && !m.includes('example.com'), 'message leaks arg')
+    }
+    assert(threw, `should throw: ${bad.join(' ')}`)
+  }
 })
