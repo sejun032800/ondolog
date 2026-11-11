@@ -5,3 +5,5 @@
 playwright==1.64.0
 beautifulsoup4==4.15.0
 pypdf==6.21.2
+# Pillow: 지면 사진을 칸 크기 x 디지털 DPI로 줄이고 메타데이터를 지운다(74-h5b, R86-1 - 허가된 새 패키지 하나, 정확한 버전 고정).
+pillow==12.3.0

@@ -50,6 +50,7 @@ from page_audit import (  # noqa: E402
     audit_page, compare_with_design, design_audit_js, mark_original_overset, original_clipped, original_overset, recorded_clipped,
 )
 from slot_fill import fill  # noqa: E402
+from photo_fit import PhotoFitError, fit_photo, load_config as load_render_config, metadata_found, summarize  # noqa: E402
 
 from bs4 import BeautifulSoup  # noqa: E402
 
@@ -64,9 +65,16 @@ ASSETS = ('base.css', 'themes', 'fonts')  # 작업 폴더로 복사하는 것 - 
 SAMPLE_MARK = 'images/sample'
 OUT_ROOT = HERE / 'out'
 
-# 설정값 - 하드코딩이 아니라 인수로 바꿀 수 있다(CLAUDE.md: PDF 프로필 config화는 M4-3, 여기는 digital 하나)
-IMAGE_WIDTH_PX = 1170
-JPEG_QUALITY = 85
+# 설정값 - 렌더 설정 파일 하나(`render/render_config.json`, R86-2)에서 읽는다. 디지털 DPI만은 `app_config.pdf_profiles.digital.dpi`(R86-1)
+try:
+    CONFIG = load_render_config()
+except PhotoFitError as _e:
+    raise SystemExit(f'멈춤: {_e}') from None
+IMAGE_WIDTH_PX = int(CONFIG['pageImageWidthPx'])
+JPEG_QUALITY = int(CONFIG['pageImageJpegQuality'])
+PHOTO_JPEG_QUALITY = int(CONFIG['photoJpegQuality'])
+DIGITAL_PDF_MAX_MB = float(CONFIG['digitalPdfMaxMb'])
+MB = 1024 * 1024
 A4_WIDTH_CSS_PX = 210 / 25.4 * 96
 VIEWPORT = {'width': 794, 'height': 1123}
 
@@ -106,6 +114,26 @@ def assert_development_project(url: str, linked_json: Optional[str]) -> str:
 
 def has_test_mark(name: Optional[str]) -> bool:
     return isinstance(name, str) and TEST_MARK in name.lower()
+
+
+UUID_RE = re.compile(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')
+
+
+def storage_error_summary(body: bytes) -> str:
+    """Storage 오류 응답 본문 -> `code=… error=… message=…`(짧게). 주소 · id는 지운다. 본문이 JSON이 아니면 `본문 해석 불가`."""
+    try:
+        data = json.loads(body.decode('utf-8', 'replace'))
+    except ValueError:
+        return '본문 해석 불가'
+    if not isinstance(data, dict):
+        return '본문 해석 불가'
+    parts = []
+    for key in ('statusCode', 'error', 'message'):
+        v = data.get(key)
+        if v is not None:
+            text = re.sub(r'https?://\S+', '[주소]', UUID_RE.sub('[id]', str(v)))
+            parts.append(f"{'code' if key == 'statusCode' else key}={text[:80]}")
+    return ' '.join(parts) or '본문 해석 불가'
 
 
 def redact(text: str, secrets: list[str]) -> str:
@@ -167,12 +195,13 @@ class Api:
         raise RuntimeError(f'storage 내려받기 실패 (HTTP {status})')
 
     def storage_put(self, bucket: str, path: str, content: bytes, content_type: str) -> None:
-        status, _ = self._request(
+        status, body = self._request(
             'POST', f'/storage/v1/object/{bucket}/{urllib.parse.quote(path)}', content,
             {'Content-Type': content_type, 'x-upsert': 'true'},
         )
         if status not in (200, 201):
-            raise RuntimeError(f'storage 올리기 실패 (HTTP {status}) {path}')
+            # 74-h5b ⑤: 응답 본문의 오류 분류만 남긴다. 경로 대신 파일 이름(마지막 조각)만 - 커플 · 호 id가 들어가지 않는다
+            raise StopError(f'storage 올리기 실패 (HTTP {status}, {storage_error_summary(body)}) {path.rsplit("/", 1)[-1]}')
 
     def storage_list(self, bucket: str, prefix: str) -> list[str]:
         status, data = self._request(
@@ -509,6 +538,98 @@ def build_pages(composition: Composition, templates: dict[str, str], work: Path,
 
 
 # ---------------------------------------------------------------------------
+# 사진 맞춤 (74-h5b) - 칸 크기 × 디지털 DPI · 메타데이터 0
+# ---------------------------------------------------------------------------
+
+def read_digital_dpi(api: Any) -> float:
+    """`app_config.pdf_profiles.digital.dpi`를 읽기만 한다(R86-1). 읽지 못하거나 양수가 아니면 멈춘다 - 기본값으로 메우지 않는다.
+    인쇄용(`print`) 값은 읽지 않는다 - 이 렌더는 디지털 하나다."""
+    try:
+        rows = api.select('app_config', 'select=value&key=eq.pdf_profiles')
+    except RuntimeError as e:
+        raise StopError(f'디지털 DPI를 읽지 못했다 - app_config 조회 실패 ({e})') from None
+    value = rows[0].get('value') if rows and isinstance(rows[0], dict) else None
+    digital = value.get('digital') if isinstance(value, dict) else None
+    dpi = digital.get('dpi') if isinstance(digital, dict) else None
+    if isinstance(dpi, bool) or not isinstance(dpi, (int, float)) or dpi <= 0:
+        raise StopError(f'디지털 DPI를 읽지 못했다 - app_config.pdf_profiles.digital.dpi가 양수가 아니다 ({dpi!r})')
+    return float(dpi)
+
+
+IMG_BOX_JS = r"""
+() => Array.from(document.querySelectorAll('img')).map((img) => {
+  const r = img.getBoundingClientRect();
+  return {src: img.getAttribute('src') || '', w: r.width, h: r.height, fit: getComputedStyle(img).objectFit};
+})
+"""
+IMG_SRC_RE = re.compile(r'(<img\b[^>]*\bsrc=")([^"]*)(")')
+
+
+def fit_photos(page_files: list[Path], work: Path, dpi: float, quality: int = PHOTO_JPEG_QUALITY) -> dict[str, Any]:
+    """지면마다 사진이 놓이는 칸을 재고(Chromium, 렌더와 같은 뷰포트), 칸마다 `칸 크기 × DPI`로 줄인 메타데이터 없는 JPEG를 만들어 그 지면의 `src`를 바꾼다.
+
+    같은 사진이 크기가 다른 칸(표지 · 히어로 · 썸네일)에 놓이면 칸마다 다른 파일이 된다(같은 크기면 한 파일). 다 바꾼 뒤 받아 둔 원본 파일은 지운다 -
+    PDF와 쪽 이미지에 원본(메타데이터 포함)이 들어갈 길이 남지 않는다. 결과: 보고용 숫자(파일 수 · 바이트 · 가장 큰 파일)."""
+    from playwright.sync_api import sync_playwright
+
+    photos = work / 'photos'
+    originals = {p.name for p in photos.iterdir() if p.is_file()}
+    made: dict[tuple, str] = {}
+    sizes: list[tuple] = []
+    slots = 0
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            page = browser.new_context(viewport=VIEWPORT).new_page()
+            for f in page_files:
+                page.goto(f.as_uri(), wait_until='networkidle')
+                boxes = page.evaluate(IMG_BOX_JS)
+                html = f.read_text(encoding='utf-8')
+                tags = list(IMG_SRC_RE.finditer(html))
+                if [m.group(2) for m in tags] != [b['src'] for b in boxes]:
+                    raise StopError(f'지면의 사진 칸을 HTML과 맞출 수 없다 ({f.name})')
+                new_srcs = []
+                for b in boxes:
+                    name = b['src'].rsplit('/', 1)[-1]
+                    if not b['src'].startswith('../photos/') or name not in originals:
+                        raise StopError(f'채운 지면의 이미지 경로가 작업 폴더의 사진이 아니다 ({f.name}: {b["src"]})')
+                    try:
+                        data, (w, h) = fit_photo((photos / name).read_bytes(), (b['w'], b['h']), dpi, quality, b['fit'])
+                    except PhotoFitError as e:
+                        raise StopError(f'사진을 지면에 맞출 수 없다 ({f.name}: {e})') from None
+                    if metadata_found(data):
+                        raise StopError(f'줄인 사진에 메타데이터가 남았다 ({f.name}: {metadata_found(data)})')
+                    key = (name, w, h)
+                    if key not in made:
+                        made[key] = ascii_name(f'{name.rsplit(".", 1)[0]}-fit-{w}x{h}.jpg')
+                        (photos / made[key]).write_bytes(data)
+                        sizes.append((w, h, len(data)))
+                    new_srcs.append(f'../photos/{made[key]}')
+                    slots += 1
+                it = iter(new_srcs)
+                f.write_text(IMG_SRC_RE.sub(lambda m: m.group(1) + next(it) + m.group(3), html), encoding='utf-8', newline='\n')
+        finally:
+            browser.close()
+    for name in originals:
+        (photos / name).unlink()
+    return {'dpi': dpi, 'quality': quality, 'slots': slots, 'summary': summarize(sizes)}
+
+
+def size_report(pdf: bytes, images: list[bytes], photo_report: dict[str, Any]) -> dict[str, Any]:
+    """크기 보고(R85-3) - 디지털 PDF · 쪽 이미지 합계 · 가장 큰 쪽 이미지 · 줄인 사진. 숫자만(이름 · id 없음)."""
+    page_sizes = [(*jpeg_size(b), len(b)) for b in images]
+    return {'pdfMb': round(len(pdf) / MB, 2), 'pdfLimitMb': DIGITAL_PDF_MAX_MB,
+            'pageImages': summarize(page_sizes), 'photos': photo_report}
+
+
+def assert_pdf_within_limit(pdf: bytes, limit_mb: float = DIGITAL_PDF_MAX_MB) -> None:
+    """호 단위 검사(74-h5b ④) - 디지털 PDF가 한도를 넘으면 업로드 전에 멈춘다."""
+    size_mb = len(pdf) / MB
+    if size_mb > limit_mb:
+        raise StopError(f'디지털 PDF가 크기 한도를 넘는다 ({size_mb:.2f}MB > 한도 {limit_mb:g}MB) - 올리지 않는다')
+
+
+# ---------------------------------------------------------------------------
 # 렌더 (Playwright)
 # ---------------------------------------------------------------------------
 
@@ -644,6 +765,7 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
     corners = api.select('corners', f'select=*&issue_id=eq.{issue_id}&order=seq.asc')
     if not any(c.get('status') == 'ready' for c in corners):
         raise StopError(f'ready 코너가 없어 지면을 만들지 않는다 ({issue_id})')
+    dpi = read_digital_dpi(api)   # 74-h5b - 읽지 못하면 여기서 멈춘다(작업 폴더를 만들기 전)
 
     try:
         composition = compose_issue(issue, couple, couple_names(api, couple), corners, collect_materials(api, issue, couple))
@@ -656,6 +778,7 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
     templates = load_templates()
     settle_cover(composition, templates, work, say)
     files = build_pages(composition, templates, work, issue, lambda dest: api.storage_get(MAGAZINE_BUCKET, dest))
+    photo_report = fit_photos(files, work, dpi)
 
     results = render_pages(files, image_width, jpeg_quality)
     pdf, page_counts = merge_pdf([r['pdf'] for r in results])
@@ -686,6 +809,9 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
         'issueId': issue_id, 'report': composition.report, 'sentences': composition.sentences,
         'shownPhotos': composition.shown_photos,
     }, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    sizes = size_report(pdf, images, photo_report)
+    say(json.dumps({'sizes': sizes}, ensure_ascii=False))
+    assert_pdf_within_limit(pdf)   # 74-h5b ④ - 업로드 전에 멈춘다(로컬 산출물은 위에 남아 운영자가 본다)
 
     # 업로드 - 먼저 세 필드를 비운다(중간에 멎어도 낡은 값이 남지 않는다)
     folder = f"{issue['couple_id']}/{issue_id}/render"
@@ -718,6 +844,7 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
                     # R84-1 · R84-2 - 숫자만(날짜 · id · 파일 이름 없음): 뺀 기사 수 · 대표 사진을 대체 규칙으로 정한 기사 수
                     'droppedArticles': composition.report['droppedArticles'],
                     'heroFallbackArticles': composition.report['heroFallbackArticles']},
+        'sizes': sizes,
         'bucketPaths': [f'{folder}/{pdf_name}'] + [f'{folder}/{n}' for n in image_names],
         'issuesFields': {k: updated[0][k] for k in ('pdf_digital_path', 'page_count', 'cover_path')},
     }

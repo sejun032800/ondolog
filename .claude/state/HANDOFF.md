@@ -35,7 +35,45 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 
 | 74-h5 렌더 대표 사진 대체 · 사진 없는 기사 빼기 | 완료 (미커밋) | 아래 "74-h5 커밋 명령"의 파일 목록. 범위: `render/` Python과 시험만. 마이그레이션 0 · 원격 0 · 새 패키지 0 · `supabase/` · `src/` · `web/` · RN · 보호 파일 변경 0 · 생성 재실행 0 · LLM 0 |
 
+| 74-h5b 렌더 사진 크기 · 메타데이터 · PDF 한도 | 완료 (미커밋) | 아래 "74-h5b 커밋 명령"의 파일 목록. 범위: `render/` Python · 설정 파일 · 시험 + Pillow 1개(R86-1). 마이그레이션 0 · 버킷 설정 0 · 원격 쓰기 0(11-11 로컬 조판은 읽기만) · `supabase/` · `src/` · `web/` · RN · 보호 파일 변경 0 · 생성 재실행 0 · LLM 0 |
+
 시작 지점: 커밋 `17222d1`(작업 트리 깨끗, ROADMAP `2026-11-09-r75`, PM 지시서 · 두 프롬프트 커밋됨 확인).
+
+### 74-h5b 결정 기록 (메인 세션, 2026-11-11, 위임문 `74-h5b-dispatch-render-photo-size.md` · R85-2 · R85-3 · R86-1 · R86-2)
+
+| 결정 | 출처 |
+|---|---|
+| 이미지 처리 라이브러리가 렌더 환경에 없어 한 번 멈춤 → Pillow **12.3.0** 하나를 `render/requirements.txt` · `render/.venv`에 정확히 고정. 이유: 줄이기 · EXIF 방향 · 색 프로필 변환(littlecms 포함) · 메타데이터 없이 다시 저장을 표준 방식으로 하고, 결과를 시험으로 단언할 수 있다. 13.0.0은 나온 지 오래되지 않았을 수 있어 그 앞 판(Python 3.11 지원) | R86-1 |
+| 사진은 **놓이는 칸 크기 × 디지털 DPI**로 줄인다. 칸 크기는 렌더와 같은 뷰포트의 Chromium에서 `<img>`마다 잰다(CSS px, 1in = 96px). `object-fit` cover는 큰 배율, contain은 작은 배율. 원본이 더 작으면 키우지 않는다. 같은 사진이 크기가 다른 칸에 놓이면 칸마다 다른 파일. 다 바꾼 뒤 받아 둔 원본은 작업 폴더에서 지운다 | MASTER 9-5 이중 렌더링 `digital` · PDF 화질 방어 |
+| DPI는 `app_config.pdf_profiles.digital.dpi`를 읽기만(`read_digital_dpi`). 못 읽거나 양수가 아니면 작업 폴더를 만들기 전에 멈춘다. `print` 값은 읽지 않는다 | R86-1 · SCHEMA 9-C-5("dpi는 리샘플링 기준으로 실제로 소비하는지 확인") |
+| 다시 압축은 JPEG, 품질 **85** = 쪽 이미지와 같은 값(이미 쓰던 품질 - 화면 열람에 충분하고 새 값을 지어내지 않는다). EXIF 방향을 픽셀에 반영한 뒤 **픽셀만 새 이미지로 옮겨** 저장 - EXIF · GPS · XMP · ICC · IPTC · 주석을 쓰지 않는다. 색 프로필이 있으면 sRGB로 바꾼 뒤 뺀다(프로필만 빼면 넓은 색역 사진의 색이 바랜다). 결과마다 표지 검사(`metadata_found`)로 남은 것이 있으면 멈춘다 | R85-2 · R76-4 |
+| 설정 파일 하나 `render/render_config.json`: 쪽 이미지 1170px · 쪽 이미지 품질 85(기존 값 그대로 → 동작 변화 0) · 사진 품질 85 · 디지털 PDF 한도 30MB. 값이 빠지거나 양수가 아니면 멈춘다(기본값으로 메우지 않음) | R86-2 |
+| 호 단위 검사 추가: 디지털 PDF가 한도를 넘으면 **업로드 전에** 멈춘다(문구에 실제 크기 · 한도 MB, 1MB = 1024², 로컬 산출물은 남김). 업로드 실패는 응답 본문의 `code · error · message`만 짧게(주소 · id 지움), 경로 대신 파일 이름만. 예외 종류가 RuntimeError → StopError(종료 코드 2 + 멈춤 문구) | 위임문 §1 ④ ⑤ |
+| 쪽 이미지는 지금처럼 Chromium 스크린샷(가로 1170px ≈ 141DPI, A4 폭 기준)이라 DPI 설정과 따로다 - 값은 바꾸지 않았다. 스크린샷 JPEG에 메타데이터 0(시험) | 위임문 §1 ③ · R86-2 |
+| 인쇄용 프로필: 저장소에 인쇄용 렌더 경로가 없다(`render/`에 `print` 프로필 코드 0). 줄인 사진은 디지털 렌더 작업 폴더에만 있어 인쇄용이 축소본을 쓰는 경로가 생기지 않는다 | 위임문 §1 ⑥ |
+| `render/local_volumes.py`(로컬 시험 권, 원격 없음)는 사진 맞춤을 거치지 않는다 - DPI를 DB에서 읽는 경로라 손대지 않았다. 지면 구조 시험용이라 영향 없음 | 범위 |
+
+### 74-h5b 커밋 명령 (Proteur, 74-h5b 뒤)
+
+**저장소 맨 위 폴더에서 친다.** 한 줄씩:
+
+```
+git add render/requirements.txt
+git add render/render_config.json
+git add render/photo_fit.py
+git add render/render_issue.py
+git add render/tests/test_render_issue.py
+git add render/tests/test_h5b_photo.py
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "74-h5b render: fit page photos to slot size x digital dpi, strip all photo metadata, stop before upload over the pdf size limit, summarize storage errors"
+```
+
+다른 PC에서 렌더하려면 커밋 뒤 한 번: `render/.venv/Scripts/python.exe -m pip install -r render/requirements.txt`
+
+### 74-h5b 다음 실행 (커밋 뒤 Proteur가 따로 지시할 때만 - R53-6 · R84-7, 위임문 §5)
+
+"74-h5 다음 실행"과 같은 명령(11-11 초안 `render_issue.py` → 성공하면 `publishIssueCli.ts`). 렌더 출력의 `sizes`(PDF MB · 쪽 이미지 · 사진)를 보고에 더한다. 크기 한도를 넘으면 업로드 전에 멈춘다.
 
 ### 74-h5 결정 기록 (메인 세션, 2026-11-11, 위임문 `74-h5-dispatch-render-hero.md` · R84-1~4)
 

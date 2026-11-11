@@ -85,7 +85,9 @@ class WholeApi(FakeApi):
     def __init__(self, scenario, issue=None):
         issue = issue or {**fx.ISSUE_ROW, 'published_at': None}
         super().__init__({'issues': [issue], 'couples': [{**fx.COUPLE_ROW, 'magazine_theme': scenario['theme'], 'subscription_tier': 'free'}],
-                          'corners': scenario['corners'], 'profiles': [{'display_name': fx.A}]})
+                          'corners': scenario['corners'], 'profiles': [{'display_name': fx.A}],
+                          # 74-h5b - 렌더가 디지털 DPI를 읽는다(010 · 021 시드 값과 같은 모양)
+                          'app_config': [{'value': {'digital': {'dpi': 150}, 'print': {'dpi': 300, 'bleedMm': 3}}}]})
         self.puts, self.updates = [], []
 
     def select_all(self, table, query):
