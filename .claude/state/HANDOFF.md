@@ -168,10 +168,27 @@ deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functi
 ```
 deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일> --apply
 ```
+5. 커플 모드(시험 커플 두 계정을 함께 지움 — R81-1). 이메일 2개를 주면 커플 모드다:
 
+미리 보기(아무것도 지우지 않음):
+
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <이메일1> <이메일2>
+
+
+실제 삭제:
+
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <이메일1> <이메일2> --apply
+
+
+발행 호까지 지울 때(발행 호가 있으면 이 플래그 없이는 거부된다):
+
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <이메일1> <이메일2> --with-issues --apply
+
+
+잠금 메모: 실제 커플 시작 전 스크립트 잠금(R76-9 · R78-5)에 **커플 모드도 포함**한다.
 끝나면 **PowerShell 창을 닫는다**(창 안의 환경 변수에 키가 남아 있다).
 
-시험(원격 없음): `deno test --no-check --no-lock --unstable-sloppy-imports scripts/ops/resetTestAccountCheck.ts` (13개 통과)
+시험(원격 없음): `deno test --no-check --no-lock --unstable-sloppy-imports scripts/ops/resetTestAccountCheck.ts` (24개 통과)
 
 ### 누적 표 (묶음마다 자기 행을 더한다 — 74-8이 끝 보고로 묶는다)
 
