@@ -29,8 +29,8 @@ sys.dont_write_bytecode = True
 from romanize import romanize_place  # noqa: E402
 from facts import (  # noqa: E402  (호의 사실 - 지면의 수치 · 목록은 모두 여기서 한 번 계산한다. 아래 이름은 compose에서도 쓸 수 있게 다시 내보낸다)
     ARTICLE_PHOTOS, PHOTOS_PER_STOP, PLACES_CAP, UNNAMED_PLACE, FactsError, IssueFacts, article_photos, as_dict, as_list, build_facts,
-    caption_memo_count, first_photo_any, first_photo_path, is_blank, memo_notes, mmdd_dot, ratio_label, shown_photos_of_stop,
-    stop_photo_counts, ymd_dot,
+    caption_memo_count, first_photo_any, first_photo_path, has_photo, hero_photo_path, hero_stop_index, is_blank, memo_notes, mmdd_dot,
+    ratio_label, shown_photos_of_stop, stop_photo_counts, ymd_dot,
 )
 
 THEMES = ('basic', 'hip', 'neon', 'lovely', 'night', 'ondol')
@@ -334,7 +334,8 @@ class _Builder:
         self.start_month, self.start_day = int(start[5:7]), int(start[8:10])
         self.end_day = int(end[8:10])
         self.sentences: list = []
-        self.report: dict = {'decisions': []}
+        # 렌더 보고의 숫자(R84-1 · R84-2) - 날짜 · id · 파일 이름 없이 개수만
+        self.report: dict = {'decisions': [], 'droppedArticles': 0, 'heroFallbackArticles': 0}
         self.shown: list = []  # 지면에 실린 사진(날짜 아카이브 안), 지면 순서·중복 없음
         self.facts: Optional[IssueFacts] = None   # 호의 사실 - 데이트 아카이브가 없으면 None
 
@@ -385,6 +386,22 @@ class _Builder:
         featured = [i for i, a in enumerate(articles) if a.get('featured') is True]
         if len(featured) != 1:
             raise ComposeError(f'date_archive의 featured 기사가 정확히 1개가 아니다 ({len(featured)})')
+
+        # 임시 규칙 R84-2(디자인 v1.2.3의 글만 있는 기사 지면이 오면 그쪽이 우선한다): 사진이 하나도 없는 데이트는 기사에서 뺀다.
+        # 뺀 뒤의 content로 지면 · 목차 · 타임라인 · 합계 · 발행 노트를 모두 짠다 - 실린 기사만 센다(R50-4). 원본 content(DB 행)는 건드리지 않는다.
+        # 대표 기사(featured)는 빼지 않는다 - 사진 없는 대표 기사는 기존 type-only 오프너로 싣는다(README §10 · `opener_type_only_scenario`).
+        # 그래서 대표 기사가 늘 남고, 데이트 아카이브 코너가 이 규칙 때문에 비는 일은 없다.
+        kept = [a for i, a in enumerate(articles) if i == featured[0] or has_photo(a)]
+        dropped = len(articles) - len(kept)
+        if dropped:
+            content = copy.deepcopy(content)
+            content['payload']['articles'] = copy.deepcopy(kept)
+            self.ready['date_archive'] = content
+            payload = content['payload']
+            articles = list(payload['articles'])
+            featured = [i for i, a in enumerate(articles) if a.get('featured') is True]
+            self.decide(f'사진이 없는 데이트 {dropped}편을 기사에서 뺐다 (임시 규칙 R84-2)')
+        self.report['droppedArticles'] = dropped
         fi = featured[0]
         art = articles[fi]
         self.da = {'articles': articles, 'fi': fi}
@@ -412,11 +429,9 @@ class _Builder:
             raise ComposeError(f"호 {self.issue.get('id')}: {e}") from None
         kept_stops = [s for p in tl_pages for s in p]
 
-        # 임시 규칙 R48-3 ①(디자인 v1.2.3 전까지): da-article 히어로는 첫 stop의 첫 사진 하나뿐이고 폴백이 없다 - 원천이 없으면 빈 틀을 싣지 않고 렌더를 멈춘다
-        for i, a in enumerate(articles):
-            if i != fi and first_photo_path(a) is None:
-                raise ComposeError(f"호 {self.issue.get('id')}: 데이트 아카이브 {i + 1}번째 기사({str(a.get('title') or '')[:20]})의 히어로 사진 원천이 없다 "
-                                   f'(첫 구간의 첫 사진 - 지면에 폴백이 없다. 디자인 v1.2.3 전 임시 규칙 R48-3 ①)')
+        # 히어로(R84-1, R48-3 ①을 바꿈): 대표 · 일반 기사 모두 사진이 있는 첫 구간의 첫 사진(`hero_photo_path`). 기사 하나 때문에 호를 멈추지 않는다(R84-3) -
+        # 사진 없는 일반 기사는 위에서 이미 빠졌다. 첫 구간에 사진이 없어 뒤 구간 사진을 쓴 기사 수만 보고한다.
+        self.report['heroFallbackArticles'] = sum(1 for a in articles if has_photo(a) and first_photo_path(a) is None)
 
         # 호의 사실 - 이 아래의 모든 수치 · 목록은 여기서 읽는다 (R50-2)
         sw_row = self.ready.get('sweet_words')
@@ -438,7 +453,7 @@ class _Builder:
                 self.show(p['path'])
         others = [(i, a) for i, a in enumerate(articles) if i != fi]
         for i, a in others:
-            self.show(first_photo_path(a))
+            self.show(hero_photo_path(a))
             for p in article_photos(a):
                 self.show(p['path'])
 
@@ -527,7 +542,12 @@ class _Builder:
         for i, a in others:
             v = view_copy()
             va = v['payload']['articles'][i]
-            years = self.end_year - int(str(a.get('dateOn') or '0000')[0:4]) if re.match(r'^\d{4}', str(a.get('dateOn') or '')) else 0
+            # 지면 HTML은 히어로를 `stops[0].photos[0].path`로 읽는다(R23-2 - 지면 구조는 고치지 않는다). 보기 사본에서만 히어로 구간을 맨 앞에 둔다.
+            # 이 지면에서 구간 목록을 읽는 칸은 히어로 하나뿐이다 - 경로 · 구간 수 · 사진 수는 호의 사실(원래 순서)에서 온다.
+            h = hero_stop_index(a)
+            if h:
+                va['stops'] = [va['stops'][h]] + [s for k, s in enumerate(va['stops']) if k != h]
+            years =self.end_year - int(str(a.get('dateOn') or '0000')[0:4]) if re.match(r'^\d{4}', str(a.get('dateOn') or '')) else 0
             # R26-4: anniversary만 "N년 전 이맘때". 나머지 사유는 빈 값(줄 삭제)
             va['recallReason'] = f'{years}년 전 이맘때' if (a.get('recalled') is True and a.get('recallReason') == 'anniversary' and years > 0) else None
             af = facts.article(i)

@@ -95,12 +95,35 @@ def place_label(stop: dict) -> str:
 
 
 def first_photo_path(article: dict) -> Optional[str]:
+    """첫 구간의 첫 사진(74-h5 전 히어로 규칙 R48-3 ①). 이제는 `hero_photo_path`가 히어로를 정하고, 이 값은 대체 규칙이 쓰였는지 세는 데만 쓴다."""
     stops = as_list(article.get('stops'))
     if stops and isinstance(stops[0], dict):
         photos = as_list(stops[0].get('photos'))
         if photos and isinstance(photos[0], dict) and isinstance(photos[0].get('path'), str):
             return photos[0]['path']
     return None
+
+
+def hero_stop_index(article: dict) -> Optional[int]:
+    """기사 히어로가 나오는 구간의 자리(R84-1) - 구간을 순서대로 보다가 사진이 있는 첫 구간. 사진이 하나도 없으면 None.
+
+    순서는 content의 구간 순서(seq) 그대로다. 앱이 seq를 도착 시각(날짜 포함) 순으로 매기고(`src/services/dateRecordApi.ts` `resequenceStops`),
+    생성도 seq로 정렬해 싣는다. 구간 시각(`time`, `HH:mm`)으로 다시 줄 세우지 않는다 - 자정을 넘긴 데이트에서 순서가 뒤집힌다. 시각이 없는 구간도 같은 규칙이다.
+    """
+    for i, stop in enumerate(as_list(article.get('stops'))):
+        if isinstance(stop, dict) and valid_photos(stop):
+            return i
+    return None
+
+
+def hero_photo_path(article: dict) -> Optional[str]:
+    """기사 히어로(R84-1) = 사진이 있는 첫 구간의 첫 사진 = 그 데이트 안 가장 이른 사진. 대표 기사 오프너 사진(`first_photo_any`)과 같은 사슬이다."""
+    i = hero_stop_index(article)
+    return None if i is None else valid_photos(as_list(article.get('stops'))[i])[0]['path']
+
+
+def has_photo(article: dict) -> bool:
+    return hero_stop_index(article) is not None
 
 
 def first_photo_any(article: dict) -> Optional[str]:
@@ -265,7 +288,7 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
             ai_shown = sum(1 for s in kept_stops if not is_blank(s.get('aiCaption')))
             timeline_shown = len(kept_paths)
         else:
-            hero = first_photo_path(a)
+            hero = hero_photo_path(a)
             shown_paths = _distinct(([hero] if hero else []) + [p['path'] for p in article_photos(a)])
             memos_shown = caption_memo_count([a])
             ai_shown = 0                     # 기사 지면은 AI 캡션을 싣지 않는다 (R48-3 ②)

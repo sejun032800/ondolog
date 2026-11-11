@@ -33,7 +33,52 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 
 | 74-h4 피드 사진 F1 · B1 | 완료 (미커밋, 폰 확인 대기) | 아래 "74-h4 커밋 명령"의 파일 목록. 범위: 피드 사진 입구(채팅과 같은 [앨범]/[카메라] 시트) · 고르는 단계에서 File 자체 읽기 + 앱 캐시 복사본 · 썸네일 / "다시 고르기" · 카메라 시각 · 시험 빌드 사진 진단. 마이그레이션 0 · `supabase/` 0 · 원격 쓰기 0(원격은 edge 로그 읽기 2회) · 새 패키지 0 · `web/android` · 루트 · RN 변경 0 |
 
+| 74-h5 렌더 대표 사진 대체 · 사진 없는 기사 빼기 | 완료 (미커밋) | 아래 "74-h5 커밋 명령"의 파일 목록. 범위: `render/` Python과 시험만. 마이그레이션 0 · 원격 0 · 새 패키지 0 · `supabase/` · `src/` · `web/` · RN · 보호 파일 변경 0 · 생성 재실행 0 · LLM 0 |
+
 시작 지점: 커밋 `17222d1`(작업 트리 깨끗, ROADMAP `2026-11-09-r75`, PM 지시서 · 두 프롬프트 커밋됨 확인).
+
+### 74-h5 결정 기록 (메인 세션, 2026-11-11, 위임문 `74-h5-dispatch-render-hero.md` · R84-1~4)
+
+| 결정 | 출처 |
+|---|---|
+| 기사 히어로 = 구간을 순서대로 보다가 사진이 있는 첫 구간의 첫 사진(`facts.hero_photo_path` · `hero_stop_index`). 대표 기사 오프너 사진(`first_photo_any`)과 같은 사슬이라 대표 · 일반 기사가 같은 규칙 | R84-1 |
+| "시간순" = content의 구간 순서(seq) 그대로. 앱이 seq를 도착 시각(날짜 포함) 순으로 매기고(`src/services/dateRecordApi.ts` `resequenceStops`), 생성도 seq로 정렬(`dateArchive.ts:179`). 구간 `time`(`HH:mm`)으로 다시 정렬하지 않는다 - 자정을 넘긴 데이트에서 뒤집힌다. 시각이 없는 구간도 같은 seq 규칙 | R84-1 |
+| MASTER 표지 대표 사진 규칙(§9-5 r64, 1758행: featured 첫 stop의 첫 사진 → 그 코너 전체의 첫 사진)과 방향이 같다 - 첫 구간에 없으면 멈추지 않고 뒤 사진으로 넘어간다. 표지 사슬(`_cover_photo_ref`)은 손대지 않았다 | R84-1 |
+| 지면 HTML은 히어로를 `stops[0].photos[0].path`로 읽는다(R23-2, 구조 변경 금지) → da-article **보기 사본에서만** 히어로 구간을 맨 앞에 둔다. 이 지면에서 구간 목록을 읽는 칸은 히어로 하나뿐이고 경로 · 구간 수 · 사진 수는 호의 사실(원래 순서)에서 온다 | R84-1 · R23-2 |
+| **임시 규칙**(디자인 v1.2.3의 글만 있는 기사 지면이 오면 그쪽 우선): 사진이 하나도 없는 데이트는 기사에서 뺀다(재소환 포함). 뺀 content로 지면 · 목차 · 타임라인 · 경로 · 합계 · 발행 노트를 모두 짠다 - 실린 기사만 센다. 빠진 날 · 메모는 발행 노트 "싣지 않은 것"(기사로 고르지 않은 날 · 기사에 담기지 않은 메모)으로 맞아떨어진다. DB 행은 건드리지 않는다 | R84-2 · R50-4 |
+| **대표 기사(featured)는 빼지 않는다** - 사진 없는 대표 기사는 기존 type-only 오프너로 싣는다(README §10, `opener_type_only_scenario`, 기존 시험 `test_featured_article_without_photos_is_not_affected`). 대표를 빼면 새 대표를 고르는 규칙이 문서에 없다. 그래서 대표가 늘 남아 "남는 기사 0"은 생기지 않는다 - 빈 코너 규칙(코너가 ready가 아니면 지면 · 목차에서 빠지고 발행 노트 "비어 있는 코너", `compose.py` `compose_issue` · `_note_values`)은 이 규칙으로는 닿지 않는다. 위임문 §2 "대표 기사가 위 모양일 때 같은 규칙" 중 '사진 0'만 이렇게 달리 했다 - PM 확인 항목 | R84-2 · README §10 |
+| R48-3 ① 멈춤 문구와 경로를 없앴다. 기사 하나로 호를 멈추지 않는다 | R84-3 |
+| 렌더 보고에 숫자만 둘: `droppedArticles`(뺀 기사 수) · `heroFallbackArticles`(첫 구간에 사진이 없어 뒤 구간 사진을 쓴 기사 수, 대표 기사 포함). compose.json `report`와 렌더 출력 `compose`에 든다. 날짜 · id · 파일 이름 0 | R84-1 · R84-2 |
+
+### 74-h5 커밋 명령 (Proteur, 74-h5 뒤)
+
+**저장소 맨 위 폴더에서 친다.** 한 줄씩:
+
+```
+git add render/compose.py
+git add render/facts.py
+git add render/render_issue.py
+git add render/tests/test_v122.py
+git add render/tests/test_h5_hero.py
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "74-h5 render: article hero falls back to the first stop with photos, leave photo-less dates out of the date archive, report counts only"
+```
+
+### 74-h5 다음 실행 (커밋 뒤 Proteur가 따로 지시할 때만 - R53-6 · R84-7, 위임문 §5)
+
+저장소 맨 위 폴더의 PowerShell에서. 키가 터미널에 없으면 먼저 두 줄(값이 화면에 찍히지 않는다):
+
+```
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+```
+
+1. 11-11 ready 초안을 **다시 렌더만** 한다(생성 재실행 0 · LLM 0). 호 id는 `scripts/ops/out/`의 11-11 생성 결과 파일 이름(`generate-<id>.json`)에서 읽고, 출력 파일 · 보고에 적지 않는다.
+   `render\.venv\Scripts\python.exe render\render_issue.py --issue-id <11-11 초안 id>`
+2. 렌더 보고: 성공/실패 · `compose.droppedArticles` · `compose.heroFallbackArticles` · `pageCount`
+3. 성공하면 발행: `deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net="<ref>.supabase.co" --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out scripts/ops/publishIssueCli.ts --issue-id <같은 id>` (`<ref>`는 `supabase/.temp/project-ref`, 출력에서 지운다)
+4. 보고: "발행됨 · 매거진 파일 수 N · 인쇄용 PDF 앱 노출 경로 0" - 렌더는 디지털 PDF + 쪽 이미지만 `magazine` 버킷 `render/`에 올린다(인쇄용 PDF를 만들지 않는다). 호 id · 커플 id · 주소 0
 
 ### 74-h4 결정 기록 (메인 세션 · ui-builder, 2026-11-11, 위임문 `74-h4-dispatch-feed-photo.md` · R82-1)
 

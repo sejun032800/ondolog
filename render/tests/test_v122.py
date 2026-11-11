@@ -467,21 +467,21 @@ def two_articles(second_stops, featured_stops=None):
 
 
 class R48Temporary(unittest.TestCase):
-    def test_hero_photo_source_missing_stops_the_render_with_a_reason(self):
-        # 첫 구간에 사진이 없다 - 뒤 구간에 사진이 있어도 지면의 히어로는 첫 구간의 첫 사진 하나뿐이라 원천이 없다
+    def test_first_stop_without_photos_takes_the_hero_from_the_next_stop(self):
+        # R84-1(R48-3 ①을 바꿈): 첫 구간에 사진이 없으면 사진이 있는 첫 구간의 첫 사진이 히어로다 - 렌더를 멈추지 않는다
         sc = two_articles([fx.stop(0, '13:00', 'B', [], [fx.memo('메모')], None), fx.stop(1, '15:00', 'C', [fx.photo('c0')], [], '캡션')])
-        with self.assertRaises(ComposeError) as ctx:
-            compose(sc)
-        msg = str(ctx.exception)
-        self.assertIn('히어로 사진 원천이 없다', msg)
-        self.assertIn('2번째 기사(둘째 기사)', msg)
-        self.assertIn(fx.ISSUE, msg)
+        comp = compose(sc)
+        html = filled(comp, 'da-article')
+        self.assertIn(fx.dest('c0').split('/')[-1], re.findall(r' src="([^"]+)"', html)[0])
+        self.assertEqual(comp.report['heroFallbackArticles'], 1)
 
-    def test_hero_photo_source_missing_also_fails_a_recalled_article_and_no_blank_frame_is_ever_made(self):
+    def test_article_without_any_photo_is_left_out_and_no_blank_frame_is_ever_made(self):
+        # R84-2: 사진이 하나도 없는 기사(재소환이어도)는 빈 틀로 싣지 않고 기사에서 뺀다
         sc = two_articles([fx.stop(0, '12:00', 'B', [], [], '캡션')])
         sc['corners'][0]['content']['payload']['articles'][1].update(recalled=True, recallReason='anniversary')
-        with self.assertRaises(ComposeError):
-            compose(sc)
+        comp = compose(sc)
+        self.assertEqual(len(pages(comp, 'da-article')), 0)
+        self.assertEqual(comp.report['droppedArticles'], 1)
 
     def test_featured_article_without_photos_is_not_affected(self):
         comp = compose(fx.opener_type_only_scenario())        # 대표 기사 사진 없음(type-only 오프너) - 히어로 규칙은 da-article에만 걸린다

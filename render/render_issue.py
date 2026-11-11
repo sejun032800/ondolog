@@ -714,7 +714,10 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
                   for i, (s, n, b) in enumerate(zip(composition.pages, image_names, images), 1)],
         'audit': {'file': str(out / 'audit.json'), 'totals': audit['totals'], 'designAuditSame': audit['designAuditSame']},
         'compose': {'file': str(out / 'compose.json'), 'sentences': composition.report['sentences'],
-                    'cover': composition.report['cover'], 'timelinePages': composition.report['timelinePages']},
+                    'cover': composition.report['cover'], 'timelinePages': composition.report['timelinePages'],
+                    # R84-1 · R84-2 - 숫자만(날짜 · id · 파일 이름 없음): 뺀 기사 수 · 대표 사진을 대체 규칙으로 정한 기사 수
+                    'droppedArticles': composition.report['droppedArticles'],
+                    'heroFallbackArticles': composition.report['heroFallbackArticles']},
         'bucketPaths': [f'{folder}/{pdf_name}'] + [f'{folder}/{n}' for n in image_names],
         'issuesFields': {k: updated[0][k] for k in ('pdf_digital_path', 'page_count', 'cover_path')},
     }
