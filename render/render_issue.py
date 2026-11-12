@@ -147,13 +147,33 @@ def redact(text: str, secrets: list[str]) -> str:
 # 저장소 접근 (REST - service_role, 개발 프로젝트)
 # ---------------------------------------------------------------------------
 
+NEW_KEY_PREFIX = 'sb_'
+
+
+def key_kind(key: str) -> str:
+    """키 형태 - 새 API 키(`sb_…`)면 `new`, 그 밖(legacy JWT `eyJ…`)은 `legacy`. 접두어로만 판정하고 값은 돌려주지 않는다(74-k1)."""
+    return 'new' if key.startswith(NEW_KEY_PREFIX) else 'legacy'
+
+
+def auth_headers(key: str) -> dict[str, str]:
+    """새 secret key(`sb_secret_…`)는 JWT가 아니라 `apikey` 헤더에만 싣는다 - `Authorization: Bearer`로 보내면 JWT로
+    해석돼 거부될 수 있다(Supabase API 키 마이그레이션 문서, R89-3). legacy JWT는 지금 방식 그대로 두 헤더에 싣는다."""
+    if key_kind(key) == 'new':
+        return {'apikey': key}
+    return {'apikey': key, 'Authorization': f'Bearer {key}'}
+
+
 class Api:
     def __init__(self, url: str, key: str) -> None:
         self.base = url.strip().rstrip('/')
         self.key = key
 
+    def failure_note(self, status: int) -> str:
+        """인증 거부(401 · 403)일 때만 붙이는 꼬리 - 키 형태(legacy / new)만 적고 키 글자는 0."""
+        return f', 키 형태: {key_kind(self.key)}' if status in (401, 403) else ''
+
     def _request(self, method: str, path: str, body: Optional[bytes] = None, headers: Optional[dict[str, str]] = None) -> tuple[int, bytes]:
-        h = {'apikey': self.key, 'Authorization': f'Bearer {self.key}'}
+        h = auth_headers(self.key)
         h.update(headers or {})
         req = urllib.request.Request(self.base + path, data=body, method=method, headers=h)
         try:
@@ -165,7 +185,7 @@ class Api:
     def select(self, table: str, query: str) -> list[dict[str, Any]]:
         status, data = self._request('GET', f'/rest/v1/{table}?{query}')
         if status != 200:
-            raise RuntimeError(f'{table} 조회 실패 (HTTP {status})')
+            raise RuntimeError(f'{table} 조회 실패 (HTTP {status}{self.failure_note(status)})')
         return json.loads(data)
 
     def select_all(self, table: str, query: str, page: int = 1000) -> list[dict[str, Any]]:
@@ -183,7 +203,7 @@ class Api:
             {'Content-Type': 'application/json', 'Prefer': 'return=representation'},
         )
         if status not in (200, 204):
-            raise RuntimeError(f'{table} 갱신 실패 (HTTP {status})')
+            raise RuntimeError(f'{table} 갱신 실패 (HTTP {status}{self.failure_note(status)})')
         return json.loads(data) if data else []
 
     def storage_get(self, bucket: str, path: str) -> Optional[bytes]:
@@ -192,7 +212,7 @@ class Api:
             return data
         if status in (400, 404):
             return None
-        raise RuntimeError(f'storage 내려받기 실패 (HTTP {status})')
+        raise RuntimeError(f'storage 내려받기 실패 (HTTP {status}{self.failure_note(status)})')
 
     def storage_put(self, bucket: str, path: str, content: bytes, content_type: str) -> None:
         status, body = self._request(
@@ -201,7 +221,7 @@ class Api:
         )
         if status not in (200, 201):
             # 74-h5b ⑤: 응답 본문의 오류 분류만 남긴다. 경로 대신 파일 이름(마지막 조각)만 - 커플 · 호 id가 들어가지 않는다
-            raise StopError(f'storage 올리기 실패 (HTTP {status}, {storage_error_summary(body)}) {path.rsplit("/", 1)[-1]}')
+            raise StopError(f'storage 올리기 실패 (HTTP {status}, {storage_error_summary(body)}{self.failure_note(status)}) {path.rsplit("/", 1)[-1]}')
 
     def storage_list(self, bucket: str, prefix: str) -> list[str]:
         status, data = self._request(
@@ -209,7 +229,7 @@ class Api:
             {'Content-Type': 'application/json'},
         )
         if status != 200:
-            raise RuntimeError(f'storage 목록 조회 실패 (HTTP {status})')
+            raise RuntimeError(f'storage 목록 조회 실패 (HTTP {status}{self.failure_note(status)})')
         return [f['name'] for f in json.loads(data)]
 
     def storage_remove(self, bucket: str, paths: list[str]) -> None:
@@ -220,7 +240,7 @@ class Api:
             {'Content-Type': 'application/json'},
         )
         if status != 200:
-            raise RuntimeError(f'storage 지우기 실패 (HTTP {status})')
+            raise RuntimeError(f'storage 지우기 실패 (HTTP {status}{self.failure_note(status)})')
 
 
 # ---------------------------------------------------------------------------

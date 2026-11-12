@@ -74,7 +74,7 @@ class SeedApi(r.Api):
         status, data = self._request('POST', f'/rest/v1/{table}', json.dumps(rows).encode(),
                                      {'Content-Type': 'application/json', 'Prefer': 'return=representation'})
         if status not in (200, 201):
-            raise RuntimeError(f'{table} 삽입 실패 (HTTP {status}): {data[:200]!r}')
+            raise RuntimeError(f'{table} 삽입 실패 (HTTP {status}{self.failure_note(status)}): {data[:200]!r}')
         return json.loads(data)
 
     def create_user(self, email: str) -> str:
@@ -89,7 +89,7 @@ class SeedApi(r.Api):
             for u in json.loads(data).get('users', []):
                 if u.get('email') == email:
                     return u['id']
-        raise RuntimeError(f'계정 생성 실패 ({email}, HTTP {status})')
+        raise RuntimeError(f'계정 생성 실패 ({email}, HTTP {status}{self.failure_note(status)})')
 
 
 # ---------------------------------------------------------------------------

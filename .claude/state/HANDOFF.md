@@ -37,7 +37,45 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 
 | 74-h5b 렌더 사진 크기 · 메타데이터 · PDF 한도 | 완료 (미커밋) | 아래 "74-h5b 커밋 명령"의 파일 목록. 범위: `render/` Python · 설정 파일 · 시험 + Pillow 1개(R86-1). 마이그레이션 0 · 버킷 설정 0 · 원격 쓰기 0(11-11 로컬 조판은 읽기만) · `supabase/` · `src/` · `web/` · RN · 보호 파일 변경 0 · 생성 재실행 0 · LLM 0 |
 
+| 74-k1 새 secret key 렌더 헤더 | 완료 (미커밋) | 아래 "74-k1 커밋 명령"의 파일 목록. 범위: `render/` Python과 시험 · scripts/ops는 확인만(변경 0). 마이그레이션 0 · 원격 0(읽기도 0) · 새 패키지 0 · `web/` · `supabase/` · 보호 파일 0 · 시험은 가짜 키로만 |
+
 시작 지점: 커밋 `17222d1`(작업 트리 깨끗, ROADMAP `2026-11-09-r75`, PM 지시서 · 두 프롬프트 커밋됨 확인).
+
+### 74-k1 결정 기록 (메인 세션, 2026-11-12, 위임문 `74-k1-dispatch-render-key-header.md` · R89-3 · R89-4)
+
+| 결정 | 출처 |
+|---|---|
+| render의 원격 요청은 모두 `render/render_issue.py`의 `Api._request` 한 곳을 지난다(REST 조회 · 갱신 · Storage 내려받기 · 올리기 · 목록 · 지우기, `seed_render_tests.py`의 `SeedApi` 삽입 · Auth 관리자 계정도 같은 길). 사용자 토큰을 쓰는 경로는 render에 없다 | §1 확인 |
+| 키가 `sb_`로 시작하면(새 API 키) `apikey` 헤더에만 싣고 `Authorization`은 보내지 않는다. 그 밖(legacy JWT `eyJ…`)은 지금 방식 그대로 `apikey` + `Authorization: Bearer <키>`. 판정은 접두어로만(`key_kind` · `auth_headers`) | R89-3 · Supabase API 키 마이그레이션 문서(새 키는 JWT가 아니라 `apikey` 헤더) |
+| 인증 거부(401 · 403)일 때만 오류 문구 끝에 `키 형태: legacy / new`를 붙인다. 키 · 접두어 뒤 글자는 어디에도 없다(시험) | 위임문 §2 ③ |
+| scripts/ops는 **변경 0**: 운영 경로 · 검증 스크립트 모두 `npm:@supabase/supabase-js@2.118.0`(루트 `node_modules`도 2.118.0)으로 `createClient(url, key)`만 쓰고 직접 쓴 인증 헤더 0. 이 판은 `sb_secret_` · `sb_publishable_`를 새 키로 인식한다(`dist/index.mjs`의 `isNewApiKey` · 형식 경고 대상 아님 · Edge Functions 요청엔 Bearer로 키를 싣지 않는 `omitApiKeyAsBearer`). REST · Storage · Auth 요청은 SDK가 키를 `apikey`와 `Authorization` 둘 다에 싣는다 - SDK가 정한 동작이라 판 올리기 없이 둔다. 운영 스크립트는 Edge Function을 부르지 않는다 | 위임문 §2 ② · supabase-js 2.118.0 소스(변경 기록 파일은 node_modules에 없음) |
+| 검증 스크립트(`verify*.ts`)의 공개 키 `ONDOLOG_SUPABASE_ANON_KEY`도 같은 `createClient` - publishable 키를 넣어도 같은 판정. 로그인 뒤 요청은 사용자 토큰이 Bearer | §1 확인 |
+| 환경 변수 이름은 그대로(`ONDOLOG_SUPABASE_SERVICE_ROLE_KEY`). 렌더 때와 운영 스크립트 때 넣는 키만 다르다(아래 표) | R89-4 |
+
+### 74-k1 키 넣는 안내 (Proteur - 교체 3단계 뒤부터)
+
+같은 변수 이름에 **실행하는 일에 맞는 키**를 보안 입력한다(`[Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password`). 값은 화면 · 파일 · 보고 어디에도 쓰지 않는다.
+
+| 실행하는 일 | 넣는 키 (secret key 이름) | 변수 이름 |
+|---|---|---|
+| 렌더 (`render/render_issue.py` · `render/seed_render_tests.py`) | `render_2026_11` | `ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` |
+| 운영 스크립트 - 초기화 (`resetTestAccount.ts`) · 생성 (`generateIssueCli.ts`) · 발행 (`publishIssueCli.ts`) · 검증 (`verify*.ts`) | `ops_2026_11` | `ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` |
+
+legacy 키(교체 7단계 전까지)를 넣어도 두 쪽 다 지금처럼 돈다. 렌더가 401 · 403으로 멈추면 문구의 `키 형태`로 어떤 형태를 넣었는지만 확인한다.
+
+### 74-k1 커밋 명령 (Proteur, 74-k1 뒤)
+
+**저장소 맨 위 폴더에서 친다.** 한 줄씩:
+
+```
+git add render/render_issue.py
+git add render/seed_render_tests.py
+git add render/tests/test_k1_key_header.py
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "74-k1 render: send new sb_ secret keys only in the apikey header, keep legacy jwt headers, report only the key kind on auth failures"
+```
+
 
 ### 74-h5b 결정 기록 (메인 세션, 2026-11-11, 위임문 `74-h5b-dispatch-render-photo-size.md` · R85-2 · R85-3 · R86-1 · R86-2)
 
