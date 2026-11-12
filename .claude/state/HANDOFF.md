@@ -39,6 +39,8 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 
 | 74-k1 새 secret key 렌더 헤더 | 완료 (미커밋) | 아래 "74-k1 커밋 명령"의 파일 목록. 범위: `render/` Python과 시험 · scripts/ops는 확인만(변경 0). 마이그레이션 0 · 원격 0(읽기도 0) · 새 패키지 0 · `web/` · `supabase/` · 보호 파일 0 · 시험은 가짜 키로만 |
 
+| 74-k2 키 교체 마무리 - HANDOFF 키 안내 정리 | 완료 (미커밋) | `.claude/state/HANDOFF.md` · `.claude/state/PROGRESS.md`. 범위: 아래 "키 넣는 안내" 갱신(legacy 비활성화 · JWT 비밀 폐기 · 목적별 secret 2 · `web/.env` 이름과 값) · 키 넣는 모든 안내 아래 `sb_secret_` 확인 줄 · 작업 끝 `False` 확인 줄 · legacy 전제 문장 표시. 코드 · `docs/` · 원격 0 |
+
 시작 지점: 커밋 `17222d1`(작업 트리 깨끗, ROADMAP `2026-11-09-r75`, PM 지시서 · 두 프롬프트 커밋됨 확인).
 
 ### 74-k1 결정 기록 (메인 세션, 2026-11-12, 위임문 `74-k1-dispatch-render-key-header.md` · R89-3 · R89-4)
@@ -46,22 +48,40 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 결정 | 출처 |
 |---|---|
 | render의 원격 요청은 모두 `render/render_issue.py`의 `Api._request` 한 곳을 지난다(REST 조회 · 갱신 · Storage 내려받기 · 올리기 · 목록 · 지우기, `seed_render_tests.py`의 `SeedApi` 삽입 · Auth 관리자 계정도 같은 길). 사용자 토큰을 쓰는 경로는 render에 없다 | §1 확인 |
-| 키가 `sb_`로 시작하면(새 API 키) `apikey` 헤더에만 싣고 `Authorization`은 보내지 않는다. 그 밖(legacy JWT `eyJ…`)은 지금 방식 그대로 `apikey` + `Authorization: Bearer <키>`. 판정은 접두어로만(`key_kind` · `auth_headers`) | R89-3 · Supabase API 키 마이그레이션 문서(새 키는 JWT가 아니라 `apikey` 헤더) |
+| 키가 `sb_`로 시작하면(새 API 키) `apikey` 헤더에만 싣고 `Authorization`은 보내지 않는다. 그 밖(legacy JWT 키)은 지금 방식 그대로 `apikey` + `Authorization: Bearer <키>`. 판정은 접두어로만(`key_kind` · `auth_headers`). **74-k2: legacy 키는 2026-11-12 비활성화 · JWT 비밀 폐기됨 - legacy 분기는 코드에 남아 있으나 쓰는 키는 새 키뿐** | R89-3 · Supabase API 키 마이그레이션 문서(새 키는 JWT가 아니라 `apikey` 헤더) |
 | 인증 거부(401 · 403)일 때만 오류 문구 끝에 `키 형태: legacy / new`를 붙인다. 키 · 접두어 뒤 글자는 어디에도 없다(시험) | 위임문 §2 ③ |
 | scripts/ops는 **변경 0**: 운영 경로 · 검증 스크립트 모두 `npm:@supabase/supabase-js@2.118.0`(루트 `node_modules`도 2.118.0)으로 `createClient(url, key)`만 쓰고 직접 쓴 인증 헤더 0. 이 판은 `sb_secret_` · `sb_publishable_`를 새 키로 인식한다(`dist/index.mjs`의 `isNewApiKey` · 형식 경고 대상 아님 · Edge Functions 요청엔 Bearer로 키를 싣지 않는 `omitApiKeyAsBearer`). REST · Storage · Auth 요청은 SDK가 키를 `apikey`와 `Authorization` 둘 다에 싣는다 - SDK가 정한 동작이라 판 올리기 없이 둔다. 운영 스크립트는 Edge Function을 부르지 않는다 | 위임문 §2 ② · supabase-js 2.118.0 소스(변경 기록 파일은 node_modules에 없음) |
-| 검증 스크립트(`verify*.ts`)의 공개 키 `ONDOLOG_SUPABASE_ANON_KEY`도 같은 `createClient` - publishable 키를 넣어도 같은 판정. 로그인 뒤 요청은 사용자 토큰이 Bearer | §1 확인 |
+| 검증 스크립트(`verify*.ts`)의 공개 키 `ONDOLOG_SUPABASE_ANON_KEY`도 같은 `createClient` - publishable 키를 넣어도 같은 판정. 로그인 뒤 요청은 사용자 토큰이 Bearer. **74-k2: legacy anon 키는 비활성화됨 - 이 변수에는 publishable만 넣는다** | §1 확인 |
 | 환경 변수 이름은 그대로(`ONDOLOG_SUPABASE_SERVICE_ROLE_KEY`). 렌더 때와 운영 스크립트 때 넣는 키만 다르다(아래 표) | R89-4 |
 
-### 74-k1 키 넣는 안내 (Proteur - 교체 3단계 뒤부터)
+### 키 넣는 안내 (Proteur) - 74-k2 갱신: 키 교체 완료 2026-11-12
 
-같은 변수 이름에 **실행하는 일에 맞는 키**를 보안 입력한다(`[Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password`). 값은 화면 · 파일 · 보고 어디에도 쓰지 않는다.
+**지금 상태**: legacy API 키(anon · service_role) **비활성화** · legacy JWT 비밀(HS256) **폐기됨(Revoked)**, 현재 서명 키는 ECC P-256. 쓰는 키는 새 키뿐이다 - publishable 1 · secret 2(`render_2026_11` · `ops_2026_11`). legacy 키를 넣으면 401 · 403으로 멈춘다(렌더 오류 문구 끝 `키 형태: legacy`). RN 동결 앱은 legacy를 끈 뒤 동작하지 않는다(R88-4 ①, 수용).
+
+같은 변수 이름에 **실행하는 일에 맞는 secret key**를 보안 입력한다(`[Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password`). 값은 화면 · 파일 · 보고 어디에도 쓰지 않는다.
 
 | 실행하는 일 | 넣는 키 (secret key 이름) | 변수 이름 |
 |---|---|---|
 | 렌더 (`render/render_issue.py` · `render/seed_render_tests.py`) | `render_2026_11` | `ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` |
 | 운영 스크립트 - 초기화 (`resetTestAccount.ts`) · 생성 (`generateIssueCli.ts`) · 발행 (`publishIssueCli.ts`) · 검증 (`verify*.ts`) | `ops_2026_11` | `ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` |
+| 검증 스크립트의 공개 키 | publishable | `ONDOLOG_SUPABASE_ANON_KEY` (이름은 그대로, 값은 publishable) |
+| 웹 앱 빌드 (`web/.env`, git 밖) | publishable | `VITE_SUPABASE_ANON_KEY` (**이름은 그대로, 값은 publishable**) |
 
-legacy 키(교체 7단계 전까지)를 넣어도 두 쪽 다 지금처럼 돈다. 렌더가 401 · 403으로 멈추면 문구의 `키 형태`로 어떤 형태를 넣었는지만 확인한다.
+- 실행 위치: deno · python 명령은 **저장소 맨 위 폴더**에서 친다(`O:\web`에서 실행해 `deno.json`을 못 찾은 일이 있었다).
+- 키를 넣은 바로 다음 줄에 **확인 줄**을 친다. `True`일 때만 진행한다(publishable을 넣으면 오류 없이 빈 결과만 나온다 - 74-s2에서 실제로 일어남):
+
+```
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+```
+
+- 렌더와 운영 스크립트 사이에 키를 바꿀 때는 키 줄과 확인 줄만 다시 친다(주소 · `$h`는 그대로).
+- 작업이 끝나면 **PowerShell 창을 닫고**, 새 창에서 아래가 `False`인지 확인한다:
+
+```
+[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY
+```
+
+- 키 · 주소는 **그 창의 환경 변수에만** 넣는다. 사용자 범위 · 시스템 범위에 영구 저장하지 않는다(`setx` · `[Environment]::SetEnvironmentVariable(..., 'User'/'Machine')` · 시스템 속성 화면 모두 금지, R87-6).
 
 ### 74-k1 커밋 명령 (Proteur, 74-k1 뒤)
 
@@ -148,13 +168,24 @@ git commit -m "74-h5 render: article hero falls back to the first stop with phot
 ```
 $env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
 $env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
 ```
+
+(74-k2: 키 줄에는 렌더용 `render_2026_11`을 넣는다. 확인 줄이 `True`일 때만 진행 - "키 넣는 안내" 참조.)
 
 1. 11-11 ready 초안을 **다시 렌더만** 한다(생성 재실행 0 · LLM 0). 호 id는 `scripts/ops/out/`의 11-11 생성 결과 파일 이름(`generate-<id>.json`)에서 읽고, 출력 파일 · 보고에 적지 않는다.
    `render\.venv\Scripts\python.exe render\render_issue.py --issue-id <11-11 초안 id>`
 2. 렌더 보고: 성공/실패 · `compose.droppedArticles` · `compose.heroFallbackArticles` · `pageCount`
-3. 성공하면 발행: `deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net="<ref>.supabase.co" --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out scripts/ops/publishIssueCli.ts --issue-id <같은 id>` (`<ref>`는 `supabase/.temp/project-ref`, 출력에서 지운다)
+3. 성공하면 발행 전에 키를 운영용 `ops_2026_11`로 바꾸고 확인한다(키 줄 + 확인 줄만 다시):
+
+```
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+```
+
+   발행: `deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net="<ref>.supabase.co" --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out scripts/ops/publishIssueCli.ts --issue-id <같은 id>` (`<ref>`는 `supabase/.temp/project-ref`, 출력에서 지운다)
 4. 보고: "발행됨 · 매거진 파일 수 N · 인쇄용 PDF 앱 노출 경로 0" - 렌더는 디지털 PDF + 쪽 이미지만 `magazine` 버킷 `render/`에 올린다(인쇄용 PDF를 만들지 않는다). 호 id · 커플 id · 주소 0
+5. 끝나면 **PowerShell 창을 닫고**, 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` → `False` 확인. 사용자 · 시스템 범위 영구 저장 금지(R87-6)
 
 ### 74-h4 결정 기록 (메인 세션 · ui-builder, 2026-11-11, 위임문 `74-h4-dispatch-feed-photo.md` · R82-1)
 
@@ -315,9 +346,10 @@ git commit -m "74-h2 hotfix: server-backed result detail for new accounts, no-bl
 ```
 $env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
 $env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
 ```
 
-   (줄을 칠 때마다 입력 칸이 나온다. 첫 줄에는 프로젝트 주소, 둘째 줄에는 **서비스 키**(대시보드의 service_role 또는 Secret 키)를 넣는다. 공개 키(anon / publishable)를 넣으면 "서비스 키가 아니에요" 안내가 나온다.)
+   (줄을 칠 때마다 입력 칸이 나온다. 첫 줄에는 프로젝트 주소, 둘째 줄에는 운영용 **secret key `ops_2026_11`**을 넣는다 - 74-k2: legacy service_role 키는 비활성화됨. 셋째 줄(확인)이 `True`일 때만 진행한다. 공개 키(publishable)를 넣으면 "서비스 키가 아니에요" 안내가 나온다.)
 
 2. 네트워크 허용 범위를 주소에서 읽는다(ref를 직접 적지 않는다):
 
@@ -354,7 +386,7 @@ deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functi
 
 
 잠금 메모: 실제 커플 시작 전 스크립트 잠금(R76-9 · R78-5)에 **커플 모드도 포함**한다.
-끝나면 **PowerShell 창을 닫는다**(창 안의 환경 변수에 키가 남아 있다).
+끝나면 **PowerShell 창을 닫는다**(창 안의 환경 변수에 키가 남아 있다). 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` → `False` 확인. 사용자 · 시스템 범위 영구 저장 금지(R87-6).
 
 시험(원격 없음): `deno test --no-check --no-lock --unstable-sloppy-imports scripts/ops/resetTestAccountCheck.ts` (24개 통과)
 
@@ -766,7 +798,7 @@ git commit -m "74-1~8 로그인 뒤 앱 전체 웹 이전"
 - [74-h2 ②] 연결 전 + 버튼 · 첫 기록 버튼 · 데이트 상세 [사진 더하기]는 `disabled`를 풀고 눌림이 살아 있음(흐림은 `aria-disabled`), 누르면 h1 기록 시트의 닫힘 안내(이유 + [초대하러 가기])가 열림. 문구 "연인과 연결되면 기록할 수 있어요" · 보조 문장은 지금 것 유지(보드 E13 문구를 이 세션에서 확인하지 못함) · 출처: PE 위임문 ② + R30-3 · R78-3
 - [74-h2 ③] 코드 칸 조합: `inputMode="email"`(+ `type="text"`, 기존 `lang="en"` 유지). 근거: Chromium이 inputmode=email을 안드로이드 이메일 입력 형식으로 넘겨 삼성 키보드 · Gboard가 영문(@ . 키) 자판으로 여는 경우가 가장 많음, `type="email"`은 글자 수 제한 · 선택 영역 조작이 막혀 피함. 폰 확인 전 추정 · 출처: PE 위임문 ③ + R78-3(폰 확인 후 확정)
 - [74-h2 ③] 키보드 시험 화면은 경로 `keyboard-test`(스택, 뒤로 = 앞 화면, 규칙표 F1에 한 줄). 운영 빌드에서는 줄 · 화면 코드가 빠지고 경로 이름 글자와 CSS 클래스 이름만 남음(그리지 않음) · 출처: PE 위임문 ③
-- [74-h2 ④] `--allow-net` 범위: 사람이 ref를 적지 않도록 PowerShell에서 `([Uri]$env:ONDOLOG_SUPABASE_URL).Host`를 읽어 `--allow-net=$h`로 넣는다(스크립트 변경 없이 범위를 한 호스트로 유지) · 공개 키 판별은 `sb_publishable_` 접두어 또는 JWT `role: anon`만(키 값 출력 0) · 출처: PE 위임문 ④ + R78-3
+- [74-h2 ④] `--allow-net` 범위: 사람이 ref를 적지 않도록 PowerShell에서 `([Uri]$env:ONDOLOG_SUPABASE_URL).Host`를 읽어 `--allow-net=$h`로 넣는다(스크립트 변경 없이 범위를 한 호스트로 유지) · 공개 키 판별은 `sb_publishable_` 접두어 또는 JWT `role: anon`만(키 값 출력 0 · 74-k2: legacy anon 키는 비활성화되어 JWT 판별은 쓰일 일이 없다) · 출처: PE 위임문 ④ + R78-3
 - [74-h2 ⑤] 애착 칸이 빈 이유: 정본 `ATTACHMENT_REFRAME_KO.secure = null`이고 MASTER 10-5-3 표에 안정 항목이 없음 -> 웹이 표를 잘못 읽은 곳 없음(네 값 시험으로 확인), 정본 변경 0 · 출처: PE 위임문 ⑤ + R76-5
 - [74-준비] 모션 명세 v2가 저장소에 없음 · 지시서가 "없는 것은 웹 데모 값으로 대신"이라 함 · 다른 길: Proteur에게 파일을 받아 다음 수정 지시서에서 대조
 - [74-준비] 캔버스 HTML 4종(`Components` · `N-R31-App-Fixes` · `P1-Cover-Note` · `N-S-D3-Magazine`)이 저장소에 없음 · 해당 화면은 `screens/*.jpg`와 `CURRENT.md`의 바뀐 점 표를 기준으로 함 · 다른 길: 파일을 받아 다시 대조
@@ -902,7 +934,7 @@ npm run build:trial
 ```powershell
 npx cap sync android
 ```
-- `npm run build:trial`: 시험 빌드(채팅 시험 화면 열림, 원격 값이 비어도 빌드됨). `npm run build`: 운영 빌드 - **`web/.env`의 `VITE_SUPABASE_URL` · `VITE_SUPABASE_ANON_KEY`가 비면 빌드가 실패한다**(채팅 시험 닫힘).
+- `npm run build:trial`: 시험 빌드(채팅 시험 화면 열림, 원격 값이 비어도 빌드됨). `npm run build`: 운영 빌드 - **`web/.env`의 `VITE_SUPABASE_URL` · `VITE_SUPABASE_ANON_KEY`가 비면 빌드가 실패한다**(채팅 시험 닫힘). 74-k2: `VITE_SUPABASE_ANON_KEY`는 변수 이름만 그대로이고 값은 publishable 키다(legacy anon 키는 비활성화됨).
 - 개발 서버(브라우저에서 보기): `npm run dev`. 브라우저에서는 카카오 앱 링크가 안 돌아오므로 로그인 왕복은 실기기에서 본다.
 
 **2. Android Studio는 ASCII 경로에서** (원래 경로로 열면 Gradle이 "non-ASCII characters"로 실패)
@@ -1727,7 +1759,7 @@ R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 �
 ### 5. 사람 작업
 
 1. **Deno import map**: 현재 맨 import 스펙파이어는 `zod` 하나(7개 파일). `supabase/functions/` 아래에 `zod`를 `npm:` 스펙으로 매핑하는 import map이 없다(저장소에 `deno.json` 없음). 버전은 jest가 도는 설치본과 같아야 한다(설치본 zod 4.4.3, supabase-js 2.112.3). 진입점이 생기면 `@supabase/supabase-js` 매핑도 필요. `../../../src/...` 상대 import가 배포 번들에서 해석되는지는 `supabase functions serve`/배포 드라이런으로 사람이 확인해야 한다(나는 접속하지 않았다). `ambient.d.ts`가 `npm:*`를 `any`로 두므로 tsc는 이 오류를 못 잡는다.
-2. **비밀값**(절대 규칙 7): LLM API 키를 Edge Function 비밀로 등록. 이름은 문서에 없다(Q12). service_role 키는 앱 코드·저장소에 넣지 않는다 - Edge Function 환경 변수로만. 기본 주입 여부는 배포 환경에서 확인.
+2. **비밀값**(절대 규칙 7): LLM API 키를 Edge Function 비밀로 등록. 이름은 문서에 없다(Q12). service_role 키는 앱 코드·저장소에 넣지 않는다 - Edge Function 환경 변수로만. 기본 주입 여부는 배포 환경에서 확인. (74-k2: legacy service_role 키는 2026-11-12 비활성화 - 지금은 목적별 secret key, 같은 규칙.)
 3. **LLM 공급자 계정**: 배치 API 사용 가능 여부, 지출 한도, 학습 미사용·데이터 보존 정책 확인(MASTER §6-7 미해결 ② / Part 16-3 법무). ROADMAP "Phase 7 전: 채팅 데이터 AI 활용 고지 문구(법무, 필수)"가 이 단계의 선행인지 PM 확인 - 실제 채팅을 처음 외부 API로 보내는 단계다.
 4. **모델 식별자 값**: `app_config.llm_provider`는 `tbd`(010 시드). 정해서 넣는 것은 사람/PM. ROADMAP "LLM 한국어 품질 실측 비교"도 미해결.
 5. **마이그레이션 검토·적용**: `db-architect` 산출물을 사람이 검토 후 적용(절대 규칙 5·6).
@@ -1948,7 +1980,8 @@ Phase 7 위임(`.claude/state/prompts/phase-7/15-main-session-package-align.md`)
    public.messages;`를 마이그레이션으로 적용해야 상대방 기기가 채팅을
    실시간으로 수신한다(현재는 화면 재진입 시에만 최신화됨). db-architect
    영역 — Phase 5는 읽기 전용 확인만 하고 적용하지 않았다(작업 지시 준수).
-2. **`.env`의 `EXPO_PUBLIC_SUPABASE_ANON_KEY`가 플레이스홀더 상태** —
+2. **[폐기됨 - 74-k2: legacy anon 키 2026-11-12 비활성화 · RN 앱 동결(R88-4 ①). 공개 키는 publishable뿐]**
+   **`.env`의 `EXPO_PUBLIC_SUPABASE_ANON_KEY`가 플레이스홀더 상태** —
    Supabase 대시보드(Project Settings → API)에서 실제 anon public key를
    복사해 채워야 소셜 로그인/DB 저장 코드가 실제로 동작한다. Phase 3
    코드는 이 값이 채워지는 즉시 동작하도록 전부 작성돼 있다(anon
