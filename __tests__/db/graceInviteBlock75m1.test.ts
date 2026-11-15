@@ -205,3 +205,51 @@ describe('(3) 정상 회귀 · 면제', () => {
     expect((await one(`select relrowsecurity r from pg_class where oid='public.couples'::regclass`)).r).toBe(true)
   })
 })
+
+describe('(4) 75-t1 (R96-2 · R95-3) 이미 연결된 코드 주인의 코드로는 연결되지 않는다', () => {
+  const count = async (): Promise<number> => Number((await one(`select count(*)::int c from couples`)).c)
+  const memberOf = async (uid: string): Promise<number> =>
+    Number((await one(`select count(*)::int c from couples where status in ('active','dissolving') and (user_a_id=$1 or user_b_id=$1)`, [uid])).c)
+
+  it('active 커플의 user_b가 만든 pending 코드 -> 혼자인 C의 연결은 23505 · 새 커플 0 · A·B 커플 그대로', async () => {
+    const A = await user()
+    const B = await user()
+    const ab = await activeCouple(A, B)
+    const cb = code()
+    expect(await as(B, invite(B, cb))).toBe('ok') // 지금 서버가 허용하는 행(user_b의 pending 초대) - R95-3 낮음(M3)
+    const C = await user()
+    const before = await count()
+    expect(await as(C, connect(cb))).toBe('23505') // m1 :135~138 코드 주인(v_row.user_a_id) 검사
+    expect(await count()).toBe(before)
+    expect(await memberOf(C)).toBe(0)
+    expect(await status(ab)).toBe('active')
+    const pend = await one(`select status::text s, user_b_id from couples where invite_code=$1`, [cb])
+    expect([pend.s, pend.user_b_id]).toEqual(['pending', null])
+  })
+
+  it('같은 경우에서 B의 커플이 dissolving(해제 유예) -> C의 연결은 OG001(m1 8-1이 9보다 먼저)', async () => {
+    const A = await user()
+    const B = await user()
+    const ab = await activeCouple(A, B)
+    const cb = code()
+    expect(await as(B, invite(B, cb))).toBe('ok') // active 때 만든 코드
+    await asRows(A, `select public.fn_request_dissolution() as id`)
+    expect(await status(ab)).toBe('dissolving')
+    const C = await user()
+    const before = await count()
+    expect(await as(C, connect(cb))).toBe('OG001')
+    expect(await count()).toBe(before)
+    expect(await memberOf(C)).toBe(0)
+    expect(await status(ab)).toBe('dissolving')
+  })
+
+  it('회귀: 혼자인 사람의 코드로 혼자인 사람이 연결 -> 성공(active)', async () => {
+    const X = await user()
+    const cx = code()
+    expect(await as(X, invite(X, cx))).toBe('ok')
+    const Y = await user()
+    expect(await as(Y, connect(cx))).toBe('ok')
+    const r = await one(`select status::text s, user_b_id from couples where invite_code=$1`, [cx])
+    expect([r.s, r.user_b_id]).toEqual(['active', Y])
+  })
+})
