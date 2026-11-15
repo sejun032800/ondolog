@@ -23,6 +23,10 @@ export interface CoupleState {
   referencePhotoPath: string | null
   /** 연결 해제 유예 중인 커플이 있다(`couples.status = 'dissolving'`). 연결(`connected`)은 아니지만 "아직 혼자"도 아니다(A-24) - 닉네임은 유지하고 새 초대는 막는다. */
   grace: boolean
+  /** 해제 유예 중인 커플의 id(하늘 열람용, 77-). 유예가 아니면 null. 연결(`connected`)의 근거로 쓰지 않는다. */
+  graceCoupleId: string | null
+  /** 해제 유예 중인 커플의 상대 id(하늘의 그날 온도 계산용). */
+  gracePartnerId: string | null
   refresh: (userId: string) => Promise<void>
   /** 기기 저장(메인 요약)이 있으면 조회 전에 그것을 먼저 채운다(76-A1). 이미 읽은 값이 있으면 아무 일도 없다. */
   hydrate: (userId: string) => void
@@ -49,6 +53,8 @@ const DISCONNECTED = {
   relationshipStartDate: null,
   referencePhotoPath: null,
   grace: false,
+  graceCoupleId: null as string | null,
+  gracePartnerId: null as string | null,
 }
 
 export const useCoupleStore = create<CoupleState>((set, get) => ({
@@ -79,7 +85,11 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
           .maybeSingle()
         if (!dissolvingError && dissolving) {
           clearCoupleCache(userId)
-          set({ status: 'disconnected', ...DISCONNECTED, nickname: dissolving.nickname, grace: true })
+          set({
+            status: 'disconnected', ...DISCONNECTED, nickname: dissolving.nickname, grace: true,
+            graceCoupleId: dissolving.id,
+            gracePartnerId: dissolving.user_a_id === userId ? dissolving.user_b_id : dissolving.user_a_id,
+          })
           return
         }
       }
@@ -108,6 +118,8 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
         temperatureDateOn: tempRow?.date_on ?? null,
         referencePhotoPath: data.reference_photo_path,
         grace: false,
+        graceCoupleId: null,
+        gracePartnerId: null,
       })
       writeCache(userId, 'main', {
         coupleId: data.id,
@@ -127,7 +139,7 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
     if (get().status !== 'unknown') return
     const saved = readCache<MainSummary>(userId, 'main')
     if (!saved || !saved.coupleId || !saved.partnerId) return
-    set({ status: 'connected', grace: false, ...saved })
+    set({ status: 'connected', grace: false, graceCoupleId: null, gracePartnerId: null, ...saved })
   },
 
   reset: () => set({ status: 'unknown', ...DISCONNECTED }),

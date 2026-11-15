@@ -10,8 +10,9 @@
 const PREFIX = 'ondolog.dc1:'
 
 /** 저장 종류. `route`는 커플 자료가 아니다(해제 완료 때 남는다). */
-export type CacheKind = 'chat' | 'main' | 'feed' | 'name' | 'route'
-const COUPLE_KINDS: readonly CacheKind[] = ['chat', 'main', 'feed']
+export type CacheKind = 'chat' | 'main' | 'feed' | 'sky' | 'name' | 'route'
+/** 커플 자료 종류 - 로그아웃 · 탈퇴 요청 · 해제 요청(유예 진입) · 해제 완료 · 계정 전환에서 지워진다. 하늘('sky', 77-)도 여기에 든다. */
+export const COUPLE_KINDS: readonly CacheKind[] = ['chat', 'main', 'feed', 'sky']
 
 function store(): Storage | null {
   try {
@@ -70,7 +71,7 @@ export function purgeOtherUsers(userId: string): void {
   removeWhere((k) => !k.startsWith(mine))
 }
 
-/** 해제 완료(커플이 더는 없음): 그 사용자의 커플 자료(채팅 · 메인 요약 · 피드)만. 이름 · 마지막 경로는 남는다. */
+/** 해제 완료(커플이 더는 없음): 그 사용자의 커플 자료(채팅 · 메인 요약 · 피드 · 하늘)만. 이름 · 마지막 경로는 남는다. */
 export function clearCoupleCache(userId: string): void {
   removeWhere((k) => COUPLE_KINDS.some((kind) => k.startsWith(`${PREFIX}${userId}:${kind}`)))
 }

@@ -181,7 +181,7 @@ export function computeDnaBaseScore(
  *
  * ⚠️ 이 타입은 발화 건수·메시지 수 같은 **양** 필드를 절대 갖지 않는다.
  * 양에 반응하는 순간 연애 DNA가 연애 온도의 `activityDelta`와 같은 지표가
- * 된다(Part 10-7-6). 온도의 `DailyActivityRaw`(`chatMessageCount` 등)와
+ * 된다(Part 10-7-6). 온도의 `DailyActivityCounts`(`countA`/`countB` 등)와
  * 대비되는 지점이 바로 여기다.
  */
 export type ChatQualitySignals = Readonly<Record<string, unknown>>

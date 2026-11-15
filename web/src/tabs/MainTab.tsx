@@ -5,7 +5,7 @@
  *  - [연인 초대하기](B05) -> 초대(`openInvite('intro')` - 74-2 `couple-invite`). I01 시트를 한 번 더 거치지 않고 바로 간다(B12)
  *  - [읽기] · 지난 호 다시 읽기 -> 뷰어(`openIssueViewer` - 뷰어는 74-6이 꽂는다)
  * 하늘(별 · 장막 .42 · 하단 장막)은 Shell의 `SkyLayer`가 메인 경로에서 켠다(`App.tsx` `skyFor`). 이 화면의 바탕은 투명이다.
- * 하늘(C) 화면으로 가는 당김 · 버튼은 없다(범위 밖).
+ * B02(77-): 맨 위에서 아래로 끌어내리면 "놓으면 하늘이 열려요" -> 놓으면 우리의 하늘(`sky`). 연결 전(혼자)에는 열지 않고 해제 유예 중에는 연다.
  */
 import { useEffect, useState } from 'react'
 import { openInvite } from '../app/inviteEntry'
@@ -19,6 +19,8 @@ import type { Nav } from '../navigation'
 import { useCoupleStore } from '../stores/coupleStore'
 import { useDissolutionStore } from '../stores/dissolutionStore'
 import { useProfileStore } from '../stores/profileStore'
+import { skyOpenable } from '../features/sky/skyMath'
+import { useSkyPull } from '../features/sky/useSkyPull'
 
 /** 화면이 그려져 있는 동안 날짜 라벨 · D+N이 자정을 넘으면 바뀌도록 1분마다 시각을 새로 잡는다. */
 function useNow(): Date {
@@ -44,6 +46,7 @@ export function MainTab({ nav }: { nav: Nav }) {
   useCoupleRefresh() // 탭에 들어올 때 · 앱 복귀 때 커플 값을 다시 읽는다(A-19)
 
   const connected = status === 'connected'
+  const { ref: pullRef, pull } = useSkyPull<HTMLDivElement>(skyOpenable(status, grace), () => nav.push('sky'))
   const now = useNow()
   const partnerName = usePartnerName(connected ? partnerId : null)
   const summary = useLoveTypeSummary(userId, status === 'disconnected')
@@ -59,7 +62,14 @@ export function MainTab({ nav }: { nav: Nav }) {
 
   return (
     <div className="screen tabScreen mainTab" data-testid="tab-screen-main">
-      <div className="mainScroll">
+      {pull.active ? (
+        <div className={`skyPeek ${pull.armed ? 'armed' : ''}`} style={{ height: pull.offset }} data-testid="sky-peek" aria-hidden="true">
+          <i className="peekHandle" />
+          <span className="peekText">놓으면 하늘이 열려요</span>
+        </div>
+      ) : null}
+      <div className="mainScroll" ref={pullRef}>
+        <div className="mainPullInner" style={pull.active ? { transform: `translate3d(0, ${pull.offset}px, 0)` } : undefined}>
         <MainView
           now={now}
           status={status}
@@ -78,6 +88,7 @@ export function MainTab({ nav }: { nav: Nav }) {
           onChat={() => nav.replace('chat')}
           onOpenIssue={(issue) => openIssueViewer(issue.id)}
         />
+        </div>
       </div>
     </div>
   )

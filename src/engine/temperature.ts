@@ -44,6 +44,7 @@
 import type { EnneagramCore } from '../constants/enneagram'
 import { resolveTypeAffinity, type TypeAffinityCategory } from './typeAffinity'
 import { clamp, roundAndClamp, roundTo } from './numeric'
+import { togetherDates, type DayRecordCounts } from './togetherDay'
 
 /**
  * 이 유틸 묶음의 버전. daily_temperature 테이블 자체에는 대응 컬럼이 없다(위 설명 참고).
@@ -53,8 +54,11 @@ import { clamp, roundAndClamp, roundTo } from './numeric'
  *
  * 1.2.0: 활동 점수 v0(`activity_v0_provisional`, MASTER r74 10-7-3 · ROADMAP R100-1)로
  * `UNRESOLVED('temperature.activityScore')` 해소. 두 사람 구분 입력(`DailyActivityCounts`)으로 계약 변경.
+ *
+ * 1.3.0: 입력 `recordDates: string[]` → `recordDays`(날짜별 구간·사진·메모 수). recordPart 판정을
+ * `togetherDay.ts`의 `isTogetherDay`로 일원화(R101-2). 장소만 있는 날도 기록 있음.
  */
-export const TEMPERATURE_ENGINE_VERSION = '1.2.0'
+export const TEMPERATURE_ENGINE_VERSION = '1.3.0'
 
 /** 미연결 커플의 고정 기본 온도 (Part 9-2, SCHEMA.md 컬럼 기본값과 동일). */
 export const DISCONNECTED_TEMPERATURE = 36.5
@@ -310,8 +314,11 @@ interface ActivityV0InputBase {
   userIds: CoupleUserIds
   /** KST 오늘 `YYYY-MM-DD`. 창은 어제까지 windowDays일 — 오늘은 넣지 않는다. 앱은 `kstDayKey(nowIso)`로 만든다. */
   todayKst: string
-  /** 데이트 기록(구간·사진·메모, 지운 것 제외)이 있는 KST 날짜들(`dates.date_on`). 중복 허용. */
-  recordDates: readonly string[]
+  /**
+   * KST 날짜별 데이트 기록 수(구간·사진·메모, 지운 것 제외). 같은 날짜가 여럿이면 합산.
+   * 판정은 `togetherDates`(= `isTogetherDay`) 한 곳 — 날짜 문자열 목록을 직접 받지 않는다.
+   */
+  recordDays: readonly ({ date: string } & DayRecordCounts)[]
 }
 
 /** 진입점 ①: 메시지 단위 입력. */
@@ -357,7 +364,7 @@ export function computeDailyScoresV0(
     }
   }
   const today = dayNumberFromKey(input.todayKst)
-  const records = new Set(input.recordDates)
+  const records = new Set(togetherDates(input.recordDays))
   const scores: number[] = []
   for (let i = 1; i <= coefficients.windowDays; i += 1) {
     const key = keyFromDayNumber(today - i)

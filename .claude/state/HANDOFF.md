@@ -10,7 +10,113 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
-## `76-` 수정 (메인 세션, 2026-11-15, 위임문 `76-dispatch-fix.md` · 대기 목록 `76-next-fix-backlog.md` · R98 · R99 · R100 · MASTER r74 10-7-3) - 완료 (미커밋)
+## `77-` 우리의 하늘 1단계 (메인 세션, 2026-11-16, 위임문 `77-dispatch-our-sky-1.md` · R99-4 · R100-3 · R101-2 · R101-6 · MASTER r75 9-8) - 완료 (미커밋)
+
+범위: `src/engine/`("함께한 하루" 판정 + 온도 v0 입력) · `web/src/` · HANDOFF(0-1 명령 정정) · PROGRESS. 위임: engine-dev 1 · ui-builder 1. **마이그레이션 0 · 서버 쓰기 0**(하늘 코드에 insert · update · upsert · delete · rpc · `issues` 직접 조회 0) · 새 패키지 0 · 네이티브 0 · 원격 0.
+검증(메인 세션 직접 재실행): web tsc 0 · Vitest 51/863 → **54/921** + 1 건너뜀 · 법무 관문 7/7 · `build` · `build:trial`(dist는 시험 빌드) · `cap sync android` · 루트 tsc 0 · jest 106/1834 → **107/1858** · PGlite 4/64(회귀 0) · Python(PROGRESS 줄). 키 · 주소 · 이메일 0 · 파일 이름 ASCII.
+
+멈춘 것: 없음.
+
+### 0단계
+
+| # | 결과 |
+|---|---|
+| 0-1 | `src/engine/togetherDay.ts` - `DayRecordCounts{stops,photos,memos}`(지운 것 제외) · `isTogetherDay`(하나라도 1 이상 → 함께한 하루, **장소만 있는 날도 1**) · `togetherDates`(합산 · 오름차순). 온도 v0 입력 `recordDates` → **`recordDays`**로 바꾸고 recordPart가 이 함수를 거침(문자열 목록 길 삭제, 엔진 1.3.0). 웹은 날짜별 수 읽기를 `web/src/features/records/dayRecordRead.ts` 한 곳에서 하고 메인 온도와 하늘이 같이 씀. **온도 v0 예시 값 변화 없음**: 22.8 · 64.8(예시 입력이 사진 있는 날이라 판정이 같음). 바뀌는 것은 실제 데이터에서 "장소만 있는 날"이 이제 0.4를 받는 것뿐 |
+| 0-2 | 아래 "`76-` 0-1 명령"을 고침: 메시지 정렬 `created_at` → **`sent_at`**(`messages`에 `created_at` 없음 - `007_chat.sql`), `deleted_at`은 `messages` · `data_entries` 둘 다 실제 열(그대로) · 실패 문구에 오류 코드 + 짧은 메시지(80자) · 출력 영어. 고친 판을 키 없이 실행해 문법 확인("URL or key variable is empty") |
+| 0-3 | 보드 대조표 아래 |
+
+### 보드 대조 (03_Y1-Our-Sky · B02 · C01~C07) - 다른 곳은 보드를 따름
+
+| 화면 | 보드에 있고 9-8에 없음 | 9-8에 있고 보드에 없음 / 다를 때 |
+|---|---|---|
+| B02 | 손잡이 + "놓으면 하늘이 열려요" · 위로 하늘이 비치는 구도(따름) | "스크롤 중이면 끌기 아님"(9-8) |
+| C01 | 달 옆 "VOL.nn · M월호" · 별 위 월 라벨 "10월 · 별 5" · 가장 따뜻한 별 라벨(따름) · **유성 선(2단계라 안 그림)** | 0.22초 켜짐 · 60초 흐름(구현) |
+| C02 | "지난 하늘 · M월부터 · 별 n · 달 n" · "이번 달" 라벨 · "200일" 고리 · 흐린 초안 달 · "아래로 내리면 이번 달 ↓"(따름) | 놓으면 이번 달(아래 결정) · 가장 오래된 달 = 첫 함께한 하루의 달 |
+| C04 | 제목 "바람 좋던 산책"(AI 제목 모양) → **9-8대로 첫 구간 장소 이름**(지어내지 않음) · 메모 + "사람 · 시각"(시각은 `HH:MM`) · 구체 모양 확대 별(따름) | 잠금 사진 표시(9-4 E12) → C05에서 |
+| C05 | 머리 날짜 · 장소 · "i / n" · 사진 아래 시각 · 구간 장소 · 메모 · 썸네일 줄(따름) | `access_locked` 사진은 "잠긴 사진" 표시만 |
+| C06 | 머리 · 점선 원 · 문구 · 버튼(따름) · **"유성은 오늘 밤에도 지나가요"는 넣지 않음**(유성 없음 - PM 확인) | - |
+| C07 | "ANNIVERSARY" · "{n}일" · 장소 · 사진 · 메모 · 버튼 둘(따름) | 별 없는 기념일 = 고리만(누를 수 없음) |
+
+### 77- 결정 기록
+
+| 결정 | 출처 |
+|---|---|
+| "함께한 하루" 판정은 엔진 한 곳(`togetherDay.ts`) - 별과 온도 v0 recordPart가 같은 함수. 76-의 `photo_count>0 \|\| has_user_note`(장소만 있는 날 0)를 고침 | R101-2 · MASTER r75 9-8-1 |
+| 별 크기 = 그날 온도(저장값, 없으면 v0를 그날 끝 기준 - `todayKst` = 다음 날)의 그 달 안 순위 → 4 · 5 · 8px, 상위 1/3이 8px(31개 = 11 · 10 · 10), 같은 값은 이른 날짜가 위. 온도를 못 읽으면 그 달 별 모두 5px · "가장 따뜻했던 날" 라벨 없음(모르는 것을 짓지 않음) · 읽는 동안도 5px | 9-8-1 |
+| 별 자리 · 반짝임 주기(2.8~5.2초) = `dates.id` 결정론 해시. 선 0. 별은 DOM, 움직임은 transform · opacity만, 배경은 기존 `SkyLayer` 한 장을 60초 흐름 | 9-8-1 · 9-8-3 |
+| 달 = `issues_public`(발행 = moon 색, 초안 = 흐림) - 기존 `magazineApi` 재사용 | 9-8-1 · 절대 규칙 3 |
+| C01 · C02 = 한 세로 스크롤(오래된 달이 위, 이번 달이 맨 아래에서 시작). 이번 달 근처(화면 35% 안)에서 놓으면 이번 달로 돌아오고, 더 먼 지난 달에서는 머묾(돌아가면 지난 별을 못 누름). "아래로 내리면 이번 달 ↓"는 누르면 돌아오는 버튼 겸. 네이티브 스크롤 가로채기 0 - **PM 확인** | 9-8-2 · 보드 · R99-3 |
+| 기념일 = 메인 마일스톤과 같은 함수(`getMilestoneStatus`) - D+100 단위 · D+365 단위(라벨 "1주년"…), 시작일 = 1일차. 달력 날짜 대신 D+365n(메인과 갈리지 않게) | 9-8-1 |
+| 그날 온도용 메시지는 화면에 들어온 달만, 달마다 한 번(창 14일 전부터) - `activityRead` 방식(1000행 페이지) 재사용 | 9-8-3 성능 |
+| C04 제목 = 첫 구간(`seq` 최소) 장소 이름, 없으면 제목 생략 · 메모 = 그날 첫 메모 + 남긴 사람 + KST `HH:MM` · 온도를 모르면 그 줄 생략 · 사진 0이면 [사진 보기] 숨김 | 9-8-2 |
+| C05는 `useDateDetail`을 쓰지 않음(그 훅은 서버 쓰기 `syncOwnPlacement`를 함 - 하늘은 읽기 전용) · 서명 URL은 메모리만 | 9-8 |
+| 해제 유예 중: `coupleStore`에 `graceCoupleId` · `gracePartnerId`(이미 읽던 dissolving 행 값, 연결 판정에 쓰지 않음)로 하늘을 엶. 유예 중 기기 저장 0(R101-3), 시작일이 없어 D+ · 기념일 표시 0. RLS: `is_couple_member`가 `status <> 'dissolved'`만 막아(`011_rls_helpers.sql:16`) 유예 중 읽기 허용 - 메인 세션 확인 | 9-8-3 · R101-3 |
+| 연결 전(혼자) B02 열지 않음 · 경로로 들어와도 뒤로 보냄(`skyOpenable`, CoupleGate는 유예 규칙이 달라 쓰지 않음) | 9-8-3 |
+| 기기 저장 `'sky'`(기록 행 + 온도 + 달 목록, 사진 URL · 파일 0)를 `COUPLE_KINDS`에 넣음 → 로그아웃 · 탈퇴 요청 · 해제 요청 · 해제 완료 · 계정 전환 때 삭제(시험) | R98-1 · R101-3 |
+| **PM 확인**: 배경 별 반짝임 설정 토글(9-7 결정 4)이 앱에 아직 없음 → 새 설정 화면을 만들지 않고 기본 켬 · 줄인 모션이면 정지 하늘 | 9-7 · 9-8-3 |
+| `web/android/.idea/deploymentTargetSelector.xml` 변경은 Android Studio가 만든 것(이번 작업 아님) - 커밋하지 않음 | 메인 세션 |
+
+### 77- 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 엔진 - 함께한 하루 판정
+
+```
+git add src/engine/togetherDay.ts
+git add src/engine/temperature.ts
+git add src/engine/dnaScore.ts
+git add __tests__/engine/togetherDay.test.ts
+git add __tests__/engine/temperatureActivityV0.test.ts
+git commit -m "77 engine: one together-day rule for sky stars and temperature v0 record part (place-only day counts)"
+```
+
+2) 웹 - 우리의 하늘
+
+```
+git add web/src/features/records/dayRecordRead.ts
+git add web/src/features/main/activityRead.ts
+git add web/src/features/main/startTemperatureV0.vitest.tsx
+git add web/src/features/sky/skyMath.ts
+git add web/src/features/sky/skyData.ts
+git add web/src/features/sky/useSkyPull.ts
+git add web/src/features/sky/SkyScreen.tsx
+git add web/src/features/sky/skyMath.vitest.ts
+git add web/src/features/sky/skyScreen.vitest.tsx
+git add web/src/features/sky/skyData.vitest.tsx
+git add web/src/tabs/MainTab.tsx
+git add web/src/stores/coupleStore.ts
+git add web/src/cache/deviceCache.ts
+git add web/src/app/routes.ts
+git add web/src/app/routeTable.tsx
+git add web/src/app/backRules.ts
+git add web/src/app/backRules.vitest.ts
+git add web/src/styles.css
+git commit -m "77 web: our sky stage 1 - pull down from main, month sky, past skies, star day sheet, day photos, empty sky, anniversary stars"
+```
+
+3) 상태
+
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "77 state: decisions, board comparison, fixed photo gps command, phone check order"
+```
+
+마지막 `git status --short`에는 `web/android/.idea/deploymentTargetSelector.xml` 한 줄만 남는다(커밋하지 않음 - 되돌리려면 `git restore web/android/.idea/deploymentTargetSelector.xml`).
+
+### 77- 폰 확인 순서 (Proteur · 녹화 · 방해 금지 모드)
+
+1. `cd web; npm run build:trial; npx cap sync android` → Android Studio 빌드 → 두 폰 **앱 위에 덮어 설치**(데이터 유지)
+2. 메인 맨 위에서 아래로 끌어내리기 - "놓으면 하늘이 열려요" · 덜 끌면 제자리 · 메인을 스크롤하다 맨 위에 닿는 순간 오작동 0 · 보통 스크롤 감각 그대로
+3. 이달의 하늘 - 별이 날짜 순서로 0.22초 간격 켜짐 · 60초 흐름 · 장소만 적은 날도 별 · D+n · 달(발행 호 · 초안)
+4. 별 누르기 - 다가가며 나머지 흐려짐 · 시트(장소 · 그날의 온도 · 첫 구간 장소 제목 · 메모 · 사진/메모 수 · "{M}월의 {k}번째 별") · [그날 기록 →]이 피드 상세로
+5. [사진 보기] - 그날 사진만 · 좌우 넘기기 · 썸네일 줄
+6. 지난 하늘 - 위로 끌기 · 달마다 "{M}월 · 별 n" · 이번 달 근처에서 놓으면 돌아옴 · 먼 달에서는 머묾(손맛 PM 판단)
+7. 기념일 - D+100 · D+200 고리(그날 별이 있으면 고리 별 → 누르면 ANNIVERSARY 시트)
+8. 빈 하늘 - 다음 커플 모드 초기화 직후 첫 연결에서(C06 · [데이트 기록하기])
+9. 줄인 모션 - 폰 설정 "애니메이션 제거" 켜고 정지 하늘인지
+10. 폰 B(LG V40) - 별 많은 달 · 지난 하늘 스크롤에서 끊김 없는지(녹화 0.1초 판독)
+
+ 위임문 `76-dispatch-fix.md` · 대기 목록 `76-next-fix-backlog.md` · R98 · R99 · R100 · MASTER r74 10-7-3) - 완료 (미커밋)
 
 범위: `web/src/` · `src/engine/temperature.ts`(+ 레지스트리) · 마이그레이션 1개(`20261115160000_m2_unschedule_retention.sql`) · PGlite 시험 1개 · 엔진 시험 · 디자인 백로그 §16 · §17 · HANDOFF · PROGRESS. 위임: engine-dev 1 · db-architect 1 · ui-builder 2. 원격 0 · 새 패키지 0 · 네이티브 손수정 0 · RN 0.
 검증(메인 세션 직접 재실행): web tsc 0 · Vitest 44/796 → **51/863** + 1 건너뜀 · `LEGAL_CHECK=1` 법무 관문 7/7 · `build` · `build:trial`(dist는 시험 빌드 상태) · `cap sync android`(web/android 추적 변경 0) · 루트 tsc 0 · jest 104/1805 → **106/1834**(PGlite 포함) · PGlite 3/60 → **4/64** · Python(아래 PROGRESS 줄). 키 · 주소 · 이메일 · ref 0(동의 상수 파일 밖 운영자 · 문의 메일 0) · 파일 이름 ASCII.
@@ -66,7 +172,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 
 ### 0-1 명령 (Proteur · 맨 위 폴더 · 키 줄 다음 확인 줄)
 
-`ops_2026_11` secret key를 보안 입력하고(`ONDOLOG_SUPABASE_SERVICE_ROLE_KEY`), 주소 변수 `ONDOLOG_SUPABASE_URL`은 "키 넣는 안내" 그대로. 확인 줄 `$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')` → `True`일 때만. 그다음 아래 한 덩어리를 그대로 붙여 넣는다(파일을 만들지 않고 표준 입력으로 실행). 출력은 두 줄 "채팅 사진: JPEG · GPS 없음 · 방향 태그 … · 1600x1200" 꼴 - 그 두 줄만 PM에 전달. 끝나면 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` → `False`.
+`ops_2026_11` secret key를 보안 입력하고(`ONDOLOG_SUPABASE_SERVICE_ROLE_KEY`), 주소 변수 `ONDOLOG_SUPABASE_URL`은 "키 넣는 안내" 그대로. 확인 줄 `$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')` → `True`일 때만. 그다음 아래 한 덩어리를 그대로 붙여 넣는다(파일을 만들지 않고 표준 입력으로 실행). 출력은 두 줄 "chat photo: JPEG | GPS none | orientation tag present | 4032x3024" 꼴(77- 0-2 정정: 메시지 정렬 `sent_at` · 오류 코드 표시 · 영어 출력 - PowerShell 파이프 한글 깨짐) - 그 두 줄만 PM에 전달. 끝나면 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` → `False`.
 
 ```
 @'
@@ -84,7 +190,7 @@ function inspect(b: Uint8Array): Info {
     }
     return { gps, orientation: false, size, kind: 'PNG' }
   }
-  if (b[0] !== 0xff || b[1] !== 0xd8) return { gps: false, orientation: false, size: '?', kind: '알 수 없는 형식' }
+  if (b[0] !== 0xff || b[1] !== 0xd8) return { gps: false, orientation: false, size: '?', kind: 'unknown format' }
   let p = 2, gps = false, orientation = false, size = '?'
   while (p + 4 <= b.length && b[p] === 0xff) {
     const m = b[p + 1]
@@ -110,24 +216,24 @@ function tiff(b: Uint8Array, s: number): { gps: boolean; orientation: boolean } 
   return { gps, orientation }
 }
 function line(label: string, i: Info | null): void {
-  if (!i) { console.log(`${label}: 사진 없음`); return }
-  console.log(`${label}: ${i.kind} · GPS ${i.gps ? '있음' : '없음'} · 방향 태그 ${i.orientation ? '있음' : '없음'} · ${i.size}`)
+  if (!i) { console.log(`${label}: no photo`); return }
+  console.log(`${label}: ${i.kind} | GPS ${i.gps ? 'present' : 'none'} | orientation tag ${i.orientation ? 'present' : 'none'} | ${i.size}`)
 }
 const url = Deno.env.get('ONDOLOG_SUPABASE_URL'), key = Deno.env.get('ONDOLOG_SUPABASE_SERVICE_ROLE_KEY')
-if (!url || !key) throw new Error('주소 · 키 변수가 비어 있어요')
+if (!url || !key) throw new Error('URL or key variable is empty')
 const db = createClient(url, key, { auth: { persistSession: false } })
 const get = async (bucket: string, path: string | null | undefined): Promise<Info | null> => {
   if (!path) return null
   const { data, error } = await db.storage.from(bucket).download(path)
-  if (error || !data) { console.log(`${bucket}: 내려받기 실패`); return null }
+  if (error || !data) { console.log(`${bucket}: download failed (${String((error as { statusCode?: string })?.statusCode ?? '')} ${String(error?.message ?? '').slice(0, 80)})`); return null }
   return inspect(new Uint8Array(await data.arrayBuffer()))
 }
-const m = await db.from('messages').select('media_path').not('media_path', 'is', null).is('deleted_at', null).order('created_at', { ascending: false }).limit(1)
-if (m.error) throw new Error('채팅 행 읽기 실패')
-line('채팅 사진', await get('messages', m.data?.[0]?.media_path))
+const m = await db.from('messages').select('media_path').not('media_path', 'is', null).is('deleted_at', null).order('sent_at', { ascending: false }).limit(1)
+if (m.error) throw new Error(`messages read failed: ${m.error.code ?? ''} ${String(m.error.message ?? '').slice(0, 80)}`)
+line('chat photo', await get('messages', m.data?.[0]?.media_path))
 const e = await db.from('data_entries').select('storage_path').eq('entry_type', 'photo').is('deleted_at', null).order('created_at', { ascending: false }).limit(1)
-if (e.error) throw new Error('피드 행 읽기 실패')
-line('피드 사진', await get('entries', e.data?.[0]?.storage_path))
+if (e.error) throw new Error(`data_entries read failed: ${e.error.code ?? ''} ${String(e.error.message ?? '').slice(0, 80)}`)
+line('feed photo', await get('entries', e.data?.[0]?.storage_path))
 '@ | deno run --no-lock --allow-net --allow-env --allow-read -
 ```
 

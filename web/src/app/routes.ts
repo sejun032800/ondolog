@@ -7,6 +7,7 @@
  *  - 온보딩: 계정이 없을 때의 길(앱 `(onboarding)`). 계정이 생긴 뒤에는 서버 진행 단계 화면(`detail` · `invite` · `start-date`)까지만 본다.
  *  - 탭: 로그인 뒤 메인 5개(앱 `(tabs)`). 탭 바가 보인다. 탭끼리는 `replace`로 옮긴다(쌓이지 않는다).
  *  - 스택: 탭 위로 쌓이는 하위 화면(앱 루트 스택). 탭 바가 가려진다. 74-2가 둘(`couple-invite` · `start-date-recheck`)을 더했고 74-3~74-7이 이어서 더한다.
+ *  - `sky`(77-): 우리의 하늘(MASTER 9-8). 메인 맨 위에서 끌어내리면 열린다(B02). 이달의 하늘 · 지난 하늘 · 별 · 사진 · 기념일 · 빈 하늘(C01~C07)은 한 경로 안의 상태다. 뒤로 = 메인.
  * 시트 · 모달은 경로가 아니다(`sheets.tsx`, 열려 있는 동안 뒤로 가기는 그것만 닫는다).
  */
 export const ONBOARDING_ROUTES = [
@@ -30,6 +31,7 @@ export const STACK_ROUTES = [
   'couple-invite', 'start-date-recheck', 'date-detail', 'stop-edit',
   'settings-profile', 'settings-couple', 'settings-unlink', 'settings-personality', 'settings-result', 'retest',
   'settings-privacy', 'settings-about', 'settings-withdraw', 'withdraw-cancel',
+  'sky',
 ] as const
 
 export type OnboardingRoute = (typeof ONBOARDING_ROUTES)[number]

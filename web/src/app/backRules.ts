@@ -48,6 +48,8 @@ export const BACK_RULES: Record<ScreenName, BackRule> = {
   'settings-withdraw': { area: 'stack', back: 'previous' },
   // 탈퇴 유예 화면(RN `/withdraw-cancel`): 로그인 직후 루트로 들어오는 화면이라 앞 화면이 없다 - 하드웨어 뒤로 = 앱 종료. 화면의 ← 는 로그아웃(화면이 직접 처리).
   'withdraw-cancel': { area: 'stack', back: 'exit' },
+  // 우리의 하늘(77-): 앞 화면(메인)으로. 별 시트 · 사진 보기가 열려 있으면 그것만 닫는다(화면이 backStack에 등록).
+  sky: { area: 'stack', back: 'previous' },
   // 탭
   main: { area: 'tab', back: 'exit' },
   chat: { area: 'tab', back: { to: 'main' } },

@@ -745,3 +745,93 @@ input { font: inherit; }
 .trialDiag { margin-top: 10px; font-size: 11px; line-height: 16px; color: var(--textFaint); word-break: break-all; }
 .kbTest { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
 .kbTest label { font-size: 13px; color: var(--textSub); }
+
+/* ── 우리의 하늘(77-) - 보드 03_Y1-Our-Sky · B02 · C01~C07 ───────────────── */
+.skyPeek { position: absolute; left: 0; right: 0; top: 0; z-index: 3; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow: hidden; padding-top: calc(var(--top) + 6px); }
+.skyPeek .peekHandle { width: 44px; height: 4px; border-radius: 4px; background: var(--lilac); opacity: .55; }
+.skyPeek.armed .peekHandle { opacity: 1; box-shadow: 0 0 10px rgba(185,162,240,.7); }
+.skyPeek .peekText { margin-top: 10px; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--text); }
+.mainPullInner { will-change: transform; }
+.skyScreen { background: #0A0814; overflow: hidden; }
+.skyDrift { position: absolute; inset: 0; transform: scale(1.08); will-change: transform; animation: skyDrift 60s ease-in-out infinite alternate; }
+@keyframes skyDrift { from { transform: scale(1.08) translate3d(0, -2.5%, 0) } to { transform: scale(1.08) translate3d(0, 2.5%, 0) } }
+.skyScreen.still .skyDrift, .skyScreen.still .star, .skyScreen.still .skyStar i, .skyScreen.still .skyStar { animation: none !important; }
+.skyScreen.paused .skyDrift, .skyScreen.paused .star, .skyScreen.paused .skyStar i, .skyScreen.paused .skyStar { animation-play-state: paused !important; }
+.skyScroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+.skyPanel { position: relative; height: 100%; min-height: 100%; overflow: hidden; contain: layout paint; }
+.skyField { position: absolute; inset: 0; transition: transform 700ms cubic-bezier(.2,.8,.2,1), opacity 500ms ease; will-change: transform; }
+.skyField.dim { opacity: .14; }
+.skyMonthLabel { position: absolute; left: 24px; top: 24%; font-size: 10.5px; line-height: 14px; letter-spacing: .4px; color: var(--textMute); }
+.skyStar { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; cursor: pointer; transition: opacity 500ms ease; }
+.skyStar i { display: block; width: var(--s); height: var(--s); border-radius: 50%; background: var(--text); box-shadow: 0 0 calc(var(--s) * 2) calc(var(--s) * .5) rgba(231,217,195,.45); animation: skyTwinkle var(--p) ease-in-out var(--d) infinite alternate; }
+.skyPanel:not(.live) .skyStar i { animation-play-state: paused; }
+@keyframes skyTwinkle { from { opacity: .45; transform: scale(.82) } to { opacity: 1; transform: scale(1.12) } }
+.skyStar.turnOn { animation: skyOn 700ms ease-out both; }
+@keyframes skyOn { from { opacity: 0 } to { opacity: 1 } }
+.skyField.zoom .skyStar { opacity: .14; }
+.skyField.zoom .skyStar.sel { opacity: 1; }
+.skyField.zoom .skyStar.sel i { background: radial-gradient(circle at 35% 30%, #fff, var(--rose) 55%, #9C93B4); animation: none; }
+.skyStar .ringMark, .skyRingOnly .ringMark { position: absolute; width: 26px; height: 26px; left: 50%; top: 50%; margin: -13px 0 0 -13px; border-radius: 50%; border: 1px solid rgba(244,185,200,.7); pointer-events: none; }
+.skyStar .ringLabel, .skyRingOnly .ringLabel { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: -4px; font-size: 10.5px; line-height: 14px; color: var(--textSub); white-space: nowrap; }
+.skyRingOnly { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; pointer-events: none; }
+.skyStarLabel { position: absolute; transform: translate(-50%, 16px); text-align: center; pointer-events: none; white-space: nowrap; }
+.skyStarLabel b { display: block; font-size: 10.5px; line-height: 14px; font-weight: 600; color: var(--text); }
+.skyStarLabel em { display: block; font-style: normal; font-size: 9.5px; line-height: 13px; color: var(--textMute); }
+.skyMoon { position: absolute; right: 12%; top: 58%; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+.skyMoon i { display: block; width: 24px; height: 24px; border-radius: 50%; box-shadow: inset -8px -3px 0 0 var(--moon); transform: rotate(-24deg); }
+.skyMoon em { font-style: normal; font-size: 10.5px; line-height: 14px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.skyMoon.draft { opacity: .34; }
+.skyMoon.draft em { font-weight: 500; color: var(--textMute); }
+.skyHead { position: absolute; left: 0; right: 0; top: 0; padding: calc(var(--top) + 6px) 24px 0; display: flex; align-items: flex-start; justify-content: space-between; pointer-events: none; z-index: 4; }
+.skyHead.center { justify-content: center; text-align: center; }
+.skyHead.center .skyClose { position: absolute; right: 24px; top: calc(var(--top) + 6px); }
+.skyHeadText { min-width: 0; }
+.skyKicker { font-size: 10.5px; line-height: 14px; letter-spacing: 3px; font-weight: 600; color: var(--rose); padding-left: 3px; }
+.skyTitle { margin: 2px 0 0; font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -.4px; color: var(--text); }
+.skyHead.center .skyTitle { font-size: 17px; line-height: 22px; }
+.skySub { margin: 4px 0 0; font-size: 12px; line-height: 17px; color: var(--textMute); }
+.skyClose { pointer-events: auto; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--hairline); background: rgba(10,8,20,.4); color: var(--text); font-size: 15px; flex: none; }
+.skyHorizon { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; pointer-events: none; z-index: 3; }
+.skyHorizon .hill { position: absolute; inset: 22px -8% 0; border-radius: 50% 50% 0 0 / 100% 100% 0 0; background: linear-gradient(#0E0B1C, #07050F); border-top: 1px solid rgba(243,239,247,.22); }
+.skyHorizon .hillText { position: absolute; left: 0; right: 0; bottom: calc(var(--bot) + 8px); text-align: center; }
+.skyDays { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--text); }
+.skyHint { background: none; border: 0; padding: 4px 8px; font-size: 11px; line-height: 15px; color: var(--textMute); pointer-events: auto; }
+.skyError { position: absolute; left: 24px; right: 24px; top: 40%; text-align: center; font-size: 14px; color: var(--textSub); }
+.skySheet { position: absolute; left: 12px; right: 12px; bottom: calc(var(--bot) + 12px); z-index: 5; padding: 12px 20px 20px; border-radius: 28px; background: #0E0B1C; border: 1px solid var(--hairline); animation: rise 320ms ease-out both; }
+.skySheetHandle { display: block; width: 36px; height: 4px; border-radius: 4px; background: rgba(243,239,247,.22); margin: 0 auto 14px; }
+.skySheetTop { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; line-height: 16px; color: var(--textMute); }
+.skyTemp b { color: var(--rose); font-weight: 600; }
+.skySheetTitle { margin: 6px 0 0; font-size: 21px; line-height: 28px; font-weight: 600; color: var(--text); }
+.skyQuote { margin: 12px 0 0; padding-left: 12px; border-left: 2px solid rgba(244,185,200,.5); }
+.skyQuote p { margin: 0; font-size: 15px; line-height: 22px; color: var(--text); }
+.skyQuote cite { display: block; margin-top: 2px; font-style: normal; font-size: 11.5px; line-height: 16px; color: var(--textMute); }
+.skyCounts { margin: 12px 0 0; font-size: 12px; line-height: 16px; color: var(--textMute); }
+.skyBig { display: flex; align-items: baseline; font-size: 54px; line-height: 60px; }
+.skyBig small { font-size: 17px; margin-left: 2px; }
+.skySheetButtons { margin-top: 16px; display: flex; gap: 10px; }
+.skyBtn { height: 52px; border-radius: 26px; font-size: 15px; font-weight: 600; border: 0; padding: 0 22px; }
+.skyBtn.ghost { background: rgba(243,239,247,.08); color: var(--text); flex: 0 0 auto; }
+.skyBtn.primary { background: var(--text); color: var(--ink); flex: 1; }
+.skyBtn.big { position: absolute; left: 24px; right: 24px; bottom: calc(var(--bot) + 76px); height: 56px; border-radius: 28px; }
+.skyEmpty { position: absolute; inset: 0; z-index: 2; }
+.skyEmptyRing { position: absolute; left: 50%; top: 36%; width: 60px; height: 60px; margin-left: -30px; border-radius: 50%; border: 1px dashed rgba(243,239,247,.25); }
+.skyEmptyBody { position: absolute; left: 0; right: 0; top: 46%; margin: 0; text-align: center; font-size: 20px; line-height: 30px; font-weight: 600; color: var(--text); }
+.skyEmptyHint { position: absolute; left: 0; right: 0; top: calc(46% + 70px); margin: 0; text-align: center; font-size: 13px; color: var(--textMute); }
+.skyPhotos { position: absolute; inset: 0; z-index: 6; background: rgba(10,8,20,.94); padding: calc(var(--top) + 6px) 20px calc(var(--bot) + 16px); display: flex; flex-direction: column; animation: fadeIn 260ms ease both; }
+.skyPhotosHead { display: flex; justify-content: space-between; align-items: flex-start; }
+.skyPhotosDate { font-size: 13px; line-height: 18px; color: var(--textMute); }
+.skyPhotosCount { margin-top: 2px; font-size: 22px; line-height: 28px; color: var(--textMute); }
+.skyPhotosCount b { color: var(--text); font-weight: 600; }
+.skyPhotoBox { position: relative; flex: 1; min-height: 0; margin-top: 14px; border-radius: 10px; overflow: hidden; background: rgba(243,239,247,.04); display: flex; align-items: center; justify-content: center; touch-action: pan-y; }
+.skyPhotoBox img { width: 100%; height: 100%; object-fit: contain; }
+.skyLocked { font-size: 14px; color: var(--textMute); }
+.skyPrev, .skyNext { position: absolute; top: 0; bottom: 0; width: 38%; background: none; border: 0; }
+.skyPrev { left: 0; } .skyNext { right: 0; }
+.skyPhotoCaption { margin-top: 12px; font-size: 13px; line-height: 18px; color: var(--textMute); }
+.skyPhotoMemo { margin: 4px 0 0; font-size: 16px; line-height: 24px; color: var(--text); }
+.skyPhotoMemo span { font-size: 12px; color: var(--textMute); }
+.skyThumbs { margin-top: 16px; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.skyThumb { flex: 0 0 auto; width: 56px; height: 64px; border-radius: 8px; overflow: hidden; border: 2px solid transparent; background: rgba(243,239,247,.06); padding: 0; }
+.skyThumb.on { border-color: var(--text); }
+.skyThumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (prefers-reduced-motion: reduce) { .skyDrift, .skyStar i, .skyStar.turnOn { animation: none; } }

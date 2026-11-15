@@ -24,8 +24,13 @@ function dayKey(n: number): string {
   return `2026-11-${String(15 - n).padStart(2, '0')}`
 }
 
+/** 날짜 목록 → 그날 사진 1장(함께한 하루) 기록 수. */
+function rd(dates: string[]) {
+  return dates.map((date) => ({ date, stops: 0, photos: 1, memos: 0 }))
+}
+
 function counts(rows: ActivityDailyCount[], recordDates: string[] = []): ActivityV0CountsInput {
-  return { userIds: [A, B], todayKst: TODAY, recordDates, dailyCounts: rows }
+  return { userIds: [A, B], todayKst: TODAY, recordDays: rd(recordDates), dailyCounts: rows }
 }
 
 describe('kstDayKey — 한국 시간 0시 경계', () => {
@@ -120,7 +125,7 @@ describe('v0 창: 어제까지 14일, 오늘 제외', () => {
     const input: ActivityV0MessagesInput = {
       userIds: [A, B],
       todayKst: TODAY,
-      recordDates: [],
+      recordDays: [],
       messages: [
         { senderId: A, sentAt: '2026-11-14T14:59:59Z' },
         { senderId: B, sentAt: '2026-11-14T15:00:00Z' },
@@ -201,7 +206,7 @@ describe('v0 하한 · 상한 · 클램프 · 결정론', () => {
     const msgs: ActivityV0MessagesInput = {
       userIds: [A, B],
       todayKst: TODAY,
-      recordDates: rec,
+      recordDays: rd(rec),
       messages: rows.flatMap((r) =>
         Array.from({ length: r.count }, () => ({ senderId: r.senderId, sentAt: `${r.date}T03:00:00+09:00` })),
       ),

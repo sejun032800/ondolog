@@ -7,6 +7,8 @@ import {
   computeDailyTemperatureV0,
   type ActivityV0MessagesInput,
 } from '@/engine/temperature'
+import { togetherDates } from '@/engine/togetherDay'
+import { readDayRecords, toDayCounts } from '../records/dayRecordRead'
 import { ACTIVITY_MAX_PAGES, ACTIVITY_PAGE_SIZE, readActivityInput, type ActivityDb } from './activityRead'
 
 type Row = Record<string, unknown>
@@ -33,6 +35,7 @@ function makeDb(tables: Tables, opts: { failTable?: string } = {}) {
     q.gte = (c: string, v: string) => { filters.push((r) => cmp(r, c, v) >= 0); return q }
     q.lt = (c: string, v: string) => { filters.push((r) => cmp(r, c, v) < 0); return q }
     q.lte = (c: string, v: string) => { filters.push((r) => cmp(r, c, v) <= 0); return q }
+    q.in = (c: string, v: readonly unknown[]) => { filters.push((r) => v.includes(r[c])); return q }
     q.order = (c: string) => { orderBy.push(c); return q }
     q.range = (a: number, b: number) => { range = [a, b]; return q }
     q.then = (resolve: (v: unknown) => unknown) => {
@@ -52,6 +55,22 @@ function makeDb(tables: Tables, opts: { failTable?: string } = {}) {
 /** 엔진을 직접 부른 기대값(메시지 단위 입력). */
 function engineExpect(coreA: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, coreB: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, input: ActivityV0MessagesInput): number {
   return computeDailyTemperatureV0(coreA, coreB, input, { baseline: { contrast: 36.5, neutral: 39, best: 42 }, activity: ACTIVITY_V0_PROVISIONAL_COEFFICIENTS })
+}
+
+/** 데이트 기록 읽기용 표(`dates` + `date_stops` + `data_entries`). 날짜별로 구간 · 사진 · 메모 수를 만든다. */
+function recordTables(days: { date: string; stops?: number; photos?: number; memos?: number; deleted?: boolean; deletedEntries?: number }[]): Tables {
+  const dates: Row[] = []
+  const stops: Row[] = []
+  const entries: Row[] = []
+  days.forEach((d, i) => {
+    const id = `d${i}`
+    dates.push({ id, couple_id: 'c1', date_on: d.date, deleted_at: d.deleted ? '2025-11-14T00:00:00Z' : null })
+    for (let k = 0; k < (d.stops ?? 0); k += 1) stops.push({ id: `${id}s${k}`, date_id: id, seq: k + 1, arrived_at: kst(d.date, 10 + k), place_name: `장소${k}` })
+    for (let k = 0; k < (d.photos ?? 0); k += 1) entries.push({ id: `${id}p${k}`, date_id: id, author_id: A, entry_type: 'photo', storage_path: `x/${id}${k}.jpg`, created_at: kst(d.date, 11), deleted_at: null })
+    for (let k = 0; k < (d.memos ?? 0); k += 1) entries.push({ id: `${id}m${k}`, date_id: id, author_id: A, entry_type: 'memo', text_content: '메모', created_at: kst(d.date, 12), deleted_at: null })
+    for (let k = 0; k < (d.deletedEntries ?? 0); k += 1) entries.push({ id: `${id}x${k}`, date_id: id, author_id: A, entry_type: 'photo', storage_path: `x/${id}del${k}.jpg`, created_at: kst(d.date, 13), deleted_at: '2025-11-14T00:00:00Z' })
+  })
+  return { dates, date_stops: stops, data_entries: entries }
 }
 
 const msg = (id: string, sender: string, iso: string, extra: Row = {}): Row => ({ id, couple_id: 'c1', sender_id: sender, sent_at: iso, deleted_at: null, ...extra })
@@ -75,20 +94,31 @@ describe('readActivityInput - 읽는 것', () => {
     ])
   })
 
-  it('데이트 기록 있음 = 지우지 않은 dates 행 중 사진이 있거나 메모가 있는 날(지운 데이트 · 지운 항목만 남은 날 · 창 밖 제외)', async () => {
+  it('데이트 기록 = 날짜별 (구간 · 사진 · 메모) 수를 읽어 엔진에 넘긴다 - 장소만 있는 날도 함께한 하루, 지운 것만 남은 날 · 지운 데이트 · 오늘 · 창 밖은 아니다', async () => {
     const { db } = makeDb({
       messages: [],
-      dates: [
-        { id: 'd1', couple_id: 'c1', date_on: '2025-11-10', photo_count: 2, has_user_note: false, deleted_at: null },
-        { id: 'd2', couple_id: 'c1', date_on: '2025-11-11', photo_count: 0, has_user_note: true, deleted_at: null },
-        { id: 'd3', couple_id: 'c1', date_on: '2025-11-12', photo_count: 0, has_user_note: false, deleted_at: null }, // 지운 항목만 남음
-        { id: 'd4', couple_id: 'c1', date_on: '2025-11-13', photo_count: 3, has_user_note: false, deleted_at: '2025-11-14T00:00:00Z' }, // 지운 데이트
-        { id: 'd5', couple_id: 'c1', date_on: TODAY, photo_count: 3, has_user_note: false, deleted_at: null }, // 오늘
-        { id: 'd6', couple_id: 'c1', date_on: '2025-10-31', photo_count: 3, has_user_note: false, deleted_at: null }, // 창 밖
-      ],
+      ...recordTables([
+        { date: '2025-11-10', photos: 2 },
+        { date: '2025-11-11', memos: 1 },
+        { date: '2025-11-12', stops: 1 }, // 장소만 - R101-2로 함께한 하루
+        { date: '2025-11-13', deletedEntries: 2 }, // 지운 항목만 남음
+        { date: '2025-11-09', photos: 3, deleted: true }, // 지운 데이트
+        { date: TODAY, photos: 3 }, // 오늘
+        { date: '2025-10-31', photos: 3 }, // 창 밖
+      ]),
     })
     const input = await readActivityInput(db, 'c1', [A, B], TODAY)
-    expect([...input.recordDates].sort()).toEqual(['2025-11-10', '2025-11-11'])
+    expect(togetherDates(input.recordDays)).toEqual(['2025-11-10', '2025-11-11', '2025-11-12'])
+    expect(input.recordDays.find((d) => d.date === '2025-11-12')).toEqual({ date: '2025-11-12', stops: 1, photos: 0, memos: 0 })
+  })
+
+  it('메인 온도와 하늘의 별이 같은 날짜를 센다 - 같은 읽기(readDayRecords) 결과를 같은 엔진 함수로', async () => {
+    const tables = recordTables([{ date: '2025-11-12', stops: 2 }, { date: '2025-11-13', deletedEntries: 1 }, { date: '2025-11-14', memos: 1 }])
+    const { db } = makeDb({ messages: [], ...tables })
+    const viaMain = togetherDates((await readActivityInput(db, 'c1', [A, B], TODAY)).recordDays)
+    const viaSky = togetherDates(toDayCounts(await readDayRecords(db, 'c1', { from: '2025-11-01', to: '2025-11-30' })))
+    expect(viaMain).toEqual(['2025-11-12', '2025-11-14'])
+    expect(viaSky).toEqual(viaMain.filter((d) => d <= '2025-11-30'))
   })
 
   it('읽기가 실패하면 throw한다(호출부가 기저만 보인다)', async () => {
@@ -142,10 +172,10 @@ describe('startTemperatureV0 - 엔진 값 그대로', () => {
       { senderId: A, sentAt: kst('2025-11-10', 9) },
     ]
     const rows = messages.map((m, i) => msg(`m${i}`, m.senderId, m.sentAt))
-    const { db } = makeDb({ messages: rows, dates: [{ id: 'd1', couple_id: 'c1', date_on: '2025-11-12', photo_count: 1, has_user_note: false, deleted_at: null }] })
+    const { db } = makeDb({ messages: rows, ...recordTables([{ date: '2025-11-12', photos: 1 }]) })
     const input = await readActivityInput(db, 'c1', [A, B], TODAY)
     const got = startTemperatureV0(1, 7, input)
-    const expected = engineExpect(1, 7, { userIds: [A, B], todayKst: TODAY, recordDates: ['2025-11-12'], messages })
+    const expected = engineExpect(1, 7, { userIds: [A, B], todayKst: TODAY, recordDays: [{ date: '2025-11-12', stops: 0, photos: 1, memos: 0 }], messages })
     expect(got?.value).toBe(expected)
     expect(got?.value).toBeGreaterThan(42)
     expect(got?.hasActivity).toBe(true)
@@ -191,7 +221,7 @@ describe('useStartTemperature (읽기 + 엔진)', () => {
     const { useStartTemperature } = await import('./startTemperature')
     const { result } = renderHook(() => useStartTemperature(A, B, true, 'c1'))
     await waitFor(() => expect(result.current).not.toBeNull())
-    expect(result.current?.value).toBe(engineExpect(1, 7, { userIds: [A, B], todayKst: TODAY, recordDates: [], messages: [{ senderId: A, sentAt: kst('2025-11-14', 9) }, { senderId: B, sentAt: kst('2025-11-14', 10) }] }))
+    expect(result.current?.value).toBe(engineExpect(1, 7, { userIds: [A, B], todayKst: TODAY, recordDays: [], messages: [{ senderId: A, sentAt: kst('2025-11-14', 9) }, { senderId: B, sentAt: kst('2025-11-14', 10) }] }))
     expect(result.current?.hasActivity).toBe(true)
   })
 
