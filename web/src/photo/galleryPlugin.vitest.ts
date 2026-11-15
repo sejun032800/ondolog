@@ -1,12 +1,27 @@
 import { describe, expect, it, vi } from 'vitest'
-import { chooseViaGalleryPlugin, GALLERY_MODE } from './galleryPlugin'
+import { chooseViaGalleryPlugin, GALLERY_MODE, galleryModeFor } from './galleryPlugin'
+import { IS_TRIAL_BUILD } from '../config/env'
 
 const jpeg = (bytes: number[]) => new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' })
 const pick = (n: number) => async () => ({ results: Array.from({ length: n }, (_, i) => ({ webPath: `w${i}` })) })
 
 describe('A-21 갤러리 플러그인 길', () => {
-  it('기본값은 웹 입력(촬영 시각 보존을 기기에서 확인하기 전)', () => {
-    expect(GALLERY_MODE).toBe('input')
+  it('R94-5 스위치: 시험 빌드만 플러그인, 운영 빌드는 웹 입력', () => {
+    expect(galleryModeFor(true)).toBe('plugin')
+    expect(galleryModeFor(false)).toBe('input')
+    expect(GALLERY_MODE).toBe(galleryModeFor(IS_TRIAL_BUILD))
+  })
+
+  it('운영 모드면 앱 안에서도 플러그인을 부르지 않는다(null -> 웹 입력)', async () => {
+    const choose = vi.fn(pick(1))
+    expect(await chooseViaGalleryPlugin(30, { mode: galleryModeFor(false), isNative: () => true, choose })).toBeNull()
+    expect(choose).not.toHaveBeenCalled()
+  })
+
+  it('시험 모드면 앱 안에서 플러그인 길을 탄다', async () => {
+    const choose = vi.fn(pick(1))
+    const files = await chooseViaGalleryPlugin(30, { mode: galleryModeFor(true), isNative: () => true, choose, load: async () => jpeg([0xff, 0xd8, 1]) })
+    expect(files).toHaveLength(1)
   })
 
   it('꺼져 있으면 null(웹 입력으로) · 플러그인을 부르지 않는다', async () => {

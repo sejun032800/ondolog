@@ -13,7 +13,7 @@ export const LEGAL_CONTACT_EMAIL = 'ondologqna@gmail.com'
 export const LEGAL_STORAGE_REGION = 'Seoul, South Korea'
 export const LEGAL_EFFECTIVE_DATE = '2026년 11월 17일'
 
-export type LegalDocumentKey = 'terms' | 'privacy' | 'aiUsage'
+export type LegalDocumentKey = 'terms' | 'privacy' | 'aiUsage' | 'marketing'
 
 export interface LegalTable {
   head: string[]
@@ -182,11 +182,28 @@ const AI_USAGE_TEMPLATE: LegalDocument = {
   ],
 }
 
-/** 세 문서(자리 채움 끝). 온보딩 [보기]와 설정이 같은 객체를 읽는다. */
+/** 마케팅 정보 수신 동의(선택 ⑤) 전문 - PM 최소판 v1.1 §5(R94-9) 문장 그대로. */
+const MARKETING_TEMPLATE: LegalDocument = {
+  key: 'marketing',
+  title: '마케팅 정보 수신 동의(선택)',
+  intro: ['온도록의 새 기능과 이벤트 소식을 앱 알림이나 카카오계정 이메일로 받습니다.'],
+  sections: [
+    {
+      bullets: [
+        '동의하지 않아도 온도록의 모든 기능을 쓸 수 있습니다.',
+        '동의한 뒤에도 언제든 {문의 이메일}로 철회할 수 있고, 철회하면 그날부터 보내지 않습니다.',
+        '이 동의로 모으는 새 정보는 없습니다(처리방침 1번의 "마케팅 정보 수신 동의 여부"만 기록합니다).',
+      ],
+    },
+  ],
+}
+
+/** 네 문서(자리 채움 끝). 온보딩 [보기]와 설정이 같은 객체를 읽는다. */
 export const LEGAL_DOCUMENTS: Record<LegalDocumentKey, LegalDocument> = {
   privacy: fillDocument(PRIVACY_TEMPLATE),
   terms: fillDocument(TERMS_TEMPLATE),
   aiUsage: fillDocument(AI_USAGE_TEMPLATE),
+  marketing: fillDocument(MARKETING_TEMPLATE),
 }
 
 /** 동의 화면 AI 항목 아래 한 줄(기존 R38-2 문장을 대체). */
@@ -194,7 +211,7 @@ export const AI_USAGE_CONSENT_LINE =
   '두 사람의 대화·메모 같은 글 기록은 잡지 문장을 쓰기 위해 Anthropic의 Claude API(미국)로 보내지고, 30일 안에 지워져요. 사진 자체는 보내지 않아요.'
 
 export function isLegalDocumentKey(k: string): k is LegalDocumentKey {
-  return k === 'terms' || k === 'privacy' || k === 'aiUsage'
+  return k === 'terms' || k === 'privacy' || k === 'aiUsage' || k === 'marketing'
 }
 
 /** 문서 전문을 한 덩어리 글로(시험 · 점검용). */

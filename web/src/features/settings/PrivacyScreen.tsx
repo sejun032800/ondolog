@@ -21,6 +21,7 @@ import { ListGroup, ListRow, SettingsFrame, Toggle } from './parts'
 export const PRIVACY_COPY = {
   title: '개인정보 & 약관',
   marketing: '마케팅 정보 수신',
+  marketingDoc: '마케팅 정보 수신 동의 안내',
   saveFailed: '저장하지 못했어요. 다시 시도해주세요.',
 } as const
 
@@ -66,6 +67,8 @@ export function PrivacyScreen({ nav }: { nav: Nav }) {
           {PRIVACY_DOCUMENT_ROWS.filter((row) => isLegalDocumentKey(row.key)).map((row) => (
             <ListRow key={row.key} label={row.label} onPress={() => setDoc(row.key as LegalDocumentKey)} testId={`privacy-row-${row.key}`} />
           ))}
+          {/* R94-9: 온보딩 ⑤ [보기]와 같은 문서(`LEGAL_DOCUMENTS.marketing`) */}
+          <ListRow label={PRIVACY_COPY.marketingDoc} onPress={() => setDoc('marketing')} testId="privacy-row-marketing" />
           <ListRow
             label={PRIVACY_COPY.marketing}
             control={<Toggle value={marketing === true} onChange={(v) => void toggleMarketing(v)} disabled={marketing === null || busy} label={PRIVACY_COPY.marketing} testId="privacy-marketing-toggle" />}

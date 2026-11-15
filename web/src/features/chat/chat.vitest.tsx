@@ -303,21 +303,19 @@ describe('F03 스토리 보기 - 닫는 길은 ✕ 하나, 뒤로 가기는 이�
     { id: 's2', couple_id: 'c1', author_id: 'you', media_path: 'c1/s2.jpg', created_at: new Date(Date.now() - 2 * 3600_000).toISOString(), expires_at: future },
   ]
 
-  it('상대 스토리를 눌러 열고, 오른쪽 절반 다음 · 왼쪽 절반 이전 · 마지막에서 다음은 닫기 · 위 막대는 정지 표시', async () => {
+  it('상대 스토리를 눌러 열고, 오른쪽 절반 다음 · 왼쪽 절반 이전 · 마지막에서 다음은 닫기 · 위 막대는 5초 진행 막대(R94-6)', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     open({ stories })
     await act(async () => { await vi.advanceTimersByTimeAsync(50) })
     fireEvent.click(screen.getByTestId('chat-story-partner'))
     expect(screen.getByTestId('story-author').textContent).toBe('서영')
     expect(screen.getByTestId('story-segments').querySelectorAll('i')).toHaveLength(2)
-    expect(screen.getByTestId('story-segments').querySelectorAll('i.on')).toHaveLength(1)
+    expect(screen.getByTestId('story-segments').querySelectorAll('i.cur')).toHaveLength(1) // 지금 장은 진행 막대(5초 넘김 자체는 storyViewer.vitest.tsx - 여기선 사진 주소가 아직 없어 세지 않는다)
     expect(screen.getByText('스토리는 24시간 동안 보여요')).toBeTruthy()
-    await act(async () => { await vi.advanceTimersByTimeAsync(20_000) }) // 자동 넘김 없음
-    expect(screen.getByTestId('story-segments').querySelectorAll('i.on')).toHaveLength(1)
     fireEvent.click(screen.getByTestId('story-next'))
-    expect(screen.getByTestId('story-segments').querySelectorAll('i.on')).toHaveLength(2)
-    fireEvent.click(screen.getByTestId('story-prev'))
     expect(screen.getByTestId('story-segments').querySelectorAll('i.on')).toHaveLength(1)
+    expect(screen.getByTestId('story-segments').querySelectorAll('i.on')).toHaveLength(1)
+    fireEvent.click(screen.getByTestId('story-prev'))
     fireEvent.click(screen.getByTestId('story-next'))
     fireEvent.click(screen.getByTestId('story-next'))
     expect(screen.queryByTestId('story-viewer')).toBeNull()

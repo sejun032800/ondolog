@@ -149,7 +149,8 @@ describe('D14 · D16', () => {
     expect(screen.getByText(FIRST_ISSUE_COPY.kicker)).toBeTruthy()
     expect(screen.getByText(FIRST_ISSUE_COPY.title)).toBeTruthy()
     expect(screen.getByTestId('first-issue-percent').textContent).toBe('0%')
-    expect(screen.getByTestId('first-issue-hint').textContent).toBe(FIRST_ISSUE_PERCENT_HINT) // A-2-3(PM 확인 전 후보)
+    expect(screen.getByTestId('first-issue-hint').textContent).toBe(FIRST_ISSUE_PERCENT_HINT) // R94-7 확정 문장
+    expect(FIRST_ISSUE_PERCENT_HINT).toBe('이번 달이 흐르는 만큼 차올라요. 달이 끝나면 두 사람의 호를 만들어요.')
     expect(screen.getByTestId('first-issue-hint').textContent).not.toMatch(/발행|\d+일|월호/) // 발행일 문구 0
     expect(screen.getByTestId('issue-silhouette')).toBeTruthy()
     expect(screen.queryByText(/제작 현황/)).toBeNull()

@@ -16,6 +16,7 @@ import { useSheetStore } from '../../stores/sheetStore'
 import { useToastStore } from '../../stores/toastStore'
 import { makeFakeBridge, makeFakeNav } from '../../testSupport'
 import { makeCoupleDb, stepWrites, type CoupleDbOptions } from '../../testSupportCouple'
+import { GRACE_NO_INVITE, WITHDRAWAL_NO_CONNECT } from '../../couple/graceCopy'
 import { InviteScreen, INVITE_POLL_MS, inviteShareMessage, systemShowsCopyNotice } from './InviteScreen'
 import { StartDateScreen } from './StartDateScreen'
 
@@ -75,6 +76,22 @@ describe('A17 연인 초대', () => {
     expect(screen.getByTestId('invite-code').textContent).toBe(`${code.slice(0, 3)} ${code.slice(3)}`)
     expect(screen.getByText('복사하기')).toBeTruthy()
     expect(screen.getByText('공유하기')).toBeTruthy()
+  })
+
+  it('R94-4 [솔로예요] 아래 작은 글 한 줄 - 온보딩에만, gate에는 없다', async () => {
+    await open()
+    expect(screen.getByTestId('invite-solo-note').textContent).toBe('나중에 메인에서 언제든 연인을 초대할 수 있어요.')
+    cleanup()
+    await open({}, 'gate')
+    expect(screen.queryByTestId('invite-solo-note')).toBeNull()
+  })
+
+  it.each([['OG001', GRACE_NO_INVITE], ['OG002', WITHDRAWAL_NO_CONNECT]])('A-24 서버가 초대 발급을 %s로 거부하면 그 문구 - 다시 만들지 않는다', async (code, text) => {
+    const { writes } = await open({ insertErrors: [{ code }] })
+    fireEvent.click(screen.getByText('초대 코드 만들기'))
+    await settle()
+    expect(screen.getByTestId('invite-error').textContent).toBe(text)
+    expect(writes.filter((w) => w.table === 'couples' && w.op === 'insert')).toHaveLength(1)
   })
 
   it('이미 발급한 코드가 있으면 그대로 보인다(만들지 않는다)', async () => {
@@ -277,6 +294,14 @@ describe('A18 초대 코드 입력', () => {
     expect(stepRows(db.writes)).toEqual([2])
     expect(db.writes.filter((w) => w.table === 'couples')).toEqual([])
     expect(nav.enterAccount).toHaveBeenCalledWith('start-date')
+  })
+
+  it.each([['OG001', GRACE_NO_INVITE], ['OG002', WITHDRAWAL_NO_CONNECT], ['P0002', '쓸 수 없는 코드예요. 상대에게 코드를 다시 받아 주세요.']])('A-24 연결이 %s로 거부되면 그 문구', async (code, text) => {
+    await openEnter({ rpc: () => ({ data: null, error: { code } }) })
+    type('P4N8XQ')
+    fireEvent.click(connect())
+    await settle()
+    expect(screen.getByTestId('invite-error').textContent).toBe(text)
   })
 
   it('←로 A17에 돌아간다(오류 문구는 지운다)', async () => {

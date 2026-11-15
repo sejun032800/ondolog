@@ -155,7 +155,8 @@ describe('연결: 온도 표시 상태', () => {
     expect(screen.getByText('FIRST STEP')).toBeTruthy()
     expect(screen.getByText('FIRST ISSUE')).toBeTruthy()
     expect(screen.getByTestId('main-issue-percent').textContent).toBe('0%')
-    expect(screen.getByTestId('main-issue-hint').textContent).toBe(FIRST_ISSUE_PERCENT_HINT) // A-2-3(PM 확인 전 후보)
+    expect(screen.getByTestId('main-issue-hint').textContent).toBe(FIRST_ISSUE_PERCENT_HINT) // R94-7 확정 문장
+    expect(FIRST_ISSUE_PERCENT_HINT).toBe('이번 달이 흐르는 만큼 차올라요. 달이 끝나면 두 사람의 호를 만들어요.')
     fireEvent.click(screen.getByTestId('main-first-step-link'))
     expect(spies.onChat).toHaveBeenCalledTimes(1)
     expect(screen.queryByText(/제작 현황/)).toBeNull()

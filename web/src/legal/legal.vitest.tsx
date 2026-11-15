@@ -17,7 +17,7 @@ import {
   AI_USAGE_CONSENT_LINE, LEGAL_CONTACT_EMAIL, LEGAL_DOCUMENTS, LEGAL_EFFECTIVE_DATE, LEGAL_OPERATOR, LEGAL_STORAGE_REGION, legalPlainText, type LegalDocumentKey,
 } from './consent'
 
-const KEYS: LegalDocumentKey[] = ['privacy', 'terms', 'aiUsage']
+const KEYS: LegalDocumentKey[] = ['privacy', 'terms', 'aiUsage', 'marketing']
 
 beforeEach(() => {
   useSessionStore.getState().resetSession()
@@ -29,7 +29,7 @@ afterEach(() => {
   useAuthStore.getState().setUserId(null)
 })
 
-describe('세 문서 전문', () => {
+describe('네 문서 전문', () => {
   it('자리표시자가 남지 않는다 - `{` · `[자리표시자]` · `TODO` 0', () => {
     for (const k of KEYS) {
       const text = legalPlainText(LEGAL_DOCUMENTS[k])
@@ -48,6 +48,15 @@ describe('세 문서 전문', () => {
     expect(privacy.heading).toBe(`7. 만 ${MIN_AGE_YEARS}세 미만`)
     expect(privacy.paragraphs?.[0]).toBe(`만 ${MIN_AGE_YEARS}세 미만은 가입할 수 없습니다.`)
     expect(legalPlainText(LEGAL_DOCUMENTS.terms)).toContain(`2. 가입: 만 ${MIN_AGE_YEARS}세 이상이`)
+  })
+
+  it('R94-9 마케팅 수신 동의 전문 - v1.1 §5 문장 그대로 · 문의 메일은 같은 상수', () => {
+    const text = legalPlainText(LEGAL_DOCUMENTS.marketing)
+    expect(text).toContain('마케팅 정보 수신 동의(선택)')
+    expect(text).toContain('온도록의 새 기능과 이벤트 소식을 앱 알림이나 카카오계정 이메일로 받습니다.')
+    expect(text).toContain('동의하지 않아도 온도록의 모든 기능을 쓸 수 있습니다.')
+    expect(text).toContain(`동의한 뒤에도 언제든 ${LEGAL_CONTACT_EMAIL}로 철회할 수 있고, 철회하면 그날부터 보내지 않습니다.`)
+    expect(text).toContain('이 동의로 모으는 새 정보는 없습니다(처리방침 1번의 "마케팅 정보 수신 동의 여부"만 기록합니다).')
   })
 
   it('동의 화면 한 줄이 R38-2 문장을 대체했다', () => {
@@ -82,19 +91,20 @@ describe('온보딩 [보기]와 설정 > 개인정보 & 약관이 같은 문장�
   }
 
   it('이용약관 · 처리방침 · AI 활용 안내', async () => {
-    // 동의 화면의 [보기] 순서: 이용약관, 처리방침, AI(마케팅 [보기]는 없다)
-    const onboarding = [await consentSheetText(0), await consentSheetText(1), await consentSheetText(2)]
-    const settings = [await settingsSheetText('terms'), await settingsSheetText('privacy'), await settingsSheetText('aiUsage')]
+    // 동의 화면의 [보기] 순서: 이용약관, 처리방침, AI, 마케팅(R94-9)
+    const onboarding = [await consentSheetText(0), await consentSheetText(1), await consentSheetText(2), await consentSheetText(3)]
+    const settings = [await settingsSheetText('terms'), await settingsSheetText('privacy'), await settingsSheetText('aiUsage'), await settingsSheetText('marketing')]
     expect(settings).toEqual(onboarding)
     for (const text of onboarding) expect(text).not.toMatch(/[{}]|\[자리표시자\]|TODO/)
     expect(onboarding[1]).toContain(LEGAL_DOCUMENTS.privacy.title)
     expect(onboarding[2]).toContain('Anthropic')
+    expect(onboarding[3]).toContain(LEGAL_DOCUMENTS.marketing.title)
   })
 
-  it('동의 화면 [보기]는 세 문서뿐이고 마케팅 줄에는 없다(PM 문장이 없는 문서를 자리표시자로 보이지 않는다)', () => {
+  it('동의 화면 [보기]는 네 문서(이용약관 · 처리방침 · AI · 마케팅) - R94-9', () => {
     useSessionStore.getState().setBirthDate('1995-05-05')
     render(<MemoryRouter><ConsentScreen nav={makeFakeNav()} /></MemoryRouter>)
-    expect(screen.getAllByText('보기')).toHaveLength(3)
+    expect(screen.getAllByText('보기')).toHaveLength(4)
   })
 })
 

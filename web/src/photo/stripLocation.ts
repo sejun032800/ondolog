@@ -15,6 +15,8 @@
  * 깨진 입력은 던지지 않고 다음 방법으로 넘어간다. 마지막 방법(캔버스)까지 실패하면 던진다 - 위치가 남은 바이트를 몰래 올리지 않기 위해서다.
  */
 
+import { isHeicBytes } from './heicGuard'
+
 export type StripMethod = 'jpeg-edit' | 'png-edit' | 'reencode' | 'passthrough-heic' | 'passthrough-gif' | 'unchanged'
 
 export interface StripResult {
@@ -55,10 +57,7 @@ export function sniffFormat(u8: Uint8Array): 'jpeg' | 'png' | 'heic' | 'gif' | '
   if (u8.length >= 3 && u8[0] === 0xff && u8[1] === 0xd8 && u8[2] === 0xff) return 'jpeg'
   if (u8.length >= 8 && u8[0] === 0x89 && asciiAt(u8, 1, 'PNG\r\n\x1a\n')) return 'png'
   if (asciiAt(u8, 0, 'GIF8')) return 'gif'
-  if (u8.length >= 12 && asciiAt(u8, 4, 'ftyp')) {
-    const brand = latin1(u8, 8, 12)
-    if (['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1', 'heif'].includes(brand)) return 'heic'
-  }
+  if (isHeicBytes(u8)) return 'heic'
   return 'other'
 }
 

@@ -10,7 +10,136 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
-## `75-` 최종 수정 (메인 세션, 2026-11-15, 위임문 `75-dispatch-final-fix.md` · 분류 `PM_triage_75-final-fix.md` · R93-1~8) - 완료 (미커밋)
+## `75-b` 빌드 전 보충 (메인 세션, 2026-11-15, 위임문 `75-b-dispatch-prebuild.md` · R94-0~10) - 완료 (미커밋)
+
+범위: `web/` · 마이그레이션 1개(`supabase/migrations/20261115150000_m1_grace_invite_block.sql`, R94-1 승인) · PGlite 시험 1개 · 디자인 백로그 16번 한 줄 · HANDOFF · PROGRESS. 원격 0 · 새 패키지 0 · 네이티브 손수정 0 · RN · 루트 `src/` 0. 검증: web tsc 0 · Vitest 43/766 → 44/796 + 1 건너뜀 · `LEGAL_CHECK=1` 법무 관문 7/7 · `build` · `build:trial` · `cap sync android` · 루트 tsc 0 · jest 103/1789 → 104/1805 · PGlite 2 suite → 3 suite / 57(+16) · Python 324. 동의 상수 파일 밖 운영자 이름 · 문의 이메일 0건.
+
+멈춘 것: 없음.
+
+### 75-b 결정 기록
+
+| 결정 | 출처 |
+|---|---|
+| 서버 거부 고정 코드: **OG001** = 해제 유예(dissolving 커플의 user_a · user_b 어느 쪽이든) · **OG002** = 탈퇴 유예(`profiles.deleted_at` 있음). 둘 다면 OG002 먼저(탈퇴 요청이 커플도 dissolving으로 만듦) | R94-1 |
+| 초대 발급 거부 = `couples` BEFORE INSERT 트리거 `tg_couples_block_grace_invite`. `auth.uid()`가 없으면(service_role · 운영 시드) 검사하지 않음 - `seedTestData.ts`의 active 커플 직접 삽입을 깨지 않으려고 | R94-1 |
+| `fn_connect_couple`은 026 본문 그대로 + "이미 커플" 23505 앞에 부르는 사람 · 초대한 사람의 OG002 → OG001 검사. 권한 authenticated만 재선언. 해제 · 탈퇴 · 취소 함수와 `execute_dissolution`은 변경 0. 해제 취소 뒤에는 커플이 active로 돌아가 기존 23505, 탈퇴 취소 뒤 커플 없던 사용자는 다시 발급 · 연결 가능(시험) | R94-1 |
+| 알려 둘 것(범위 밖, 변경 0): active 커플의 user_b가 pending 초대 행을 넣는 것은 여전히 서버가 막지 않음(고유 인덱스는 user_a만 봄). 앱은 연결 상태에서 초대 입구가 없음 | R94-1 범위 |
+| 앱 연결: 발급 · 코드 입력의 오류 `code`로 분기 - OG001 → "해제 예정 기간에는 새로 연결할 수 없어요"(`GRACE_NO_INVITE`) · OG002 → "지금은 연결할 수 없는 계정이에요"(새 문구, 탈퇴 사실을 드러내지 않음). `web/src/couple/graceCopy.ts`. 루트 `coupleConnectCore`는 `code`를 보존해 변경 0 | R94-1 · A-24 |
+| HEIC 막기: 파일 앞 바이트(`ftyp` 브랜드)로만 판정 - heic · heix · hevc · hevx · heim · heis · hevm · hevs · heif, 또는 주 브랜드 mif1 · msf1이면서 avif · avis가 없을 때. AVIF는 막지 않음. 판정은 `web/src/photo/heicGuard.ts` 한 곳, 거르는 입구는 `photoPicker.ts` `chooseFiles` 한 곳(채팅 · 스토리 · 피드 · 카메라 · 갤러리 플러그인 모두 지남). 여러 장 중 일부면 그 장만 빼고 "… 골라 주세요. N장은 뺐어요." | R94-2 |
+| 스토리 자동 넘김: 한 장 5000ms · 막대 채움 · 좌우 탭 앞뒤 · 누르면 멈춤(250ms 이상 누른 뒤 뗀 것은 탭이 아님) · 마지막 뒤 닫힘. 줄인 모션이면 채우는 움직임만 빼고 5초 넘김은 유지. 모션 허용 한 줄은 `StoryViewer.tsx` 머리 주석(DESIGN §6 문서는 이번 편집 범위 밖) · 디자인 백로그 16번 = `PM_request_design_render_issue_v1_2_3.md` §16(미발송 묶음 파일, 번호를 이어 붙이는 규칙) | R94-6 |
+| 매거진 0% 문장 "이번 달이 흐르는 만큼 차올라요. 달이 끝나면 두 사람의 호를 만들어요." - 탭 빈 상태 · 메인 첫 호 카드가 같은 상수. 계산 변경 0, 75- 후보 삭제 | R94-7 |
+| [솔로예요] 아래 작은 글 "나중에 메인에서 언제든 연인을 초대할 수 있어요."(온보딩 모양에만) | R94-4 |
+| 마케팅 동의 v1.1 §5를 네 번째 문서로 `consent.ts`에(문장 그대로, 메인 세션 대조 - 빠진 문장 0) · 동의 화면 ⑤ [보기] 되살림 · 설정 → 개인정보 & 약관에 "마케팅 정보 수신 동의 안내" 행. 버전 = `web/package.json` 값(75-에서 이미 그렇고 "최신" 없음 - 확인만) | R94-9 |
+| 피드 날짜 카드 눌림 연출 제거, 길게 눌러 지우기는 상세 항목만(이미 그랬음) | R94-8 |
+| A-2-1은 M3로(안내문 위치만 받음) · 새 문구는 잠정 승인 → `51-` 녹화로 PM 확정 | R94-3 · R94-9 |
+
+### 카메라 스위치 (R94-5)
+
+- 위치: `web/src/photo/galleryPlugin.ts`의 `export const GALLERY_MODE` (`galleryModeFor(IS_TRIAL_BUILD)`).
+- `npm run build:trial`(`--mode trial`) · `npm run dev` → `'plugin'`(켜짐). `npm run build`(운영) → `'input'`(꺼짐).
+- 시험 빌드에서도 끄려면: `export const GALLERY_MODE: GalleryMode = 'input'`으로 고정 → `npm run build:trial` → `npx cap sync android` → 다시 설치.
+- 확인: `51-` B1 · B14에서 폰 B로 지난달 사진을 골라 기록 날짜(촬영 시각)가 남는지. 남으면 PM이 확정, 안 남으면 위처럼 끄고 보고.
+
+### 75-m1 `db push` 순서 (Proteur · 맨 위 폴더 · 값 출력 0)
+
+키는 필요 없다(link된 CLI로 한다). CLI가 데이터베이스 비밀번호를 물으면 화면 입력 칸에만 넣는다. 혹시 secret key를 넣어야 하는 경우에만: 보안 입력 → `$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')` 확인 줄 `True` → 끝나면 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` → `False`(R92-3).
+
+1. 무엇이 올라갈지 보기:
+
+```
+npx supabase migration list
+npx supabase db push --dry-run
+```
+
+   - `migration list`: `20261115150000`이 Local에만 있고, 그 앞은 Local · Remote가 같아야 한다.
+   - `--dry-run`: `20261115150000_m1_grace_invite_block.sql` **하나만** 보여야 한다. 다른 것이 보이면 멈추고 보고.
+
+2. 실제 적용:
+
+```
+npx supabase db push
+```
+
+3. 적용 확인(값 출력 0):
+
+```
+npx supabase migration list
+```
+
+   - `20261115150000`이 Local · Remote 양쪽에 있으면 끝. (선택) 대시보드 SQL 편집기에서 읽기 전용으로 아래를 돌려 둘 다 `true`인지:
+
+```
+select exists(select 1 from pg_trigger where tgname='tg_couples_block_grace_invite' and not tgisinternal) as trigger_ok,
+       (select prosrc like '%OG001%' from pg_proc where proname='fn_connect_couple' and pronamespace='public'::regnamespace) as connect_ok;
+```
+
+4. 폰 확인은 `51-` ⑬ 해제 · 탈퇴 단계에서(아래 8번).
+
+### 75-b 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+`75-` 파일은 모두 이미 커밋됨: `b2a849a` · `206a846` · `111f5d1` · `f6b9d88` · `706c1a3`. 아래는 아직 커밋되지 않은 것 전부다.
+
+1) 서버 규칙(m1)
+
+```
+git add supabase/migrations/20261115150000_m1_grace_invite_block.sql
+git add __tests__/db/graceInviteBlock75m1.test.ts
+git commit -m "75-m1 db: reject invite issue and couple connect during dissolution or withdrawal grace with fixed codes OG001 OG002"
+```
+
+2) 웹 앱
+
+```
+git add web/src/couple/graceCopy.ts
+git add web/src/couple/coupleApi.ts
+git add web/src/app/inviteEntry.ts
+git add web/src/features/couple/InviteScreen.tsx
+git add web/src/features/couple/couple.vitest.tsx
+git add web/src/photo/heicGuard.ts
+git add web/src/photo/heicGuard.vitest.ts
+git add web/src/photo/stripLocation.ts
+git add web/src/photo/galleryPlugin.ts
+git add web/src/photo/galleryPlugin.vitest.ts
+git add web/src/features/feed/photoPicker.ts
+git add web/src/features/feed/FeedView.tsx
+git add web/src/features/feed/feed.vitest.tsx
+git add web/src/features/chat/StoryViewer.tsx
+git add web/src/features/chat/storyViewer.vitest.tsx
+git add web/src/features/chat/chat.vitest.tsx
+git add web/src/features/magazine/firstIssueHint.ts
+git add web/src/features/magazine/magazine.vitest.tsx
+git add web/src/features/main/main.vitest.tsx
+git add web/src/features/settings/PrivacyScreen.tsx
+git add web/src/legal/consent.ts
+git add web/src/legal/legal.vitest.tsx
+git add web/src/screens.tsx
+git add web/src/styles.css
+git commit -m "75-b web: block heic by file bytes, story auto advance, marketing consent text, grace error codes, camera plugin on trial builds only"
+```
+
+3) 문서 · 상태
+
+```
+git add .claude/state/prompts/phase-7/PM_request_design_render_issue_v1_2_3.md
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "75-b state: decisions, db push order, design backlog 16, phone check order"
+```
+
+### Proteur 다음 순서 (R94-10)
+
+1. 커밋(위 세 묶음)
+2. `db push`(m1, 위 순서)
+3. `cd web; npm run build:trial; npx cap sync android` → Android Studio 빌드
+4. **11월 17일**(시행일과 같은 날) 두 폰 앱 삭제 후 설치
+5. 허용 목록 파일(아래 `75-` "0-6 잠금" 형식, 저장소 밖)
+6. 커플 모드 초기화(`ops_2026_11` · 보안 입력 · `sb_secret_` 확인 줄 · `$al` · `--with-issues` · 끝나면 새 창 `False`)
+7. 두 폰 새 계정 첫 가입
+8. `51-` 49항목: **A-15 · A-4 · A-19 먼저, 0.5초 판독** · m1은 ⑬ 해제 · 탈퇴 단계에서 유예 중 초대 발급 · 코드 입력이 거부되고 안내가 뜨는지 · HEIC는 B3(안내 문장 · 섞인 묶음) · 카메라 플러그인은 B1 · B14(폰 B 촬영 시각) · 스토리 5초 넘김 · 누름 멈춤 · C13 마케팅 문서
+9. 두 폰으로 3일치 기록
+10. 시드 호 1권(B11 · B12)
+
+## `75-` 최종 수정 (메인 세션, 2026-11-15, 위임문 `75-dispatch-final-fix.md` · 분류 `PM_triage_75-final-fix.md` · R93-1~8) - 완료 (커밋됨: b2a849a · 206a846 · 111f5d1 · f6b9d88 · 706c1a3)
 
 범위: `web/` · `scripts/ops/` · `render/tests/` · `docs/74-exploration-guide.md` · `docs/51-device-checklist.md` · HANDOFF · PROGRESS. 마이그레이션 0 · 원격 0 · 커밋 0 · RN · 루트 `src/` · `supabase/` 변경 0 · 새 패키지 `@capacitor/camera` 8.2.6 1개(사전 허가 R76-7). 검증: web tsc 0 · Vitest 43 파일 / 766 통과 + 1 건너뜀(법무 값 관문, 기준 33 / 665) · `build` · `build:trial` · `cap sync android` 통과 · 루트 tsc 0 · jest 103 / 1789(기준 101 / 1771) · Python 324(기준 316) · Deno 초기화 시험 28(기준 24).
 

@@ -28,7 +28,7 @@ export function DateCard({ photoUrl, noPhoto, dateLabel, title, meta, compact, o
   onOpen: () => void
 }) {
   return (
-    <button type="button" className={`dateCard press ${compact ? 'compact' : ''} ${noPhoto ? 'noPhoto' : ''}`} aria-label={`${dateLabel} ${title}`} onClick={onOpen}>
+    <button type="button" className={`dateCard ${compact ? 'compact' : ''} ${noPhoto ? 'noPhoto' : ''}`} aria-label={`${dateLabel} ${title}`} onClick={onOpen}>
       {photoUrl ? <img src={photoUrl} alt="" draggable={false} /> : null}
       {!noPhoto ? <span className="dateScrim" aria-hidden="true" /> : null}
       <span className="dateText">

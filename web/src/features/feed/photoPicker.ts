@@ -11,6 +11,7 @@
  */
 import { parse as parseExif } from 'exifr/dist/lite.esm.mjs'
 import { chooseViaGalleryPlugin } from '../../photo/galleryPlugin'
+import { guardPickedFiles } from '../../photo/heicGuard'
 import { stripLocation, type StripDeps } from '../../photo/stripLocation'
 import { photoFromPickerAsset, type PickedPhoto } from '@/utils/dateRecord'
 
@@ -137,14 +138,16 @@ export async function photoFromFile(file: File, deps: PickDeps = {}): Promise<We
   return { ...photo, fileKey: fileKeyOf(file) }
 }
 
-/** 시스템 사진 선택기를 연다. 고르지 않고 닫으면 빈 배열(`cancel` 이벤트를 주지 않는 웹뷰에서는 끝내 답이 없을 수 있다 - 화면은 기다리지 않는다). */
+/**
+ * 시스템 사진 선택기를 연다. 고르지 않고 닫으면 빈 배열(`cancel` 이벤트를 주지 않는 웹뷰에서는 끝내 답이 없을 수 있다 - 화면은 기다리지 않는다).
+ * 채팅 · 스토리 · 피드가 모두 이 입구를 지나므로 **HEIC 막기(R94-2, 앞 바이트 판정)는 여기 한 곳**이다 - HEIC만 빼고 안내를 띄운다(전부 HEIC면 빈 배열 = 취소와 같이 조용히 끝).
+ */
 export async function chooseFiles(limit: number = PICK_LIMIT, capture = false): Promise<File[]> {
-  // A-21: [앨범]은 갤러리 플러그인 길이 켜져 있고 쓸 수 있을 때만 그 길(지금은 꺼짐 - `photo/galleryPlugin.ts`). 아니면 웹 입력.
-  if (!capture) {
-    const viaPlugin = await chooseViaGalleryPlugin(limit)
-    if (viaPlugin !== null) return viaPlugin
-  }
-  return chooseViaInput(limit, capture)
+  // A-21: [앨범]은 갤러리 플러그인 길이 켜져 있고 쓸 수 있을 때만 그 길(시험 빌드에서만 켜짐 - `photo/galleryPlugin.ts`). 아니면 웹 입력.
+  let files: File[] | null = null
+  if (!capture) files = await chooseViaGalleryPlugin(limit)
+  if (files === null) files = await chooseViaInput(limit, capture)
+  return guardPickedFiles(files)
 }
 
 function chooseViaInput(limit: number, capture: boolean): Promise<File[]> {

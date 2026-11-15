@@ -13,6 +13,7 @@ import { ONBOARDING_STEP } from '@/constants/onboardingStep'
 import type { Database } from '@/types/database'
 import { isStartDateSelectable, isValidNickname, normalizeNickname, startDateIsoToInput } from '@/utils/coupleStart'
 import type { WebSupabase } from '../auth/client'
+import { graceMessageForCode, GRACE_NO_INVITE } from './graceCopy'
 
 export type CoupleRow = Database['public']['Tables']['couples']['Row']
 
@@ -54,11 +55,13 @@ export async function hasDissolvingCouple(db: WebSupabase, userId: string): Prom
   return !!data
 }
 
-/** 해제 유예 중이라 초대 코드를 만들 수 없다. */
+/** 유예 중이라 초대 코드를 만들 수 없다. 기본은 해제 유예(OG001, 앱이 먼저 읽어 막는 경우) - 서버가 OG001 · OG002로 거부해도 같은 오류로 올린다(75-m1). */
 export class InviteBlockedByGraceError extends Error {
-  constructor() {
-    super('해제 예정 기간에는 새로 연결할 수 없어요')
+  readonly code: string
+  constructor(code: string = 'OG001') {
+    super(graceMessageForCode(code) ?? GRACE_NO_INVITE)
     this.name = 'InviteBlockedByGraceError'
+    this.code = code
   }
 }
 
@@ -78,6 +81,7 @@ export async function getOrCreateInvite(db: WebSupabase, userId: string): Promis
       .select()
       .single()
     if (!error) return { status: 'pending', couple: data }
+    if (graceMessageForCode(error.code) !== null) throw new InviteBlockedByGraceError(error.code)
     if (error.code !== '23505') throw error
   }
   throw new Error('초대 코드 발급에 반복 실패했습니다.')

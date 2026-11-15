@@ -145,6 +145,19 @@ describe('피드 탭 (E01 · E13) - 가짜 서버', () => {
     expect(container.querySelector('.dateScrim')).toBeTruthy()
   })
 
+  it('R94-8 날짜 카드는 눌림 연출(.press) 없이 탭만 열린다 - 길게 눌러 지우기는 상세 화면 항목에만 있다', () => {
+    const onOpen = vi.fn()
+    const { container } = render(<DateCard dateLabel="10월 3일" title="제목" onOpen={onOpen} />)
+    const card = container.querySelector('.dateCard') as HTMLElement
+    expect(card.classList.contains('press')).toBe(false)
+    fireEvent.pointerDown(card)
+    fireEvent.contextMenu(card)
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('sheet-delete-entry')).toBeNull()
+    fireEvent.click(card)
+    expect(onOpen).toHaveBeenCalledTimes(1)
+  })
+
   it('불러오는 동안 I03 뼈대, 기록이 없으면 빈 상태(첫 기록 남기기)', async () => {
     useDb({})
     render(<FeedTab nav={makeFakeNav()} />)

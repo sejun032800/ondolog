@@ -14,6 +14,7 @@ import { ConnectCoupleError } from '@/services/coupleConnectCore'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
 import { INVITE_CODE_LENGTH } from '../../codeInput'
+import { graceMessageForCode } from '../../couple/graceCopy'
 import { completeOnboardingWithoutCouple, fetchExistingInvite, getOrCreateInvite, InviteBlockedByGraceError, markInviteDoneAwaitingStartDate, redeemInviteCode } from '../../couple/coupleApi'
 import { CodeBoxes } from './CodeBoxes'
 import type { Nav } from '../../navigation'
@@ -34,6 +35,7 @@ export const INVITE_COPY = {
   received: '상대에게 코드를 받았어요',
   later: '나중에 할게요',
   solo: '솔로예요',
+  soloNote: '나중에 메인에서 언제든 연인을 초대할 수 있어요.',
   enterTitle: '받은 코드를\n입력해주세요',
   connect: '연결하기',
   redeemError: '연결하지 못했어요. 다시 시도해주세요.',
@@ -175,7 +177,8 @@ export function InviteScreen({ nav, bridge, mode = 'onboarding', initialStep = '
       await redeemInviteCode(db, entered)
       await goConnected()
     } catch (e) {
-      setError(e instanceof ConnectCoupleError ? e.message : INVITE_COPY.redeemError)
+      // 75-m1 서버 거부(OG001 해제 유예 · OG002 탈퇴 유예)는 `ConnectCoupleError.code`로 온다 - 일반 문구보다 먼저 읽는다.
+      setError(graceMessageForCode((e as { code?: unknown } | null)?.code) ?? (e instanceof ConnectCoupleError ? e.message : INVITE_COPY.redeemError))
     } finally {
       setBusy(false)
     }
@@ -222,9 +225,13 @@ export function InviteScreen({ nav, bridge, mode = 'onboarding', initialStep = '
       title={INVITE_COPY.title}
       subtitle={INVITE_COPY.subtitle}
       footer={gate ? undefined : (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 28 }}>
-          <button className="link press" style={{ color: 'var(--textSub)' }} onClick={() => void skip()}>{INVITE_COPY.later}</button>
-          <button className="link press" style={{ color: 'var(--textSub)' }} onClick={() => void skip()}>{INVITE_COPY.solo}</button>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 28 }}>
+            <button className="link press" style={{ color: 'var(--textSub)' }} onClick={() => void skip()}>{INVITE_COPY.later}</button>
+            <button className="link press" style={{ color: 'var(--textSub)' }} onClick={() => void skip()}>{INVITE_COPY.solo}</button>
+          </div>
+          {/* R94-4: 링크 아래 작은 글(A17 문법 - 링크 한 줄 아래, 가운데, 약한 글씨) */}
+          <p className="t-caption c-mute" style={{ textAlign: 'center', marginTop: 10 }} data-testid="invite-solo-note">{INVITE_COPY.soloNote}</p>
         </div>
       )}
     >

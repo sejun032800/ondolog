@@ -428,7 +428,7 @@ export function ShareCardScreen({ nav, bridge }: { nav: Nav; bridge: NativeBridg
 /** 화면에 보이는 AI 활용 설명 - PM 최소판 §3 한 줄(R38-2 문장을 대체, `legal/consent.ts`). */
 export const AI_USAGE_HELPER_BOARD = AI_USAGE_CONSENT_LINE
 const DOC_ORDER: Record<string, { n: number; tag: string }> = {
-  terms: { n: 2, tag: '필수' }, privacy: { n: 3, tag: '필수' }, aiUsage: { n: 4, tag: '필수' },
+  terms: { n: 2, tag: '필수' }, privacy: { n: 3, tag: '필수' }, aiUsage: { n: 4, tag: '필수' }, marketing: { n: 5, tag: '선택' },
 }
 
 /** "전체 동의"가 선택 항목(마케팅)까지 함께 동의한다는 사실(R65-4 · R74-10 문구). "전체 동의" 줄 바로 아래, 누르기 전부터 보인다. */
@@ -468,8 +468,8 @@ export function ConsentScreen({ nav }: { nav: Nav }) {
           <div className="rule" />
           <ConsentRow label="AI 콘텐츠 생성을 위한 데이터 활용" tag="필수" helper={AI_USAGE_HELPER_BOARD} checked={consent.aiUsage} onToggle={() => toggle('aiUsage')} onView={() => setSheet('aiUsage')} />
           <div className="rule" />
-          {/* 마케팅 문서는 PM 문장이 아직 없어 [보기]를 두지 않는다(자리표시자를 보이지 않는다) - 처리방침 1 · 2번에 수신 동의 항목이 있다. */}
-          <ConsentRow label="마케팅 정보 수신" tag="선택" checked={consent.marketing} onToggle={() => toggle('marketing')} />
+          {/* 마케팅 수신 동의 전문은 PM 최소판 v1.1 §5(R94-9) - [보기]가 설정의 같은 문서를 연다. */}
+          <ConsentRow label="마케팅 정보 수신" tag="선택" checked={consent.marketing} onToggle={() => toggle('marketing')} onView={() => setSheet('marketing')} />
         </div>
       </OnboardingScreen>
       {sheet ? <LegalSheet docKey={sheet} onClose={() => setSheet(null)} /> : null}
