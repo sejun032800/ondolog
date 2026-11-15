@@ -196,3 +196,62 @@ describe('I02 띠', () => {
     expect(screen.getByTestId('connection-banner')).toBeTruthy()
   })
 })
+
+describe('A-17 올리는 중 거부는 바로 끊김이 아니다', () => {
+  const photoBody = () => new Blob([new Uint8Array(8)], { type: 'image/jpeg' })
+  const reject = () => Promise.reject(new TypeError('Failed to fetch'))
+  const flush = async () => { await vi.advanceTimersByTimeAsync(0) }
+
+  it('올리기 요청 판별: 저장소 객체 경로 · 파일 덩어리 본문의 쓰기만. 읽기 · 작은 JSON은 아니다', async () => {
+    const { isUploadRequest } = await import('./connectionMonitor')
+    expect(isUploadRequest('https://x.test/storage/v1/object/entries/a.jpg', { method: 'POST' })).toBe(true)
+    expect(isUploadRequest('https://x.test/y', { method: 'PUT', body: photoBody() })).toBe(true)
+    expect(isUploadRequest('https://x.test/y', { method: 'POST', body: new FormData() })).toBe(true)
+    expect(isUploadRequest('https://x.test/y', { method: 'POST', body: '{"a":1}' })).toBe(false)
+    expect(isUploadRequest('https://x.test/storage/v1/object/entries/a.jpg')).toBe(false) // GET(내려받기)
+    expect(isUploadRequest('https://x.test/y', { method: 'GET' })).toBe(false)
+  })
+
+  it('올리기가 거부돼도 확인 요청에 응답이 오면 끊김으로 알리지 않고 연결로 본다', async () => {
+    const report = vi.fn()
+    const probe = vi.fn(async () => new Response(''))
+    const wrapped = trackConnection(reject as unknown as typeof fetch, report, { probe: () => probe })
+    await expect(wrapped('https://x.test/storage/v1/object/a', { method: 'POST', body: photoBody() })).rejects.toBeInstanceOf(TypeError)
+    await flush()
+    expect(probe).toHaveBeenCalledTimes(1)
+    expect(report).not.toHaveBeenCalledWith(false)
+    expect(report).toHaveBeenCalledWith(true)
+  })
+
+  it('확인 요청도 거부되면 그때 끊김', async () => {
+    const report = vi.fn()
+    const wrapped = trackConnection(reject as unknown as typeof fetch, report, { probe: () => async () => { throw new TypeError('x') } })
+    await expect(wrapped('https://x.test/storage/v1/object/a', { method: 'POST', body: photoBody() })).rejects.toBeTruthy()
+    await flush()
+    expect(report).toHaveBeenCalledWith(false)
+  })
+
+  it('다른 올리기가 아직 진행 중일 때 확인 요청이 제한 시간에 걸리면(회선이 찬 것) 끊김으로 판정하지 않는다', async () => {
+    const report = vi.fn()
+    let finishSecond: (r: Response) => void = () => {}
+    const second = new Promise<Response>((res) => { finishSecond = res })
+    let n = 0
+    const base = (() => (n++ === 0 ? second : reject())) as unknown as typeof fetch
+    const probe = (signal?: AbortSignal) => new Promise<unknown>((_, rej) => signal?.addEventListener('abort', () => rej(Object.assign(new Error('a'), { name: 'AbortError' }))))
+    const wrapped = trackConnection(base, report, { probe: () => probe, confirmTimeoutMs: 8000 })
+    const body = { method: 'POST', body: photoBody() }
+    void wrapped('https://x.test/storage/v1/object/b', body) // 진행 중인 두 번째 올리기
+    await expect(wrapped('https://x.test/storage/v1/object/a', body)).rejects.toBeTruthy()
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(report).not.toHaveBeenCalledWith(false)
+    finishSecond(new Response(''))
+  })
+
+  it('올리기가 아닌 요청의 거부는 지금처럼 바로 끊김(확인 없이)', async () => {
+    const report = vi.fn()
+    const probe = vi.fn(async () => new Response(''))
+    await expect(trackConnection(reject as unknown as typeof fetch, report, { probe: () => probe })('https://x.test/rest/v1/a')).rejects.toBeTruthy()
+    expect(report).toHaveBeenCalledWith(false)
+    expect(probe).not.toHaveBeenCalled()
+  })
+})

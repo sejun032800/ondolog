@@ -85,6 +85,7 @@ input { font: inherit; }
 .btn { white-space: nowrap; height: 54px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 15.5px; width: 100%; }
 .btn.primary { background: var(--text); color: var(--ink); font-weight: 600; }
 .btn.ghost { background: rgba(243,239,247,.06); border: 1px solid rgba(243,239,247,.14); color: var(--text); font-weight: 500; }
+.btn.off { background: rgba(243,239,247,.06); color: var(--textFaint); font-weight: 500; border: 0; cursor: default; }
 .btn:disabled { background: rgba(243,239,247,.06); color: var(--textFaint); font-weight: 500; border: 0; cursor: default; }
 .btn.kakao { background: var(--kakao); color: var(--ink); font-weight: 600; }
 .link { min-height: 48px; display: flex; align-items: center; justify-content: center; font-size: 15.5px; line-height: 24px; color: var(--mist); }
@@ -250,6 +251,10 @@ input { font: inherit; }
 .storySegments { position: absolute; left: 14px; right: 14px; top: calc(var(--top) + 4px); display: flex; gap: 4px; pointer-events: none; }
 .storySegments i { flex: 1; height: 2px; border-radius: 2px; background: rgba(243,239,247,.25); }
 .storySegments i.on { background: var(--text); }
+/* A-16: 자동 넘김이 켜졌을 때만 - 지금 장이 시간으로 차오른다(꺼진 동안은 쓰이지 않는다). */
+.storySegments i.cur { position: relative; overflow: hidden; }
+.storySegments i.cur.fill::after { content: ''; position: absolute; inset: 0; background: var(--text); transform-origin: left center; animation: storyFill linear both; animation-duration: inherit; }
+@keyframes storyFill { from { transform: scaleX(0) } to { transform: scaleX(1) } }
 .storyWho { position: absolute; left: 16px; right: 8px; top: calc(var(--top) + 18px); display: flex; align-items: center; gap: 10px; }
 .storyAvatar { width: 34px; height: 34px; border-radius: 999px; border: 1.5px solid var(--text); background: var(--inkRaise2); overflow: hidden; display: block; }
 .storyAvatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -273,6 +278,10 @@ input { font: inherit; }
   color: var(--text); font-size: 13px; line-height: 19px; padding: 10px 14px; border-radius: 16px; text-align: center; animation: rise 260ms ease-out both; }
 
 /* 결과 카드: 같은 결과로 다시 열릴 때는 등장 연출을 처음부터 다시 재생하지 않는다(E4). */
+.shareCardScreen { align-items: center; justify-content: center; text-align: center; }
+.shareCardBody { display: flex; flex-direction: column; align-items: center; padding: 0 32px; margin-top: -40px; }
+.shareCardTitle { font-weight: 600; font-size: 40px; line-height: 52px; letter-spacing: -0.8px; max-width: 260px; margin-top: 18px; color: var(--text); }
+.shareCardBrand { position: absolute; left: 0; right: 0; bottom: calc(var(--bot) + 40px); letter-spacing: 6px; }
 .still .appear { opacity: 1; animation: none; }
 
 /* ═══ 74-1 앱 뼈대: 탭 바 · 탭 화면 · 시트/확인/토스트/띠 · 공통 상태 ═══ */
@@ -282,6 +291,8 @@ input { font: inherit; }
 .tabHeader { flex: none; padding: calc(var(--top) + 12px) 24px 0; min-height: calc(var(--top) + 60px); }
 .tabBody { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px calc(var(--bot) + 12px + 64px + 24px); }
 
+/* A-3 받침: 탭 바 윗면(+8px)부터 화면 바닥까지 바탕색으로 덮어, 내용이 탭 바 아래로 스크롤돼 보이지 않게 한다. 터치는 통과(pointer-events). */
+.tabShelf { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--bot) + 12px + 64px + 8px); z-index: 9; background: #0A0814; pointer-events: none; }
 /* 탭 바: 바닥에서 12px 띄운 섬, 높이 64, 반경 22(보드 tab_icons.md). 활성 = rose 아이콘 + 글로우, 점 없음. */
 .tabBar { position: absolute; left: 16px; right: 16px; bottom: calc(var(--bot) + 12px); height: 64px; z-index: 10; border-radius: 22px;
   background: #0A0814; border: 1px solid rgba(243,239,247,.08); display: flex; align-items: center; justify-content: space-around; padding: 0 6px; }
@@ -327,6 +338,7 @@ input { font: inherit; }
 
 /* I06 토스트: 밝은 알약 + ink 글자. 탭 바 위. */
 .toastWrap { position: absolute; left: 0; right: 0; bottom: calc(var(--bot) + 24px); z-index: 60; display: flex; justify-content: center; pointer-events: none; }
+.toastWrap.atTop { bottom: auto; top: calc(var(--top) + 8px); }
 .toastWrap.aboveTabs { bottom: calc(var(--bot) + 12px + 64px + 24px); }
 .toastPill { pointer-events: auto; min-height: 44px; max-width: 340px; border-radius: 999px; background: var(--text); display: flex; align-items: center; gap: 14px; padding: 10px 20px; animation: rise 220ms ease-out both; }
 .toastMsg { font-weight: 600; font-size: 15px; line-height: 22px; color: var(--ink); }
@@ -362,6 +374,9 @@ input { font: inherit; }
 .mainScroll { flex: 1; min-height: 0; overflow-y: auto; position: relative;
   padding: calc(var(--top) + 42px) 24px calc(var(--bot) + 12px + 64px + 24px); }
 .mainWrap { position: relative; }
+.startTemp { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.startTempCaption { font-size: 13px; line-height: 19px; color: var(--textSub); max-width: 280px; }
+.startTempHelper { font-size: 12px; line-height: 17px; color: var(--textMute); }
 .mainRise { animation: mainRise 720ms cubic-bezier(.2,.8,.2,1) both; }
 @keyframes mainRise { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
 .heroGap { margin-top: 44px; }
@@ -439,6 +454,7 @@ input { font: inherit; }
 .feedTab::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: var(--top); background: var(--ink); z-index: 2; pointer-events: none; }
 .feedTitle { font-size: 26px; line-height: 34px; padding-left: 4px; }
 .feedSkeleton { display: flex; flex-direction: column; gap: 16px; }
+.feedSkeletonGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } /* I03: 큰 카드 아래 작은 카드 둘 */
 .feedError { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 0; }
 .feedChapter { display: flex; flex-direction: column; gap: 16px; }
 .monthHead { display: flex; flex-direction: column; gap: 14px; }
@@ -449,6 +465,9 @@ input { font: inherit; }
 .dateCard { position: relative; display: block; width: 100%; height: 230px; border-radius: 28px; overflow: hidden; background: var(--inkRaise); text-align: left; }
 .dateCard.compact { height: 180px; border-radius: 24px; }
 .dateCard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.dateCard.noPhoto { height: auto; min-height: 112px; display: flex; align-items: flex-end; }
+.dateCard.noPhoto.compact { min-height: 96px; }
+.dateCard.noPhoto .dateText { position: static; width: 100%; padding: 20px 18px; }
 .dateScrim { position: absolute; left: 0; right: 0; bottom: 0; height: 140px; background: linear-gradient(180deg, rgba(10,8,20,0) 0%, rgba(10,8,20,.78) 100%); }
 .dateText { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; }
 .dateTitle { font-weight: 600; font-size: 19px; line-height: 26px; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -492,6 +511,7 @@ input { font: inherit; }
 .memoRule { flex: none; width: 1px; align-self: stretch; background: rgba(243,239,247,.18); }
 .memoBody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .memoText { font-family: 'MaruBuri', serif; font-size: 17px; line-height: 30px; color: var(--textSub); white-space: pre-wrap; word-break: break-word; }
+.holdable { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
 .moreBtn { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--textSub); font-size: 18px; line-height: 1; }
 .moreBtn span { width: 28px; height: 28px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: rgba(10,8,20,.6); }
 .memoQuote .moreBtn { margin: -10px -12px 0 0; }
@@ -601,6 +621,7 @@ input { font: inherit; }
 .emptyShelfTitle { font-weight: 600; font-size: 20px; line-height: 28px; color: var(--text); }
 .ruleTrack { width: 220px; height: 2px; border-radius: 2px; background: rgba(243,239,247,.1); }
 .ruleFill { display: block; height: 2px; border-radius: 2px; background: var(--rose); }
+.firstHint { text-align: center; max-width: 280px; margin-top: 2px; }
 .firstPercent { font-size: 18px; line-height: 24px; }
 .shelfHint { display: flex; flex-direction: column; gap: 12px; text-align: center; }
 .shelfLine { height: 1px; background: rgba(243,239,247,.14); }

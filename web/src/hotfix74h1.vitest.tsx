@@ -150,6 +150,7 @@ describe('① D1 같은 실행 재로그인 - 세 순서에서 "로그인하지 
 
     await toSettingsProfile()
     fireEvent.click(byId('profile-logout'))
+    fireEvent.click(byId('confirm-yes')) // D7
     await settle(200)
     expect(screenName()).toBe('intro')
     // 남은 상태가 없다: 세션 저장소 · 콜백 칸 · 처리한 코드 표시 · 알림 · 사용자 상태
@@ -199,6 +200,9 @@ describe('① D1 같은 실행 재로그인 - 세 순서에서 "로그인하지 
     fireEvent.click(byId('withdraw-submit'))
     await settle(300)
     expect(db.rpcCalls.map((c) => c.fn)).toContain('fn_request_withdrawal')
+    expect(byId('withdraw-done')).toBeTruthy() // A-25: 안내 한 장 -> [확인] -> 로그아웃
+    fireEvent.click(screen.getByRole('button', { name: '확인' }))
+    await settle(300)
     expect(screenName()).toBe('intro')
     expect(sessionKeys(storage.m)).toEqual([])
     expect(callbackInbox.take()).toBeNull()
@@ -247,6 +251,7 @@ describe('① D1 같은 실행 재로그인 - 세 순서에서 "로그인하지 
     await kakaoRoundTrip(bridge, 'good1')
     await toSettingsProfile()
     fireEvent.click(byId('profile-logout'))
+    fireEvent.click(byId('confirm-yes')) // D7
     await settle(200)
     await backToLoginScreen()
     fireEvent.click(screen.getByText('카카오로 시작하기'))

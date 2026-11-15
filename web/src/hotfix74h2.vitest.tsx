@@ -10,7 +10,6 @@ import { setSupabaseForTest } from './auth/client'
 import { resetCallbackStateForTest } from './auth/callback'
 import { useAuthStore, useNoticeStore } from './auth/stores'
 import { attachmentDisplayName } from './attachmentNames'
-import { KeyboardTestScreen } from './features/settings/KeyboardTestScreen'
 import { ACTIVE, ASSESSMENT, ME, PARTNER, PERSONALITY } from './features/settings/settingsTestSupport'
 import { forgetLibrary } from './features/magazine/libraryData'
 import { resetSettingsSummaryCache } from './features/settings/useSettingsSummary'
@@ -335,25 +334,6 @@ describe('1 앱 링크 리스너 · 실패 화면 안전장치 · 진단 표시'
     await act(async () => { handlers.forEach((h) => h('SIGNED_IN', { user: { id: 'me' } })); await vi.advanceTimersByTimeAsync(1500) })
     expect(document.body.textContent).not.toContain('로그인하지 못했어요')
     expect(screenName()).toBe('main')
-  })
-})
-
-describe('3 키보드 시험 · 코드 칸', () => {
-  it('시험 빌드(시험)에서 화면이 있다 - 네 칸 조합은 email(inputMode) · url · email · url(inputMode), 모두 자동 대문자 · 고침 끔', () => {
-    expect(ROUTE_ELEMENTS['keyboard-test']({ nav: makeFakeNav(), bridge: makeFakeBridge(), ready: true, onPhase: () => {} })).not.toBeNull()
-    render(<MemoryRouter><KeyboardTestScreen nav={makeFakeNav()} /></MemoryRouter>)
-    const el = (n: number) => screen.getByTestId(`kb-field-${n}`)
-    expect([el(1).getAttribute('type'), el(1).getAttribute('inputmode')]).toEqual(['text', 'email'])
-    expect([el(2).getAttribute('type'), el(2).getAttribute('inputmode')]).toEqual(['url', null])
-    expect([el(3).getAttribute('type'), el(3).getAttribute('inputmode')]).toEqual(['email', null])
-    expect([el(4).getAttribute('type'), el(4).getAttribute('inputmode')]).toEqual(['text', 'url'])
-    for (const n of [1, 2, 3, 4]) {
-      expect(el(n).getAttribute('autocapitalize')).toBe('none')
-      expect(el(n).getAttribute('autocorrect')).toBe('off')
-      expect(el(n).getAttribute('autocomplete')).toBe('off')
-      expect(el(n).getAttribute('spellcheck')).toBe('false')
-    }
-    expect(screen.getByText('영문으로 바꿔 입력해 주세요')).toBeTruthy()
   })
 })
 

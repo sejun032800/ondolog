@@ -19,6 +19,7 @@ import { makeFakeNav } from '../../testSupport'
 import { MainTab } from '../../tabs/MainTab'
 import { issueOpenedKey, loadOpenedIssueIds, markIssueOpened } from './issueSeen'
 import { MainView, type MainViewProps } from './MainView'
+import { FIRST_ISSUE_PERCENT_HINT } from '../magazine/firstIssueHint'
 import type { LibraryState, LoveTypeSummary, MainFacts } from './useMainData'
 
 // 기기 저장(Capacitor Preferences)은 메모리 사본으로 바꿔 읽기 · 쓰기 호출을 센다.
@@ -154,6 +155,7 @@ describe('연결: 온도 표시 상태', () => {
     expect(screen.getByText('FIRST STEP')).toBeTruthy()
     expect(screen.getByText('FIRST ISSUE')).toBeTruthy()
     expect(screen.getByTestId('main-issue-percent').textContent).toBe('0%')
+    expect(screen.getByTestId('main-issue-hint').textContent).toBe(FIRST_ISSUE_PERCENT_HINT) // A-2-3(PM 확인 전 후보)
     fireEvent.click(screen.getByTestId('main-first-step-link'))
     expect(spies.onChat).toHaveBeenCalledTimes(1)
     expect(screen.queryByText(/제작 현황/)).toBeNull()
@@ -262,6 +264,7 @@ describe('B06 새 호 도착과 지난 호 · 다음 호 카드', () => {
     expect(screen.getByText('NEXT ISSUE')).toBeTruthy()
     expect(screen.getByText('10월호를 만들고 있어요')).toBeTruthy()
     expect(screen.getByTestId('main-issue-percent').textContent).toBe('41%')
+    expect(screen.queryByTestId('main-issue-hint')).toBeNull() // 다음 호 카드에는 첫 호 한 줄이 없다
     expect(screen.getByText('대화 412 · 사진 18 · 데이트 3')).toBeTruthy()
     expect(screen.getByText('02')).toBeTruthy()
     expect(screen.queryByText(/제작 현황/)).toBeNull()

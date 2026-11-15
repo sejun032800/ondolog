@@ -276,3 +276,25 @@ describe('보내기 버튼은 입력 칸의 포커스를 가져가지 않는다'
     expect(document.activeElement).toBe(el)
   })
 })
+
+describe('A-20 터치로 보내기 - 포커스 유지 · 한 번만', () => {
+  it('touchend가 기본 동작을 막고 한 번 보낸다 · 포커스는 입력 칸에 남는다 · 한글 조합 중 보내도 같다', () => {
+    const { el, sent } = setup()
+    typeWord(el, ANNYEONG)
+    const end = new Event('touchend', { bubbles: true, cancelable: true })
+    fireEvent(screen.getByTestId('send'), end)
+    expect(end.defaultPrevented).toBe(true) // 가짜 mousedown · click 차단 -> 웹뷰가 포커스를 옮기지 않는다
+    expect(sent).toEqual(['안녕'])
+    expect(document.activeElement).toBe(el)
+  })
+
+  it('실제 기기처럼 터치 뒤 click이 오지 않으면 한 번, 스크린 리더처럼 click만 와도 한 번 보낸다', () => {
+    const { el, sent } = setup()
+    plain(el, 'a', 'insertText', 'a')
+    fireEvent(screen.getByTestId('send'), new Event('touchend', { bubbles: true, cancelable: true }))
+    plain(el, 'b', 'insertText', 'b')
+    tap()
+    expect(sent).toEqual(['a', 'b'])
+    expect(document.activeElement).toBe(el)
+  })
+})

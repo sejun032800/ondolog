@@ -1,0 +1,108 @@
+/**
+ * 동의 상수 파일(`legal/consent.ts`) 시험 - PM 최소판 v1 반영 규칙(PM_legal_minimal_v1.md §4).
+ * 값(운영자 · 문의 메일 · 저장 지역 · 시행일)은 출력하지 않는다. 비었는지만 본다.
+ */
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { MIN_AGE_YEARS } from '@/constants/consent'
+import { useSessionStore } from '@/store/sessionStore'
+import { setSupabaseForTest } from '../auth/client'
+import { useAuthStore } from '../auth/stores'
+import { PrivacyScreen } from '../features/settings/PrivacyScreen'
+import { settingsDb } from '../features/settings/settingsTestSupport'
+import { AI_USAGE_HELPER_BOARD, ConsentScreen } from '../screens'
+import { makeFakeNav } from '../testSupport'
+import {
+  AI_USAGE_CONSENT_LINE, LEGAL_CONTACT_EMAIL, LEGAL_DOCUMENTS, LEGAL_EFFECTIVE_DATE, LEGAL_OPERATOR, LEGAL_STORAGE_REGION, legalPlainText, type LegalDocumentKey,
+} from './consent'
+
+const KEYS: LegalDocumentKey[] = ['privacy', 'terms', 'aiUsage']
+
+beforeEach(() => {
+  useSessionStore.getState().resetSession()
+  useAuthStore.getState().setUserId('me')
+})
+afterEach(() => {
+  cleanup()
+  setSupabaseForTest(undefined)
+  useAuthStore.getState().setUserId(null)
+})
+
+describe('세 문서 전문', () => {
+  it('자리표시자가 남지 않는다 - `{` · `[자리표시자]` · `TODO` 0', () => {
+    for (const k of KEYS) {
+      const text = legalPlainText(LEGAL_DOCUMENTS[k])
+      expect(text.length).toBeGreaterThan(100)
+      expect(text).not.toContain('{')
+      expect(text).not.toContain('}')
+      expect(text).not.toContain('[자리표시자]')
+      expect(text).not.toContain('TODO')
+    }
+    expect(AI_USAGE_CONSENT_LINE).not.toMatch(/[{}]|\[자리표시자\]|TODO/)
+  })
+
+  it('만 14세 하한이 동의 화면(MIN_AGE_YEARS) · 처리방침 7번 · 약관 2번에서 같다', () => {
+    expect(MIN_AGE_YEARS).toBe(14)
+    const privacy = LEGAL_DOCUMENTS.privacy.sections.find((s) => s.heading?.startsWith('7.'))!
+    expect(privacy.heading).toBe(`7. 만 ${MIN_AGE_YEARS}세 미만`)
+    expect(privacy.paragraphs?.[0]).toBe(`만 ${MIN_AGE_YEARS}세 미만은 가입할 수 없습니다.`)
+    expect(legalPlainText(LEGAL_DOCUMENTS.terms)).toContain(`2. 가입: 만 ${MIN_AGE_YEARS}세 이상이`)
+  })
+
+  it('동의 화면 한 줄이 R38-2 문장을 대체했다', () => {
+    expect(AI_USAGE_HELPER_BOARD).toBe(AI_USAGE_CONSENT_LINE)
+    expect(AI_USAGE_CONSENT_LINE).toBe('두 사람의 대화·메모 같은 글 기록은 잡지 문장을 쓰기 위해 Anthropic의 Claude API(미국)로 보내지고, 30일 안에 지워져요. 사진 자체는 보내지 않아요.')
+    useSessionStore.getState().setBirthDate('1995-05-05')
+    render(<MemoryRouter><ConsentScreen nav={makeFakeNav()} /></MemoryRouter>)
+    expect(screen.getByText(AI_USAGE_CONSENT_LINE)).toBeTruthy()
+    expect(document.body.textContent).not.toContain('외부 AI로 전송돼요')
+    expect(screen.getByText(`만 ${MIN_AGE_YEARS}세 이상입니다`)).toBeTruthy()
+  })
+})
+
+describe('온보딩 [보기]와 설정 > 개인정보 & 약관이 같은 문장을 보인다(51- C13)', () => {
+  async function consentSheetText(index: number): Promise<string> {
+    useSessionStore.getState().setBirthDate('1995-05-05')
+    render(<MemoryRouter><ConsentScreen nav={makeFakeNav()} /></MemoryRouter>)
+    fireEvent.click(screen.getAllByText('보기')[index])
+    const body = await screen.findByTestId('legal-body')
+    const text = body.textContent ?? ''
+    cleanup()
+    return text
+  }
+  async function settingsSheetText(rowKey: string): Promise<string> {
+    settingsDb({})
+    render(<MemoryRouter><PrivacyScreen nav={makeFakeNav()} /></MemoryRouter>)
+    fireEvent.click(await screen.findByTestId(`privacy-row-${rowKey}`))
+    const body = await screen.findByTestId('legal-body')
+    const text = body.textContent ?? ''
+    cleanup()
+    return text
+  }
+
+  it('이용약관 · 처리방침 · AI 활용 안내', async () => {
+    // 동의 화면의 [보기] 순서: 이용약관, 처리방침, AI(마케팅 [보기]는 없다)
+    const onboarding = [await consentSheetText(0), await consentSheetText(1), await consentSheetText(2)]
+    const settings = [await settingsSheetText('terms'), await settingsSheetText('privacy'), await settingsSheetText('aiUsage')]
+    expect(settings).toEqual(onboarding)
+    for (const text of onboarding) expect(text).not.toMatch(/[{}]|\[자리표시자\]|TODO/)
+    expect(onboarding[1]).toContain(LEGAL_DOCUMENTS.privacy.title)
+    expect(onboarding[2]).toContain('Anthropic')
+  })
+
+  it('동의 화면 [보기]는 세 문서뿐이고 마케팅 줄에는 없다(PM 문장이 없는 문서를 자리표시자로 보이지 않는다)', () => {
+    useSessionStore.getState().setBirthDate('1995-05-05')
+    render(<MemoryRouter><ConsentScreen nav={makeFakeNav()} /></MemoryRouter>)
+    expect(screen.getAllByText('보기')).toHaveLength(3)
+  })
+})
+
+describe.skipIf(!process.env.LEGAL_CHECK)('legal values are filled (빌드 관문 - 평소 실행에서는 건너뜀)', () => {
+  it('운영자 · 문의 메일 · 저장 지역 · 시행일 네 값이 모두 채워졌다', () => {
+    expect(LEGAL_OPERATOR.trim()).not.toBe('')
+    expect(LEGAL_CONTACT_EMAIL.trim()).not.toBe('')
+    expect(LEGAL_STORAGE_REGION.trim()).not.toBe('')
+    expect(LEGAL_EFFECTIVE_DATE.trim()).not.toBe('')
+  })
+})

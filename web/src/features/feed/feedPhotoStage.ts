@@ -15,6 +15,7 @@
  */
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { IS_TRIAL_BUILD } from '../../config/env'
+import { stripLocation, type StripDeps } from '../../photo/stripLocation'
 import { safeKind, useTrialDiag } from '../../platform/trialDiag'
 import type { FilesystemLike } from '../../photoQueue/webPhotoFs'
 import { chooseFiles, fileKeyOf, PICK_LIMIT, photoFromFile, readExifTags, readImageSize, type ExifReader, type ImageSizeReader, type WebPickedPhoto } from './photoPicker'
@@ -33,6 +34,8 @@ export interface StageDeps {
   makeUrl?: (blob: Blob) => string
   revokeUrl?: (url: string) => void
   now?: () => Date
+  /** 위치 제거 재인코딩 대체(시험). */
+  strip?: StripDeps
 }
 
 type Source = { path: string } | { bytes: ArrayBuffer }
@@ -99,10 +102,14 @@ export async function stageFiles(files: readonly File[], capture: boolean, deps:
     try {
       const bytes = await readFileBytes(file)
       if (bytes.byteLength === 0) throw new Error('empty')
-      const own = new Blob([bytes], { type: file.type })
+      const original = new Blob([bytes], { type: file.type })
+      // 위치 제거(R93-4): 촬영 시각은 위 원본에서 읽고, 이후 미리보기 · 복사본 · 업로드는 위치 없는 바이트만 쓴다. 실패하면 이 사진은 failed(위치가 남은 바이트를 올리지 않는다).
+      const stripped = await stripLocation(bytes, file.type, deps.strip)
+      const own = new Blob([stripped.bytes], { type: stripped.mimeType })
       const url = makeUrl(own)
       previewUrl = url
-      const photo = await photoFromFile(file, { readExif: () => readExif(own), readSize: deps.readSize ?? readImageSize, makeUrl: () => url })
+      const photo0 = await photoFromFile(file, { readExif: () => readExif(original), readSize: deps.readSize ?? readImageSize, makeUrl: () => url })
+      const photo: WebPickedPhoto = { ...photo0, byteSize: stripped.bytes.byteLength, mimeType: stripped.mimeType || photo0.mimeType }
       // 카메라로 찍은 사진은 EXIF 촬영 시각이 없으면 지금 시각으로(웹 입력 capture는 EXIF를 안 남기는 기기가 있다).
       const stamped: StagedPhoto = capture && photo.capturedAt === null ? { ...photo, capturedAt: now().toISOString() } : photo
       let source: Source
@@ -111,7 +118,7 @@ export async function stageFiles(files: readonly File[], capture: boolean, deps:
         await fs.writeFile({ path, data: await blobToBase64(own), directory: Directory.Cache, recursive: true })
         source = { path }
       } catch {
-        source = { bytes } // 복사하지 못한 사진만 메모리에 둔다
+        source = { bytes: stripped.bytes } // 복사하지 못한 사진만 메모리에 둔다
       }
       sources.set(url, source)
       out.push(stamped)

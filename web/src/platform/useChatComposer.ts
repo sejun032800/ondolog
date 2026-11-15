@@ -16,7 +16,7 @@
  *    - 공백만 있는 입력은 보내지 않는다(`canSendBody` - 화면 · 훅 · API가 쓰는 단 하나의 규칙).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { MouseEvent, PointerEvent } from 'react'
+import type { MouseEvent, PointerEvent, TouchEvent } from 'react'
 import { canSendBody } from '@/utils/chatMessages'
 
 /** 묵은 조합(`stale`)을 잔여로 알아보는 판단. 시험이 직접 부르는 순수 함수. */
@@ -185,7 +185,17 @@ export function useChatComposer(onSend: (text: string) => void) {
     onPointerDown: (e: PointerEvent<HTMLElement>) => e.preventDefault(),
     onMouseDown: (e: MouseEvent<HTMLElement>) => e.preventDefault(),
   }
-  const sendButtonProps = { ...keepFocusProps, onClick: () => { send() } }
+  // A-20: 손가락(터치)은 touchend에서 바로 보내고 뒤따르는 가짜 mousedown · click을 막는다 - 웹뷰가 그 mousedown에서 포커스를 옮겨 키보드가 내려가던 길을 닫는다.
+  // 마우스 · 키보드(스크린 리더 포함)는 click으로 보낸다. touchend가 기본 동작을 막으면 click이 오지 않으므로 두 번 보내지 않는다.
+  const sendButtonProps = {
+    ...keepFocusProps,
+    onTouchEnd: (e: TouchEvent<HTMLElement>) => {
+      if (!e.cancelable) return
+      e.preventDefault()
+      send()
+    },
+    onClick: () => { send() },
+  }
 
   return { inputRef: elRef, hasText, inputProps, sendButtonProps, keepFocusProps, send }
 }

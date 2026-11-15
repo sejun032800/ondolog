@@ -29,22 +29,91 @@ function isAbort(error: unknown): boolean {
   return !!error && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError'
 }
 
-/** `fetch`를 감싸 결과를 알린다. 인자는 그대로 넘기고, 응답은 읽지 않고 돌려주며, 거부는 같은 오류 객체를 다시 던진다. */
+/** 확인 요청 한 번의 제한(ms). `useOfflineProbe`의 제한과 같은 값. */
+export const CONFIRM_TIMEOUT_MS = 8_000
+
+/** 지금 하는 중인 올리기(본문이 큰 쓰기) 요청 수. 올리는 동안은 회선이 꽉 차 확인 요청이 늦는 것이 정상이라 그것만으로 끊김으로 보지 않는다. */
+let uploadsInFlight = 0
+export function getUploadsInFlight(): number {
+  return uploadsInFlight
+}
+
+/**
+ * 올리기 요청인가 - 본문이 파일 덩어리(Blob · ArrayBuffer · FormData · 스트림)이거나 저장소 객체 경로(`/storage/v1/object/`)로 가는 쓰기.
+ * 이런 요청은 오래 걸리고, 서버 · 중간 장치가 큰 본문을 끊어도 브라우저에는 "연결 실패"와 똑같은 거부로 보인다(A-17).
+ */
+export function isUploadRequest(input: unknown, init?: { method?: string; body?: unknown } | null): boolean {
+  const method = (init?.method ?? (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')).toUpperCase()
+  if (method === 'GET' || method === 'HEAD') return false
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url?: string } | null)?.url ?? ''
+  if (url.includes('/storage/v1/object/')) return true
+  const body = init?.body
+  return (
+    (typeof Blob !== 'undefined' && body instanceof Blob) ||
+    (typeof FormData !== 'undefined' && body instanceof FormData) ||
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body) ||
+    (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream)
+  )
+}
+
+export interface TrackDeps {
+  /** 거부된 올리기 요청을 끊김으로 말하기 전의 확인 요청. 기본은 등록된 확인 함수. */
+  probe?: () => ConnectionProbe | null
+  confirmTimeoutMs?: number
+}
+
+/**
+ * 올리기 요청이 거부됐을 때: 바로 끊김이라 하지 않고 확인 요청을 보낸다. 응답이 오면 연결이다(큰 본문이 끊긴 것일 뿐).
+ * 확인 요청이 거부되면 끊김, **제한 시간에 걸렸는데 다른 올리기가 아직 진행 중이면 모른다**(회선이 올리기로 찬 것) - 판정하지 않는다.
+ */
+async function confirmAfterUploadFailure(report: (ok: boolean) => void, deps: TrackDeps): Promise<void> {
+  const probe = (deps.probe ?? getConnectionProbe)()
+  if (!probe) {
+    report(false)
+    return
+  }
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), deps.confirmTimeoutMs ?? CONFIRM_TIMEOUT_MS)
+  try {
+    await probe(controller.signal)
+    report(true)
+  } catch (error) {
+    if (isAbort(error) && uploadsInFlight > 0) return
+    report(false)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * `fetch`를 감싸 결과를 알린다. 인자는 그대로 넘기고, 응답은 읽지 않고 돌려주며, 거부는 같은 오류 객체를 다시 던진다.
+ * 올리기 요청의 거부만 확인 요청을 거친다(A-17) - 일반 요청의 거부는 지금처럼 바로 끊김이다.
+ */
 export function trackConnection(
   base: typeof fetch,
   report: (ok: boolean) => void = (ok) => useConnectionStore.getState().report(ok),
+  deps: TrackDeps = {},
 ): typeof fetch {
-  return ((...args: Parameters<typeof fetch>) =>
-    base(...args).then(
+  return ((...args: Parameters<typeof fetch>) => {
+    const upload = isUploadRequest(args[0], args[1] as { method?: string; body?: unknown } | undefined)
+    if (upload) uploadsInFlight += 1
+    return base(...args).then(
       (response) => {
+        if (upload) uploadsInFlight -= 1
         report(true)
         return response
       },
       (error: unknown) => {
-        if (!isAbort(error)) report(false)
+        if (upload) uploadsInFlight -= 1
+        if (!isAbort(error)) {
+          if (upload) void confirmAfterUploadFailure(report, deps)
+          else report(false)
+        }
         throw error
       },
-    )) as typeof fetch
+    )
+  }) as typeof fetch
 }
 
 /** 띠 풀기 확인 요청. 응답이 오면(상태 무관) resolve, 거부되면 reject. 감싸기를 지나지 않는다. */

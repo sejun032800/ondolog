@@ -55,6 +55,9 @@ export const COUPLE_COPY = {
 
 type Mode = 'view' | 'date' | 'nickname'
 
+/** 이 실행에서 이 화면의 다시 읽기를 한 번 끝낸 계정. */
+let freshFor: string | null = null
+
 export function CoupleScreen({ nav }: { nav: Nav }) {
   const userId = useAuthStore((s) => s.userId)
   const coupleStatus = useCoupleStore((s) => s.status)
@@ -72,10 +75,14 @@ export function CoupleScreen({ nav }: { nav: Nav }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // A-4: 이 계정으로 이 화면을 처음 열 때는 다시 읽기가 끝날 때까지 뼈대를 둔다 - 낡은 값(연결 전 · 유예 없음)이 0.1초 비쳤다가 바뀌지 않게. 한 번 읽은 뒤의 재진입은 기억한 값을 바로 보인다.
+  const [fresh, setFresh] = useState(() => userId !== null && freshFor === userId)
   const reload = () => {
     if (!userId) return
-    void useCoupleStore.getState().refresh(userId)
-    void useDissolutionStore.getState().refresh(userId)
+    void Promise.all([
+      useCoupleStore.getState().refresh(userId),
+      useDissolutionStore.getState().refresh(userId),
+    ]).catch(() => undefined).finally(() => { freshFor = userId; setFresh(true) })
   }
   // 열릴 때마다 다시 읽는다(RN useFocusEffect). 이미 읽은 값은 비우지 않는다.
   useEffect(reload, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -99,7 +106,7 @@ export function CoupleScreen({ nav }: { nav: Nav }) {
   const dissolutionKnown = dissolutionStatus === 'loaded' || dissolutionStatus === 'error'
 
   // ── 읽는 중(B14) · 해제 상태를 못 읽음 ──
-  if (!coupleKnown || !dissolutionKnown) {
+  if (!coupleKnown || !dissolutionKnown || !fresh) {
     return (
       <SettingsFrame title={COUPLE_COPY.title} onBack={nav.back} testId="settings-couple">
         <SettingsSkeletonBlock rows={4} />
@@ -230,6 +237,12 @@ export function CoupleScreen({ nav }: { nav: Nav }) {
             className="setInput"
             value={nicknameText}
             placeholder="예) 늘봄"
+            // A-18: 한글 기본 자판 · 자동 대문자 끔(코드 칸의 영문 속성이 옮겨 붙지 않게 명시한다)
+            lang="ko"
+            inputMode="text"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             autoComplete="off"
             enterKeyHint="done"
             onChange={(e) => setNicknameText(e.target.value)}

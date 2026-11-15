@@ -16,7 +16,7 @@ import { useSheetStore } from '../../stores/sheetStore'
 import { useToastStore } from '../../stores/toastStore'
 import { makeFakeBridge, makeFakeNav } from '../../testSupport'
 import { makeCoupleDb, stepWrites, type CoupleDbOptions } from '../../testSupportCouple'
-import { InviteScreen, INVITE_POLL_MS, inviteShareMessage } from './InviteScreen'
+import { InviteScreen, INVITE_POLL_MS, inviteShareMessage, systemShowsCopyNotice } from './InviteScreen'
 import { StartDateScreen } from './StartDateScreen'
 
 beforeEach(() => {
@@ -112,6 +112,14 @@ describe('A17 연인 초대', () => {
     await settle()
     expect(writeText).toHaveBeenCalledWith('AB23CD')
     expect(useToastStore.getState().toast?.message).toBe('코드를 복사했어요')
+  })
+
+  it('A-6: 복사 안내는 한 번만 - 안드로이드 13+는 시스템 안내가 있어 앱 토스트를 건너뛴다', () => {
+    const ua = (v: string) => `Mozilla/5.0 (Linux; Android ${v}; Pixel) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36`
+    expect(systemShowsCopyNotice(ua('14'))).toBe(true)
+    expect(systemShowsCopyNotice(ua('13'))).toBe(true)
+    expect(systemShowsCopyNotice(ua('12'))).toBe(false)
+    expect(systemShowsCopyNotice('jsdom')).toBe(false)
   })
 
   it('이미 연결돼 있으면 진행 단계를 올리고 사귄 날짜(A19)로 간다', async () => {
@@ -217,7 +225,17 @@ describe('A18 초대 코드 입력', () => {
     expect(el.getAttribute('spellcheck')).toBe('false')
     expect(el.getAttribute('lang')).toBe('en')
     expect(el.getAttribute('type')).toBe('text')
-    expect(screen.getByTestId('invite-code-hint').textContent).toBe('영문으로 바꿔 입력해 주세요') // 오류 문구 자리와 별개의 줄
+    expect(screen.queryByTestId('invite-code-hint')).toBeNull() // A-1: 영문 안내 줄은 폰 확인으로 확정돼 삭제
+  })
+
+  it('A-2: 코드 칸은 입력 칸 하나뿐이고, 칸을 눌러도 입력 칸이 새로 열리지 않는다(자판 재오픈 0)', async () => {
+    await openEnter()
+    const boxes = screen.getByTestId('invite-boxes')
+    expect(boxes.querySelectorAll('input').length).toBe(1)
+    expect(document.activeElement).toBe(input())
+    type('P4N')
+    expect(boxes.querySelectorAll('input').length).toBe(1)
+    expect(document.activeElement).toBe(input())
   })
 
   it.each([
@@ -337,6 +355,14 @@ describe('A19 사귄 날짜 + 커플 닉네임', () => {
     return { ...db, nav }
   }
 
+  it('A-18: 커플 닉네임 칸은 한글 기본 · 자동 대문자 끔 - 코드 칸의 영문 속성(email · characters · lang en)이 옮겨 붙지 않는다', async () => {
+    await openA19()
+    expect(nick().getAttribute('lang')).toBe('ko')
+    expect(nick().getAttribute('inputmode')).toBe('text')
+    expect(nick().getAttribute('autocapitalize')).toBe('off')
+    expect(nick().getAttribute('autocorrect')).toBe('off')
+  })
+
   it('상대 이름으로 "…과 연결됐어요"가 나온다', async () => {
     await openA19()
     expect(screen.getByTestId('start-headline').textContent).toBe('서영과 연결됐어요')
@@ -380,8 +406,7 @@ describe('A19 사귄 날짜 + 커플 닉네임', () => {
     fireEvent.click(submit())
     await settle()
     expect(writes.filter((w) => w.table === 'couples').map((w) => w.payload)).toEqual([
-      { relationship_start_date: '2024-01-01', start_date_set_by: 'me' },
-      { nickname: '늘봄' },
+      { relationship_start_date: '2024-01-01', start_date_set_by: 'me', nickname: '늘봄' },
     ])
     expect(stepRows(writes)).toEqual([3])
     expect(tables.profiles[0].onboarding_step).toBe(3)
@@ -408,9 +433,22 @@ describe('A19 사귄 날짜 + 커플 닉네임', () => {
     fireEvent.click(submit())
     await settle()
     expect(screen.getByTestId('start-since-date').textContent).toBe('2023.05.05')
+    // R90-4: 내 조건부 쓰기는 0행(상대가 이미 정함) -> 확인만 기록하고, 적용된 값을 알린다(조용히 버리지 않는다).
     expect(writes.filter((w) => w.table === 'couples').map((w) => w.payload)).toEqual([{ start_date_confirmed_by: 'me' }])
+    expect(screen.getByTestId('start-conflict-notice').textContent).toBe("상대가 먼저 '봄'로 정했어요. 설정에서 바꿀 수 있어요.")
     expect(stepRows(writes)).toEqual([])
     expect(nav.enterAccount).not.toHaveBeenCalled()
+  })
+
+  it('R90-4 같은 값이면 알림 없이 바로 마무리한다', async () => {
+    const { nav, tables } = await openA19()
+    fireEvent.change(date(), { target: { value: '20230505' } })
+    fireEvent.change(nick(), { target: { value: '봄' } })
+    Object.assign(tables.couples[0], { relationship_start_date: '2023-05-05', start_date_set_by: 'p1', nickname: '봄' })
+    fireEvent.click(submit())
+    await settle()
+    expect(screen.queryByTestId('start-conflict-notice')).toBeNull()
+    expect(nav.enterAccount).toHaveBeenCalledWith('main')
   })
 
   it('연결된 커플이 없으면(해제 등) 이 화면에서 할 일이 없다 - 메인으로', async () => {

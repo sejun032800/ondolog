@@ -12,6 +12,7 @@ import { FIRST_ISSUE_COPY, NEXT_ISSUE_COPY, UNCONNECTED_COPY } from '@/constants
 import type { PublishedIssue } from '@/services/magazineApi'
 import { issueMonthLabel, type LibraryMode } from '@/utils/magazine'
 import { Skeleton } from '../../components/Skeleton'
+import { FIRST_ISSUE_PERCENT_HINT } from './firstIssueHint'
 import { PrimaryButton } from '../../ui'
 import type { LibraryState, NextIssueData } from './libraryData'
 
@@ -122,6 +123,7 @@ export function FirstIssue({ percent }: { percent: number }) {
         <span className="ruleFill" style={{ width: `${percent}%` }} />
       </div>
       <span className="metric firstPercent" data-testid="first-issue-percent">{`${percent}%`}</span>
+      <span className="t-caption c-mute firstHint" data-testid="first-issue-hint">{FIRST_ISSUE_PERCENT_HINT}</span>
     </div>
   )
 }
@@ -137,7 +139,7 @@ export function ShelfHint() {
 }
 
 /** D16 미연결 - 잠긴 자리. 버튼은 초대로 간다. */
-export function Unconnected({ onInvite }: { onInvite: () => void }) {
+export function Unconnected({ onInvite }: { onInvite?: () => void }) {
   return (
     <div className="unconnectedLib" data-testid="unconnected-library">
       <div className="emptyShelf">
@@ -147,9 +149,12 @@ export function Unconnected({ onInvite }: { onInvite: () => void }) {
           <span className="t-sub c-sub">{UNCONNECTED_COPY.body}</span>
         </div>
       </div>
-      <div className="unconnectedBtn">
-        <PrimaryButton label={UNCONNECTED_COPY.invite} onClick={onInvite} />
-      </div>
+      {/* 해제 유예 중(A-24)에는 초대 버튼을 두지 않는다 - 호출한 쪽이 onInvite를 넘기지 않는다. */}
+      {onInvite ? (
+        <div className="unconnectedBtn">
+          <PrimaryButton label={UNCONNECTED_COPY.invite} onClick={onInvite} />
+        </div>
+      ) : null}
     </div>
   )
 }

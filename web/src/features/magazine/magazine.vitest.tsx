@@ -26,6 +26,7 @@ import { FirstIssue, LibraryContent, LibraryShelf, NextIssueCard, Unconnected, f
 import { FrontMatter, IssueViewer, PageReader } from './IssueViewer'
 import { installMagazineDb, issueRow, publishedIssue } from './magazineTestSupport'
 import { ViewerHost } from './ViewerHost'
+import { FIRST_ISSUE_PERCENT_HINT } from './firstIssueHint'
 
 // 기기 저장(Capacitor Preferences)은 메모리 사본으로 바꾼다.
 vi.mock('@capacitor/preferences', () => {
@@ -148,6 +149,8 @@ describe('D14 · D16', () => {
     expect(screen.getByText(FIRST_ISSUE_COPY.kicker)).toBeTruthy()
     expect(screen.getByText(FIRST_ISSUE_COPY.title)).toBeTruthy()
     expect(screen.getByTestId('first-issue-percent').textContent).toBe('0%')
+    expect(screen.getByTestId('first-issue-hint').textContent).toBe(FIRST_ISSUE_PERCENT_HINT) // A-2-3(PM 확인 전 후보)
+    expect(screen.getByTestId('first-issue-hint').textContent).not.toMatch(/발행|\d+일|월호/) // 발행일 문구 0
     expect(screen.getByTestId('issue-silhouette')).toBeTruthy()
     expect(screen.queryByText(/제작 현황/)).toBeNull()
   })
@@ -618,6 +621,23 @@ describe('PDF 열기', () => {
     expect(pdfSign).toMatchObject({ bucket: 'magazine', paths: ['c1/i1/render/issue.pdf'], ttl: 600 })
     await waitFor(() => expect(bridge.openBrowser).toHaveBeenCalledWith('https://signed.invalid/magazine/c1/i1/render/issue.pdf'))
     expect(screen.queryByTestId('front-matter-pdf-error')).toBeNull()
+    for (const s of db.signs) {
+      expect(s.bucket).not.toMatch(/print/i)
+      for (const p of s.paths) expect(p).not.toMatch(/print/i)
+    }
+  })
+
+  it('R87-4: 누를 때마다 새 서명 주소를 요청한다 · TTL은 600초 이하 · 인쇄용 경로는 한 번도 요청하지 않는다', async () => {
+    const { db, bridge } = openViewer()
+    await screen.findByTestId('front-matter')
+    const pdfSigns = () => db.signs.filter((s) => s.paths.includes('c1/i1/render/issue.pdf'))
+    await act(async () => { fireEvent.click(screen.getByTestId('front-matter-pdf')) })
+    await waitFor(() => expect(bridge.openBrowser).toHaveBeenCalledTimes(1))
+    expect(pdfSigns()).toHaveLength(1)
+    await act(async () => { fireEvent.click(screen.getByTestId('front-matter-pdf')) })
+    await waitFor(() => expect(bridge.openBrowser).toHaveBeenCalledTimes(2))
+    expect(pdfSigns()).toHaveLength(2) // 캐시한 주소를 다시 쓰지 않는다
+    for (const s of pdfSigns()) expect(s.ttl).toBeLessThanOrEqual(600)
     for (const s of db.signs) {
       expect(s.bucket).not.toMatch(/print/i)
       for (const p of s.paths) expect(p).not.toMatch(/print/i)

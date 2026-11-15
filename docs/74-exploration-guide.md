@@ -7,29 +7,12 @@
 
 ## 맨 위 두 줄
 
-1. **처음부터 다시 하는 법**: (저장소 루트 PowerShell) 환경 변수가 PC에 이미 있으면 첫 두 줄은 건너뛴다. 아래를 위에서 아래로, 한 줄씩.
-
-   환경 변수(값은 이 문서에 쓰지 않는다):
-
-   ```
-   $env:ONDOLOG_SUPABASE_URL = '<프로젝트 주소>'
-   ```
-
-   ```
-   $env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = '<서비스 키>'
-   ```
-
-   미리 보기(아무것도 지우지 않는다. 지울 목록이 맞는지 눈으로 본다):
-
-   ```
-   deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=<프로젝트 ref>.supabase.co --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일>
-   ```
-
-   실제 삭제(`--apply`):
-
-   ```
-   deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=<프로젝트 ref>.supabase.co --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일> --apply
-   ```
+1. **처음부터 다시 하는 법**: 시험 계정 초기화는 `.claude/state/HANDOFF.md`의 **"74-0 명령"**(키는 **"키 넣는 안내"**)을 그대로 따른다. 이 문서에는 명령 · 값을 옮겨 적지 않는다(A-8). 요점만:
+   - 저장소 맨 위 폴더의 PowerShell에서, 주소와 키는 **보안 입력**(`Read-Host -AsSecureString`, 화면에 찍히지 않음)으로 넣는다. `$env:...= '<값>'`처럼 값을 직접 치지 않는다.
+   - 키는 운영용 secret key(`ops_2026_11`). 키를 넣은 바로 다음 줄에 `sb_secret_` **확인 줄**을 치고 `True`일 때만 진행한다(publishable 키는 오류 없이 빈 결과만 낸다).
+   - 네트워크 허용 범위는 주소에서 읽은 `$h`를 쓴다(ref를 적지 않는다). 초기화는 **저장소 밖 허용 목록 파일**에 있는 시험 계정 이메일만 받는다(목록 밖이면 미리 보기도 거부, 0-6).
+   - 미리 보기로 지울 수를 눈으로 본 뒤 `--apply`. 커플 두 계정은 커플 모드(이메일 2개, 발행 호까지면 `--with-issues`).
+   - 끝나면 **PowerShell 창을 닫고**, 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY`가 `False`인지 확인한다.
 
    그다음 폰에서 앱을 지우고(앱 아이콘 길게 누르기 -> 삭제) 평소 하던 방법으로 다시 설치한다. 처음 화면부터 다시 시작해야 정상.
 

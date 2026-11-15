@@ -30,6 +30,7 @@ import { usePartnerName } from '../main/useMainData'
 import { saveChatPhoto, shareChatPhoto } from './chatPhotoActions'
 import { saveNotice } from '../../platform/imageSave'
 import { useQueuedPreviews } from './localPreview'
+import { useStickyImage } from './stickyImage'
 import { StoryViewer, type StoryViewItem, type StoryViewPayload } from './StoryViewer'
 import { useChatMessages, type ChatHubs } from './useChatMessages'
 import { useSignedMedia } from './useSignedMedia'
@@ -202,9 +203,10 @@ export function TextMessage({ message, isMine, fresh, onRetry, onCancel, onCopy 
 export function PhotoMessage({ message, isMine, senderName, photoUri, fresh, onRetry, onCancel, onOpenPhoto }: MessageItemProps) {
   const queued = Boolean(message.pending || message.failed)
   const long = useLongPress(queued && message.clientMsgId ? () => onCancel(message.clientMsgId as string) : undefined)
+  const shownUri = useStickyImage(photoUri) // A-26: 주소가 바뀌는 사이 앞 그림 유지
   const photo = (
     <span className={`chatPhoto ${queued ? 'queued' : ''}`}>
-      {photoUri ? <img src={photoUri} alt="" draggable={false} /> : null}
+      {shownUri ? <img src={shownUri} alt="" draggable={false} /> : null}
     </span>
   )
   return (

@@ -19,6 +19,7 @@ import {
   type CoupleLite,
   type ResetPort,
 } from './resetTestAccount.ts'
+import { makeResetGate, type ResetGate } from './resetAllowlist.ts'
 
 const EMAIL = 'tester@example.com'
 const USER = 'user-id-1111'
@@ -65,10 +66,13 @@ function fake(opts: { users?: string[]; couples?: CoupleLite[]; published?: bool
   return { port, calls }
 }
 
+/** 기존 시험용 - 잠금을 통과시키는 문. 잠금 자체는 아래 75- 0-6 시험이 본다. */
+const ALLOW: ResetGate = () => null
+
 const DELETING = (c: string) => c.startsWith('removeFiles') || c.startsWith('deleteRows') || c === 'deleteUser'
 
 Deno.test('거부 1: 개발 프로젝트가 아니면 접속 단계에서 멈춘다 (아무 호출 없음)', async () => {
-  const r = await runReset(() => Promise.reject(new OpsStopError('x')), { email: EMAIL, apply: true })
+  const r = await runReset(() => Promise.reject(new OpsStopError('x')), { email: EMAIL, apply: true }, ALLOW)
   eq(r.kind, 'refused', 'kind')
   eq(r.lines.length, 1, 'one line')
 })
@@ -76,7 +80,7 @@ Deno.test('거부 1: 개발 프로젝트가 아니면 접속 단계에서 멈춘
 Deno.test('거부 2: 사용자 0명 / 2명 이상', async () => {
   for (const users of [[], ['a', 'b']]) {
     const f = fake({ users })
-    const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true })
+    const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true }, ALLOW)
     eq(r.kind, 'refused', 'kind')
     eq(r.lines.length, 1, 'one line')
     assert(!f.calls.some(DELETING), 'no delete')
@@ -85,21 +89,21 @@ Deno.test('거부 2: 사용자 0명 / 2명 이상', async () => {
 
 Deno.test('거부 3: 커플로 연결된 계정 (user_b 채워진 행)', async () => {
   const f = fake({ couples: [{ id: COUPLE, user_a_id: USER, user_b_id: 'partner-id' }] })
-  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true })
+  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true }, ALLOW)
   eq(r.kind, 'refused', 'kind')
   assert(!f.calls.some(DELETING), 'no delete')
 })
 
 Deno.test('거부 4: 발행된 호가 있는 계정', async () => {
   const f = fake({ published: true })
-  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true })
+  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true }, ALLOW)
   eq(r.kind, 'refused', 'kind')
   assert(!f.calls.some(DELETING), 'no delete')
 })
 
 Deno.test('미리 보기는 삭제 호출을 하지 않고 표별 숫자를 낸다', async () => {
   const f = fake()
-  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: false })
+  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: false }, ALLOW)
   eq(r.kind, 'previewed', 'kind')
   assert(!f.calls.some(DELETING), 'no delete')
   assert(r.lines.includes('data_entries: 3'), 'table count line')
@@ -107,12 +111,12 @@ Deno.test('미리 보기는 삭제 호출을 하지 않고 표별 숫자를 낸�
 })
 
 Deno.test('74-h1: 미리 보기에 상대 유무 · 탈퇴 유예 · 시작일(KST 날짜만) 줄이 있고 삭제는 없다', async () => {
-  const none = await runReset(() => Promise.resolve(fake().port), { email: EMAIL, apply: false })
+  const none = await runReset(() => Promise.resolve(fake().port), { email: EMAIL, apply: false }, ALLOW)
   assert(none.lines.includes('상대 사용자: 아니오'), 'partner no')
   assert(none.lines.includes('탈퇴 유예: 아니오'), 'withdrawal no')
   assert(!none.lines.some((l) => l.startsWith('탈퇴 유예 시작일')), 'no start date')
   const f = fake({ withdrawalAt: '2026-11-09T16:30:00+00:00' })
-  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: false })
+  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: false }, ALLOW)
   assert(r.lines.includes('탈퇴 유예: 예'), 'withdrawal yes')
   assert(r.lines.includes('탈퇴 유예 시작일(KST): 2026-11-10'), 'kst date')
   assert(!r.lines.join(' ').includes('16:30'), 'no time')
@@ -121,7 +125,7 @@ Deno.test('74-h1: 미리 보기에 상대 유무 · 탈퇴 유예 · 시작일(K
 
 Deno.test('--apply: Storage -> 커플 행 -> 사용자 순서', async () => {
   const f = fake()
-  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true })
+  const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true }, ALLOW)
   eq(r.kind, 'applied', 'kind')
   const del = f.calls.filter(DELETING)
   const expected = [
@@ -135,14 +139,14 @@ Deno.test('--apply: Storage -> 커플 행 -> 사용자 순서', async () => {
 
 Deno.test('커플이 없는 계정은 커플 행 삭제 없이 사용자만', async () => {
   const f = fake({ couples: [] })
-  await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true })
+  await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply: true }, ALLOW)
   eq(f.calls.filter(DELETING), [`removeFiles:avatars:${USER}`, 'deleteUser'], 'order')
 })
 
 Deno.test('출력에 이메일 · id 가 없고 demo_responses 를 다루지 않는다', async () => {
   for (const apply of [false, true]) {
     const f = fake()
-    const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply })
+    const r = await runReset(() => Promise.resolve(f.port), { email: EMAIL, apply }, ALLOW)
     const text = r.lines.join('\n')
     for (const secret of [EMAIL, 'example.com', USER, COUPLE]) assert(!text.includes(secret), `leak: ${secret}`)
     assert(!text.includes('demo_responses'), 'demo_responses')
@@ -242,14 +246,14 @@ const coupleArgs = (o: { apply?: boolean; withIssues?: boolean } = {}) => ({
 })
 
 async function expectRefused(f: Fake, args = coupleArgs()): Promise<void> {
-  const r = await runCoupleReset(() => Promise.resolve(f.port), args)
+  const r = await runCoupleReset(() => Promise.resolve(f.port), args, ALLOW)
   eq(r.kind, 'refused', 'kind')
   eq(r.lines.length, 1, 'one line')
   assert(!f.calls.some(C_DELETING), 'no delete')
 }
 
 Deno.test('74-h3 거부: 개발 프로젝트가 아니면 접속 단계에서 멈춘다', async () => {
-  const r = await runCoupleReset(() => Promise.reject(new OpsStopError('x')), coupleArgs())
+  const r = await runCoupleReset(() => Promise.reject(new OpsStopError('x')), coupleArgs(), ALLOW)
   eq(r.kind, 'refused', 'kind')
   eq(r.lines.length, 1, 'one line')
 })
@@ -281,7 +285,7 @@ Deno.test('74-h3 거부: 발행 호가 있고 --with-issues 가 없음 (미리 �
 
 Deno.test('74-h3 미리 보기: 지우지 않고 호 수 · 매거진 파일 수를 낸다', async () => {
   const f = fakeCouple({ published: true, issues: 2 })
-  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ apply: false, withIssues: true }))
+  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ apply: false, withIssues: true }), ALLOW)
   eq(r.kind, 'previewed', 'kind')
   assert(!f.calls.some(C_DELETING), 'no delete')
   assert(r.lines.includes('발행 호 있음: 예'), 'published line')
@@ -293,7 +297,7 @@ Deno.test('74-h3 미리 보기: 지우지 않고 호 수 · 매거진 파일 수
 
 Deno.test('74-h3 --apply (발행 호 없음): Storage -> 커플 행 -> 두 사용자, issues 직접 삭제 없음', async () => {
   const f = fakeCouple()
-  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs())
+  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs(), ALLOW)
   eq(r.kind, 'applied', 'kind')
   eq(
     f.calls.filter(C_DELETING),
@@ -311,7 +315,7 @@ Deno.test('74-h3 --apply (발행 호 없음): Storage -> 커플 행 -> 두 사�
 
 Deno.test('74-h3 --with-issues --apply: 매거진 파일 포함 Storage -> issues -> 커플 행 -> 두 사용자', async () => {
   const f = fakeCouple({ published: true, issues: 1 })
-  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ withIssues: true }))
+  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ withIssues: true }), ALLOW)
   eq(r.kind, 'applied', 'kind')
   const del = f.calls.filter(C_DELETING)
   for (const b of MAGAZINE_BUCKETS) assert(del.includes(`removeFiles:${b}:${COUPLE}`), `magazine bucket ${b}`)
@@ -322,7 +326,7 @@ Deno.test('74-h3 --with-issues --apply: 매거진 파일 포함 Storage -> issue
 Deno.test('74-h3 서로가 유일한 상대면 혼자 초대 행도 함께 지운다', async () => {
   const solo: CoupleLite = { id: 'c-solo', user_a_id: USER, user_b_id: null }
   const f = fakeCouple({ couples: { [USER]: [PAIR, solo], [USER_B]: [PAIR] } })
-  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs())
+  const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs(), ALLOW)
   eq(r.kind, 'applied', 'kind')
   assert(r.lines.includes('couples: 2'), 'two couple rows')
   assert(f.calls.includes('removeFiles:entries:c-solo'), 'solo storage')
@@ -331,7 +335,7 @@ Deno.test('74-h3 서로가 유일한 상대면 혼자 초대 행도 함께 지�
 Deno.test('74-h3 출력에 이메일 · id 가 없다', async () => {
   for (const apply of [false, true]) {
     const f = fakeCouple({ published: true, issues: 1 })
-    const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ apply, withIssues: true }))
+    const r = await runCoupleReset(() => Promise.resolve(f.port), coupleArgs({ apply, withIssues: true }), ALLOW)
     const text = r.lines.join('\n')
     for (const secret of [EMAIL, EMAIL_B, 'example.com', USER, USER_B, COUPLE]) assert(!text.includes(secret), `leak: ${secret}`)
     assert(!text.includes('demo_responses'), 'demo_responses')
@@ -358,4 +362,70 @@ Deno.test('74-h3 인자 읽기: 이메일 1개는 단독 모드 그대로, 2개�
     }
     assert(threw, `should throw: ${bad.join(' ')}`)
   }
+})
+
+// ── 75- 0-6 잠금: 허용 목록 · 개발 프로젝트 (가짜 값만) ─────────────────────────────────────────────
+const DEV_REF = 'fakedevref000000aaaa'
+const DEV_URL = `https://${DEV_REF}.supabase.co`
+const LIST = `# fake
+project=${DEV_REF}
+${EMAIL}
+${EMAIL_B}
+`
+
+function gateWith(allowlistText: string | null, url: string | undefined = DEV_URL): ResetGate {
+  return makeResetGate({ allowlistText, url })
+}
+/** 접속을 부르면 기록한다 - 거부는 접속 전이어야 한다(네트워크 0). */
+function trackedConnect(f: Fake): { connect: () => Promise<ResetPort>; connected: () => boolean } {
+  let n = 0
+  return { connect: () => { n++; return Promise.resolve(f.port) }, connected: () => n > 0 }
+}
+
+Deno.test('75- 0-6: 목록 밖 이메일은 미리 보기도 접속 전에 거부 (단독 · 커플 · --with-issues)', async () => {
+  const outsider = 'outsider@example.com'
+  const single = fake()
+  const t1 = trackedConnect(single)
+  const r1 = await runReset(t1.connect, { email: outsider, apply: false }, gateWith(LIST))
+  eq(r1.kind, 'refused', 'single kind')
+  assert(!t1.connected() && single.calls.length === 0, 'single: no connect / lookup')
+  assert(!r1.lines.join(' ').includes(outsider), 'single: email not echoed')
+
+  const couple = fakeCouple()
+  const t2 = trackedConnect(couple)
+  const r2 = await runCoupleReset(t2.connect, { emails: [EMAIL, outsider], apply: false, withIssues: true }, gateWith(LIST))
+  eq(r2.kind, 'refused', 'couple kind')
+  assert(!t2.connected() && couple.calls.length === 0, 'couple: no connect / lookup')
+})
+
+Deno.test('75- 0-6: 목록 파일이 없으면 거부 (접속 0)', async () => {
+  const f = fake()
+  const t = trackedConnect(f)
+  const r = await runReset(t.connect, { email: EMAIL, apply: false }, gateWith(null))
+  eq(r.kind, 'refused', 'kind')
+  assert(!t.connected(), 'no connect')
+})
+
+Deno.test('75- 0-6: 개발 프로젝트가 아니면 거부 - project 줄과 다른 ref · project 줄 없음 (출력에 ref 0)', async () => {
+  const prodRef = 'fakeprodref00000bbbb'
+  for (const g of [gateWith(LIST, `https://${prodRef}.supabase.co`), gateWith([EMAIL, EMAIL_B].join('\n')), makeResetGate({ allowlistText: LIST, url: undefined })]) {
+    const f = fakeCouple()
+    const t = trackedConnect(f)
+    const r = await runCoupleReset(t.connect, coupleArgs({ apply: false }), g)
+    eq(r.kind, 'refused', 'kind')
+    assert(!t.connected(), 'no connect')
+    const text = r.lines.join(' ')
+    assert(!text.includes(prodRef) && !text.includes(DEV_REF), 'ref not echoed')
+  }
+})
+
+Deno.test('75- 0-6: 목록 안 + 개발 프로젝트면 전처럼 동작 (단독 미리 보기 · 커플 --with-issues --apply)', async () => {
+  const ok = fake()
+  const r2 = await runReset(() => Promise.resolve(ok.port), { email: EMAIL, apply: false }, gateWith(LIST))
+  eq(r2.kind, 'previewed', 'single preview')
+
+  const couple = fakeCouple({ published: true, issues: 1 })
+  const r3 = await runCoupleReset(() => Promise.resolve(couple.port), coupleArgs({ withIssues: true }), gateWith(LIST))
+  eq(r3.kind, 'applied', 'couple applied')
+  assert(couple.calls.includes('deleteRows:issues'), 'issues deleted')
 })

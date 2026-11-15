@@ -21,6 +21,11 @@
  * 지우는 순서(--apply): 1) Storage 파일(커플 접두 6개 버킷 + avatars 사용자 접두) -> 2) 사용자 커플 행(cascade 로 하위 표) -> 3) 인증 사용자(profiles 등 cascade).
  *   Storage 를 먼저 지우는 이유: 도중에 멈춰도 다시 돌릴 수 있게 행(찾을 근거)을 마지막까지 남긴다.
  *
+ * 75- 0-6 잠금(접속 전 · 네트워크 0 · 미리 보기도 같다, `resetAllowlist.ts`): 저장소 밖 허용 목록 파일
+ *   (`ONDOLOG_RESET_ALLOWLIST` 경로, 없으면 `<홈>/.ondolog/reset-allowlist.txt`)이 없으면 거부 · 그 파일의 `project=` 줄에
+ *   접속 URL의 ref가 없으면 거부(개발 프로젝트 아님) · 넘긴 이메일이 목록에 없으면 거부(그 계정은 조회하지 않는다).
+ *   거부 문구에 이메일 · ref · 경로는 나오지 않는다.
+ *
  * 거부(아무것도 지우지 않고 이유 한 줄): 개발 프로젝트가 아님 · 이메일에 걸리는 사용자 0명 / 2명 이상 ·
  *   커플로 연결된 계정(user_b_id 가 채워진 커플 행이 하나라도 있음 - 상태 active · dissolving · dissolved 모두. 앱 coupleApi 는 status 'active' 를 connected 로 보지만,
  *   해제된 커플도 상대방 데이터가 같은 행 아래에 있어 지우면 상대 것까지 지워지므로 더 넓게 거부한다. user_b 없는 pending 초대 행은 연결이 아님) ·
@@ -34,9 +39,10 @@
  *
  * 사용 (저장소 루트에서; 미리 보기가 기본, 실제로 지우려면 --apply):
  *   deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json \
- *     --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY \
- *     --allow-net=<프로젝트 ref>.supabase.co --allow-read=supabase/.temp/linked-project.json \
+ *     --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME \
+ *     --allow-net=$h --allow-read=supabase/.temp/linked-project.json,$al \
  *     scripts/ops/resetTestAccount.ts <이메일> [--apply]
+ *   ($h = 접속 URL의 호스트, $al = 허용 목록 파일 경로 - PowerShell 변수로 읽는다. ref 를 직접 적지 않는다. HANDOFF "74-0 명령")
  *
  * ── 74-h3 시험 커플 모드 (R81-1) ─────────────────────────────────────────────────────────────────────
  * 이메일을 2개 주면 커플 모드: `resetTestAccount.ts <이메일1> <이메일2> [--with-issues] [--apply]`.
@@ -48,6 +54,7 @@
  *   거부: 다른 상대와 연결 · 사용자가 정확히 2명이 아님 · 두 사람이 같은 커플이 아님 · 개발 프로젝트 아님 · (플래그 없이) 발행 호 있음.
  */
 import { OpsStopError, redactSecrets } from './opsGuards.ts'
+import { makeResetGate, resolveAllowlistPath, type ResetGate } from './resetAllowlist.ts'
 
 /** 커플 id 로 찾는 표 - couples 삭제 시 cascade 로 지워지는 것들(위 지도). */
 export const COUPLE_CASCADE_TABLES = [
@@ -169,8 +176,11 @@ export type ResetOutcome = { readonly kind: 'refused' | 'previewed' | 'applied';
 
 const refuse = (reason: string): ResetOutcome => ({ kind: 'refused', lines: [`거부: ${reason}`] })
 
-/** 순수 흐름 - 접속은 port 로만. 판정 -> 집계 -> (apply 일 때만) 정한 순서로 삭제. */
-export async function runReset(connect: () => Promise<ResetPort>, args: ResetArgs): Promise<ResetOutcome> {
+/** 순수 흐름 - 접속은 port 로만. 잠금(gate, 접속 전) -> 판정 -> 집계 -> (apply 일 때만) 정한 순서로 삭제. */
+export async function runReset(connect: () => Promise<ResetPort>, args: ResetArgs, gate: ResetGate): Promise<ResetOutcome> {
+  // 75- 0-6: 허용 목록 · 개발 프로젝트 확인을 접속(네트워크) 전에. 미리 보기도 같다.
+  const blocked = gate([args.email])
+  if (blocked !== null) return refuse(blocked)
   let port: ResetPort
   try {
     port = await connect()
@@ -255,7 +265,10 @@ export function parseAnyResetArgs(argv: readonly string[]): AnyResetArgs {
 }
 
 /** 커플 모드 흐름 - 판정 -> 집계 -> (apply 일 때만) 정한 순서로 삭제. 출력은 숫자 · 예/아니오뿐. */
-export async function runCoupleReset(connect: () => Promise<ResetPort>, args: CoupleResetArgs): Promise<ResetOutcome> {
+export async function runCoupleReset(connect: () => Promise<ResetPort>, args: CoupleResetArgs, gate: ResetGate): Promise<ResetOutcome> {
+  // 75- 0-6: 두 이메일 모두 허용 목록에 있어야 한다. 접속 전에 거부한다(미리 보기 · --with-issues 모두).
+  const blocked = gate(args.emails)
+  if (blocked !== null) return refuse(blocked)
   let port: ResetPort
   try {
     port = await connect()
@@ -409,19 +422,42 @@ export function makePort(client: Db): ResetPort {
   }
 }
 
-if (import.meta.main) {
-  // 접속 도구는 실제 실행 때만 불러온다(시험은 npm 패키지 없이 돈다).
-  const { connectOps } = await import('./supabaseOps.ts')
+/** 권한이 없거나 없는 변수면 undefined(던지지 않는다 -> 문이 거부한다). */
+function envOrUndefined(name: string): string | undefined {
+  try {
+    return Deno.env.get(name)
+  } catch {
+    return undefined
+  }
+}
+
+/** 허용 목록 파일 본문. 경로를 모르거나 · 없거나 · 읽기 권한이 없으면 null(-> 거부). 경로는 출력하지 않는다. */
+async function readAllowlistText(): Promise<string | null> {
+  const path = resolveAllowlistPath(envOrUndefined)
+  if (path === null) return null
+  try {
+    return await Deno.readTextFile(path)
+  } catch {
+    return null
+  }
+}
+
+/** 실제 실행. 최상위 await 를 쓰지 않아 루트 jest 도 이 파일을 불러 순수 흐름을 시험할 수 있다(75- 0-6). */
+async function main(): Promise<void> {
   let secrets: readonly string[] = []
   const out = (line: string) => console.log(redactSecrets(line, secrets))
   try {
     const parsed = parseAnyResetArgs(Deno.args)
+    const gate = makeResetGate({ allowlistText: await readAllowlistText(), url: envOrUndefined('ONDOLOG_SUPABASE_URL') })
     const connect = async () => {
+      // 접속 도구는 잠금(gate)을 통과한 뒤에만 불러온다(시험 · 거부 경로는 npm 패키지 · 네트워크 없이 끝난다).
+      const { connectOps } = await import('./supabaseOps.ts')
       const conn = await connectOps()
       secrets = conn.secrets
       return makePort(conn.client)
     }
-    const outcome = parsed.mode === 'couple' ? await runCoupleReset(connect, parsed.args) : await runReset(connect, parsed.args)
+    const outcome =
+      parsed.mode === 'couple' ? await runCoupleReset(connect, parsed.args, gate) : await runReset(connect, parsed.args, gate)
     for (const line of outcome.lines) out(line)
     if (outcome.kind === 'refused') Deno.exit(1)
   } catch (error) {
@@ -431,3 +467,5 @@ if (import.meta.main) {
     Deno.exit(1)
   }
 }
+
+if (import.meta.main) void main()

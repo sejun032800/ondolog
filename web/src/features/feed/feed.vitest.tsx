@@ -18,7 +18,7 @@ import { FeedTab } from '../../tabs/FeedTab'
 import { COUPLE_ROW, PROFILES, dateRow, makeFeedDb, memoRow, photoRow, stopRow, type FeedDbOptions } from './feedTestSupport'
 import { DateDetailScreen } from './DateDetailScreen'
 import { useFeedSignal } from './feedData'
-import { AddFab, FeedChapterView, SoloBanner, monthCountsLabel } from './FeedView'
+import { AddFab, DateCard, FeedChapterView, SoloBanner, monthCountsLabel } from './FeedView'
 import type { WebPickedPhoto } from './photoPicker'
 import { RecordSheetBody } from './RecordSheet'
 import { StopEditScreen } from './StopEditScreen'
@@ -136,6 +136,15 @@ describe('피드 탭 (E01 · E13) - 가짜 서버', () => {
     expect(nav.push).toHaveBeenCalledWith('date-detail', { params: { id: 'd2' } })
   })
 
+  it('A-11 사진 없는 기록 카드는 큰 빈 사진 자리 없이 글 카드로 줄어든다 · 사진 주소를 읽는 중(경로 있음)이면 자리를 유지한다', () => {
+    const { container, rerender } = render(<DateCard noPhoto dateLabel="10월 3일" title="제목" onOpen={() => {}} />)
+    expect(container.querySelector('.dateCard.noPhoto')).toBeTruthy()
+    expect(container.querySelector('.dateScrim')).toBeNull()
+    rerender(<DateCard dateLabel="10월 3일" title="제목" onOpen={() => {}} />)
+    expect(container.querySelector('.dateCard.noPhoto')).toBeNull()
+    expect(container.querySelector('.dateScrim')).toBeTruthy()
+  })
+
   it('불러오는 동안 I03 뼈대, 기록이 없으면 빈 상태(첫 기록 남기기)', async () => {
     useDb({})
     render(<FeedTab nav={makeFakeNav()} />)
@@ -185,7 +194,11 @@ describe('피드 탭 (E01 · E13) - 가짜 서버', () => {
     expect(screen.queryByTestId('memo-input')).toBeNull()
     useSheetStore.getState().closeAll()
     expect((await screen.findByTestId('feed-empty')).textContent).toContain('첫 기록 남기기')
-    expect((screen.getByRole('button', { name: '첫 기록 남기기' }) as HTMLButtonElement).disabled).toBe(false)
+    // A-5: + 버튼과 같은 비활성 모양(클래스 off · aria-disabled)이고 눌림은 살아 있다
+    const first = screen.getByRole('button', { name: '첫 기록 남기기' }) as HTMLButtonElement
+    expect(first.disabled).toBe(false)
+    expect(first.getAttribute('aria-disabled')).toBe('true')
+    expect(first.className).toContain('off')
     fireEvent.click(screen.getByRole('button', { name: '첫 기록 남기기' })) // 다른 진입점도 같은 반응
     expect(useSheetStore.getState().current).toBe('record')
     useSheetStore.getState().closeAll()
@@ -199,6 +212,7 @@ describe('피드 탭 (E01 · E13) - 가짜 서버', () => {
     render(<><FeedTab nav={makeFakeNav()} /><SheetHost /></>)
     await screen.findByTestId('feed-empty')
     await waitFor(() => expect(screen.getByTestId('feed-add-fab').getAttribute('aria-disabled')).toBeNull())
+    expect(screen.getByRole('button', { name: '첫 기록 남기기' }).className).not.toContain('off') // 연결되면 정상 모양
     fireEvent.click(screen.getByTestId('feed-add-fab'))
     expect(await screen.findByTestId('record-sheet')).toBeTruthy()
     fireEvent.click(screen.getByTestId('feed-add-fab'))
@@ -260,22 +274,55 @@ describe('E03 데이트 상세', () => {
     expect(nav.push).toHaveBeenCalledWith('stop-edit', { params: { id: 'd1', stop: 's0' } })
   })
 
-  it('⋯(삭제 진입점)은 내가 올린 사진 · 메모에만 있고 상대의 것에는 없다', async () => {
+  /** 길게 누르기: pointerdown -> 500ms 넘게 가만히. */
+  const hold = async (el: Element, ms = 560) => {
+    fireEvent.pointerDown(el, { clientX: 10, clientY: 10 })
+    await act(async () => { await new Promise((r) => setTimeout(r, ms)) })
+  }
+
+  it('A-2-2 길게 누르기만: ⋯ 버튼은 없다 · 내 것(사진 · 메모)만 길게 누르기가 되고 눌림 연출이 있다 · 상대의 것은 눌림 연출도 길게 누르기도 없다', async () => {
     useDb(base)
     open()
     await screen.findByTestId('detail-title')
-    expect(screen.getByTestId('more-photo-p1')).toBeTruthy()
-    expect(screen.queryByTestId('more-photo-p2')).toBeNull()
-    expect(screen.getByTestId('more-memo-m1')).toBeTruthy()
-    expect(screen.queryByTestId('more-memo-m2')).toBeNull()
-    expect(document.querySelectorAll('[data-testid^="more-"]').length).toBe(2)
+    expect(document.querySelectorAll('[data-testid^="more-"]').length).toBe(0)
+    expect(document.querySelector('.moreBtn')).toBeNull()
+    expect(screen.getByTestId('photo-p1').getAttribute('data-mine')).toBe('true')
+    expect(screen.getByTestId('photo-p1').className).toContain('press')
+    expect(screen.getByTestId('photo-p2').getAttribute('data-mine')).toBe('false')
+    expect(screen.getByTestId('photo-p2').className).not.toContain('press') // 상대 기록: 눌림 연출 없음
+    expect(screen.getByTestId('memo-m1').getAttribute('data-mine')).toBe('true')
+    expect(screen.getByTestId('memo-m2').getAttribute('data-mine')).toBe('false')
   })
 
-  it('⋯ -> 확인 시트(되돌릴 수 없고 발행된 호에서는 지워지지 않아요) -> [지우기] = fn_delete_own_entry RPC만, 화면에서 사라진다', async () => {
+  it('A-2-2 상대의 사진 · 메모를 길게 눌러도 시트가 열리지 않는다 · 짧게 누르면 사진은 크게 보기', async () => {
+    useDb(base)
+    open()
+    await screen.findByTestId('detail-title')
+    await hold(screen.getByTestId('photo-p2'))
+    await hold(screen.getByTestId('memo-m2'))
+    expect(screen.queryByTestId('delete-confirm')).toBeNull()
+  })
+
+  it('A-2-2 내 사진을 짧게 누르면 크게 보기(시트 없음) · 움직이거나 일찍 떼면 길게 누르기가 취소된다', async () => {
+    useDb(base)
+    open()
+    await screen.findByTestId('detail-title')
+    const el = screen.getByTestId('photo-p1')
+    fireEvent(el, new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }))
+    fireEvent.pointerUp(el)
+    await act(async () => { await new Promise((r) => setTimeout(r, 560)) })
+    expect(screen.queryByTestId('delete-confirm')).toBeNull()
+    fireEvent(el, new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }))
+    fireEvent(el, new MouseEvent('pointermove', { bubbles: true, clientX: 40, clientY: 10 })) // 스크롤(jsdom에는 PointerEvent가 없어 좌표를 MouseEvent로 싣는다)
+    await act(async () => { await new Promise((r) => setTimeout(r, 560)) })
+    expect(screen.queryByTestId('delete-confirm')).toBeNull()
+  })
+
+  it('길게 누르기 -> 확인 시트(되돌릴 수 없고 발행된 호에서는 지워지지 않아요) -> [지우기] = fn_delete_own_entry RPC만, 화면에서 사라진다', async () => {
     const db = useDb(base)
     open()
     await screen.findByTestId('detail-title')
-    fireEvent.click(screen.getByTestId('more-photo-p1'))
+    await hold(screen.getByTestId('photo-p1'))
     const sheet = await screen.findByTestId('delete-confirm')
     expect(within(sheet).getByText('이 사진을 지울까요?')).toBeTruthy()
     expect(within(sheet).getByText(/이미 발행된 호에서는 지워지지 않아요/)).toBeTruthy()
@@ -291,7 +338,7 @@ describe('E03 데이트 상세', () => {
     const db = useDb(base)
     open()
     await screen.findByTestId('detail-title')
-    fireEvent.click(screen.getByTestId('more-memo-m1'))
+    await hold(screen.getByTestId('memo-m1'))
     const sheet = await screen.findByTestId('delete-confirm')
     expect(within(sheet).getByText('이 메모를 지울까요?')).toBeTruthy()
     expect(within(sheet).getByText(/지운 메모는 되돌릴 수 없어요/)).toBeTruthy()
@@ -305,7 +352,7 @@ describe('E03 데이트 상세', () => {
     useDb({ ...base, deleteFails: true })
     open()
     await screen.findByTestId('detail-title')
-    fireEvent.click(screen.getByTestId('more-photo-p1'))
+    await hold(screen.getByTestId('photo-p1'))
     fireEvent.click(await screen.findByTestId('confirm-yes'))
     expect(await screen.findByText('지우지 못했어요')).toBeTruthy()
     expect(screen.getByTestId('photo-p1')).toBeTruthy()
@@ -492,12 +539,53 @@ describe('E11 데이트 기록 쓰기', () => {
     expect(screen.getByTestId('row-places').textContent).toContain('홍대 CGV')
   })
 
+  it('A-2-1 ③ 사진이 붙는 규칙 안내는 사진 칸 바로 아래에 있다(장소 칸 안에는 없다) - 사진이 없으면 보이지 않는다', async () => {
+    await opened()
+    expect(screen.queryByTestId('placement-rule')).toBeNull()
+    await pick([photo('a', T1)])
+    const rule = screen.getByTestId('placement-rule')
+    expect(rule.textContent).toContain('촬영 시각에 가장 가까운 앞선 장소에 붙어요')
+    expect(screen.getByTestId('exif-note').nextElementSibling).toBe(rule) // 사진 격자 · 날짜 안내 바로 다음
+    fireEvent.click(screen.getByTestId('row-places'))
+    expect(within(screen.getByTestId('places-panel')).queryByText(/가장 가까운 앞선 장소/)).toBeNull()
+  })
+
+  it('A-22 첫 장소의 시각 칸을 비워 두면 가장 이른 촬영 시각이 저장된다 - 칸의 예시("예 14:20")는 값이 아니다', async () => {
+    const E1 = '2026-10-03T09:41:07+09:00'
+    const db = await opened()
+    await pick([photo('a', T2), photo('b', E1)])
+    fireEvent.click(screen.getByTestId('row-places'))
+    const panel = within(screen.getByTestId('places-panel'))
+    const clock = panel.getByLabelText('장소 1 도착 시각') as HTMLInputElement
+    expect(clock.value).toBe('') // 예시는 placeholder일 뿐 값이 아니다
+    expect(clock.getAttribute('placeholder')).toBe('예 14:20')
+    fireEvent.change(panel.getByLabelText('장소 1 이름'), { target: { value: '홍대 CGV' } })
+    fireEvent.click(saveBtn())
+    await waitFor(() => expect(db.writes.some((w) => w.table === 'date_stops')).toBe(true))
+    const stop = db.writes.find((w) => w.table === 'date_stops')!
+    expect(stop.payload).toMatchObject({ seq: 0, place_name: '홍대 CGV', arrived_at: E1 })
+  })
+
+  it('A-10 D4 첫 장소에 시각을 적으면 그 시각이 저장된다 - 가장 이른 촬영 시각이 적은 값을 덮지 않는다', async () => {
+    const E1 = '2026-10-03T09:41:07+09:00'
+    const db = await opened()
+    await pick([photo('a', T2), photo('b', E1)])
+    fireEvent.click(screen.getByTestId('row-places'))
+    const panel = within(screen.getByTestId('places-panel'))
+    fireEvent.change(panel.getByLabelText('장소 1 이름'), { target: { value: '홍대 CGV' } })
+    fireEvent.change(panel.getByLabelText('장소 1 도착 시각'), { target: { value: '1530' } })
+    fireEvent.click(saveBtn())
+    await waitFor(() => expect(db.writes.some((w) => w.table === 'date_stops')).toBe(true))
+    const stop = db.writes.find((w) => w.table === 'date_stops')!
+    expect(stop.payload).toMatchObject({ seq: 0, place_name: '홍대 CGV', arrived_at: '2026-10-03T15:30:00+09:00' })
+  })
+
   it('사용자가 날짜를 고치면 사진을 더 골라도 더는 덮어쓰지 않는다', async () => {
     await opened()
     await pick([photo('a', T1)])
     fireEvent.click(screen.getByTestId('row-date'))
     fireEvent.change(screen.getByTestId('date-input'), { target: { value: '20260915' } })
-    expect((screen.getByTestId('date-input') as HTMLInputElement).value).toBe('2026-09-15')
+    expect((screen.getByTestId('date-input') as HTMLInputElement).value).toBe('2026.09.15') // D9: 점 모양
     fireEvent.click(screen.getByRole('button', { name: '날짜 정하기' }))
     expect(screen.getByTestId('row-date').textContent).toContain('2026.09.15')
     await pick([photo('b', '2026-08-01T10:00:00+09:00')], 2)

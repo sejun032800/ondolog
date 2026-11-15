@@ -10,6 +10,8 @@
  *   파일의 수정 시각(`lastModified`)은 촬영 시각이 아니므로 쓰지 않는다(RN과 같음 - 시각이 없으면 오늘 날짜).
  */
 import { parse as parseExif } from 'exifr/dist/lite.esm.mjs'
+import { chooseViaGalleryPlugin } from '../../photo/galleryPlugin'
+import { stripLocation, type StripDeps } from '../../photo/stripLocation'
 import { photoFromPickerAsset, type PickedPhoto } from '@/utils/dateRecord'
 
 /** 한 번에 고를 수 있는 최대 장수(RN `PICK_LIMIT`과 같다). */
@@ -109,6 +111,8 @@ export interface PickDeps {
   readSize?: ImageSizeReader
   /** 고른 파일을 가리키는 주소를 만든다(미리보기 · 올리기 때 바이트 읽기). */
   makeUrl?: (file: File) => string
+  /** 위치 제거 재인코딩 대체(시험). */
+  strip?: StripDeps
 }
 
 /** 파일 하나를 `PickedPhoto`로. 촬영 시각만 EXIF에서 가져오고 위치는 담지 않는다. */
@@ -134,7 +138,16 @@ export async function photoFromFile(file: File, deps: PickDeps = {}): Promise<We
 }
 
 /** 시스템 사진 선택기를 연다. 고르지 않고 닫으면 빈 배열(`cancel` 이벤트를 주지 않는 웹뷰에서는 끝내 답이 없을 수 있다 - 화면은 기다리지 않는다). */
-export function chooseFiles(limit: number = PICK_LIMIT, capture = false): Promise<File[]> {
+export async function chooseFiles(limit: number = PICK_LIMIT, capture = false): Promise<File[]> {
+  // A-21: [앨범]은 갤러리 플러그인 길이 켜져 있고 쓸 수 있을 때만 그 길(지금은 꺼짐 - `photo/galleryPlugin.ts`). 아니면 웹 입력.
+  if (!capture) {
+    const viaPlugin = await chooseViaGalleryPlugin(limit)
+    if (viaPlugin !== null) return viaPlugin
+  }
+  return chooseViaInput(limit, capture)
+}
+
+function chooseViaInput(limit: number, capture: boolean): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -154,13 +167,30 @@ export function chooseFiles(limit: number = PICK_LIMIT, capture = false): Promis
   })
 }
 
+function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
+  if (typeof blob.arrayBuffer === 'function') return blob.arrayBuffer()
+  return new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error ?? new Error('read'))
+    reader.onload = () => resolve(reader.result as ArrayBuffer)
+    reader.readAsArrayBuffer(blob)
+  })
+}
+
 export async function pickPhotos(limit: number = PICK_LIMIT, deps: PickDeps & { choose?: (limit: number, capture: boolean) => Promise<File[]>; capture?: boolean } = {}): Promise<WebPickedPhoto[]> {
   const files = await (deps.choose ?? chooseFiles)(limit, deps.capture ?? false)
   const out: WebPickedPhoto[] = []
   // 한 장씩(큰 사진을 한꺼번에 풀지 않는다). 한 장이 읽히지 않아도 나머지는 간다.
   for (const file of files) {
     try {
-      out.push(await photoFromFile(file, deps))
+      // 위치 제거(R93-4): 촬영 시각은 원본 File에서 읽고, 미리보기 주소 · 이후 큐 복사 · 업로드는 위치 없는 바이트만 쓴다. 실패하면 이 사진은 건너뛴다.
+      const original = await readBlobBytes(file)
+      const stripped = await stripLocation(original, file.type, deps.strip)
+      const safe = new File([stripped.bytes], file.name, { type: stripped.mimeType, lastModified: file.lastModified })
+      const makeUrl = deps.makeUrl ?? ((f: File) => URL.createObjectURL(f))
+      const readExif = deps.readExif ?? readExifTags
+      const photo = await photoFromFile(safe, { ...deps, readExif: () => readExif(file), makeUrl: () => makeUrl(safe) })
+      out.push({ ...photo, fileKey: fileKeyOf(file) })
     } catch {
       // 읽을 수 없는 파일은 건너뛴다.
     }

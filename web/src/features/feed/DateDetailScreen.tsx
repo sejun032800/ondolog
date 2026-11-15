@@ -7,7 +7,7 @@
  * - 메모는 데이트 단위(규칙 5) - 머리 아래 한 블록.
  * - 사진을 누르면 크게 보기(`PhotoViewer`, 확대 직접 구현).
  * - 사진 더하기: E10 화면은 없앴다(CURRENT.md) - 버튼이 바로 시스템 사진 선택기를 열고, 고른 사진은 이 데이트에 곧바로 올린다(날짜 고정, 장소 · 메모 없음).
- * - 본인 기록 삭제(R30-1): **내가 올린** 사진 · 메모에만 `⋯`가 보인다(남의 것에는 진입점 0). `⋯` -> 확인 시트(되돌릴 수 없고, 이미 발행된 호에서는 지워지지 않는다) -> `fn_delete_own_entry` RPC만.
+ * - 본인 기록 삭제(R30-1 · A-2-2): **내가 올린** 사진 · 메모를 **길게 눌러서만** 지운다(`⋯` 버튼 · 밀어서 지우기 없음, 남의 것은 눌러도 아무 일 · 연출 0). 길게 누르기 -> 확인 시트(되돌릴 수 없고, 이미 발행된 호에서는 지워지지 않는다) -> `fn_delete_own_entry` RPC만.
  */
 import { useState } from 'react'
 import { canDeleteEntry, deleteOwnEntry, StopTimeInputError, type Db } from '@/services/dateRecordApi'
@@ -23,6 +23,7 @@ import { IS_TRIAL_BUILD } from '../../config/env'
 import { useTrialDiag } from '../../platform/trialDiag'
 import { useRouteParams, type Nav } from '../../navigation'
 import { showToast } from '../../stores/toastStore'
+import { useLongPress } from '../../platform/useLongPress'
 import { useSheetStore } from '../../stores/sheetStore'
 import { isRecordable, useDateDetail, useFeedSignal, useRecordingCouple, type DetailStop } from './feedData'
 import { SOLO_CLOSED_TITLE } from './FeedView'
@@ -52,18 +53,33 @@ function DeleteSheetBody({ kind, busy, onConfirm }: { kind: Pending['kind']; bus
   )
 }
 
-/** 내 기록의 `⋯`. 눌러도 아래 카드(사진 보기)가 같이 눌리지 않는다. */
-function MoreButton({ label, testId, onOpen }: { label: string; testId: string; onOpen: () => void }) {
+/**
+ * 사진 한 장. **길게 누르기만**(A-2-2): 내가 올린 것 -> 누르고 있으면 [지우기] 시트, 짧게 누르면 크게 보기. 상대가 올린 것 -> 길게 눌러도 아무 일 없고 눌림 연출도 없다(크게 보기만).
+ * `⋯` 버튼 · 밀어서 지우기는 없다.
+ */
+function StopPhoto({ photo, url, single, mine, onView, onMore }: {
+  photo: DetailStop['photos'][number]
+  url: string | undefined
+  single: boolean
+  mine: boolean
+  onView: (entryId: string) => void
+  onMore: (entryId: string) => void
+}) {
+  const hold = useLongPress(mine ? () => onMore(photo.id) : undefined)
   return (
-    <button
-      type="button"
-      className="moreBtn press"
-      aria-label={label}
-      data-testid={testId}
-      onClick={(e) => { e.stopPropagation(); onOpen() }}
-    >
-      <span aria-hidden="true">⋯</span>
-    </button>
+    <div className={`stopPhoto ${single ? 'single' : 'pair'}`}>
+      <button
+        type="button"
+        className={`stopPhotoOpen ${mine ? 'press holdable' : ''}`}
+        aria-label="사진 크게 보기"
+        data-testid={`photo-${photo.id}`}
+        data-mine={mine ? 'true' : 'false'}
+        onClick={() => onView(photo.id)}
+        {...hold}
+      >
+        {url ? <img src={url} alt="사진" draggable={false} /> : null}
+      </button>
+    </div>
   )
 }
 
@@ -78,17 +94,25 @@ function StopPhotos({ stop, urls, viewerId, onView, onMore }: {
   const single = stop.photos.length === 1
   return (
     <div className="stopPhotos">
-      {stop.photos.map((p) => {
-        const url = p.storage_path ? urls[p.storage_path] : undefined
-        return (
-          <div key={p.id} className={`stopPhoto ${single ? 'single' : 'pair'}`}>
-            <button type="button" className="stopPhotoOpen press" aria-label="사진 크게 보기" data-testid={`photo-${p.id}`} onClick={() => onView(p.id)}>
-              {url ? <img src={url} alt="사진" draggable={false} /> : null}
-            </button>
-            {canDeleteEntry(p, viewerId) ? <MoreButton label="내 사진 더보기" testId={`more-photo-${p.id}`} onOpen={() => onMore(p.id)} /> : null}
-          </div>
-        )
-      })}
+      {stop.photos.map((p) => (
+        <StopPhoto key={p.id} photo={p} url={p.storage_path ? urls[p.storage_path] : undefined} single={single} mine={canDeleteEntry(p, viewerId)} onView={onView} onMore={onMore} />
+      ))}
+    </div>
+  )
+}
+
+/** 메모 한 줄 - 길게 누르기는 사진과 같다(내 메모만). */
+function MemoItem({ memo, authorName, mine, onMore }: { memo: { id: string; text_content: string | null }; authorName: string | undefined; mine: boolean; onMore: () => void }) {
+  const hold = useLongPress(mine ? onMore : undefined)
+  return (
+    <div className="memoItem">
+      <div className={`memoQuote ${mine ? 'holdable' : ''}`} data-testid={`memo-${memo.id}`} data-mine={mine ? 'true' : 'false'} {...hold}>
+        <span className="memoRule" aria-hidden="true" />
+        <div className="memoBody">
+          <p className="memoText">{memo.text_content ?? ''}</p>
+          {authorName ? <span className="t-caption c-mute">{`— ${authorName}`}</span> : null}
+        </div>
+      </div>
     </div>
   )
 }
@@ -205,18 +229,7 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
               <div className="detailMemos" data-testid="detail-memos">
                 <span className="t-kicker c-mute">MEMO</span>
                 {detail.memos.map((m) => (
-                  <div key={m.id} className="memoItem">
-                    <div className="memoQuote">
-                      <span className="memoRule" aria-hidden="true" />
-                      <div className="memoBody">
-                        <p className="memoText">{m.text_content ?? ''}</p>
-                        {detail.names[m.author_id] ? <span className="t-caption c-mute">{`— ${detail.names[m.author_id]}`}</span> : null}
-                      </div>
-                      {canDeleteEntry(m, viewerId) ? (
-                        <MoreButton label="내 메모 더보기" testId={`more-memo-${m.id}`} onOpen={() => setPending({ id: m.id, kind: 'memo' })} />
-                      ) : null}
-                    </div>
-                  </div>
+                  <MemoItem key={m.id} memo={m} authorName={detail.names[m.author_id]} mine={canDeleteEntry(m, viewerId)} onMore={() => setPending({ id: m.id, kind: 'memo' })} />
                 ))}
               </div>
             ) : null}

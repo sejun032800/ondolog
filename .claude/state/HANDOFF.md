@@ -10,6 +10,90 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
+## `75-` 최종 수정 (메인 세션, 2026-11-15, 위임문 `75-dispatch-final-fix.md` · 분류 `PM_triage_75-final-fix.md` · R93-1~8) - 완료 (미커밋)
+
+범위: `web/` · `scripts/ops/` · `render/tests/` · `docs/74-exploration-guide.md` · `docs/51-device-checklist.md` · HANDOFF · PROGRESS. 마이그레이션 0 · 원격 0 · 커밋 0 · RN · 루트 `src/` · `supabase/` 변경 0 · 새 패키지 `@capacitor/camera` 8.2.6 1개(사전 허가 R76-7). 검증: web tsc 0 · Vitest 43 파일 / 766 통과 + 1 건너뜀(법무 값 관문, 기준 33 / 665) · `build` · `build:trial` · `cap sync android` 통과 · 루트 tsc 0 · jest 103 / 1789(기준 101 / 1771) · Python 324(기준 316) · Deno 초기화 시험 28(기준 24).
+
+### 멈춘 것 (PM 결정 → 작은 후속 지시)
+
+| 무엇 | 왜 | 필요한 변경(말로) | 그 사이 화면 쪽에서 한 것 |
+|---|---|---|---|
+| A-24 서버 부분(0-4) | `fn_connect_couple`은 active · dissolving 커플 소속이면 막는다. 그러나 ① 해제 유예(dissolving) 커플의 **user_b**는 초대 행(pending, user_a = 본인)을 새로 넣을 수 있다(고유 인덱스 `uq_couple_active_user_a`는 user_a 열만 본다 - 넣으면 같은 사람이 pending + dissolving 두 행에 걸려 `fetchExistingInvite`의 단일 행 읽기가 깨질 수 있음) ② **탈퇴 유예**(`profiles.deleted_at` 있음) 사용자가 커플이 없으면 초대 발급 · 연결 둘 다 막히지 않는다 | 초대 행 insert 정책(`couples_insert`)과 `fn_connect_couple`에 "부르는 사람 · 초대한 사람이 dissolving 커플의 어느 쪽이든 구성원이면 거부, `profiles.deleted_at`이 있으면 거부" 규칙 추가 | 메인 · 피드 · 매거진 · 게이트의 [연인 초대하기] 숨김, `openInvite` 중앙 차단, `getOrCreateInvite`가 유예 중이면 insert 전에 거부(23505 다섯 번 재시도 없음) |
+| 0-1 HEIC | 브라우저에서 HEIC 위치 구획을 안전하게 떼는 방법을 표본 없이 검증할 수 없음 | PM: JPEG 변환 여부 결정 | JPEG(제자리 GPS 제거) · PNG(청크 제거) · 그 밖(캔버스 재인코딩, 픽셀 크기 그대로)은 제거됨. **HEIC는 지금 위치가 그대로 올라간다** |
+| A-2-1 장소마다 [사진 더하기] | 사진의 장소는 루트 `assignStop`(규칙 4)과 `syncOwnPlacement`가 정하고 화면도 규칙 4로 다시 계산한다. 손 배치가 이기려면 루트 서비스 변경 + "손으로 넣음" 표시 저장(스키마 가능성) 필요 | `data_entries`에 손 배치 표시 칸(또는 동등한 규칙) + 루트 배치 함수가 그 표시를 존중 | 규칙 안내문만 사진 칸 바로 아래로 옮김(③) |
+| A17 [솔로예요] | 위임서 지시 - 의도만 PM에게 | — | 변경 0 |
+
+### 결정 기록
+
+| 결정 | 출처 |
+|---|---|
+| 동의 상수 파일은 `web/src/legal/consent.ts`. 루트 `src/constants/consent.ts` · `legalDocuments.ts`는 RN이 읽는 파일이라 건드리지 않음(편집 허가 `web/`). 문의 메일(설정 → 앱 정보 → 문의하기)도 이 파일의 `LEGAL_CONTACT_EMAIL`을 읽는다 - 루트 `SUPPORT_EMAIL`은 웹에서 더 안 씀 | R38-2 · R93-5 · 위임서 범위 |
+| 법무 값 4개(`LEGAL_OPERATOR` · `LEGAL_CONTACT_EMAIL` · `LEGAL_STORAGE_REGION` · `LEGAL_EFFECTIVE_DATE`)는 `''`. 빌드 관문 = `cd web; $env:LEGAL_CHECK='1'; npx vitest run src/legal` (값이 비면 실패) | R93-5 · 위임서 0-7 |
+| 세 문서 문장은 PM v1 그대로(굵은 표시 · 줄바꿈만 구조로). 메인 세션이 PM 원본과 문장 단위 대조 - 빠진 문장 0 | R93-5 |
+| 마케팅 수신 동의는 PM 문장이 없어 동의 화면의 [보기]를 숨김(문장을 짓지 않음) | 위임서 "문장 수정 0" |
+| 0-1 사진 위치 제거는 고르는 단계에서 한 번(`web/src/photo/stripLocation.ts`) - 채팅 · 피드 · 스토리 모두 그 바이트를 올림. 촬영 시각은 원본에서 먼저 읽음. GIF는 통과(재인코딩하면 움직임이 사라짐 - PM 확인) | R93-4 |
+| 0-3 PDF: 누를 때마다 새 서명 주소 · 600초 · magazine 버킷 비공개(015) - 이미 충족, 시험만 추가 | R87-4 |
+| 0-5 커플 공용 값: 조건부 update 한 번(`relationship_start_date is null`일 때만) + 저장된 행 반환. 기존 칸 권한 · RLS(026) 그대로 - 마이그레이션 0 | R90-4 |
+| 0-8 RN ↔ 웹 서버 쓰기 대응: RN 쓰기 경로 전부 웹 대응 있음. 웹에 없는 것은 얼굴 인식 · 대표사진(`referencePhotoApi` · 생체 동의 칸) - 웹 범위 밖(R13-2) | R93-3 |
+| A-21 `@capacitor/camera` 8.2.6 설치, `GALLERY_MODE = 'input'`(지금 방식 유지) - 플러그인 갤러리 경로의 EXIF 촬영 시각 보존을 기기 없이 확인 못 함. 켜도 같은 GPS 제거 경로를 탄다. 매니페스트 변경 0. `cap sync`가 gradle 두 파일에 플러그인 줄을 더함 | R86-2 · R76-7 · 위임서 A-21 조건 |
+| A-16 스토리 자동 넘김은 만들고 꺼 둠(`STORY_AUTO_ADVANCE_MS = null`) - DESIGN §6 모션 허용표에 없고 보드 F03은 정지 막대. 막대 수 = 스토리 수 · 눌러 넘기기는 켜짐 | ONDOLOG_DESIGN §6 |
+| A-7 네이티브 로그 끔(`capacitor.config.ts` `loggingBehavior: 'none'`) · 빌드에서 console 제거(`vite.config.ts`). 부작용: 시험 빌드의 logcat 진단도 줄어듦 | R80-2 |
+| A-2-5 시작 온도는 엔진 입력 단위(애니어그램 9코어)대로 9x9 전수 시험 - "16×16"은 엔진 단위와 다름 | R83-7 |
+| A-2-2 길게 누르기 삭제는 상세(사진 · 메모 항목)에 둠 - 삭제 RPC가 항목 단위. 피드 날짜 카드는 손대지 않음 | R83-4 |
+| A-1 키보드 시험 화면 · "영문으로 바꿔 입력" 줄 삭제 | R80-3 |
+| A-2-3 문장 후보 = "기록과 대화가 쌓여 코너가 하나씩 준비되면 오르는 숫자예요"(PM 확인 전 후보, `firstIssueHint.ts`). **주의**: 앱의 %는 지금 기간 경과율(R18-6)이라 후보 문장과 어긋남 | R83-5 |
+| 저장소 키 모양 문자열: 새 시험의 가짜 JWT를 실행 때 조립으로 바꿈 → 추적 대상 키 모양 3 → 3(기존 ops 가짜 값만) | R87-6 |
+
+### PM 확인 필요 (문구 · 값)
+
+탈퇴 완료 한 장 "탈퇴를 요청했어요. {M}월 {D}일까지 다시 로그인하면 취소할 수 있어요."(날짜 없으면 "7일 안에") · 유예 게이트 "연결 해제를 기다리고 있어요" / "해제 예정 기간에는 새로 연결할 수 없어요. 설정 > 커플에서 확인할 수 있어요." · 유예 토스트 "해제 예정 기간에는 새로 연결할 수 없어요" · 로그아웃 확인 "로그아웃할까요?" / "다시 로그인하면 기록은 그대로 볼 수 있어요." · 시작 온도 문구 아래 기존 보조 문구 곁들임 · 시각 칸 "예 14:20" · A-2-3 후보 · A-16 자동 넘김 시간 · 탭 바 활성 표시(E01 아이콘+발광 vs I02~I06 점, 지금 E01) · 마케팅 문서 필요 여부 · 길게 누르기만이면 TalkBack 삭제 불가(대안 여부) · 버전 기준(지금 `web/package.json` 0.1.0) · GIF 통과.
+
+### 75- 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 운영 스크립트 · 렌더 시험 · 문서
+```
+git add scripts/ops/resetAllowlist.ts
+git add scripts/ops/resetAllowlist.test.ts
+git add scripts/ops/opsCliOutput.test.ts
+git add scripts/ops/resetTestAccount.ts
+git add scripts/ops/resetTestAccountCheck.ts
+git add scripts/ops/opsCli.ts
+git add scripts/ops/generateIssueCli.ts
+git add scripts/ops/publishIssueCli.ts
+git add render/tests/test_a23_real_usage.py
+git add docs/74-exploration-guide.md
+git add docs/51-device-checklist.md
+git commit -m "75- ops: lock reset script to an out-of-repo allow-list and dev project, hide project ref in cli output, add real-usage render samples, web notes in 51- checklist"
+```
+2) 웹 앱
+```
+git add web/package.json
+git add web/package-lock.json
+git add web/capacitor.config.ts
+git add web/vite.config.ts
+git add web/android/app/capacitor.build.gradle
+git add web/android/capacitor.settings.gradle
+git add web/src
+git commit -m "75- web: strip photo location, conditional couple values, legal text v1, grace-aware main, refresh on resume, board and backlog fixes"
+```
+(`git add web/src`는 이 폴더의 바뀐 · 새 · 지운 파일만 담는다 - 지운 파일 `web/src/features/settings/KeyboardTestScreen.tsx` 포함. 이름 하나씩이 필요하면 아래 PROGRESS 목록 참고.)
+3) 상태 파일
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "75- state: decisions, stopped items, phone check order"
+```
+
+### Proteur 다음 순서 = `51-` 한 바퀴 (R93-6)
+
+1. **법무 값 4개**를 `web/src/legal/consent.ts`에 직접 넣는다(운영자 · 문의 이메일 · 저장 지역 · 시행일 = 이 빌드를 처음 설치하는 날). `cd web; $env:LEGAL_CHECK='1'; npx vitest run src/legal` 통과 → `npm run build:trial` → `npx cap sync android` → 두 폰 앱 삭제 후 설치. (`@capacitor/camera`가 새 네이티브 의존성 `ioncamera-android`를 가져오므로 첫 Gradle 빌드에서 받아오기 확인)
+2. 허용 목록 파일을 만든다(위 "0-6 잠금" 형식, 저장소 밖) → 커플 모드 초기화(`ops_2026_11` · 보안 입력 · `sb_secret_` 확인 줄 · `$al` · `--with-issues` · 끝나면 새 창 `False`). 남아 있는 시드 시험 호도 이때 정리된다.
+3. **R79-3 두 폰 새 계정 첫 가입**(법무 문장이 들어간 빌드).
+4. `51-` 49항목 - M0 §7 순서 · 멈춤 조건 4가지. 끼워 볼 것: A-19 · A-20 · A-21(스위치 꺼짐 - 지금 방식) · A-26 → ⑦ 채팅 / A-21 · 0-1(GPS 0 · 방향 · 픽셀 크기, B2 · B3 · B4) → ⑨ 피드 / A-24(해제 · 탈퇴 유예 중 메인 · 피드 · 매거진에 초대 없음, 닉네임 보임) · A-25 → ⑬ / D5 문의 받는 사람 · C13 문장 같음 → ⑫ / A-2-4 두 폰 동시(1초 안) · 순차 저장 / A-4 첫 진입 0.1초 판독 / A-3 모든 탭 / A-7 로그인 한 바퀴 logcat · 화면 · 녹화에 토큰 0 / A-17 큰 사진 여러 장 보낼 때 띠 없음 / D10 · W2 토스트 위치.
+5. 두 폰으로 3일치 기록 → 시드 호 1권 생성 · 렌더 · 발행(샘플 모드 · LLM 0 · 생성 · 발행 `ops_2026_11` · 렌더 `render_2026_11` · R84-7 입력 조립 확인 먼저). B11 · B12는 이 호로.
+6. 준비물: HEIC 사진(0-1 멈춤 - 위치가 남는지 그대로 기록) · 지난달 사진(B9) · 재설치용 기존 계정(B21) · 메일 앱 비활성(C12) · 약한 신호 장소(D7).
+7. 녹화: 두 폰 동시 · 시작 메시지로 시각 맞춤 · 카카오 계정 · 공유 시트 연락처 · 메일 앱 화면 제외 · 판독 0.5초 이하.
+
 ## `74-` 앱 전체를 웹으로 (메인 세션 진행, 2026-11-09 시작) - 새 세션은 이 절만 보고 다음 묶음부터
 
 지시: `.claude/state/prompts/phase-7/PM_directive_74-web-full-app.md`(원본, 우선) · `74-ui-builder-full-app.md`(묶음별 할 일) · `74-main-session-dispatch-full-app.md`(진행 방식). 멈춤 조건은 셋(절대 규칙 · 마이그레이션 · 허가 밖 의존성/네이티브 파일)뿐, 나머지는 아래 "결정 기록"에 한 줄.
@@ -74,6 +158,8 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 $env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
 ```
 
+- **키 안내는 어디에 쓰든 키 줄 바로 다음에 확인 줄을 반드시 함께 싣는다**(렌더 · 생성 · 발행 · 초기화 · 검증 모두, 75- A-27 상시화). publishable 키를 넣으면 **오류 없이 빈 결과만** 나온다(74-s2 실제 사례). 키 줄만 다시 칠 때도 확인 줄을 같이 친다.
+- (75- A-27) 생성 · 발행 명령의 첫 줄은 이제 "접속 대상: 개발 프로젝트 ondolog - 확인됨 (프로젝트 ref는 출력하지 않는다)"이다. ref가 보이면 멈추고 보고.
 - 렌더와 운영 스크립트 사이에 키를 바꿀 때는 키 줄과 확인 줄만 다시 친다(주소 · `$h`는 그대로).
 - 작업이 끝나면 **PowerShell 창을 닫고**, 새 창에서 아래가 `False`인지 확인한다:
 
@@ -357,38 +443,57 @@ $env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
 $h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
 ```
 
+2-1. (75- 0-6) 허용 목록 파일 위치를 읽는다 - 아래 "0-6 잠금" 참조:
+
+```
+$al = Join-Path $env:USERPROFILE '.ondologeset-allowlist.txt'
+```
+
+   (`ONDOLOG_RESET_ALLOWLIST`에 다른 경로를 넣었으면 `$al = $env:ONDOLOG_RESET_ALLOWLIST`.)
+
 3. 미리 보기(아무것도 지우지 않음):
 
 ```
-deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일>
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts <카카오 이메일>
 ```
 
 4. 실제 삭제:
 
 ```
-deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <카카오 이메일> --apply
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts <카카오 이메일> --apply
 ```
 5. 커플 모드(시험 커플 두 계정을 함께 지움 — R81-1). 이메일 2개를 주면 커플 모드다:
 
 미리 보기(아무것도 지우지 않음):
 
-deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <이메일1> <이메일2>
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts <이메일1> <이메일2>
 
 
 실제 삭제:
 
-deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <이메일1> <이메일2> --apply
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts <이메일1> <이메일2> --apply
 
 
 발행 호까지 지울 때(발행 호가 있으면 이 플래그 없이는 거부된다):
 
-deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/resetTestAccount.ts <이메일1> <이메일2> --with-issues --apply
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts <이메일1> <이메일2> --with-issues --apply
 
 
-잠금 메모: 실제 커플 시작 전 스크립트 잠금(R76-9 · R78-5)에 **커플 모드도 포함**한다.
+잠금(75- 0-6 · R76-9 · R78-5 · 완료): 단독 · 커플 모드 · `--with-issues` 모두 아래 허용 목록을 지나야 한다.
+
+#### 0-6 잠금 — 저장소 밖 허용 목록 (75-, R76-9 · R78-5)
+초기화 스크립트(`resetTestAccount.ts`, 단독 · 커플 모드 · `--with-issues` 모두)는 **저장소 밖 허용 목록 파일**에 있는 이메일만 받는다. 판정은 접속 전(네트워크 0)이고, 미리 보기도 같다.
+- 위치: 환경 변수 `ONDOLOG_RESET_ALLOWLIST`(파일 경로)가 있으면 그 파일, 없으면 `%USERPROFILE%\.ondologeset-allowlist.txt`. 저장소 안에 두지 않는다.
+- 형식: UTF-8 텍스트, 한 줄에 하나. `#` 뒤는 주석, 빈 줄 무시.
+  - `project=<개발 프로젝트 ref>` 줄 1개 이상(필수) — 접속 주소의 ref가 이 중 하나가 아니면 "개발 프로젝트가 아니다"로 거부
+  - 나머지 줄 = 초기화를 허용할 시험 계정 이메일(대소문자 무시)
+  - 그 밖의 모양은 "허용 목록 파일 형식 오류 (N번째 줄)"로 거부
+- 거부(아무것도 조회 · 삭제하지 않음): 파일 없음/못 읽음 · `project=` 없음 · 주소 없음/모양 틀림 · ref 불일치 · 목록 밖 이메일(커플 모드에서 한 명만 밖이어도). 문구에 이메일 · ref · 경로가 나오지 않는다.
+- 기존 확인(`linked-project.json`의 이름 · ref 대조)은 그대로 두고 그 앞에 이 확인을 더했다. 둘 다 통과해야 한다.
+- 시험(원격 없음): Deno 28개 · 루트 jest `scripts/ops/resetAllowlist.test.ts` 14개.
 끝나면 **PowerShell 창을 닫는다**(창 안의 환경 변수에 키가 남아 있다). 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` → `False` 확인. 사용자 · 시스템 범위 영구 저장 금지(R87-6).
 
-시험(원격 없음): `deno test --no-check --no-lock --unstable-sloppy-imports scripts/ops/resetTestAccountCheck.ts` (24개 통과)
+시험(원격 없음): `deno test --no-check --no-lock --unstable-sloppy-imports scripts/ops/resetTestAccountCheck.ts` (28개 통과 - 75- 0-6 시험 4개 추가)
 
 ### 누적 표 (묶음마다 자기 행을 더한다 — 74-8이 끝 보고로 묶는다)
 

@@ -21,6 +21,8 @@ export interface ChatDbOptions {
   messages?: Row[]
   stories?: Row[]
   profiles?: Row[]
+  /** `couples` 행(탭에 들어올 때 커플 상태를 다시 읽는다 - A-19). 없으면 비어 있다(미연결). */
+  couples?: Row[]
   /** 메시지 삽입이 앞의 N번은 네트워크 오류로 던진다. */
   insertFailures?: number
   /** `Infinity`로 두면 끊김이 계속된다(시험이 `db.state.offline`을 바꿔도 된다). */
@@ -39,7 +41,7 @@ export function makeChatDb(opts: ChatDbOptions) {
     messages: (opts.messages ?? []).map((r) => ({ deleted_at: null, read_at: null, media_path: null, body: null, ...r })),
     stories: (opts.stories ?? []).map((r) => ({ ...r })),
     profiles: (opts.profiles ?? []).map((r) => ({ ...r })),
-    couples: [],
+    couples: (opts.couples ?? []).map((r) => ({ ...r })),
   }
   const state = { offline: opts.offline ?? false, insertFailures: opts.insertFailures ?? 0 }
   const inserts: Row[] = []

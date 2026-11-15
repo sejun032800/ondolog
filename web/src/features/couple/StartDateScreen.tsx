@@ -21,7 +21,7 @@ import { needsStartDateConfirm } from '@/utils/settingsRules'
 import { getSupabase } from '../../auth/client'
 import { fetchProfile } from '../../auth/finalize'
 import { useAuthStore } from '../../auth/stores'
-import { fetchCouple, markStartDateOnboardingComplete, saveStartDateAndNickname, setOrConfirmStartDate } from '../../couple/coupleApi'
+import { fetchCouple, markStartDateOnboardingComplete, saveStartDateAndNickname, setOrConfirmStartDate, startDateConflictNotice } from '../../couple/coupleApi'
 import type { Nav } from '../../navigation'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { OnboardingScreen, PrimaryButton } from '../../ui'
@@ -48,7 +48,7 @@ type Phase =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'enter' }
-  | { kind: 'confirm'; date: string; nickname: string | null }
+  | { kind: 'confirm'; date: string; nickname: string | null; notice?: string }
 
 export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?: 'onboarding' | 'recheck' }) {
   const recheck = mode === 'recheck'
@@ -71,8 +71,9 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
   }, [userId])
 
   /** 메인으로. 연결 정보(날짜 · 닉네임)는 메인이 바로 보이게 다시 읽는다. */
-  const leaveToMain = (uid: string) => {
-    void useCoupleStore.getState().refresh(uid)
+  const leaveToMain = async (uid: string) => {
+    // A-4: 읽기가 끝난 뒤에 넘어간다 - 낡은 값(날짜 · 닉네임 없음)으로 메인을 그렸다가 1초 뒤에 바뀌지 않게.
+    await useCoupleStore.getState().refresh(uid).catch(() => undefined)
     if (recheck) navRef.current.reset('main')
     else navRef.current.enterAccount('main')
   }
@@ -83,7 +84,7 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
     finishingRef.current = true
     try {
       if (!recheck) await markStartDateOnboardingComplete(db, uid)
-      leaveToMain(uid)
+      await leaveToMain(uid)
     } catch {
       finishingRef.current = false
       throw new Error('finish-failed')
@@ -129,6 +130,7 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
           await finish(userId)
           return
         }
+        if (row.nickname) setNickname(row.nickname) // 이미 저장된 값이 있으면 미리 채운다
         setPhase({ kind: 'enter' })
       } catch {
         if (!cancelled) setPhase({ kind: 'error' })
@@ -183,6 +185,7 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
           <p className="code c-text" style={{ fontSize: 40, letterSpacing: -1, paddingLeft: 0, margin: '14px 0' }} data-testid="start-since-date">{startDateIsoToInput(phase.date)}</p>
           <p className="t-body c-sub" data-testid="start-since-sub">{`오늘 D+${days}${phase.nickname ? ` · ${phase.nickname}` : ''}`}</p>
         </div>
+        {phase.notice ? <p className="t-sub c-sub" style={{ marginTop: 24 }} role="status" data-testid="start-conflict-notice">{phase.notice}</p> : null}
         <p className="t-sub c-mute" style={{ marginTop: 24 }} data-testid="start-confirm-note">{START_COPY.confirmNote}</p>
       </OnboardingScreen>
     )
@@ -204,9 +207,10 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
     setError(null)
     try {
       const row = await saveStartDateAndNickname(db, coupleId, userId, iso, nickname)
-      if (row.start_date_set_by !== userId && row.relationship_start_date && row.relationship_start_date !== iso) {
-        // 상대가 먼저 정했고 날짜가 다르다 - 적용된 날짜를 보여 주고 확인받는다.
-        setPhase({ kind: 'confirm', date: row.relationship_start_date, nickname: row.nickname })
+      const notice = startDateConflictNotice(row, { userId, date: iso, nickname })
+      if (notice && row.relationship_start_date) {
+        // 상대가 먼저 정했고 내 입력과 다르다 - 조용히 버리지 않고 적용된 값을 알린 뒤 확인받는다.
+        setPhase({ kind: 'confirm', date: row.relationship_start_date, nickname: row.nickname, notice })
         return
       }
       await finish(userId)
@@ -256,6 +260,12 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
           autoComplete="off"
           enterKeyHint="done"
           placeholder="예) 늘봄"
+          // A-18: 한글 기본 자판 · 자동 대문자 끔(코드 칸의 영문 속성이 옮겨 붙지 않게 명시한다)
+          lang="ko"
+          inputMode="text"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           aria-label={START_COPY.nicknameLabel}
           data-testid="start-nickname-input"
           onChange={(e) => setNickname(e.target.value)}

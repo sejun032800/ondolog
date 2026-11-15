@@ -14,7 +14,7 @@ import { ConnectCoupleError } from '@/services/coupleConnectCore'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
 import { INVITE_CODE_LENGTH } from '../../codeInput'
-import { completeOnboardingWithoutCouple, fetchExistingInvite, getOrCreateInvite, markInviteDoneAwaitingStartDate, redeemInviteCode } from '../../couple/coupleApi'
+import { completeOnboardingWithoutCouple, fetchExistingInvite, getOrCreateInvite, InviteBlockedByGraceError, markInviteDoneAwaitingStartDate, redeemInviteCode } from '../../couple/coupleApi'
 import { CodeBoxes } from './CodeBoxes'
 import type { Nav } from '../../navigation'
 import type { InviteStep } from '../../app/inviteEntry'
@@ -43,6 +43,12 @@ export const INVITE_COPY = {
 } as const
 
 /** 공유 문구(B6 - 브랜드는 "온도록"). */
+/** 안드로이드 13(API 33)+ 웹뷰: 클립보드 쓰기에 시스템 안내가 따라온다(웹뷰 userAgent의 릴리스 번호로 읽는다). */
+export function systemShowsCopyNotice(ua: string = typeof navigator === 'undefined' ? '' : navigator.userAgent): boolean {
+  const m = /Android (\d+)/.exec(ua)
+  return m !== null && Number(m[1]) >= 13
+}
+
 export function inviteShareMessage(code: string): string {
   return `온도록에서 연결해요! 초대 코드: ${code}`
 }
@@ -96,9 +102,9 @@ export function InviteScreen({ nav, bridge, mode = 'onboarding', initialStep = '
         return
       }
       setCodeState({ kind: 'code', code: result.couple.invite_code })
-    } catch {
+    } catch (e) {
       setCodeState((s) => (s.kind === 'checking' ? { kind: 'none' } : s))
-      setError(INVITE_COPY.issueFailed)
+      setError(e instanceof InviteBlockedByGraceError ? e.message : INVITE_COPY.issueFailed)
     } finally {
       setBusy(false)
     }
@@ -148,7 +154,8 @@ export function InviteScreen({ nav, bridge, mode = 'onboarding', initialStep = '
     if (!code) return
     try {
       await navigator.clipboard.writeText(code)
-      showToast(INVITE_COPY.copied)
+      // A-6: 안드로이드 13+는 앱이 클립보드에 쓰면 시스템이 "복사됨" 안내를 직접 띄운다 - 앱 토스트까지 띄우면 두 번. 그 버전에서는 시스템 안내 하나만 보인다.
+      if (!systemShowsCopyNotice()) showToast(INVITE_COPY.copied)
     } catch {
       showToast(`내 코드: ${code}`)
     }

@@ -28,7 +28,11 @@ const T = (min: number) => new Date(2026, 9, 20, 9, 20 + min).toISOString()
 const photo = (k: string) => ({ uri: `blob:${k}`, ext: 'jpg', mimeType: 'image/jpeg', width: 10, height: 10, byteSize: 8, capturedAt: null, lat: null, lng: null, fileKey: k })
 
 function open(opts: Parameters<typeof makeChatWorld>[0] = {}, bridge = makeFakeBridge()) {
-  const w: ChatWorld = makeChatWorld({ profiles: CHAT_PROFILES, ...opts })
+  // 탭에 들어올 때 커플 상태를 다시 읽으므로(A-19) 가짜 서버도 저장소와 같은 상태를 낸다.
+  const couples = useCoupleStore.getState().status === 'connected'
+    ? [{ id: 'c1', status: 'active', user_a_id: 'me', user_b_id: 'you', nickname: null, relationship_start_date: '2025-12-28', reference_photo_path: null }]
+    : []
+  const w: ChatWorld = makeChatWorld({ profiles: CHAT_PROFILES, couples, ...opts })
   render(<><ChatTab bridge={bridge} hubs={w.hubs} /><ToastHost aboveTabBar /></>)
   return { w, bridge }
 }

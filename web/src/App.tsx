@@ -35,6 +35,9 @@ function skyFor(screen: ScreenName | null, introPhase: 'splash' | 'start', panne
       return { visible: true, offset: panned ? viewOffsetPt.pullStart : viewOffsetPt.main, veil: introPhase === 'start' ? 0.42 : 0.3, bottomVeil: introPhase === 'start', moveMs: 6200 }
     case 'brief':
       return { visible: true, offset: viewOffsetPt.sky, veil: 0.7, bottomVeil: false, moveMs: 1800 }
+    case 'share-card':
+      // A09: 유성 하늘이 그대로 보이는 전체 화면 카드(보드 A09). 장막은 글자가 읽힐 만큼만.
+      return { visible: true, offset: viewOffsetPt.sky, veil: 0.12, bottomVeil: false, moveMs: 1200, meteors: true }
     case 'auth':
     case 'callback':
       return { visible: true, offset: viewOffsetPt.sky, veil: 0, bottomVeil: true, moveMs: 1600 }
@@ -181,6 +184,10 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
     return () => window.removeEventListener('resize', fit)
   }, [])
 
+  // A-10 D10 · W2: 아래 주 버튼을 덮지 않게 - 메인 탭 · 탭 밖 화면(푸터 버튼) · 시트가 열려 있을 때(저장 버튼)는 위쪽. 그 밖의 탭은 보드 I06대로 탭 바 위.
+  const sheetOpen = useSheetStore((s) => s.current !== null)
+  const toastAtTop = !onTab || screen === 'main' || sheetOpen
+
   const onPhase = useCallback((p: 'splash' | 'start') => setIntroPhase(p), [])
 
   return (
@@ -196,7 +203,7 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
         <SheetHost />
         <ViewerHost bridge={bridge} />
         <ConnectionBanner inChat={screen === 'chat'} />
-        <ToastHost aboveTabBar={onTab} />
+        <ToastHost aboveTabBar={onTab} top={toastAtTop} />
         <NoticeBanner />
         <AccountProblemHost nav={nav} />
         <div className="grain" />

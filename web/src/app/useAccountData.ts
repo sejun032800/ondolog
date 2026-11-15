@@ -23,5 +23,6 @@ export function useAccountData(route: ScreenName | null): void {
     if (!inAccount) return
     void useProfileStore.getState().refresh(userId)
     void useCoupleStore.getState().refresh(userId)
+    void useDissolutionStore.getState().refresh(userId)
   }, [userId, inAccount])
 }

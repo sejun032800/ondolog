@@ -20,6 +20,7 @@ import { syncPhotoMessages } from '@/utils/chatPhotoQueue'
 import type { OutgoingMessage } from '@/utils/chatQueue'
 import { generateUuidV4 } from '@/utils/uuid'
 import { getSupabase } from '../../auth/client'
+import { onAppResume } from '../../platform/appResume'
 import { photoQueueHub, type PhotoQueueHub, type QueueablePhoto } from '../../photoQueue/photoQueueHub'
 import { fetchMessages, fetchMessagesAfter, fetchStories, markMessagesRead } from './chatApi'
 import { textQueueHub, type TextQueueHub } from './textQueueHub'
@@ -49,6 +50,8 @@ export interface ChatHubs {
   text: TextQueueHub
   photo: PhotoQueueHub
 }
+/** SUBSCRIBED 뒤 한 번 더 메우기까지의 간격(ms). */
+export const SUBSCRIBED_RECHECK_MS = 1500
 const DEFAULT_HUBS: ChatHubs = { text: textQueueHub, photo: photoQueueHub }
 
 export function useChatMessages(coupleId: string | null, currentUserId: string | null, hubs: ChatHubs = DEFAULT_HUBS): ChatMessagesResult {
@@ -122,6 +125,7 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
   useEffect(() => {
     const client = getSupabase()
     if (!coupleId || !client || !db) return
+    let recheckTimer: number | null = null
     const fillGap = () => {
       void fillMessageGap({
         getMessages: () => messagesRef.current,
@@ -140,11 +144,19 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
         },
       )
       // 실시간은 알림이고 진실은 조회다(R37-3): SUBSCRIBED(다시 연결될 때도 같은 신호)에서 마지막 메시지 이후를 조회해 합친다.
-      .subscribe((status) => { if (status === 'SUBSCRIBED') fillGap() })
-    const onVisible = () => { if (document.visibilityState === 'visible') fillGap() }
-    document.addEventListener('visibilitychange', onVisible)
+      // 앱을 다시 켠 직후 상대의 첫 메시지가 실시간으로 안 오던 틈(A-19): 구독이 확정되기 전에 온 메시지는 SUBSCRIBED 때의 조회가 합치고,
+      // SUBSCRIBED 직후 서버가 변경 알림을 켜기까지의 짧은 틈에 온 메시지는 한 번 더 늦춰 조회한다(`SUBSCRIBED_RECHECK_MS`).
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return
+        fillGap()
+        if (recheckTimer !== null) window.clearTimeout(recheckTimer)
+        recheckTimer = window.setTimeout(() => { recheckTimer = null; fillGap() }, SUBSCRIBED_RECHECK_MS)
+      })
+    // 앱 복귀(Capacitor resume / visibilitychange, 한 번으로 합침) - 같은 메우기.
+    const offResume = onAppResume(fillGap)
     return () => {
-      document.removeEventListener('visibilitychange', onVisible)
+      offResume()
+      if (recheckTimer !== null) window.clearTimeout(recheckTimer)
       void client.removeChannel(channel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,6 +242,8 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
   }, [coupleId, db])
 
   const postStory = useCallback(async (photo: ChatPhotoInput): Promise<boolean> => {
+    // A-15: 큐가 아직 안 붙었으면(첫 사용 - 효과가 막 돌려는 참) 지금 붙인다. 같은 (커플, 사용자)면 아무 일도 없다. 그래도 없으면 미연결이다.
+    if (!hubs.photo.getPhotoQueue() && coupleId && currentUserId) hubs.photo.attach(coupleId, currentUserId)
     if (!hubs.photo.getPhotoQueue()) return false
     const queued = await hubs.photo.enqueue(photo, 'story')
     if (!queued) return false
@@ -240,7 +254,7 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
       return false
     }
     return true
-  }, [hubs])
+  }, [hubs, coupleId, currentUserId])
 
   return { messages, loading, sendText, retryFailed, cancelPending, hasQueued: hasTextQueued || hasPhotoQueued, sendPhoto, stories, storiesLoading, postStory }
 }

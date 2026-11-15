@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { useSessionStore } from '@/store/sessionStore'
-import { ALL_CONSENT_NOTE, BasicInfoScreen, ConsentScreen, ResultBriefScreen, resetBriefPlayed } from './screens'
+import { ALL_CONSENT_NOTE, BasicInfoScreen, ConsentScreen, ResultBriefScreen, ShareCardScreen, SHARE_CARD_HOLD_MS, resetBriefPlayed } from './screens'
 import { CodeInput, normalizeCodeInput } from './codeInput'
 import { installKeyboardFocus } from './platform/keyboardFocus'
 import { drawResultCard, type ResultCardData } from './share/resultCard'
 import { fillOnboardingAnswers, makeFakeBridge, makeFakeNav } from './testSupport'
 import { useAuthStore } from './auth/stores'
+import { useToastStore } from './stores/toastStore'
 
 vi.mock('./share/resultCard', async (orig) => {
   const real = await orig<typeof import('./share/resultCard')>()
@@ -97,12 +98,61 @@ describe('A10 약관 동의 (B2 · B18 · E6)', () => {
   })
 })
 
+describe('A09 공유 카드 전체 화면 (R76-8)', () => {
+  beforeEach(() => { fillOnboardingAnswers(); vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('카드를 전체 화면으로 보여 준 뒤 공유 시트를 한 번 열고 A08로 돌아온다 - 이미지 파일 이름은 결과 카드 그대로, 이름 · 버튼 없음', async () => {
+    const bridge = makeFakeBridge()
+    const nav = makeFakeNav()
+    wrap(<ShareCardScreen nav={nav} bridge={bridge} />)
+    expect(screen.getByTestId('share-card').textContent).toContain('MY LOVE TYPE')
+    expect(screen.getByTestId('share-card').textContent).toContain('ONDOLOG')
+    expect(screen.getByTestId('share-card').querySelector('button')).toBeNull()
+    expect(bridge.shareImage).not.toHaveBeenCalled() // 카드가 먼저 보인다
+    await act(async () => { await vi.advanceTimersByTimeAsync(SHARE_CARD_HOLD_MS + 50) })
+    expect(bridge.shareImage).toHaveBeenCalledTimes(1)
+    expect((bridge.shareImage as ReturnType<typeof vi.fn>).mock.calls[0][0].fileName).toBe('ondolog-result.png')
+    expect(nav.back).toHaveBeenCalledTimes(1)
+  })
+
+  it('공유를 닫아도(취소) 오류 안내는 없고, 못 열면 안내한다', async () => {
+    const cancelled = makeFakeBridge({ shareImage: vi.fn(async () => 'cancelled' as const) })
+    wrap(<ShareCardScreen nav={makeFakeNav()} bridge={cancelled} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(SHARE_CARD_HOLD_MS + 50) })
+    expect(useToastStore.getState().toast).toBeNull()
+    cleanup()
+    const failing = makeFakeBridge({ shareImage: vi.fn(async () => 'failed' as const) })
+    wrap(<ShareCardScreen nav={makeFakeNav()} bridge={failing} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(SHARE_CARD_HOLD_MS + 50) })
+    expect(useToastStore.getState().toast?.message).toBe('공유하지 못했어요')
+    useToastStore.getState().hide()
+  })
+
+  it('먼저 화면을 떠나면 공유 시트를 열지 않는다', async () => {
+    const bridge = makeFakeBridge()
+    const view = wrap(<ShareCardScreen nav={makeFakeNav()} bridge={bridge} />)
+    view.unmount()
+    await act(async () => { await vi.advanceTimersByTimeAsync(SHARE_CARD_HOLD_MS + 50) })
+    expect(bridge.shareImage).not.toHaveBeenCalled()
+  })
+
+  it('결과가 없으면(새로고침 등) 그리지 않고 앞 화면으로', () => {
+    useSessionStore.setState({ result: null, mbti: null })
+    const nav = makeFakeNav()
+    wrap(<ShareCardScreen nav={nav} bridge={makeFakeBridge()} />)
+    expect(screen.queryByTestId('share-card')).toBeNull()
+    expect(nav.back).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('A08 결과 카드 (E3 · E4)', () => {
   beforeEach(() => fillOnboardingAnswers())
 
-  it('공유하기 -> 이미지를 만들어 공유 시트로 한 번 보낸다. 가입 링크는 공유 버튼보다 눈에 띄지 않는다', async () => {
+  it('공유하기 -> A09 전체 화면 카드로 간다(공유 시트는 그 화면이 연다). 가입 링크는 공유 버튼보다 눈에 띄지 않는다', () => {
     const bridge = makeFakeBridge()
-    wrap(<ResultBriefScreen nav={makeFakeNav()} bridge={bridge} />)
+    const nav = makeFakeNav()
+    wrap(<ResultBriefScreen nav={nav} bridge={bridge} />)
     const share = screen.getByText('공유하기')
     expect(share.className).toContain('primary')
     expect(screen.getByText('이미지 저장').className).toContain('ghost')
@@ -110,10 +160,8 @@ describe('A08 결과 카드 (E3 · E4)', () => {
     expect(more.className).toContain('link')
     expect(more.className).not.toContain('btn')
     fireEvent.click(share)
-    fireEvent.click(share) // 만드는 동안 다시 눌러도 한 번
-    await act(async () => { await Promise.resolve(); await Promise.resolve() })
-    expect(bridge.shareImage).toHaveBeenCalledTimes(1)
-    expect((bridge.shareImage as ReturnType<typeof vi.fn>).mock.calls[0][0].fileName).toBe('ondolog-result.png')
+    expect(nav.push).toHaveBeenCalledWith('share-card')
+    expect(bridge.shareImage).not.toHaveBeenCalled()
   })
 
   it('이미지 저장 -> 저장하고 알린다 / 못하면 안내한다', async () => {
@@ -131,12 +179,11 @@ describe('A08 결과 카드 (E3 · E4)', () => {
     expect(screen.getByText('저장하지 못했어요')).toBeTruthy()
   })
 
-  it('공유를 닫아도(취소) 오류 안내는 없다', async () => {
-    const bridge = makeFakeBridge({ shareImage: vi.fn(async () => 'cancelled' as const) })
-    wrap(<ResultBriefScreen nav={makeFakeNav()} bridge={bridge} />)
-    fireEvent.click(screen.getByText('공유하기'))
-    await act(async () => { await Promise.resolve(); await Promise.resolve() })
-    expect(screen.queryByText('공유하지 못했어요')).toBeNull()
+  it('더 자세히 보기 -> 약관 동의 화면(가입으로 이어지는 길)', () => {
+    const nav = makeFakeNav()
+    wrap(<ResultBriefScreen nav={nav} bridge={makeFakeBridge()} />)
+    fireEvent.click(screen.getByText('더 자세히 보기 →'))
+    expect(nav.push).toHaveBeenCalledWith('consent')
   })
 
   it('화면 어디에도 이름이 없다', () => {

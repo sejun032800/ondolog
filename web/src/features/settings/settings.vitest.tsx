@@ -6,8 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { LEGAL_DOCUMENTS } from '@/constants/legalDocuments'
-import { SUPPORT_EMAIL } from '@/constants/support'
+import { LEGAL_CONTACT_EMAIL, LEGAL_DOCUMENTS } from '../../legal/consent'
 import { useSessionStore } from '@/store/sessionStore'
 import { SETTINGS_GROUPS } from '@/utils/settingsRules'
 import { ALL_ROUTES } from '../../app/routes'
@@ -260,6 +259,7 @@ describe('H03 프로필', () => {
     render(<ProfileScreen nav={nav} />)
     await settle()
     click('profile-logout')
+    click('confirm-yes') // D7: 확인 뒤에 로그아웃
     await settle()
     expect(db.signOutCalls).toEqual([undefined])
     expect(nav.reset).toHaveBeenCalledWith('intro')
@@ -270,12 +270,30 @@ describe('H03 프로필', () => {
     expect(useSessionStore.getState().name).toBe('')
   })
 
+  it('D7 로그아웃은 확인을 거친다 - [취소]는 아무것도 하지 않고, 확인 문구가 보인다', async () => {
+    const db = settingsDb()
+    await loadStores()
+    const nav = makeFakeNav()
+    render(<ProfileScreen nav={nav} />)
+    await settle()
+    expect(screen.queryByTestId('logout-confirm')).toBeNull()
+    click('profile-logout')
+    expect(byId('logout-confirm').textContent).toContain('로그아웃할까요?')
+    expect(db.signOutCalls).toEqual([])
+    click('confirm-no')
+    await settle()
+    expect(screen.queryByTestId('logout-confirm')).toBeNull()
+    expect(db.signOutCalls).toEqual([])
+    expect(nav.reset).not.toHaveBeenCalled()
+  })
+
   it('서버 로그아웃이 실패해도(끊긴 연결) 이 기기의 세션은 지운다 - scope local로 한 번 더, 그리고 첫 화면', async () => {
     const db = settingsDb({ signOutError: { message: 'network' } })
     const nav = makeFakeNav()
     render(<ProfileScreen nav={nav} />)
     await settle()
     click('profile-logout')
+    click('confirm-yes') // D7: 확인 뒤에 로그아웃
     await settle()
     expect(db.signOutCalls).toEqual([undefined, { scope: 'local' }])
     expect(nav.reset).toHaveBeenCalledWith('intro')
@@ -348,6 +366,15 @@ describe('H04 커플', () => {
     fireEvent.click(screen.getByLabelText('뒤로'))
     expect(byId('settings-couple')).toBeTruthy()
     expect(nav.back).not.toHaveBeenCalled()
+  })
+
+  it('A-18: 설정의 커플 닉네임 칸도 한글 기본 · 자동 대문자 끔', async () => {
+    await open()
+    click('couple-row-nickname')
+    const el = byId('couple-nickname-input')
+    expect(el.getAttribute('lang')).toBe('ko')
+    expect(el.getAttribute('inputmode')).toBe('text')
+    expect(el.getAttribute('autocapitalize')).toBe('off')
   })
 
   it('커플 닉네임: 1자 · 20자는 저장되고 0자 · 21자는 막힌다. 쓰는 칸은 nickname 하나', async () => {
@@ -608,16 +635,30 @@ describe('H16 회원 탈퇴 요청(문구 입력)', () => {
     expect(submit.disabled).toBe(false)
   })
 
-  it('[탈퇴 요청하기]: fn_request_withdrawal 호출 하나 -> 로그아웃(세션 지움) -> 첫 화면. 직접 쓰기 0', async () => {
+  it('[탈퇴 요청하기]: fn_request_withdrawal 호출 하나 -> 안내 한 장(서버가 준 날짜) -> [확인]에서 로그아웃(세션 지움) -> 첫 화면. 직접 쓰기 0 (A-25)', async () => {
     const { db, nav } = await open({ rpc: () => ({ data: '2025-10-28T00:00:00+09:00', error: null }) })
     type('withdraw-phrase-input', '탈퇴합니다')
     click('withdraw-submit')
     await settle()
     expect(db.rpcCalls).toEqual([{ fn: 'fn_request_withdrawal', args: undefined }])
+    // 말없이 넘어가지 않는다: 안내가 보이고 아직 로그아웃 전이다
+    expect(byId('withdraw-done-text').textContent).toBe('탈퇴를 요청했어요. 10월 28일까지 다시 로그인하면 취소할 수 있어요.')
+    expect(db.signOutCalls).toEqual([])
+    expect(nav.reset).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '확인' }))
+    await settle()
     expect(db.writes).toEqual([])
     expect(db.signOutCalls.length).toBeGreaterThanOrEqual(1)
     expect(nav.reset).toHaveBeenCalledWith('intro')
     expectNoExecutionFunctions(db)
+  })
+
+  it('A-25 서버가 날짜를 주지 않으면 날짜 없는 문장 · 앱이 7일을 더해 지어내지 않는다', async () => {
+    await open({ rpc: () => ({ data: null, error: null }) })
+    type('withdraw-phrase-input', '탈퇴합니다')
+    click('withdraw-submit')
+    await settle()
+    expect(byId('withdraw-done-text').textContent).toBe('탈퇴를 요청했어요. 7일 안에 다시 로그인하면 취소할 수 있어요.')
   })
 
   it('요청이 실패하면 로그아웃하지 않고 화면에 남는다', async () => {
@@ -974,12 +1015,12 @@ describe('H11 개인정보 & 약관', () => {
     expect(document.body.textContent).not.toMatch(/생체정보|얼굴|내려받기/)
   })
 
-  it('문서 줄은 A12 약관 전문 시트로 열고, 문장은 저장소 그대로다(자리표시자 포함) - [확인]으로 닫힌다', async () => {
+  it('문서 줄은 A12 약관 전문 시트로 열고, 문장은 동의 상수 파일 그대로다 - [확인]으로 닫힌다', async () => {
     await open()
     click('privacy-row-privacy')
     const dialog = within(screen.getByRole('dialog'))
     expect(dialog.getByText(LEGAL_DOCUMENTS.privacy.title)).toBeTruthy()
-    expect(dialog.getAllByText(LEGAL_DOCUMENTS.privacy.body[0]).length).toBeGreaterThan(0)
+    expect(dialog.getAllByText(LEGAL_DOCUMENTS.privacy.sections[0].heading as string).length).toBeGreaterThan(0)
     fireEvent.click(screen.getByText('확인'))
     await settle(400)
     expect(screen.queryByTestId('sheet')).toBeNull()
@@ -1045,12 +1086,12 @@ describe('H19 앱 정보 · 문의', () => {
     expect(screen.getByText('개인정보 처리방침')).toBeTruthy()
   })
 
-  it('문의하기: mailto 주소 = SUPPORT_EMAIL 상수, 제목 [온도록 문의], 본문 머리 세 줄(버전 · OS · 정정 요청 안내)', async () => {
+  it('문의하기: mailto 받는 사람 = LEGAL_CONTACT_EMAIL 상수, 제목 [온도록 문의], 본문 머리 세 줄(버전 · OS · 정정 요청 안내)', async () => {
     const bridge = open()
     click('about-inquiry')
     await settle()
     const [url] = (bridge.openMail as ReturnType<typeof vi.fn>).mock.calls[0] as [string]
-    expect(url.startsWith(`mailto:${SUPPORT_EMAIL}?`)).toBe(true)
+    expect(url.startsWith(`mailto:${LEGAL_CONTACT_EMAIL}?`)).toBe(true)
     const params = new URLSearchParams(url.split('?')[1])
     expect(params.get('subject')).toBe('[온도록 문의]')
     const lines = (params.get('body') ?? '').split('\n').filter(Boolean)
@@ -1070,14 +1111,14 @@ describe('H19 앱 정보 · 문의', () => {
     expect(all).not.toContain('couple-id-456')
     expect(all).not.toContain('세준')
     // 받는 주소 자리표시자 외에 이메일 모양이 없다.
-    expect(all.replace(SUPPORT_EMAIL, '')).not.toMatch(/@/)
+    expect(all.replace(LEGAL_CONTACT_EMAIL, '')).not.toMatch(/@/)
   })
 
   it('메일 앱을 열 수 없으면 토스트로 주소를 안내한다', async () => {
     open(makeFakeBridge({ openMail: vi.fn(async () => 'failed' as const) }))
     click('about-inquiry')
     await settle()
-    expect(useToastStore.getState().toast?.message).toBe(`메일 앱을 열 수 없어요. ${SUPPORT_EMAIL}로 보내 주세요`)
+    expect(useToastStore.getState().toast?.message).toBe(`메일 앱을 열 수 없어요. ${LEGAL_CONTACT_EMAIL}로 보내 주세요`)
   })
 
   it('이용약관 · 개인정보 처리방침은 온보딩과 같은 약관 전문 시트다', async () => {

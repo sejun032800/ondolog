@@ -7,24 +7,26 @@
  * 사용 (저장소 루트에서):
  *   deno run --no-lock --config supabase/functions/deno.json \
  *     --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY \
- *     --allow-net=<프로젝트 ref>.supabase.co \
+ *     --allow-net=$h \
  *     --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out \
  *     scripts/ops/publishIssueCli.ts --issue-id <uuid>
  */
 
-import { parseFlags, printer, requireFlag, writeJson } from './opsCli.ts'
+import { CONNECTED_LINE, parseFlags, printer, requireFlag, writeJson } from './opsCli.ts'
 import { publishIssue } from './publishIssue.ts'
 import { connectOps } from './supabaseOps.ts'
 
 const flags = parseFlags(Deno.args, ['issue-id'])
 const { store, media, secrets, projectRef } = await connectOps()
-const say = printer(secrets)
-say(`접속 대상: 개발 프로젝트 ondolog (${projectRef}) - 확인됨`)
+// A-27: ref는 출력하지 않는다 - 확인 줄에 넣지 않고, 지울 값 목록에도 더한다.
+const hidden = [...secrets, projectRef]
+const say = printer(hidden)
+say(CONNECTED_LINE)
 
 const report = await publishIssue({ store, media }, requireFlag(flags, 'issue-id'))
 say(`발행됨: 호 ${report.issueId} 번호 ${report.issue.issue_number} is_trial=${report.issue.is_trial} published_at=${report.issue.published_at} theme=${report.issue.theme}`)
 say(`미디어: 새로 복제 ${report.media.copied} · 이미 있음 ${report.media.alreadyPresent}`)
 
 const file = `scripts/ops/out/publish-${report.issueId}.json`
-await writeJson(file, report, secrets)
+await writeJson(file, report, hidden)
 say(`결과 파일: ${file}`)

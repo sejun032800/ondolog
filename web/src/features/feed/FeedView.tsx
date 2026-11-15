@@ -17,8 +17,10 @@ export function monthCountsLabel({ memoTotal, photoTotal, dateTotal }: { memoTot
 }
 
 /** 날짜 카드(사진 + 하단 장막). 큰 카드 230 / 2열 작은 카드(compact) 180. */
-export function DateCard({ photoUrl, dateLabel, title, meta, compact, onOpen }: {
+export function DateCard({ photoUrl, noPhoto, dateLabel, title, meta, compact, onOpen }: {
   photoUrl?: string
+  /** 사진이 없는 기록(대표 사진 경로가 없음) - 큰 빈 사진 자리를 두지 않고 글 카드로 줄인다(A-11). 사진 주소를 읽는 중이면 false라 자리가 흔들리지 않는다. */
+  noPhoto?: boolean
   dateLabel: string
   title: string
   meta?: string
@@ -26,9 +28,9 @@ export function DateCard({ photoUrl, dateLabel, title, meta, compact, onOpen }: 
   onOpen: () => void
 }) {
   return (
-    <button type="button" className={`dateCard press ${compact ? 'compact' : ''}`} aria-label={`${dateLabel} ${title}`} onClick={onOpen}>
+    <button type="button" className={`dateCard press ${compact ? 'compact' : ''} ${noPhoto ? 'noPhoto' : ''}`} aria-label={`${dateLabel} ${title}`} onClick={onOpen}>
       {photoUrl ? <img src={photoUrl} alt="" draggable={false} /> : null}
-      <span className="dateScrim" aria-hidden="true" />
+      {!noPhoto ? <span className="dateScrim" aria-hidden="true" /> : null}
       <span className="dateText">
         <span className="t-caption c-sub">{dateLabel}</span>
         <span className="dateTitle">{title}</span>
@@ -73,6 +75,7 @@ export function FeedChapterView({ chapter, urls, names, onOpenDate }: {
       <MonthChapterHeader chapter={chapter} />
       <DateCard
         photoUrl={photoOf(lead.coverPath)}
+        noPhoto={lead.coverPath === null}
         dateLabel={leadTexts.dateLabel}
         title={leadTexts.title}
         meta={`사진 ${lead.photoCount} · 메모 ${lead.memoCount}`}
@@ -90,7 +93,7 @@ export function FeedChapterView({ chapter, urls, names, onOpenDate }: {
             const texts = buildCardTexts(d, true)
             return (
               <div key={d.id} className="dateCell">
-                <DateCard compact photoUrl={photoOf(d.coverPath)} dateLabel={texts.dateLabel} title={texts.title} onOpen={() => onOpenDate(d.id)} />
+                <DateCard compact photoUrl={photoOf(d.coverPath)} noPhoto={d.coverPath === null} dateLabel={texts.dateLabel} title={texts.title} onOpen={() => onOpenDate(d.id)} />
               </div>
             )
           })}
@@ -105,7 +108,7 @@ export function FeedChapterView({ chapter, urls, names, onOpenDate }: {
  * 보드(`E13.jpg`)의 "혼자서도 기록할 수 있어요"는 R30-3과 맞지 않아 쓰지 않는다(결정 기록). 문구는 기존 비활성 문구 그대로, 아래 줄은 보드 원문이다.
  * 연결된 커플에게는 이 카드가 그려지지 않는다(`CoupleGate` fallback).
  */
-export function SoloBanner({ onInvite }: { onInvite: () => void }) {
+export function SoloBanner({ onInvite }: { onInvite?: () => void }) {
   return (
     <div className="soloBanner" data-testid="solo-banner">
       <div className="soloAvatars" aria-hidden="true"><i className="me" /><i className="empty" /></div>
@@ -113,7 +116,7 @@ export function SoloBanner({ onInvite }: { onInvite: () => void }) {
         <p className="soloTitle" data-testid="solo-title">{SOLO_CLOSED_TITLE}</p>
         <p className="t-caption c-mute">연결하면 두 사람 기록이 하나로 합쳐져요</p>
       </div>
-      <button type="button" className="soloInvite press" aria-label="초대" onClick={onInvite}>{'초대 →'}</button>
+      {onInvite ? <button type="button" className="soloInvite press" aria-label="초대" onClick={onInvite}>{'초대 →'}</button> : null}
     </div>
   )
 }
@@ -130,10 +133,12 @@ export function AddFab({ onPress, disabled }: { onPress: () => void; disabled?: 
   )
 }
 
-export function FeedView({ feed, onOpenDate, onAdd }: {
+export function FeedView({ feed, onOpenDate, onAdd, addOff }: {
   feed: FeedState
   onOpenDate: (dateId: string) => void
   onAdd: () => void
+  /** 연결 전: [첫 기록 남기기]를 + 버튼과 같은 비활성 모양으로(A-5). 눌림은 살아 있어 기록 시트의 닫힘 안내가 뜬다. */
+  addOff?: boolean
 }) {
   const chapterEls = useRef<Record<string, HTMLElement | null>>({})
   const showIndex = feed.chapters.length > 1
@@ -143,6 +148,10 @@ export function FeedView({ feed, onOpenDate, onAdd }: {
         <div className="feedSkeleton" data-testid="feed-skeleton">
           <Skeleton width="30%" height={48} />
           <Skeleton height={190} radius={24} />
+          <div className="feedSkeletonGrid">
+            <Skeleton height={140} radius={24} />
+            <Skeleton height={140} radius={24} />
+          </div>
         </div>
       ) : feed.error ? (
         <div className="feedError" data-testid="feed-error">
@@ -155,6 +164,7 @@ export function FeedView({ feed, onOpenDate, onAdd }: {
           body={'사진 몇 장과 한 줄이면 충분해요.\n이번 호의 재료가 돼요.'}
           actionLabel="첫 기록 남기기"
           onAction={onAdd}
+          actionOff={addOff}
           testId="feed-empty"
         />
       ) : (

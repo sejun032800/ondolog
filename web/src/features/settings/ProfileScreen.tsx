@@ -15,6 +15,7 @@ import { fetchProfile } from '../../auth/finalize'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
 import type { Nav } from '../../navigation'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useProfileStore } from '../../stores/profileStore'
 import { logoutToStart } from './accountActions'
 import { ListGroup, ListRow, SettingsFrame, SettingsSkeletonBlock } from './parts'
@@ -29,6 +30,9 @@ export const PROFILE_COPY = {
   birthLabel: '생년월일',
   socialLabel: '연결된 계정',
   logout: '로그아웃',
+  logoutConfirmTitle: '로그아웃할까요?',
+  logoutConfirmMessage: '다시 로그인하면 기록은 그대로 볼 수 있어요.',
+  logoutCancel: '취소',
   withdraw: '회원 탈퇴',
   saveFailed: '저장하지 못했어요. 다시 시도해주세요.',
   loadFailed: '불러오지 못했어요. 다시 시도해주세요.',
@@ -43,6 +47,7 @@ export function ProfileScreen({ nav }: { nav: Nav }) {
   const [gender, setGender] = useState<Gender>('other')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [logoutAsk, setLogoutAsk] = useState(false) // D7: 로그아웃은 한 번 더 묻는다(I05)
 
   useEffect(() => {
     const db = getSupabase()
@@ -137,11 +142,21 @@ export function ProfileScreen({ nav }: { nav: Nav }) {
 
       {/* 읽기에 실패해도 로그아웃 · 탈퇴 길은 늘 열려 있다. */}
       <ListGroup>
-        <ListRow label={PROFILE_COPY.logout} onPress={() => void logoutToStart(nav)} testId="profile-logout" />
+        <ListRow label={PROFILE_COPY.logout} onPress={() => setLogoutAsk(true)} testId="profile-logout" />
         <ListRow label={PROFILE_COPY.withdraw} onPress={() => nav.push('settings-withdraw')} testId="profile-withdraw" />
       </ListGroup>
 
       {error ? <p className="t-sub c-sub" role="alert" data-testid="profile-error">{error}</p> : null}
+      <ConfirmDialog
+        open={logoutAsk}
+        title={PROFILE_COPY.logoutConfirmTitle}
+        message={PROFILE_COPY.logoutConfirmMessage}
+        confirmLabel={PROFILE_COPY.logout}
+        cancelLabel={PROFILE_COPY.logoutCancel}
+        onConfirm={() => { setLogoutAsk(false); void logoutToStart(nav) }}
+        onCancel={() => setLogoutAsk(false)}
+        testId="logout-confirm"
+      />
     </SettingsFrame>
   )
 }

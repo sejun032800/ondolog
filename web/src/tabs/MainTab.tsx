@@ -11,10 +11,13 @@ import { useEffect, useState } from 'react'
 import { openInvite } from '../app/inviteEntry'
 import { openIssueViewer } from '../app/viewerEntry'
 import { useAuthStore } from '../auth/stores'
+import { useCoupleRefresh } from '../couple/useCoupleRefresh'
 import { MainView } from '../features/main/MainView'
+import { useStartTemperature } from '../features/main/startTemperature'
 import { useLibrary, useLoveTypeSummary, useMainFacts, usePartnerName } from '../features/main/useMainData'
 import type { Nav } from '../navigation'
 import { useCoupleStore } from '../stores/coupleStore'
+import { useDissolutionStore } from '../stores/dissolutionStore'
 import { useProfileStore } from '../stores/profileStore'
 
 /** 화면이 그려져 있는 동안 날짜 라벨 · D+N이 자정을 넘으면 바뀌도록 1분마다 시각을 새로 잡는다. */
@@ -36,12 +39,16 @@ export function MainTab({ nav }: { nav: Nav }) {
   const storedTemperature = useCoupleStore((s) => s.temperature)
   const startDate = useCoupleStore((s) => s.relationshipStartDate)
   const selfName = useProfileStore((s) => s.profile?.displayName ?? null)
+  const grace = useCoupleStore((s) => s.grace)
+  const dissolution = useDissolutionStore((s) => s.dissolution)
+  useCoupleRefresh() // 탭에 들어올 때 · 앱 복귀 때 커플 값을 다시 읽는다(A-19)
 
   const connected = status === 'connected'
   const now = useNow()
   const partnerName = usePartnerName(connected ? partnerId : null)
   const summary = useLoveTypeSummary(userId, status === 'disconnected')
   const library = useLibrary(connected ? coupleId : null)
+  const startTemperature = useStartTemperature(userId, partnerId, connected && storedTemperature === null) // 저장값이 있으면 읽지도 않는다(저장값 우선)
   const facts = useMainFacts({
     userId,
     partnerId: connected ? partnerId : null,
@@ -56,6 +63,7 @@ export function MainTab({ nav }: { nav: Nav }) {
         <MainView
           now={now}
           status={status}
+          grace={grace ? { dissolution } : null}
           nickname={nickname}
           storedTemperature={connected ? storedTemperature : null}
           startDate={startDate}
@@ -64,6 +72,7 @@ export function MainTab({ nav }: { nav: Nav }) {
           facts={facts}
           library={library}
           summary={summary}
+          startTemperature={startTemperature}
           onInvite={() => openInvite('intro')}
           onChat={() => nav.replace('chat')}
           onOpenIssue={(issue) => openIssueViewer(issue.id)}

@@ -11,6 +11,7 @@
  */
 import type { CSSProperties, ReactNode } from 'react'
 import { FIRST_ISSUE_COPY, NEXT_ISSUE_COPY } from '@/constants/magazineCopy'
+import { FIRST_ISSUE_PERCENT_HINT } from '../magazine/firstIssueHint'
 import { LOVE_TYPE_LABEL_BY_CODE } from '@/constants/loveTypeLabels'
 import type { PublishedIssue } from '@/services/magazineApi'
 import {
@@ -23,11 +24,14 @@ import {
   type MainHero,
 } from '@/utils/mainScreen'
 import { issueMonthLabel } from '@/utils/magazine'
+import { graceDateLabel, graceDaysLeft, type DissolutionState } from '@/utils/dissolution'
 import { computeDaysTogetherKst, getMilestoneStatus } from '@/utils/relationshipDays'
 import { CoupleGate } from '../../components/CoupleGate'
 import { Skeleton } from '../../components/Skeleton'
 import type { CoupleState } from '../../stores/coupleStore'
 import { PrimaryButton } from '../../ui'
+import { START_TEMPERATURE_COPY } from './startTemperature'
+import { GRACE_COPY } from '../settings/DissolutionGrace'
 import type { LibraryState, LoveTypeSummary, MainFacts, NextIssueData } from './useMainData'
 
 export const MAIN_COPY = {
@@ -114,14 +118,25 @@ function MainHeader(props: { connected: boolean; selfName: string | null; partne
   )
 }
 
-function Hero({ hero, connected, temperature, milestoneLabel }: { hero: MainHero; connected: boolean; temperature: number; milestoneLabel: string | null }) {
+function Hero({ hero, connected, temperature, milestoneLabel, startTemperature = null }: { hero: MainHero; connected: boolean; temperature: number; milestoneLabel: string | null; startTemperature?: number | null }) {
   const label = hero === 'milestone' ? 'TODAY' : connected ? 'OUR TEMPERATURE' : 'MY TEMPERATURE'
   let body: ReactNode
   switch (hero) {
     case 'temperature': body = <GlowNumeral value={temperature} connected />; break
     case 'fixedTemperature': body = <GlowNumeral value={temperature} connected={false} />; break
-    case 'noRecords': body = <p className="heroText pre">{MAIN_COPY.noRecords}</p>; break
-    case 'awaitingBatch': body = <p className="heroText pre">{MAIN_COPY.awaitingBatch}</p>; break
+    // A-2-5: 두 사람의 프로필이 있으면 저장된 온도가 없는 동안 시작 온도(36.5 / 39 / 42)를 바로 보인다(저장값이 있으면 위 'temperature'가 이긴다). 글은 기존 보조 문구를 그대로 곁들인다.
+    case 'noRecords':
+    case 'awaitingBatch': {
+      const helper = hero === 'noRecords' ? MAIN_COPY.noRecords : MAIN_COPY.awaitingBatch
+      body = startTemperature !== null ? (
+        <div className="startTemp" data-testid="main-start-temperature">
+          <GlowNumeral value={startTemperature} connected={false} />
+          <p className="startTempCaption" data-testid="main-start-temperature-caption">{START_TEMPERATURE_COPY}</p>
+          <p className="startTempHelper pre">{helper}</p>
+        </div>
+      ) : <p className="heroText pre">{helper}</p>
+      break
+    }
     case 'milestone': {
       const parts = milestoneLabel ? splitMilestoneLabel(milestoneLabel) : null
       if (!parts) { body = <p className="heroText">{milestoneLabel ?? ''}</p>; break }
@@ -243,6 +258,7 @@ function IssueProgressCard({ number, first, next }: { number: string; first: boo
       <div className="progressTitle">{title}</div>
       <div className="progressRule"><div style={{ width: `${percent}%` }} /></div>
       {lines ? <div className="counts" data-testid="main-issue-counts">{`${lines[0]} · ${lines[1]}`}</div> : null}
+      {first ? <div className="counts" data-testid="main-issue-hint">{FIRST_ISSUE_PERCENT_HINT}</div> : null}
     </div>
   )
 }
@@ -297,9 +313,44 @@ function DisconnectedBody({ selfName, summary, dateLabel, onInvite }: { selfName
   )
 }
 
+/**
+ * A-24 해제 유예 중(`couples.status = 'dissolving'`): "아직 혼자예요"도 연결도 아니다 - 닉네임 머리 + 36.5 고정 + 7일 요약 카드(설정 > 커플의 유예 문구와 같은 말).
+ * **[연인 초대하기]는 없다**(유예 중에는 새 연결을 시작하지 않는다). 유예 정보를 아직 못 읽었으면 카드만 빼고 그린다.
+ */
+function GraceBody({ selfName, nickname, dissolution, dateLabel }: { selfName: string | null; nickname: string | null; dissolution: DissolutionState | null; dateLabel: string }) {
+  const days = dissolution ? graceDaysLeft(dissolution.purgeScheduledAt) : null
+  return (
+    <div className="mainWrap" data-testid="main-state-grace">
+      <Rise order={0}>
+        <div className="mainHeader" data-testid="main-header">
+          <div className="avatars"><i className="me" /><i className="empty" /></div>
+          <div className="names">
+            <div className="title">{nickname ?? selfName ?? '나'}</div>
+            <div className="sub">{GRACE_COPY.kicker}</div>
+          </div>
+        </div>
+      </Rise>
+      <Rise order={1} className="heroGap"><Hero hero="fixedTemperature" connected={false} temperature={36.5} milestoneLabel={null} /></Rise>
+      <Rise order={2}><div className="mainRule" /></Rise>
+      {dissolution && days !== null ? (
+        <Rise order={3}>
+          <div className="graceCard" data-testid="main-grace-card">
+            <p className="t-kicker c-mute">{GRACE_COPY.kicker}</p>
+            <p className="graceDays" data-testid="main-grace-days">{days > 0 ? `${days}일` : '오늘'}</p>
+            <p className="t-body c-sub" data-testid="main-grace-date">{`${graceDateLabel(dissolution.purgeScheduledAt)}에 연결이 해제돼요`}</p>
+          </div>
+        </Rise>
+      ) : null}
+      <VerticalDate label={dateLabel} />
+    </div>
+  )
+}
+
 export interface MainViewProps {
   now: Date
   status: CoupleState['status']
+  /** 해제 유예 중이면 값(유예 정보는 아직 못 읽었으면 null). 아니면 null/undefined. */
+  grace?: { dissolution: DissolutionState | null } | null
   nickname: string | null
   /** `daily_temperature` 저장값(읽기만). 미연결은 36.5, 연결인데 값이 없으면 null. */
   storedTemperature: number | null
@@ -309,6 +360,8 @@ export interface MainViewProps {
   facts: MainFacts
   library: LibraryState
   summary: LoveTypeSummary | null
+  /** 시작 온도(표시 전용, 읽기만) - 두 사람의 프로필이 있을 때만 값. 없으면 null. */
+  startTemperature?: number | null
   onInvite: () => void
   onChat: () => void
   onOpenIssue: (issue: PublishedIssue) => void
@@ -355,7 +408,7 @@ export function MainView(props: MainViewProps) {
     <div className="mainWrap" data-testid={`main-state-${layout.state}`}>
       <Rise order={0}><MainHeader connected selfName={props.selfName} partnerName={props.partnerName} nickname={props.nickname} /></Rise>
       <Rise order={1} className="heroGap">
-        <Hero hero={layout.hero} connected temperature={temperatureValue} milestoneLabel={milestone?.isToday ? milestone.label : null} />
+        <Hero hero={layout.hero} connected temperature={temperatureValue} milestoneLabel={milestone?.isToday ? milestone.label : null} startTemperature={props.startTemperature ?? null} />
       </Rise>
       <VerticalDate label={dateLabel} />
       <Rise order={2}>
@@ -398,7 +451,13 @@ export function MainView(props: MainViewProps) {
   )
 
   return settled ? (
-    <CoupleGate fallback={<DisconnectedBody selfName={props.selfName} summary={props.summary} dateLabel={dateLabel} onInvite={props.onInvite} />}>
+    <CoupleGate
+      fallback={
+        props.grace
+          ? <GraceBody selfName={props.selfName} nickname={props.nickname} dissolution={props.grace.dissolution} dateLabel={dateLabel} />
+          : <DisconnectedBody selfName={props.selfName} summary={props.summary} dateLabel={dateLabel} onInvite={props.onInvite} />
+      }
+    >
       {connectedBody}
     </CoupleGate>
   ) : (

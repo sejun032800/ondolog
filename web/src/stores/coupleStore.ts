@@ -20,6 +20,8 @@ export interface CoupleState {
   temperatureDateOn: string | null
   relationshipStartDate: string | null
   referencePhotoPath: string | null
+  /** 연결 해제 유예 중인 커플이 있다(`couples.status = 'dissolving'`). 연결(`connected`)은 아니지만 "아직 혼자"도 아니다(A-24) - 닉네임은 유지하고 새 초대는 막는다. */
+  grace: boolean
   refresh: (userId: string) => Promise<void>
   reset: () => void
 }
@@ -32,6 +34,7 @@ const DISCONNECTED = {
   temperatureDateOn: null,
   relationshipStartDate: null,
   referencePhotoPath: null,
+  grace: false,
 }
 
 export const useCoupleStore = create<CoupleState>((set, get) => ({
@@ -42,7 +45,9 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
     const db = getSupabase()
     if (!db) return
     const wasConnected = get().status === 'connected'
-    if (!wasConnected) set({ status: 'loading' })
+    // 이미 읽은 값(연결 · 미연결)은 다시 읽는 동안 비우지 않는다 - 탭에 들어올 때마다 다시 읽어도 화면이 번쩍이지 않는다(A-19).
+    const known = wasConnected || get().status === 'disconnected'
+    if (!known) set({ status: 'loading' })
     try {
       const { data, error } = await db
         .from('couples')
@@ -50,6 +55,19 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
         .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
         .eq('status', 'active')
         .maybeSingle()
+      if (!error && !data) {
+        // active가 없다 - 유예 중(dissolving) 커플이 있는지 같은 질의 모양으로 본다(설정 > 커플의 유예 판정과 같은 근원).
+        const { data: dissolving, error: dissolvingError } = await db
+          .from('couples')
+          .select('id, nickname, user_a_id, user_b_id')
+          .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+          .eq('status', 'dissolving')
+          .maybeSingle()
+        if (!dissolvingError && dissolving) {
+          set({ status: 'disconnected', ...DISCONNECTED, nickname: dissolving.nickname, grace: true })
+          return
+        }
+      }
       if (error || !data) {
         // 조회 오류에서도 이미 연결로 알고 있던 값은 그대로 둔다(끊긴 연결 때문에 연결된 사람에게 "상대만 있으면 돼요"를 보이지 않는다). 처음이면 RN과 같이 미연결.
         if (!wasConnected || !error) set({ status: 'disconnected', ...DISCONNECTED })
@@ -72,6 +90,7 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
         temperature: tempRow?.temperature ?? null,
         temperatureDateOn: tempRow?.date_on ?? null,
         referencePhotoPath: data.reference_photo_path,
+        grace: false,
       })
     } catch {
       if (!wasConnected) set({ status: 'disconnected', ...DISCONNECTED })

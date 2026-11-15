@@ -4,13 +4,15 @@
  */
 import { PrimaryButton } from '../ui'
 
-export function EmptyState({ title, body, actionLabel, onAction, actionDisabled, testId }: {
+export function EmptyState({ title, body, actionLabel, onAction, actionDisabled, actionOff, testId }: {
   title: string
   /** 보조 문장. 줄바꿈은 `\n`. */
   body?: string
   actionLabel?: string
   onAction?: () => void
   actionDisabled?: boolean
+  /** 닫혀 있다는 모양(A-5: + 버튼과 같은 비활성 모양)만 주고 눌림은 살려 둔다 - 누르면 화면이 이유를 안내한다. */
+  actionOff?: boolean
   testId?: string
 }) {
   return (
@@ -19,7 +21,13 @@ export function EmptyState({ title, body, actionLabel, onAction, actionDisabled,
       <p className="emptyTitle">{title}</p>
       {body ? <p className="emptyBody pre">{body}</p> : null}
       {actionLabel && onAction ? (
-        <div className="emptyAction"><PrimaryButton label={actionLabel} onClick={onAction} disabled={actionDisabled} /></div>
+        <div className="emptyAction">
+          {actionOff ? (
+            <button type="button" className="btn press primary off" aria-disabled="true" data-testid="empty-action-off" onClick={onAction}>{actionLabel}</button>
+          ) : (
+            <PrimaryButton label={actionLabel} onClick={onAction} disabled={actionDisabled} />
+          )}
+        </div>
       ) : null}
     </div>
   )

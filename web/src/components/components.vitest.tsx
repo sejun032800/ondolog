@@ -237,6 +237,16 @@ describe('I06 토스트', () => {
     expect(screen.queryByTestId('toast')).toBeNull()
   })
 
+  it('A-10 D10 · W2: top이면 위쪽에 뜬다(아래 주 버튼을 덮지 않는다) - 기본은 탭 바 위/아래 자리', () => {
+    const { container, rerender } = render(<ToastHost aboveTabBar top />)
+    act(() => showToast('탈퇴를 취소했어요'))
+    expect(container.querySelector('.toastWrap')?.getAttribute('data-placement')).toBe('top')
+    expect(container.querySelector('.toastWrap.atTop')).toBeTruthy()
+    expect(container.querySelector('.toastWrap.aboveTabs')).toBeNull()
+    rerender(<ToastHost aboveTabBar />)
+    expect(container.querySelector('.toastWrap')?.getAttribute('data-placement')).toBe('bottom')
+  })
+
   it('보기 버튼은 토스트를 닫고 동작한다. 탭 바 위/아래 자리 구분', () => {
     const onPress = vi.fn()
     const { container, rerender } = render(<ToastHost aboveTabBar />)

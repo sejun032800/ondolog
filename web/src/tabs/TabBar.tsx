@@ -9,6 +9,9 @@ import { TabIcon } from './TabIcons'
 
 export function TabBar({ active, onSelect }: { active: TabRoute | null; onSelect: (tab: TabRoute) => void }) {
   return (
+    <>
+    {/* A-3: 탭 바 뒤의 바탕색 받침(메인 탭은 하늘이 보여야 해서 제외, I02) - 스크롤한 내용이 탭 바 옆 · 아래 틈으로 비치지 않게(스크롤 영역이 탭 바 위에서 끝나 보인다). */}
+    {active !== 'main' ? <div className="tabShelf" aria-hidden="true" data-testid="tab-shelf" /> : null}
     <nav className="tabBar" role="tablist" aria-label="메인 탭" data-testid="tab-bar">
       {TAB_ROUTES.map((name) => {
         const on = name === active
@@ -29,5 +32,6 @@ export function TabBar({ active, onSelect }: { active: TabRoute | null; onSelect
         )
       })}
     </nav>
+    </>
   )
 }

@@ -1,16 +1,16 @@
 /**
  * H11 개인정보 & 약관 - 설정 > 개인정보 & 약관. 보드 `N-S-H2-Settings`(H11). RN `app/settings-privacy.tsx`의 웹판. 푸시 화면.
  *
- * 개인정보 처리방침 · 이용약관 · AI 활용 안내를 **A12 약관 전문 시트(`LegalSheet`, 74-1의 공용 `Sheet` 부품)로 연다** - 문장은 저장소의 `legalDocuments.ts` 그대로다(지금은 자리표시자, 실제 문장은 M3-7).
+ * 개인정보 처리방침 · 이용약관 · AI 활용 안내를 **A12 약관 전문 시트(`LegalSheet`, 74-1의 공용 `Sheet` 부품)로 연다** - 문장은 온보딩 동의 화면과 같은 한 파일(`legal/consent.ts`)에서 읽는다(PM 최소판 v1).
  *
  * **마케팅 정보 수신 토글**: 켜기 = `profiles.marketing_agreed_at = 지금`, 끄기 = `null`(`updateMarketingConsent`, 이 칸 하나만 쓴다).
  * 누르면 바로 바뀐 모습을 보이고, 저장이 실패하면 원래 값으로 되돌리고 안내를 보인다. 현재 값은 `profiles.marketing_agreed_at`에서 읽는다(읽는 동안은 토글이 눌리지 않는다). 기본 꺼짐(B18).
  * 보드에서 뺀 줄: 생체정보(얼굴 인식) 동의(H12) · 데이터 내려받기 · 삭제(H17) - 갈 곳이 없다. 보드의 "3개월" 안내는 구독(H08)이 없는 지금 사실이 아니라 넣지 않았다.
  */
 import { useEffect, useState } from 'react'
-import type { LegalDocumentKey } from '@/constants/legalDocuments'
 import { updateMarketingConsent } from '@/services/settingsCore'
 import { PRIVACY_DOCUMENT_ROWS } from '@/utils/settingsRules'
+import { isLegalDocumentKey, type LegalDocumentKey } from '../../legal/consent'
 import { fetchProfile } from '../../auth/finalize'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
@@ -63,8 +63,8 @@ export function PrivacyScreen({ nav }: { nav: Nav }) {
     <>
       <SettingsFrame title={PRIVACY_COPY.title} onBack={nav.back} testId="settings-privacy">
         <ListGroup>
-          {PRIVACY_DOCUMENT_ROWS.map((row) => (
-            <ListRow key={row.key} label={row.label} onPress={() => setDoc(row.key)} testId={`privacy-row-${row.key}`} />
+          {PRIVACY_DOCUMENT_ROWS.filter((row) => isLegalDocumentKey(row.key)).map((row) => (
+            <ListRow key={row.key} label={row.label} onPress={() => setDoc(row.key as LegalDocumentKey)} testId={`privacy-row-${row.key}`} />
           ))}
           <ListRow
             label={PRIVACY_COPY.marketing}

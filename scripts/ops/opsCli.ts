@@ -4,7 +4,13 @@
  * 출력과 파일은 모두 `redactSecrets`를 거친다(service_role 키 값이 어디에도 남지 않게 하는 마지막 방어선).
  */
 
-import { OpsStopError, redactSecrets } from './opsGuards.ts'
+import { DEVELOPMENT_PROJECT_NAME, OpsStopError, redactSecrets } from './opsGuards.ts'
+
+/**
+ * 접속 확인 줄(A-27, 렌더와 같은 문구). 프로젝트 ref는 출력하지 않는다.
+ * 호출부는 ref도 `printer`의 지울 값 목록에 넣는다(다른 줄에 섞여도 지워지게).
+ */
+export const CONNECTED_LINE = `접속 대상: 개발 프로젝트 ${DEVELOPMENT_PROJECT_NAME} - 확인됨 (프로젝트 ref는 출력하지 않는다)`
 
 /** `--이름 값` 쌍만 받는다. 모르는 인수는 멈춘다(실제 호출 경로를 부르는 인수 같은 것은 정의되어 있지 않다). */
 export function parseFlags(argv: readonly string[], allowed: readonly string[]): Map<string, string> {

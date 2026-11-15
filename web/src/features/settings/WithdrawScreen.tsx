@@ -8,12 +8,15 @@
  */
 import { useEffect, useState } from 'react'
 import { DissolutionError, requestWithdrawal, type DissolutionDb } from '@/services/dissolutionCore'
-import { nameWithSubject, WITHDRAW_PHRASE } from '@/utils/dissolution'
+import { graceDateLabel, nameWithSubject, WITHDRAW_PHRASE } from '@/utils/dissolution'
 import { fetchProfile } from '../../auth/finalize'
 import { getSupabase } from '../../auth/client'
 import type { Nav } from '../../navigation'
+import { useBackHandler } from '../../platform/backStack'
 import { useCoupleStore } from '../../stores/coupleStore'
+import { PrimaryButton } from '../../ui'
 import { logoutToStart } from './accountActions'
+import { SettingsFrame } from './parts'
 import { PhraseConfirm, PhraseConfirmCard, PhraseConfirmCardTitle, PhraseConfirmLine } from './PhraseConfirm'
 
 export const WITHDRAW_COPY = {
@@ -25,6 +28,10 @@ export const WITHDRAW_COPY = {
   phraseHint: '7일 안에는 언제든 취소할 수 있어요',
   submit: '탈퇴 요청하기',
   failed: '처리하지 못했어요. 다시 시도해주세요.',
+  /** A-25 요청 직후 안내(보드 H16에 완료 상태가 없어 한 장으로). 날짜는 서버가 준 파기 예정일(KST). */
+  doneWithDate: (purgeAt: string) => `탈퇴를 요청했어요. ${graceDateLabel(purgeAt)}까지 다시 로그인하면 취소할 수 있어요.`,
+  doneNoDate: '탈퇴를 요청했어요. 7일 안에 다시 로그인하면 취소할 수 있어요.',
+  doneButton: '확인',
 } as const
 
 export function WithdrawScreen({ nav }: { nav: Nav }) {
@@ -33,6 +40,9 @@ export function WithdrawScreen({ nav }: { nav: Nav }) {
   const [partnerName, setPartnerName] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A-25: 요청이 끝나면 안내 한 장을 보이고, [확인] · ← · 뒤로 가기에서 로그아웃한다(말없이 검은 화면으로 넘어가지 않게).
+  const [done, setDone] = useState<{ purgeAt: string | null } | null>(null)
+  useBackHandler(done ? () => { void logoutToStart(nav) } : undefined)
 
   useEffect(() => {
     const db = getSupabase()
@@ -52,14 +62,31 @@ export function WithdrawScreen({ nav }: { nav: Nav }) {
     if (!db || busy) return
     setBusy(true)
     setError(null)
+    let purgeAt: string | null
     try {
-      await requestWithdrawal(db as unknown as DissolutionDb)
+      purgeAt = await requestWithdrawal(db as unknown as DissolutionDb)
     } catch (e) {
       setError(e instanceof DissolutionError ? e.message : WITHDRAW_COPY.failed)
       setBusy(false)
       return
     }
-    await logoutToStart(nav)
+    setBusy(false)
+    setDone({ purgeAt })
+  }
+
+  if (done) {
+    return (
+      <SettingsFrame
+        title={WITHDRAW_COPY.title}
+        onBack={() => void logoutToStart(nav)}
+        testId="withdraw-done"
+        footer={<PrimaryButton label={WITHDRAW_COPY.doneButton} onClick={() => void logoutToStart(nav)} />}
+      >
+        <p className="t-title c-text" data-testid="withdraw-done-text">
+          {done.purgeAt ? WITHDRAW_COPY.doneWithDate(done.purgeAt) : WITHDRAW_COPY.doneNoDate}
+        </p>
+      </SettingsFrame>
+    )
   }
 
   return (

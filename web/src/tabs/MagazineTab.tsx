@@ -15,6 +15,7 @@ import { useCoupleStore } from '../stores/coupleStore'
 export function MagazineTab() {
   const status = useCoupleStore((s) => s.status)
   const coupleId = useCoupleStore((s) => s.coupleId)
+  const grace = useCoupleStore((s) => s.grace)
   const library = useLibrary(status === 'connected' ? coupleId : null)
   const mode = libraryMode({ connection: status, loading: library.loading, error: library.error, publishedCount: library.issues.length })
 
@@ -22,7 +23,10 @@ export function MagazineTab() {
     <div className="screen solid tabScreen magazineTab" data-testid="tab-screen-magazine">
       <div className="magazineScroll">
         <h1 className="t-display c-text magazineTitle">매거진</h1>
-        <CoupleGate fallback={<Unconnected onInvite={() => openInvite('intro')} />}>
+        <CoupleGate
+          pending={<LibraryContent mode="loading" library={library} onOpen={() => {}} onRetry={() => {}} />}
+          fallback={<Unconnected onInvite={grace ? undefined : () => openInvite('intro')} />}
+        >
           <LibraryContent mode={mode} library={library} onOpen={(issue) => openIssueViewer(issue.id)} onRetry={() => void library.reload()} />
         </CoupleGate>
       </div>

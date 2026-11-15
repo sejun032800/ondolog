@@ -24,12 +24,28 @@ export const GATE_COPY = {
 } as const
 
 /** I01 본문(두 원 + 제목 + 설명 + 버튼 둘). 시트와 화면 안 카드가 같이 쓴다. */
+/** 해제 유예 중(A-24)의 잠긴 문 - 버튼 없이 이유만. */
+export const GRACE_GATE_COPY = {
+  title: '연결 해제를 기다리고 있어요',
+  body: '해제 예정 기간에는 새로 연결할 수 없어요. 설정 > 커플에서 확인할 수 있어요.',
+} as const
+
 export function CoupleNeededBody({ onInvite, onEnter, copy }: {
   onInvite: () => void
   onEnter: () => void
   /** 화면별 문구(채팅 F02 등). 없으면 I01 기본 문구. 버튼 문구는 늘 같다. */
   copy?: { title: string; body: string }
 }) {
+  const grace = useCoupleStore((s) => s.grace)
+  if (grace) {
+    return (
+      <div className="gateBody" data-testid="couple-gate">
+        <div className="gateCircles" aria-hidden="true"><i className="self" /><i className="other" /></div>
+        <h2 className="gateTitle">{GRACE_GATE_COPY.title}</h2>
+        <p className="gateText">{GRACE_GATE_COPY.body}</p>
+      </div>
+    )
+  }
   return (
     <div className="gateBody" data-testid="couple-gate">
       <div className="gateCircles" aria-hidden="true"><i className="self" /><i className="other" /></div>
@@ -61,10 +77,11 @@ export function CoupleGateSheetBody() {
   )
 }
 
-export function CoupleGate({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
+export function CoupleGate({ children, fallback, pending }: { children: ReactNode; fallback?: ReactNode; pending?: ReactNode }) {
   const status = useCoupleStore((s) => s.status)
   if (status === 'connected') return <>{children}</>
-  if (status !== 'disconnected') return null
+  // 조회 전(`unknown` · `loading`): 기본은 비운다. 화면이 회색 자리 표시(`Skeleton`)를 `pending`으로 넘기면 빈 화면 대신 그것을 그린다(A-4).
+  if (status !== 'disconnected') return <>{pending ?? null}</>
   return <>{fallback ?? <CoupleNeeded />}</>
 }
 

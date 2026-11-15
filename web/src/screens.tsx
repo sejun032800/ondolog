@@ -6,12 +6,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildDescription } from './description'
 import { QUICK_QUESTIONS, type Axis } from './quickMbtiQuestions'
 import { useSessionStore, type Gender } from '@/store/sessionStore'
+import { MIN_AGE_YEARS } from '@/constants/consent'
 import type { MbtiType, QuizChoice } from '@/constants/quizTypes'
 import type { QuickMbtiChoice } from '@/constants/quickMbti'
 import { ONBOARDING_QUESTIONS } from '@/data/onboardingQuestions'
 import { ENNEAGRAM_CORE_EN, ENNEAGRAM_CORE_KO, LOVE_TYPE_LABEL_BY_CODE } from '@/constants/loveTypeLabels'
 import { MBTI_ENNEAGRAM_PREVALENCE } from '@/constants/enneagramPrevalence'
-import { LEGAL_DOCUMENTS, type LegalDocumentKey } from '@/constants/legalDocuments'
+import { AI_USAGE_CONSENT_LINE, LEGAL_DOCUMENTS, type LegalDocumentKey, type LegalDocument } from './legal/consent'
 import { COMPATIBILITY, COMPATIBILITY_FRAMING_TEXT } from '@/constants/compatibility'
 import { COMPATIBILITY_START_TEMPERATURE_NOTICE } from '@/constants/resultDetailCopy'
 import { personalityMetaLine } from './attachmentNames'
@@ -38,6 +39,7 @@ import { TrialDiag } from './components/TrialDiag'
 import { useTrialDiag } from './platform/trialDiag'
 import { Sheet, useSheetClose } from './components/Sheet'
 import { renderResultCardImage } from './share/resultCard'
+import { showToast } from './stores/toastStore'
 import {
   BackArrow, ChoiceCard, CheckBox, ConsentRow, LinkButton, OnboardingScreen, PrimaryButton, StepBars, StepCounter,
   useAfter, useInView, useToast,
@@ -358,7 +360,7 @@ export function ResultBriefScreen({ nav, bridge }: { nav: Nav; bridge: NativeBri
         </div>
       </div>
       <div className="footer appear" style={{ ...d(1500), gap: 10, paddingTop: 24 }}>
-        <PrimaryButton label="공유하기" disabled={busy !== null} onClick={() => void run('share')} />
+        <PrimaryButton label="공유하기" disabled={busy !== null} onClick={() => nav.push('share-card')} />
         <PrimaryButton label="이미지 저장" variant="ghost" disabled={busy !== null} onClick={() => void run('save')} />
         <LinkButton label="더 자세히 보기 →" onClick={() => { nav.push('consent') }} />
       </div>
@@ -367,11 +369,66 @@ export function ResultBriefScreen({ nav, bridge }: { nav: Nav; bridge: NativeBri
   )
 }
 
+/* ═══ A09 공유 카드 전체 화면 ═════════════════════════════════ */
+/** 카드를 전체 화면으로 잠깐 보여 준 뒤 공유 시트를 연다(R76-8: A08 [공유하기] -> A09 -> 공유 시트). */
+export const SHARE_CARD_HOLD_MS = 900
+
+/**
+ * 카드에는 이름 등 개인 식별 정보가 없다(MASTER 9-1 화면 5, `resultCard.ts`와 같은 값만). 버튼도 두지 않는다 - 보드 A09는 이미지 그 자체다.
+ * 공유 시트가 닫히면(보냄 · 취소 · 실패) A08로 돌아간다. 하드웨어 뒤로 가기도 A08로.
+ */
+export function ShareCardScreen({ nav, bridge }: { nav: Nav; bridge: NativeBridge }) {
+  const { result, mbti, label } = useLabel()
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    if (!result || !mbti) { nav.back(); return }
+    const isRare = MBTI_ENNEAGRAM_PREVALENCE[mbti]?.rare.includes(result.enneagramCore) ?? false
+    let gone = false
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const image = await renderResultCardImage({
+            labelEn: label?.labelEn ?? result.loveTypeCode,
+            labelKo: label?.labelKo ?? result.loveTypeCode,
+            copyKo: label?.copyKo,
+            mbti,
+            enneagramCore: result.enneagramCore,
+            isRare,
+          })
+          if (!image) showToast('이미지를 만들지 못했어요')
+          else if ((await bridge.shareImage(image, '공유하기')) === 'failed') showToast('공유하지 못했어요')
+        } catch {
+          showToast('공유하지 못했어요')
+        } finally {
+          if (!gone) nav.back() // 공유 중에 화면을 먼저 떠났으면 한 번 더 뒤로 가지 않는다
+        }
+      })()
+    }, SHARE_CARD_HOLD_MS)
+    // 화면이 먼저 사라지면(뒤로 가기) 시트를 열지 않는다.
+    return () => { gone = true; window.clearTimeout(timer); started.current = false }
+  }, [])
+  if (!result || !mbti) return null
+  return (
+    <div className="screen shareCardScreen" data-testid="share-card">
+      <div className="shareCardBody">
+        <p className="t-kicker c-mute appear" style={{ animationDelay: '150ms' }}>MY LOVE TYPE</p>
+        <p className="t-kicker c-orchid appear" style={{ animationDelay: '350ms', fontSize: 15, lineHeight: '20px', letterSpacing: 3.6, marginTop: 18 }}>{label?.labelEn ?? result.loveTypeCode}</p>
+        <h1 className="shareCardTitle appear" style={{ animationDelay: '550ms' }}>{label?.labelKo ?? result.loveTypeCode}</h1>
+        {label?.copyKo ? <p className="t-body c-sub appear" style={{ animationDelay: '750ms', marginTop: 22 }}>{label.copyKo}</p> : null}
+        <p className="t-body c-sub appear" style={{ animationDelay: '900ms', marginTop: 28 }}>{mbti} · 애니어그램 {result.enneagramCore}</p>
+      </div>
+      <p className="t-kicker c-text appear shareCardBrand" style={{ animationDelay: '1000ms' }}>ONDOLOG</p>
+    </div>
+  )
+}
+
 /* ═══ A10 약관 동의 · A12 전문 시트 ═════════════════════════ */
-/** 화면에 보이는 AI 활용 설명 — 디자인 보드(A10) 문구. */
-const AI_USAGE_HELPER_BOARD = '대화·사진·메모가 잡지를 만드는 데 쓰이고, 이때 외부 AI로 전송돼요'
+/** 화면에 보이는 AI 활용 설명 - PM 최소판 §3 한 줄(R38-2 문장을 대체, `legal/consent.ts`). */
+export const AI_USAGE_HELPER_BOARD = AI_USAGE_CONSENT_LINE
 const DOC_ORDER: Record<string, { n: number; tag: string }> = {
-  terms: { n: 2, tag: '필수' }, privacy: { n: 3, tag: '필수' }, aiUsage: { n: 4, tag: '필수' }, marketing: { n: 5, tag: '선택' },
+  terms: { n: 2, tag: '필수' }, privacy: { n: 3, tag: '필수' }, aiUsage: { n: 4, tag: '필수' },
 }
 
 /** "전체 동의"가 선택 항목(마케팅)까지 함께 동의한다는 사실(R65-4 · R74-10 문구). "전체 동의" 줄 바로 아래, 누르기 전부터 보인다. */
@@ -403,7 +460,7 @@ export function ConsentScreen({ nav }: { nav: Nav }) {
         <div className="card" style={{ marginTop: 32, padding: '8px 20px' }}>
           <ConsentRow label="전체 동의" strong helper={ALL_CONSENT_NOTE} checked={isAllConsented(consent)} onToggle={() => setConsent(toggleAllConsent(consent))} />
           <div className="rule" />
-          <ConsentRow label="만 14세 이상입니다" checked={ageEligible} trailingNote="생년월일로 확인함" />
+          <ConsentRow label={`만 ${MIN_AGE_YEARS}세 이상입니다`} checked={ageEligible} trailingNote="생년월일로 확인함" />
           <div className="rule" />
           <ConsentRow label="이용약관" tag="필수" checked={consent.terms} onToggle={() => toggle('terms')} onView={() => setSheet('terms')} />
           <div className="rule" />
@@ -411,7 +468,8 @@ export function ConsentScreen({ nav }: { nav: Nav }) {
           <div className="rule" />
           <ConsentRow label="AI 콘텐츠 생성을 위한 데이터 활용" tag="필수" helper={AI_USAGE_HELPER_BOARD} checked={consent.aiUsage} onToggle={() => toggle('aiUsage')} onView={() => setSheet('aiUsage')} />
           <div className="rule" />
-          <ConsentRow label="마케팅 정보 수신" tag="선택" checked={consent.marketing} onToggle={() => toggle('marketing')} onView={() => setSheet('marketing')} />
+          {/* 마케팅 문서는 PM 문장이 아직 없어 [보기]를 두지 않는다(자리표시자를 보이지 않는다) - 처리방침 1 · 2번에 수신 동의 항목이 있다. */}
+          <ConsentRow label="마케팅 정보 수신" tag="선택" checked={consent.marketing} onToggle={() => toggle('marketing')} />
         </div>
       </OnboardingScreen>
       {sheet ? <LegalSheet docKey={sheet} onClose={() => setSheet(null)} /> : null}
@@ -425,35 +483,37 @@ export function LegalSheet({ docKey, onClose }: { docKey: LegalDocumentKey; onCl
   // 공용 시트 부품(열기/닫기 연출 · 바깥 누름 · 뒤로 가기로 닫힘)을 쓴다.
   return (
     <Sheet variant="full" onClosed={onClose}>
-      <LegalSheetBody doc={doc} docKey={docKey} meta={meta} />
+      <LegalSheetBody doc={doc} meta={meta} />
     </Sheet>
   )
 }
 
-function LegalSheetBody({ doc, docKey, meta }: { doc: (typeof LEGAL_DOCUMENTS)[LegalDocumentKey]; docKey: LegalDocumentKey; meta: (typeof DOC_ORDER)[LegalDocumentKey] | undefined }) {
+function LegalSheetBody({ doc, meta }: { doc: LegalDocument; meta: (typeof DOC_ORDER)[LegalDocumentKey] | undefined }) {
   const close = useSheetClose()
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 18px 0' }}>
         <button aria-label="닫기" onClick={close} style={{ width: 48, height: 48, fontSize: 18, color: 'var(--textSub)' }}>✕</button>
       </div>
-      <div className="content" style={{ paddingTop: 0 }}>
+      <div className="content" style={{ paddingTop: 0 }} data-testid="legal-body">
         {meta ? <p className="t-kicker c-mute" style={{ letterSpacing: 2 }}>{meta.tag} · {meta.n}</p> : null}
         <h1 className="t-display c-text" style={{ marginTop: 14 }}>{doc.title}</h1>
-        {docKey === 'aiUsage' ? (
-          <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {[
-              ['무엇이 쓰이나요', '채팅 대화, 사진, 메모'],
-              ['어디로 보내지나요', '잡지를 만드는 동안 외부 AI 서비스로 전송돼요'],
-              ['어떤 서비스이고, 보관과 학습은', '[프로바이더명 · 보존 기간 · 학습 사용 여부 — 법무 확정 문구]'],
-            ].map(([h, b]) => (
-              <div key={h}><p className="t-title c-text" style={{ fontSize: 16.5 }}>{h}</p><p className="t-body c-sub" style={{ marginTop: 6, fontSize: 15.5 }}>{b}</p></div>
-            ))}
-            <div className="rule" />
-          </div>
-        ) : null}
-        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {doc.body.map((p, i) => <p key={i} className="t-sub c-mute">{p}</p>)}
+        {doc.meta ? <p className="t-sub c-mute" style={{ marginTop: 10 }}>{doc.meta}</p> : null}
+        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {(doc.intro ?? []).map((p, i) => <p key={`i${i}`} className="t-body c-sub">{p}</p>)}
+          {doc.sections.map((sec, si) => (
+            <section key={si} style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: sec.heading ? 10 : 0 }}>
+              {sec.heading ? <p className="t-title c-text" style={{ fontSize: 16.5 }}>{sec.heading}</p> : null}
+              {(sec.paragraphs ?? []).map((p, i) => <p key={`p${i}`} className="t-sub c-sub">{p}</p>)}
+              {(sec.bullets ?? []).map((p, i) => <p key={`b${i}`} className="t-sub c-sub" style={{ paddingLeft: 14, textIndent: -14 }}>{`- ${p}`}</p>)}
+              {sec.table ? sec.table.rows.map((row, ri) => (
+                <div key={`t${ri}`} className="card" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {row.map((cell, ci) => <p key={ci} className="t-sub c-sub"><span className="c-mute">{sec.table!.head[ci]}: </span>{cell}</p>)}
+                </div>
+              )) : null}
+              {(sec.after ?? []).map((p, i) => <p key={`a${i}`} className="t-sub c-sub">{p}</p>)}
+            </section>
+          ))}
         </div>
       </div>
       <div className="footer"><PrimaryButton label="확인" onClick={close} /></div>

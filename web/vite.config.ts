@@ -20,7 +20,7 @@ function requireRemoteEnvForProduction(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: './',
   plugins: [react(), requireRemoteEnvForProduction()],
   resolve: {
@@ -29,6 +29,9 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'zustand'],
   },
   build: { assetsInlineLimit: 0 },
+  // A-7: 빌드 결과(운영 · 시험 공통)에서 console 호출을 뺀다 - 우리 코드는 부르지 않지만 라이브러리가 세션 · 주소를 찍는 일을 원천 차단한다.
+  // (개발 서버 · 시험에서는 빼지 않는다 - 시험이 console 감시를 실제로 하도록)
+  esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
   server: { fs: { allow: ['..'] } },
   test: {
     environment: 'jsdom',
@@ -36,4 +39,4 @@ export default defineConfig({
     include: ['src/**/*.vitest.{ts,tsx}'],
     css: false,
   },
-})
+}))

@@ -23,6 +23,7 @@ import { PhotoSourceSheet } from '../../components/PhotoSourceSheet'
 import { useSheetClose } from '../../components/Sheet'
 import { IS_TRIAL_BUILD } from '../../config/env'
 import { useTrialDiag } from '../../platform/trialDiag'
+import { useCoupleStore } from '../../stores/coupleStore'
 import { showToast } from '../../stores/toastStore'
 import { PrimaryButton } from '../../ui'
 import { isRecordable, useFeedSignal, useRecordingCouple } from './feedData'
@@ -36,6 +37,7 @@ export const RECORD_COPY = {
   exifFilled: '사진의 촬영 시각으로 날짜를 먼저 채웠어요',
   noExif: '촬영 시각이 없어 오늘 날짜로 채웠어요',
   timeNeeded: '장소와 도착 시각이 필요해요',
+  placementRule: '사진은 촬영 시각에 가장 가까운 앞선 장소에 붙어요. 첫 장소는 도착 시각을 비우면 사진의 가장 이른 촬영 시각이 돼요. 둘째 장소부터는 도착 시각이 필요해요',
   /** 연결 전 닫힘(R30-3) - 이유 + 초대 안내. */
   closedTitle: SOLO_CLOSED_TITLE,
   closedBody: '연결하면 두 사람 기록이 하나로 합쳐져요',
@@ -105,6 +107,7 @@ export function RecordSheetBody() {
   const hasContent = savablePhotos(photos).length > 0 || memo.trim().length > 0
   const canSave = hasContent && coupleId !== null && userId !== null && isValidDateOn(dateOn) && stopError === null && !saving
   const closed = !recording.loading && !recordable
+  const grace = useCoupleStore((s) => s.grace) // 해제 유예 중에는 초대 입구를 두지 않는다(A-24)
 
   const addPhotos = async (capture: boolean) => {
     if (IS_TRIAL_BUILD) useTrialDiag.getState().clearPhoto()
@@ -180,7 +183,7 @@ export function RecordSheetBody() {
         <div className="recordClosed">
           <p className="t-title c-text" data-testid="record-closed-title">{RECORD_COPY.closedTitle}</p>
           <p className="t-sub c-mute">{RECORD_COPY.closedBody}</p>
-          <PrimaryButton label={RECORD_COPY.closedInvite} onClick={() => openInvite('intro')} />
+          {grace ? null : <PrimaryButton label={RECORD_COPY.closedInvite} onClick={() => openInvite('intro')} />}
         </div>
       </div>
     )
@@ -220,6 +223,8 @@ export function RecordSheetBody() {
               {hasExif && !dateTouched ? RECORD_COPY.exifFilled : hasExif ? '' : RECORD_COPY.noExif}
             </p>
           ) : null}
+          {/* A-2-1 ③: 사진이 어느 장소에 붙는지의 규칙 안내는 사진 칸 바로 아래에(전에는 장소 칸 맨 아래) */}
+          {savablePhotos(photos).length > 0 ? <p className="t-caption c-mute" data-testid="placement-rule">{RECORD_COPY.placementRule}</p> : null}
         </div>
 
         <div className="listGroup">
@@ -237,9 +242,9 @@ export function RecordSheetBody() {
           <div className="fieldGroup">
             <input
               className="pillInput"
-              value={dateText}
+              value={dateText.replace(/-/g, '.')} // D9: 앱 전체 날짜 입력 칸과 같은 점 모양(YYYY.MM.DD). 안쪽 값은 서버 형식(YYYY-MM-DD) 그대로
               onChange={(e) => setDateText(formatDateInput(e.target.value))}
-              placeholder="YYYY-MM-DD"
+              placeholder="YYYY.MM.DD"
               inputMode="numeric"
               maxLength={10}
               aria-label="날짜"
@@ -264,7 +269,7 @@ export function RecordSheetBody() {
                   className="pillInput placeClock"
                   value={p.arrivalClock ?? ''}
                   onChange={(e) => updatePlace(i, { arrivalClock: formatClockInput(e.target.value) })}
-                  placeholder="14:20"
+                  placeholder="예 14:20" // A-22: 값처럼 보이지 않게 "예"를 붙인다. 비우면 첫 장소는 가장 이른 촬영 시각(예시는 저장되지 않는다)
                   inputMode="numeric"
                   maxLength={5}
                   aria-label={`장소 ${i + 1} 도착 시각`}
@@ -272,9 +277,6 @@ export function RecordSheetBody() {
                 <button type="button" className="placeRemove press" aria-label={`장소 ${i + 1} 빼기`} onClick={() => setPlaces((prev) => prev.filter((_, k) => k !== i))}>✕</button>
               </div>
             ))}
-            <p className="t-caption c-mute">
-              첫 장소는 도착 시각을 비우면 사진의 가장 이른 촬영 시각이 돼요. 둘째 장소부터는 도착 시각이 필요해요. 사진은 촬영 시각에 가장 가까운 앞선 장소에 붙어요
-            </p>
             <button type="button" className="btn ghost press" onClick={() => setPlaces((prev) => [...prev, { name: '', arrivalClock: '' }])}>장소 더하기</button>
           </div>
         ) : null}

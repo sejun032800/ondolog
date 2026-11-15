@@ -12,7 +12,7 @@ import { useAuthStore } from '../../auth/stores'
 import { useChatQueueSignal } from '../../connection/chatQueueSignal'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { makeChatWorld as world, messageRow } from './chatTestSupport'
-import { useChatMessages } from './useChatMessages'
+import { SUBSCRIBED_RECHECK_MS, useChatMessages } from './useChatMessages'
 import { useChatQueueResume } from './useChatQueueResume'
 
 const T0 = '2026-11-09T09:00:00.000Z'
@@ -119,6 +119,40 @@ describe('메우기(R37-3) - 끊겼다 돌아오면 빠진 메시지를 채운�
     w.db.tables.messages.push(messageRow('d', at(4), { read_at: at(9) }))
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
     await waitFor(() => expect(ids(result)).toEqual(['a', 'd']))
+  })
+
+  it('A-19: 앱을 다시 켠 뒤 구독이 확정되기 전에 온 상대의 첫 메시지도 SUBSCRIBED 때 한 번 조회해 보이고, 실시간이 뒤늦게 같은 행을 줘도 하나다', async () => {
+    const w = world({ messages: [messageRow('a', at(1))] })
+    const { result } = renderHook(() => useChatMessages('c1', 'me', w.hubs))
+    await waitFor(() => expect(ids(result)).toEqual(['a']))
+    // 재시작 ~ SUBSCRIBED 사이에 상대가 보냈다(실시간 이벤트는 오지 않았다).
+    w.db.tables.messages.push(messageRow('first', at(2), { read_at: at(9) }))
+    expect(ids(result)).toEqual(['a'])
+    await act(async () => { w.db.channels[0].status?.('SUBSCRIBED') })
+    await waitFor(() => expect(ids(result)).toEqual(['a', 'first']))
+    act(() => { w.db.channels[0].event?.({ eventType: 'INSERT', new: messageRow('first', at(2), { read_at: at(9) }) }) })
+    await act(async () => { w.db.channels[0].status?.('SUBSCRIBED') }) // 다시 연결 신호가 겹쳐도
+    expect(ids(result)).toEqual(['a', 'first'])
+  })
+
+  it('A-19: 처음 불러오기가 끝나기 전에 SUBSCRIBED가 와도 메시지가 빠지거나 겹치지 않는다', async () => {
+    const w = world({ messages: [messageRow('a', at(1)), messageRow('b', at(2))] })
+    const { result } = renderHook(() => useChatMessages('c1', 'me', w.hubs))
+    await act(async () => { w.db.channels[0].status?.('SUBSCRIBED') }) // 불러오기 중
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await waitFor(() => expect(ids(result)).toEqual(['a', 'b']))
+  })
+
+  it('A-19: SUBSCRIBED 직후 서버가 변경 알림을 켜기 전에 온 메시지는 늦춘 한 번 더 조회(SUBSCRIBED_RECHECK_MS)가 합친다', async () => {
+    const w = world({ messages: [messageRow('a', at(1))] })
+    const { result } = renderHook(() => useChatMessages('c1', 'me', w.hubs))
+    await waitFor(() => expect(ids(result)).toEqual(['a']))
+    vi.useFakeTimers()
+    await act(async () => { w.db.channels[0].status?.('SUBSCRIBED') })
+    w.db.tables.messages.push(messageRow('late', at(3), { read_at: at(9) })) // SUBSCRIBED 직후, 알림 없이 쌓였다
+    expect(ids(result)).toEqual(['a'])
+    await act(async () => { await vi.advanceTimersByTimeAsync(SUBSCRIBED_RECHECK_MS + 50) })
+    expect(ids(result)).toEqual(['a', 'late'])
   })
 
   it('조회가 실패해도 조용히 넘어간다(다음 신호에서 다시)', async () => {
@@ -399,6 +433,19 @@ describe('사진 · 스토리 말풍선(채팅 쪽)', () => {
     expect(w.db.tables.stories).toHaveLength(1)
     expect(w.db.tables.stories[0]).toMatchObject({ caption: null, author_id: 'me', couple_id: 'c1' })
     await waitFor(() => expect(result.current.stories).toHaveLength(1))
+  })
+
+  it('A-15 스토리: 큐가 아직 안 붙은 순간(첫 사용)에도 붙여서 첫 시도에 올린다 - 미연결(id 없음)은 그대로 false', async () => {
+    const w = world()
+    const { result } = renderHook(() => useChatMessages('c1', 'me', w.hubs))
+    await waitFor(() => expect(result.current.storiesLoading).toBe(false))
+    w.hubs.photo.detach() // 큐가 없는 순간을 만든다
+    expect(w.hubs.photo.getPhotoQueue()).toBeNull()
+    let ok = false
+    await act(async () => { ok = await result.current.postStory(photo) })
+    expect(ok).toBe(true)
+    expect(w.db.uploads).toHaveLength(1)
+    expect(w.db.tables.stories).toHaveLength(1)
   })
 
   it('만료된 스토리는 읽지 않는다(24시간)', async () => {

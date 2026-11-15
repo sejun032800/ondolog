@@ -3,6 +3,7 @@
  * 실제 이동은 Shell이 `setInviteEntry`로 꽂는다(74-2): 탭 위에 `couple-invite` 화면을 쌓고, 그 화면이 `consumeInviteStep`으로 어느 단계로 열지 읽는다.
  * 꽂기 전에는 짧은 안내 토스트만 보인다(아무 일도 없는 버튼은 두지 않는다).
  */
+import { useCoupleStore } from '../stores/coupleStore'
 import { showToast } from '../stores/toastStore'
 
 export type InviteStep = 'intro' | 'enter'
@@ -16,7 +17,14 @@ export function setInviteEntry(next: Entry | null): void {
   entry = next ?? PLACEHOLDER
 }
 
+/** 해제 유예 중(A-24)에는 초대 · 코드 입력을 시작하지 않는다(버튼을 숨기는 화면이 놓쳐도 여기서 막는다). */
+export const GRACE_NO_INVITE = '해제 예정 기간에는 새로 연결할 수 없어요'
+
 export function openInvite(step: InviteStep): void {
+  if (useCoupleStore.getState().grace) {
+    showToast(GRACE_NO_INVITE)
+    return
+  }
   entry(step)
 }
 

@@ -14,7 +14,7 @@ import { needsStartDateConfirm } from '@/utils/settingsRules'
 import { resolveWebRoute, webRouteForStep } from '../../auth/finalize'
 import {
   completeOnboardingWithoutCouple, fetchExistingInvite, generateInviteCode, getOrCreateInvite, markInviteDoneAwaitingStartDate,
-  markStartDateOnboardingComplete, redeemInviteCode, saveStartDateAndNickname, setOrConfirmStartDate,
+  markStartDateOnboardingComplete, redeemInviteCode, saveStartDateAndNickname, setOrConfirmStartDate, startDateConflictNotice,
 } from '../../couple/coupleApi'
 import { makeCoupleDb, stepWrites } from '../../testSupportCouple'
 
@@ -167,7 +167,8 @@ describe('A20 먼저 입력한 값이 적용된다(coupleStartApi.test.ts)', () 
       const row = await saveStartDateAndNickname(client, 'c1', 'a', '2025-12-27', '  늘봄 ', now)
       expect(row.relationship_start_date).toBe('2025-12-27')
       expect(row.nickname).toBe('늘봄')
-      expect(writes.map((w) => w.payload)).toEqual([{ relationship_start_date: '2025-12-27', start_date_set_by: 'a' }, { nickname: '늘봄' }])
+      // R90-4: 조건부 UPDATE 하나에 날짜 · 정한 사람 · 닉네임이 같이 실린다.
+      expect(writes.map((w) => w.payload)).toEqual([{ relationship_start_date: '2025-12-27', start_date_set_by: 'a', nickname: '늘봄' }])
     })
 
     it('상대가 먼저 날짜를 정했다면 닉네임도 덮지 않는다', async () => {
@@ -176,6 +177,41 @@ describe('A20 먼저 입력한 값이 적용된다(coupleStartApi.test.ts)', () 
       expect(row.nickname).toBe('늘봄')
       expect(row.relationship_start_date).toBe('2025-12-27')
       expect(writes.map((w) => w.payload)).toEqual([{ start_date_confirmed_by: 'b' }])
+    })
+
+    it('R90-4 동시 저장: 두 번째는 첫 번째 값을 돌려받고(닉네임도 덮지 않고) 확인만 기록한다 · 알림 문장이 나온다', async () => {
+      const { client, writes, tables } = makeCoupleDb({ couples: [base] })
+      const [first, second] = await Promise.all([
+        saveStartDateAndNickname(client, 'c1', 'a', '2025-12-27', '늘봄', now),
+        saveStartDateAndNickname(client, 'c1', 'b', '2024-01-01', '다른이름', now),
+      ])
+      expect(first.start_date_set_by).toBe('a')
+      expect(second.relationship_start_date).toBe('2025-12-27')
+      expect(second.nickname).toBe('늘봄')
+      expect(second.start_date_set_by).toBe('a')
+      expect(second.start_date_confirmed_by).toBe('b')
+      expect(tables.couples[0].nickname).toBe('늘봄')
+      expect(writes.map((w) => w.payload)).toEqual([
+        { relationship_start_date: '2025-12-27', start_date_set_by: 'a', nickname: '늘봄' },
+        { start_date_confirmed_by: 'b' },
+      ])
+      expect(startDateConflictNotice(second, { userId: 'b', date: '2024-01-01', nickname: '다른이름' })).toBe("상대가 먼저 '늘봄'로 정했어요. 설정에서 바꿀 수 있어요.")
+      expect(startDateConflictNotice(first, { userId: 'a', date: '2025-12-27', nickname: '늘봄' })).toBeNull()
+    })
+
+    it('R90-4 날짜만 다르면 알림에 화면 형식 날짜가 들어간다 · 같은 값이면 알림 없음', async () => {
+      const { client } = makeCoupleDb({ couples: [{ ...base, relationship_start_date: '2025-12-27', start_date_set_by: 'a', nickname: '늘봄' }] })
+      const stored = await saveStartDateAndNickname(client, 'c1', 'b', '2024-01-01', '늘봄', now)
+      expect(startDateConflictNotice(stored, { userId: 'b', date: '2024-01-01', nickname: '늘봄' })).toBe("상대가 먼저 '2025.12.27'로 정했어요. 설정에서 바꿀 수 있어요.")
+      expect(startDateConflictNotice(stored, { userId: 'b', date: '2025-12-27', nickname: ' 늘봄 ' })).toBeNull()
+    })
+
+    it('R90-4 순차 저장: 뒤에 오는 폰은 저장된 값을 받는다(덮어쓰기 0)', async () => {
+      const { client, tables } = makeCoupleDb({ couples: [base] })
+      await saveStartDateAndNickname(client, 'c1', 'a', '2025-12-27', '늘봄', now)
+      const later = await saveStartDateAndNickname(client, 'c1', 'b', '2025-12-27', '늘봄', now)
+      expect(later.relationship_start_date).toBe('2025-12-27')
+      expect(tables.couples[0].start_date_set_by).toBe('a')
     })
 
     it('미래 날짜는 저장 함수에서도 거부한다 - 아무것도 쓰지 않는다', async () => {

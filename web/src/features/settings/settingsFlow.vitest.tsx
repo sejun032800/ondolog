@@ -143,6 +143,7 @@ describe('탈퇴 유예 계정은 단계보다 먼저 유예 화면(withdraw-can
     expect(screenName()).toBe('main')
     expect(useToastStore.getState().toast?.message).toBe('탈퇴를 취소했어요')
     expect(byId('toast-message').textContent).toBe('탈퇴를 취소했어요')
+    expect(byId('toast').closest('.toastWrap')?.getAttribute('data-placement')).toBe('top') // W2: 메인 주 버튼을 덮지 않는다
   })
 })
 
@@ -317,6 +318,7 @@ describe('로그아웃', () => {
     await settle(NAV_COOLDOWN_MS)
     await settle()
     fireEvent.click(byId('profile-logout'))
+    fireEvent.click(byId('confirm-yes')) // D7
     await settle()
     expect(db.signOutCalls.length).toBe(1)
     expect(screenName()).toBe('intro')

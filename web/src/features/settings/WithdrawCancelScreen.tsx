@@ -15,6 +15,7 @@ import { fetchProfile, resolveWebRoute } from '../../auth/finalize'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
 import type { Nav } from '../../navigation'
+import { refreshCoupleState } from '../../stores/coupleRefresh'
 import { showToast } from '../../stores/toastStore'
 import { PrimaryButton } from '../../ui'
 import { logoutToStart } from './accountActions'
@@ -71,6 +72,8 @@ export function WithdrawCancelScreen({ nav }: { nav: Nav }) {
     setError(null)
     try {
       await cancelWithdrawal(db as unknown as DissolutionDb)
+      // 탈퇴 취소로 해제(유예)도 되돌아가므로 커플 상태를 바로 다시 읽는다(A-24 · A-19) - 메인이 낡은 "혼자"를 그리지 않게.
+      await refreshCoupleState(userId)
       const profile = await fetchProfile(db, userId)
       if (!profile) throw new Error('no profile')
       const route = await resolveWebRoute(db, userId, profile.onboarding_step, profile.deleted_at)

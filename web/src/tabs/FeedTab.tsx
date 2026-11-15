@@ -10,6 +10,7 @@ import { CoupleGate } from '../components/CoupleGate'
 import { isRecordable, useRecordingCouple, useFeed } from '../features/feed/feedData'
 import { AddFab, FeedView, SoloBanner } from '../features/feed/FeedView'
 import type { Nav } from '../navigation'
+import { useCoupleStore } from '../stores/coupleStore'
 import { useSheetStore } from '../stores/sheetStore'
 
 export function FeedTab({ nav }: { nav: Nav }) {
@@ -17,6 +18,7 @@ export function FeedTab({ nav }: { nav: Nav }) {
   const recording = useRecordingCouple(userId)
   const feed = useFeed(userId !== null)
   const canRecord = isRecordable(recording.couple)
+  const grace = useCoupleStore((s) => s.grace) // 해제 유예 중에는 초대 입구를 두지 않는다(A-24)
   // 연결 전에도 시트를 연다 - 기록 시트가 닫힘 안내(이유 + [초대하러 가기])를 보이고 저장 함수는 부르지 않는다(74-h2 ②).
   const openRecord = () => { useSheetStore.getState().open('record') }
 
@@ -25,10 +27,10 @@ export function FeedTab({ nav }: { nav: Nav }) {
       <div className="feedScroll">
         <h1 className="t-display c-text feedTitle">피드</h1>
         {/* 기록할 커플 행을 읽기 전에는 배너 문구를 정하지 않는다(문구가 번쩍 바뀌지 않게). 빈 조각을 넘기는 것은 `CoupleGate`가 null을 "없음"으로 읽어 I01 카드를 보이기 때문이다. */}
-        <CoupleGate fallback={recording.loading ? <></> : <SoloBanner onInvite={() => useSheetStore.getState().open('couple-gate')} />}>
+        <CoupleGate fallback={recording.loading ? <></> : <SoloBanner onInvite={grace ? undefined : () => useSheetStore.getState().open('couple-gate')} />}>
           {null}
         </CoupleGate>
-        <FeedView feed={feed} onOpenDate={(id) => nav.push('date-detail', { params: { id } })} onAdd={openRecord} />
+        <FeedView feed={feed} onOpenDate={(id) => nav.push('date-detail', { params: { id } })} onAdd={openRecord} addOff={!canRecord} />
       </div>
       <AddFab disabled={!canRecord} onPress={openRecord} />
     </div>
