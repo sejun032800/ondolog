@@ -28,7 +28,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | 결정 | 출처 |
 |---|---|
 | 동의 상수 파일은 `web/src/legal/consent.ts`. 루트 `src/constants/consent.ts` · `legalDocuments.ts`는 RN이 읽는 파일이라 건드리지 않음(편집 허가 `web/`). 문의 메일(설정 → 앱 정보 → 문의하기)도 이 파일의 `LEGAL_CONTACT_EMAIL`을 읽는다 - 루트 `SUPPORT_EMAIL`은 웹에서 더 안 씀 | R38-2 · R93-5 · 위임서 범위 |
-| 법무 값 4개(`LEGAL_OPERATOR` · `LEGAL_CONTACT_EMAIL` · `LEGAL_STORAGE_REGION` · `LEGAL_EFFECTIVE_DATE`)는 `''`. 빌드 관문 = `cd web; $env:LEGAL_CHECK='1'; npx vitest run src/legal` (값이 비면 실패) | R93-5 · 위임서 0-7 |
+| 법무 값 4개(`LEGAL_OPERATOR` · `LEGAL_CONTACT_EMAIL` · `LEGAL_STORAGE_REGION` · `LEGAL_EFFECTIVE_DATE`): 운영자 · 문의 이메일 · 저장 지역은 Proteur가 직접 넣음, 시행일은 Proteur 확인으로 메인 세션이 넣음(2026-11-15, 첫 설치일 11월 17일) - 네 값 모두 들어감, 관문 통과(6/6), 동의 상수 파일 밖 운영자 이름 · 문의 이메일 0건. 빌드 관문 = `cd web; $env:LEGAL_CHECK='1'; npx vitest run src/legal` (값이 비면 실패) | R93-5 · 위임서 0-7 |
 | 세 문서 문장은 PM v1 그대로(굵은 표시 · 줄바꿈만 구조로). 메인 세션이 PM 원본과 문장 단위 대조 - 빠진 문장 0 | R93-5 |
 | 마케팅 수신 동의는 PM 문장이 없어 동의 화면의 [보기]를 숨김(문장을 짓지 않음) | 위임서 "문장 수정 0" |
 | 0-1 사진 위치 제거는 고르는 단계에서 한 번(`web/src/photo/stripLocation.ts`) - 채팅 · 피드 · 스토리 모두 그 바이트를 올림. 촬영 시각은 원본에서 먼저 읽음. GIF는 통과(재인코딩하면 움직임이 사라짐 - PM 확인) | R93-4 |
@@ -86,7 +86,7 @@ git commit -m "75- state: decisions, stopped items, phone check order"
 
 ### Proteur 다음 순서 = `51-` 한 바퀴 (R93-6)
 
-1. **법무 값 4개**를 `web/src/legal/consent.ts`에 직접 넣는다(운영자 · 문의 이메일 · 저장 지역 · 시행일 = 이 빌드를 처음 설치하는 날). `cd web; $env:LEGAL_CHECK='1'; npx vitest run src/legal` 통과 → `npm run build:trial` → `npx cap sync android` → 두 폰 앱 삭제 후 설치. (`@capacitor/camera`가 새 네이티브 의존성 `ioncamera-android`를 가져오므로 첫 Gradle 빌드에서 받아오기 확인)
+1. 법무 값 4개 **들어감**(관문 통과) · `npm run build:trial` · `npx cap sync android` **메인 세션이 마침**(2026-11-15) → Android Studio에서 빌드 → **11월 17일** 두 폰 앱 삭제 후 설치(시행일과 같은 날). (`@capacitor/camera`가 새 네이티브 의존성 `ioncamera-android`를 가져오므로 첫 Gradle 빌드에서 받아오기 확인)
 2. 허용 목록 파일을 만든다(위 "0-6 잠금" 형식, 저장소 밖) → 커플 모드 초기화(`ops_2026_11` · 보안 입력 · `sb_secret_` 확인 줄 · `$al` · `--with-issues` · 끝나면 새 창 `False`). 남아 있는 시드 시험 호도 이때 정리된다.
 3. **R79-3 두 폰 새 계정 첫 가입**(법무 문장이 들어간 빌드).
 4. `51-` 49항목 - M0 §7 순서 · 멈춤 조건 4가지. 끼워 볼 것: A-19 · A-20 · A-21(스위치 꺼짐 - 지금 방식) · A-26 → ⑦ 채팅 / A-21 · 0-1(GPS 0 · 방향 · 픽셀 크기, B2 · B3 · B4) → ⑨ 피드 / A-24(해제 · 탈퇴 유예 중 메인 · 피드 · 매거진에 초대 없음, 닉네임 보임) · A-25 → ⑬ / D5 문의 받는 사람 · C13 문장 같음 → ⑫ / A-2-4 두 폰 동시(1초 안) · 순차 저장 / A-4 첫 진입 0.1초 판독 / A-3 모든 탭 / A-7 로그인 한 바퀴 logcat · 화면 · 녹화에 토큰 0 / A-17 큰 사진 여러 장 보낼 때 띠 없음 / D10 · W2 토스트 위치.
