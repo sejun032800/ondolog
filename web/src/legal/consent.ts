@@ -10,7 +10,7 @@
  */
 export const LEGAL_OPERATOR = '정세준'
 export const LEGAL_CONTACT_EMAIL = 'ondologqna@gmail.com'
-export const LEGAL_STORAGE_REGION = 'Seoul, South Korea'
+export const LEGAL_STORAGE_REGION = '대한민국 서울'
 export const LEGAL_EFFECTIVE_DATE = '2026년 11월 15일'
 
 export type LegalDocumentKey = 'terms' | 'privacy' | 'aiUsage' | 'marketing'
