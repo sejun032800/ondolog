@@ -42,16 +42,12 @@ export interface UnresolvedConstantMeta {
 
 /**
  * 미해결 상수 레지스트리. Part 16-2 "`UNRESOLVED` 레지스트리 (코드와 1:1
- * 대응)" 표의 4개 항목과 1:1 대응한다.
+ * 대응)" 표의 항목과 1:1 대응한다(`temperature.activityScore`는 r74 v0 확정으로 2026-11 해소·제거 — MASTER 10-7-3).
  *
  * 새 미해결 계수가 생기면 이 객체에 항목을 추가하는 것으로 등록이
  * 끝난다 — 호출부는 `phase`/`doc`을 따로 적지 않고 `key`만 넘긴다.
  */
 export const UNRESOLVED_REGISTRY = {
-  'temperature.activityScore': {
-    phase: 7,
-    doc: 'MASTER Part 10-7-3',
-  },
   'leagueStats.shrinkage': {
     phase: 7,
     doc: 'MASTER Part 10-8-3',

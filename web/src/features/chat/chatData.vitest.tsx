@@ -5,6 +5,7 @@
  * 서버는 가짜(`chatTestSupport.ts`) - 원격 0.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearSignedUrlCache } from '../../cache/signedUrlCache'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { chatQueueStorageKey, type QueuedMessage } from '@/utils/chatQueue'
 import { setSupabaseForTest } from '../../auth/client'
@@ -19,6 +20,8 @@ const T0 = '2026-11-09T09:00:00.000Z'
 const at = (min: number) => new Date(Date.parse(T0) + min * 60000).toISOString()
 
 beforeEach(() => {
+  try { localStorage.clear() } catch { /* 저장소 없음 */ }
+  clearSignedUrlCache() // 76: 기기 저장 · 사진 주소 기억이 시험 사이에 새지 않게
   useAuthStore.getState().setUserId('me')
   useCoupleStore.setState({ status: 'connected', coupleId: 'c1', partnerId: 'you' })
 })
@@ -57,11 +60,11 @@ describe('실시간(Realtime) 채널', () => {
     const w = world({ messages: [messageRow('a', at(1))] })
     const { result, unmount } = renderHook(() => useChatMessages('c1', 'me', w.hubs))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(w.db.channels).toHaveLength(1)
+    expect(w.db.channels).toHaveLength(2) // 메시지 + 스토리(76-B1)
     expect(w.db.channels[0].name).toBe('messages:c1')
     expect(w.db.channels[0].filter).toEqual({ event: '*', schema: 'public', table: 'messages', filter: 'couple_id=eq.c1' })
     unmount()
-    expect((w.db.client.removeChannel as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1)
+    expect((w.db.client.removeChannel as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(2)
   })
 
   it('상대가 보낸 메시지가 실시간으로 들어오고, 같은 이벤트가 두 번 와도 하나다', async () => {

@@ -10,6 +10,249 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
+## `76-` 수정 (메인 세션, 2026-11-15, 위임문 `76-dispatch-fix.md` · 대기 목록 `76-next-fix-backlog.md` · R98 · R99 · R100 · MASTER r74 10-7-3) - 완료 (미커밋)
+
+범위: `web/src/` · `src/engine/temperature.ts`(+ 레지스트리) · 마이그레이션 1개(`20261115160000_m2_unschedule_retention.sql`) · PGlite 시험 1개 · 엔진 시험 · 디자인 백로그 §16 · §17 · HANDOFF · PROGRESS. 위임: engine-dev 1 · db-architect 1 · ui-builder 2. 원격 0 · 새 패키지 0 · 네이티브 손수정 0 · RN 0.
+검증(메인 세션 직접 재실행): web tsc 0 · Vitest 44/796 → **51/863** + 1 건너뜀 · `LEGAL_CHECK=1` 법무 관문 7/7 · `build` · `build:trial`(dist는 시험 빌드 상태) · `cap sync android`(web/android 추적 변경 0) · 루트 tsc 0 · jest 104/1805 → **106/1834**(PGlite 포함) · PGlite 3/60 → **4/64** · Python(아래 PROGRESS 줄). 키 · 주소 · 이메일 · ref 0(동의 상수 파일 밖 운영자 · 문의 메일 0) · 파일 이름 ASCII.
+
+### 멈춘 것
+
+| 항목 | 이유 | 다음 |
+|---|---|---|
+| **D2 하루 지우기(76-m3 RPC + 피드 밀기)** | 범위 "그날 내가 남긴 **장소** · 사진 · 메모"인데 `date_stops`에 작성자 칸이 없다(`006_archive.sql:53~74`). 사진 · 메모는 `data_entries.author_id`로 가를 수 있으나 장소는 누가 넣었는지 서버가 모른다 → m3 "RPC" 밖 스키마 변경(작성자 칸 + 기존 행 처리)이 필요. Proteur 확인으로 멈춤. m3 파일 없음 | PM 결정: ① `date_stops.created_by` 추가(기존 장소는 작성자 모름 → 남김) ② 스키마 그대로, 내 사진 · 메모를 지운 뒤 항목이 0인 장소만 지움(상대가 사진 없이 넣은 장소도 지워질 수 있음) ③ 사진 · 메모만 지우고 장소는 남김. E01 대조 결과 카드 안 가로 사진 줄은 없어 밀기 영역 충돌은 없음 |
+| C4 일부 "{상대}님이 커플 닉네임을 바꿨어요" | 설정의 닉네임 변경은 `nickname`만 쓰고 표시 칸(`start_date_set_by` · 확인)을 남기지 않음, 재표시 화면은 날짜 변경에서만 열림 → 구분할 데이터 · 화면 없음(새 화면은 Part 9 밖) | PM 판단(데이터 칸이 필요하면 마이그레이션) |
+| C5 저장 지역 | 멈춤 아님 - Proteur가 이미 넣음(`consent.ts:13` "대한민국 서울", 커밋 `3e3e253`) · 법무 관문 7/7 재실행 통과 | 닫음 |
+
+### 0단계
+
+| # | 결과 |
+|---|---|
+| 0-1 B2 GPS | **Proteur 명령 준비됨** - 아래 "0-1 명령". 메모리로만 내려받아 "GPS 있음/없음 · 방향 태그 있음/없음 · 형식 · 픽셀 크기"만 출력(파일 쓰기 0 → 지울 파일 없음, id · 경로 · 주소 출력 0). 판독기는 Pillow로 만든 GPS + 방향 JPEG · PNG · 표본 JPEG로 로컬 확인 |
+| 0-2 카메라 복귀 | **앱 재시작(웹뷰 다시 불러오기)**. 경로 복원 코드는 없었음 - `App.tsx` `MemoryRouter initialEntries=[initialPath]` 기본 `/intro`, 재시작 뒤 `useBootSession`이 `resolveWebRoute` → 'main'. 머리 "상대"는 재시작으로 스토어가 빈 첫 마운트(`usePartnerName` 초기 null). 카메라는 웹 `<input capture>`라 `appRestoredResult` 해당 없음. 고침: 마지막 탭 기기 저장 · 10분 안 재시작이면 그 탭으로(부작용: 카메라가 아니어도 10분 안 재실행은 마지막 탭에서 시작). 녹화의 "설정 탭 0.3초"는 코드로 재현 안 됨 → 폰 확인 |
+| 0-3 스크롤 | 사용자 정의 관성 · CSS `scroll-behavior: smooth` · `touchmove` 가로채기 **0**. 덧씌운 것은 결과 상세의 등장 연출(IntersectionObserver `ui.tsx` · 시간 기반 막대 · 삼각형 · 카드 지연 `screens.tsx`)과 상세 화면 스크롤 앵커링 → 고침. 기능상 남김: 채팅 맨 아래 붙기(`useStickToEnd`, 손대면 멈춤) · 피드 월 칩 smooth 이동(누를 때만) · 키보드 입력 칸 보이기 · `overscroll-behavior`(바운스만) · 확대 · 스토리 `touch-action` |
+| 0-4 잠긴 행 | **Proteur 명령 준비됨** - 아래 "0-4 명령"(건수만) |
+
+### 보드 대조 (다른 곳만)
+
+| 보드 | 차이 |
+|---|---|
+| E01 | 카드 안 **가로 사진 줄 없음**(보드 · 앱 모두 사진 한 장 카드) → D2 밀기 영역 충돌 없음. 피드형/지도형 토글 숨김(지도 범위 밖) · 월 머리 요약 "메모 · 사진 · 데이트"(CURRENT.md 변경, 별 0). 나머지 구성 같음 |
+| F03 | 아래 안내 문구가 약 15px 높음 · 아바타 위치 약 3px · 보드는 둘째 막대가 셋째보다 밝아 보임(앱은 남은 칸 모두 25%, 의도 불분명) · 배경 질감은 시험 사진 차이. ✕ · 이름 · 시간 · 막대 두께 · 간격 같음. 열림 · 닫힘 연출은 보드에 없는 R98-7 결정 |
+
+### 76- 결정 기록
+
+| 결정 | 출처 |
+|---|---|
+| 온도 v0 `activity_v0_provisional`을 `src/engine/temperature.ts` 한 곳에(엔진 1.2.0). 계수 0.6 · 0.4 · 60 · 0.5 · 14 · 55 · 0은 `ACTIVITY_V0_PROVISIONAL_COEFFICIENTS` 한 곳, 호출부 주입. "오늘"은 인자(`todayKst`), 엔진은 시계 0. 진입점 `computeDailyTemperatureV0` · `computeActivityDeltaV0` · `kstDayKey`. `UNRESOLVED('temperature.activityScore')` 레지스트리에서 제거 | R100-1 · MASTER r74 10-7-3 |
+| **throw 기대 시험 교체**(MASTER 10-7-3 · 16-2 예외): `__tests__/engine/temperatureBaseline.test.ts` 157 · 161 · 229 · 240줄 근처 4건을 v0 기대값으로, `unresolved.test.ts`의 activityScore throw → "레지스트리에 없음" | MASTER 10-7-3 · 16-2 |
+| 문서 후속(편집 범위 밖, PM): MASTER 16-2 레지스트리 표 · "Phase 7 선행" 체크리스트에 `temperature.activityScore`가 남아 코드와 어긋남. `src/engine/dnaScore.ts` 184 · 196줄 주석이 옛 `DailyActivityRaw` 이름(동작 무관) | 보고 |
+| 앱 표시: 저장된 `daily_temperature`가 있으면 저장값, 없으면 v0(기저 + 활동). 읽기만 - 어제까지 14일(KST) 메시지(지운 것 제외 · 사진 포함 · 오늘 제외)를 1000행 페이지로, 30페이지 넘으면 (날짜 × 사람) 건수 28요청으로. 하나라도 실패하면 기저만. 값은 다 읽은 뒤 한 번만 바뀜 | R100-1 · R83-7 |
+| "데이트 기록 있음" = 지우지 않은 `dates` 중 `photo_count > 0` 또는 `has_user_note`(삭제 RPC 023이 dates 행을 남기고 파생 칸만 맞추므로 행 존재로는 부족). **PM 확인**: 장소만 있고 사진 · 메모가 없는 날은 기록 없음으로 셈 | R100-1 |
+| **PM 확인**: "시작 온도예요. 기록이 쌓이면 다음 날부터 움직여요."는 활동분 0일 때만(표시 = 기저). 활동분이 있으면 숨김. 그때 기존 보조 문구 "첫 온도는 기록한 다음 날 나와요"는 남음 | 메인 세션 |
+| `76-m2`: `select cron.unschedule('retention-policy')` 한 문장. 함수 · 다른 cron · 데이터 0. 다시 켜기는 M4(구독 · E12 · 사전 고지와 함께 새 마이그레이션). PGlite 스텁에 `cron.unschedule` 추가(**허가 밖 파일** `scripts/db/pgliteMigrations.ts` +2줄 - 없으면 새 파일 적용에서 모든 PGlite 시험이 깨짐) | R100-2 |
+| A1 기기 저장 = `localStorage`(동기 - 첫 그림에 "상대" 0), 키에 사용자 id(`ondolog.dc1:{userId}:…`). 채팅 최근 100건(보내는 중 · 실패 · 미리보기 제외) · 상대 이름 · 메인 요약 · 피드. 사진은 경로만, 서명 URL은 메모리 45분만. 지움: 로그아웃 · 탈퇴 요청 → 전부, 계정 전환 → 다른 사용자 것, **해제 완료 또는 해제 유예 진입** → 커플 자료(유예 진입 때 지우는 것은 R98-1보다 이른 시점 - 보수 쪽) | R98-1 · R99-2 P3 · P5 |
+| A2 원인: 띠는 연결 모니터가 아니라 채팅 큐 안내(F05)였음 - 사진이 올라가기 시작하자마자 큐 `pending`으로 세어 "끊겼어요"가 뜸. 지금 시도 중인 항목은 세지 않음 + 거부된 업로드는 `navigator.onLine` + 짧은 확인 요청으로만 판정 | R98-2 |
+| B1 스토리 실시간: `stories`는 이미 realtime publication(018)에 있어 마이그레이션 0, 폴링 0. 채팅 탭에서만 구독 | R98-3 |
+| B3: 메시지 행에 width/height 칸 없음, 사진 칸은 이미 고정 높이(220px) → "높이 변화" 가설은 코드로 확인 안 됨. 맨 아래 붙기 재시도 · 서명 URL 재사용만. 튐 원인은 폰 확인 | R99-2 P1 |
+| B4: 상세 경로에 코드 스크롤 0(시험 고정). 스크롤 앵커링 끔 · 히어로 `contain` · 한 장 사진 칸은 `width/height` 비율(0.75~1.78). 저절로 내려감 원인은 폰 확인 | R99-2 P2 |
+| B2 0%: 초안이 없으면 이번 달(KST 1일~말일)을 `features/magazine/monthProgress.ts` `monthPeriodOf` 한 곳에서 만들어 같은 `periodElapsedPercent`로. 초안이 있으면 초안 값. 기간을 주는 설정이 없어(`app_config.issue_cycle`은 압축 시뮬레이션 값) 이 함수 한 곳에 둠 - 주기를 바꿀 때 여기만 | R98-4 (a) |
+| C4: 처음 연결/설정 변경 구분 = `StartDateScreen` `mode`(onboarding/recheck). 제목 "{상대}님이 커플 닉네임을/사귄 날짜를/먼저 정했어요" · 재표시 "{상대}님이 사귄 날짜를 바꿨어요" + 둘째 줄 새 날짜. **PM 확인**: 제목과 겹치던 본문 "상대가 먼저 '…'로 정했어요" 제거 · 재표시에서 큰 날짜 줄 숨김 | R99-1 |
+| D1 스토리 연출: 닫힘 0.22초 · 0.92배 + 투명, 열림 반대, ✕ · 자동 닫힘 · 아래로 밀기(80px) 같음, 줄인 모션 투명 0.15초. 디자인 백로그 §16에 기록 · §17 하늘 둘러보기 요청 기록(둘 다 미발송) | R98-7 · R99-5 |
+| C3: 원인 코드로 확정 못함 - 본문은 페이드인데 아래 고정 버튼은 즉시 보여 "버튼만" 순간이 생기는 구조 → 버튼도 같은 0.26초 페이드(온보딩 전체, 줄인 모션 제외) | R98-3 |
+
+### 온도 v0 예시 (시험 출력 그대로)
+
+`__tests__/engine/temperatureActivityV0.test.ts` - "하루 30건 · 두 사람 다 · 14일 중 4일 데이트 기록": **활동분 22.8**(합 5.8 / 14 × 55 = 22.79, 문서 "≈ +22.9"와 근사) · 기저 42(1 · 7 잘 맞음) + 22.8 = **64.8**.
+
+### 0-1 명령 (Proteur · 맨 위 폴더 · 키 줄 다음 확인 줄)
+
+`ops_2026_11` secret key를 보안 입력하고(`ONDOLOG_SUPABASE_SERVICE_ROLE_KEY`), 주소 변수 `ONDOLOG_SUPABASE_URL`은 "키 넣는 안내" 그대로. 확인 줄 `$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')` → `True`일 때만. 그다음 아래 한 덩어리를 그대로 붙여 넣는다(파일을 만들지 않고 표준 입력으로 실행). 출력은 두 줄 "채팅 사진: JPEG · GPS 없음 · 방향 태그 … · 1600x1200" 꼴 - 그 두 줄만 PM에 전달. 끝나면 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` → `False`.
+
+```
+@'
+import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+type Info = { gps: boolean; orientation: boolean; size: string; kind: string }
+function inspect(b: Uint8Array): Info {
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength)
+  if (b[0] === 0x89 && b[1] === 0x50) {
+    let p = 8, size = '?', gps = false
+    while (p + 8 <= b.length) {
+      const len = dv.getUint32(p); const t = String.fromCharCode(...b.subarray(p + 4, p + 8))
+      if (t === 'IHDR') size = `${dv.getUint32(p + 8)}x${dv.getUint32(p + 12)}`
+      if (t === 'eXIf') gps = gps || tiff(b, p + 8).gps
+      p += 12 + len
+    }
+    return { gps, orientation: false, size, kind: 'PNG' }
+  }
+  if (b[0] !== 0xff || b[1] !== 0xd8) return { gps: false, orientation: false, size: '?', kind: '알 수 없는 형식' }
+  let p = 2, gps = false, orientation = false, size = '?'
+  while (p + 4 <= b.length && b[p] === 0xff) {
+    const m = b[p + 1]
+    if (m === 0xd9 || m === 0xda) break
+    const len = dv.getUint16(p + 2)
+    if (m === 0xe1 && String.fromCharCode(...b.subarray(p + 4, p + 8)) === 'Exif') { const r = tiff(b, p + 10); gps ||= r.gps; orientation ||= r.orientation }
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) size = `${dv.getUint16(p + 7)}x${dv.getUint16(p + 5)}`
+    p += 2 + len
+  }
+  return { gps, orientation, size, kind: 'JPEG' }
+}
+function tiff(b: Uint8Array, s: number): { gps: boolean; orientation: boolean } {
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength)
+  const le = b[s] === 0x49
+  const u16 = (o: number) => dv.getUint16(s + o, le), u32 = (o: number) => dv.getUint32(s + o, le)
+  const ifd0 = u32(4); const n = u16(ifd0)
+  let gps = false, orientation = false
+  for (let i = 0; i < n; i++) {
+    const e = ifd0 + 2 + i * 12; const tag = u16(e)
+    if (tag === 0x0112) orientation = true
+    if (tag === 0x8825) { const g = u32(e + 8); gps = u16(g) > 0 }
+  }
+  return { gps, orientation }
+}
+function line(label: string, i: Info | null): void {
+  if (!i) { console.log(`${label}: 사진 없음`); return }
+  console.log(`${label}: ${i.kind} · GPS ${i.gps ? '있음' : '없음'} · 방향 태그 ${i.orientation ? '있음' : '없음'} · ${i.size}`)
+}
+const url = Deno.env.get('ONDOLOG_SUPABASE_URL'), key = Deno.env.get('ONDOLOG_SUPABASE_SERVICE_ROLE_KEY')
+if (!url || !key) throw new Error('주소 · 키 변수가 비어 있어요')
+const db = createClient(url, key, { auth: { persistSession: false } })
+const get = async (bucket: string, path: string | null | undefined): Promise<Info | null> => {
+  if (!path) return null
+  const { data, error } = await db.storage.from(bucket).download(path)
+  if (error || !data) { console.log(`${bucket}: 내려받기 실패`); return null }
+  return inspect(new Uint8Array(await data.arrayBuffer()))
+}
+const m = await db.from('messages').select('media_path').not('media_path', 'is', null).is('deleted_at', null).order('created_at', { ascending: false }).limit(1)
+if (m.error) throw new Error('채팅 행 읽기 실패')
+line('채팅 사진', await get('messages', m.data?.[0]?.media_path))
+const e = await db.from('data_entries').select('storage_path').eq('entry_type', 'photo').is('deleted_at', null).order('created_at', { ascending: false }).limit(1)
+if (e.error) throw new Error('피드 행 읽기 실패')
+line('피드 사진', await get('entries', e.data?.[0]?.storage_path))
+'@ | deno run --no-lock --allow-net --allow-env --allow-read -
+```
+
+### 0-4 명령 (Proteur · 대시보드 SQL 편집기 · 읽기만 · db push **전에**)
+
+키 필요 없음. 결과 숫자 하나만 PM에 전달(값 · id 0):
+
+```
+select count(*) as locked_rows from public.data_entries where access_locked;
+```
+
+(`access_locked`는 `data_entries`에만 있다. m2는 이미 잠긴 행을 풀지 않는다 - 0이 아니면 PM 판단.)
+
+### 76- `db push` 순서 (Proteur · 맨 위 폴더 · 값 출력 0)
+
+키 필요 없음(link된 CLI). 비밀번호를 물으면 화면 입력 칸에만.
+
+1. `npx supabase migration list` → `20261115160000`만 Local에만 있고 그 앞(`20261115150000` 포함)은 Local · Remote 같아야 한다.
+2. `npx supabase db push --dry-run` → **`20261115160000_m2_unschedule_retention.sql` 하나만**. 다른 것이 보이면 멈추고 보고. (m3는 D2 멈춤으로 **없다** - 위임서의 "두 파일"이 아니라 한 파일)
+3. `npx supabase db push`
+4. `npx supabase migration list` → 양쪽에 있으면 끝. (선택) 대시보드 SQL 읽기만: `select jobname from cron.job order by 1;` → `retention-policy`가 없고 `execute-dissolutions` · `expire-stories`만.
+
+### 76- 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 엔진 - 온도 v0
+
+```
+git add src/engine/temperature.ts
+git add src/engine/constants/unresolved.ts
+git add __tests__/engine/temperatureBaseline.test.ts
+git add __tests__/engine/unresolved.test.ts
+git add __tests__/engine/temperatureActivityV0.test.ts
+git commit -m "76-T engine: temperature activity v0 provisional (chat 0.6 + record 0.4, KST days, 14 days to yesterday)"
+```
+
+2) 서버 - 보관 정책 일정 끄기(m2)
+
+```
+git add supabase/migrations/20261115160000_m2_unschedule_retention.sql
+git add __tests__/db/retentionUnschedule76m2.test.ts
+git add scripts/db/pgliteMigrations.ts
+git commit -m "76-m2 db: unschedule retention-policy cron during trial; pglite cron.unschedule stub"
+```
+
+3) 웹 - 기기 저장 · 연결 · 채팅 · 스토리
+
+```
+git add web/src/cache/deviceCache.ts
+git add web/src/cache/signedUrlCache.ts
+git add web/src/features/chat/chatCache.ts
+git add web/src/connection/queueNotice.ts
+git add web/src/connection/connectionMonitor.ts
+git add web/src/connection/connection.vitest.tsx
+git add web/src/photoQueue/photoQueueHub.ts
+git add web/src/App.tsx
+git add web/src/auth/useBootSession.ts
+git add web/src/bootRestore76.vitest.tsx
+git add web/src/app/useAccountData.ts
+git add web/src/stores/coupleStore.ts
+git add web/src/features/settings/accountActions.ts
+git add web/src/features/settings/WithdrawScreen.tsx
+git add web/src/features/chat/ChatView.tsx
+git add web/src/features/chat/StoryViewer.tsx
+git add web/src/features/chat/useChatMessages.ts
+git add web/src/features/chat/useChatQueueResume.ts
+git add web/src/features/chat/useSignedMedia.ts
+git add web/src/features/chat/chat.vitest.tsx
+git add web/src/features/chat/chatData.vitest.tsx
+git add web/src/features/chat/storyViewer.vitest.tsx
+git add web/src/features/chat/offlineCache76.vitest.tsx
+git add web/src/features/feed/feedData.ts
+git add web/src/features/feed/feed.vitest.tsx
+git add web/src/features/feed/feedCache76.vitest.tsx
+git add web/src/features/main/useMainData.ts
+git commit -m "76 web: device cache for offline chat and main, honest offline banner during uploads, story realtime, last tab restore, story open close motion"
+```
+
+4) 웹 - 온도 표시 · 진행률 · 상세 · 결과 스크롤 · 문구 (styles.css는 두 묶음이 함께 고침 → 여기서 한 번)
+
+```
+git add web/src/features/main/activityRead.ts
+git add web/src/features/main/startTemperature.ts
+git add web/src/features/main/startTemperatureV0.vitest.tsx
+git add web/src/features/main/MainView.tsx
+git add web/src/features/main/main.vitest.tsx
+git add web/src/tabs/MainTab.tsx
+git add web/src/features/magazine/monthProgress.ts
+git add web/src/features/magazine/monthProgress.vitest.ts
+git add web/src/features/magazine/LibraryView.tsx
+git add web/src/features/magazine/magazine.vitest.tsx
+git add web/src/features/feed/DateDetailScreen.tsx
+git add web/src/features/feed/photoBox.ts
+git add web/src/features/feed/detailPhotoBox76.vitest.tsx
+git add web/src/ui.tsx
+git add web/src/screens.tsx
+git add web/src/scrollReveal76.vitest.tsx
+git add web/src/couple/coupleApi.ts
+git add web/src/features/couple/StartDateScreen.tsx
+git add web/src/features/couple/couple.vitest.tsx
+git add web/src/features/couple/coupleApi.vitest.ts
+git add web/src/styles.css
+git commit -m "76 web: show temperature v0 when no stored value, month progress without draft, fixed detail photo boxes, reveal passed elements, shared value notice titles"
+```
+
+5) 문서 · 상태
+
+```
+git add .claude/state/prompts/phase-7/PM_request_design_render_issue_v1_2_3.md
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "76 state: decisions, db push order, ops commands, design backlog 16 and 17"
+```
+
+마지막에 `git status --short`가 빈 출력이어야 한다.
+
+### Proteur 다음 순서 (R100-3)
+
+1. 0-4 건수 읽기(위, db push 전) · 0-1 GPS 두 줄(아무 때나)
+2. 커밋(위 다섯 묶음)
+3. `db push`(m2, 위 순서)
+4. `cd web; npm run build:trial; npx cap sync android` → Android Studio 빌드
+5. 두 폰 **앱 위에 설치(삭제하지 않음) - 데이터 유지, 3일치 기록 이어짐**
+6. 76- 폰 확인(녹화 · 방해 금지 모드 · 메일 · 카카오 화면 일시정지): 비행기 모드로 채팅 · 메인 열기(마지막 대화 · 이름 · 온도 · D+) · 카메라 촬영 후 복귀(채팅으로 · 머리 "상대" 0) · 로그아웃 → 다른 계정 로그인 시 이전 대화 0 · 사진 · 스토리 올리는 중 끊김 띠 0 · 비행기 모드 끄는 즉시 큐 전송 · 채팅 탭에 머문 채 상대 스토리 바로 뜸 · 스토리 닫힘/열림 연출 · 채팅 진입 목록 튐 · 상세 큰 사진 밀림/저절로 내려감 · 상세 → 피드 회색 자리 0 · 결과 상세 빠른 튕김 빈 화면 0 · 메인/매거진 퍼센트 = 이번 달 경과율 · 다음 날 온도가 움직이는지 · 설정에서 날짜 바꿀 때 상대 폰 제목 "…님이 사귄 날짜를 바꿨어요" · (연결 전 상태가 생기면) 연결 순간 버튼만 남는 화면 0
+7. `51-` 남은 것: 시드 호 · 서재(B11 · B12) · 해제 · 탈퇴(맨 끝) · D2(PM 결정 뒤) · B21 재설치 · C12
+
 ## `75-b` 빌드 전 보충 (메인 세션, 2026-11-15, 위임문 `75-b-dispatch-prebuild.md` · R94-0~10) - 완료 (미커밋)
 
 범위: `web/` · 마이그레이션 1개(`supabase/migrations/20261115150000_m1_grace_invite_block.sql`, R94-1 승인) · PGlite 시험 1개 · 디자인 백로그 16번 한 줄 · HANDOFF · PROGRESS. 원격 0 · 새 패키지 0 · 네이티브 손수정 0 · RN · 루트 `src/` 0. 검증: web tsc 0 · Vitest 43/766 → 44/796 + 1 건너뜀 · `LEGAL_CHECK=1` 법무 관문 7/7 · `build` · `build:trial` · `cap sync android` · 루트 tsc 0 · jest 103/1789 → 104/1805 · PGlite 2 suite → 3 suite / 57(+16) · Python 324. 동의 상수 파일 밖 운영자 이름 · 문의 이메일 0건.

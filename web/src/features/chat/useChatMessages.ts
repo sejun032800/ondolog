@@ -20,8 +20,10 @@ import { syncPhotoMessages } from '@/utils/chatPhotoQueue'
 import type { OutgoingMessage } from '@/utils/chatQueue'
 import { generateUuidV4 } from '@/utils/uuid'
 import { getSupabase } from '../../auth/client'
+import { photoWaitingForRetry } from '../../connection/queueNotice'
 import { onAppResume } from '../../platform/appResume'
 import { photoQueueHub, type PhotoQueueHub, type QueueablePhoto } from '../../photoQueue/photoQueueHub'
+import { readChatCache, replaceWithServer, writeChatCache } from './chatCache'
 import { fetchMessages, fetchMessagesAfter, fetchStories, markMessagesRead } from './chatApi'
 import { textQueueHub, type TextQueueHub } from './textQueueHub'
 
@@ -55,12 +57,16 @@ export const SUBSCRIBED_RECHECK_MS = 1500
 const DEFAULT_HUBS: ChatHubs = { text: textQueueHub, photo: photoQueueHub }
 
 export function useChatMessages(coupleId: string | null, currentUserId: string | null, hubs: ChatHubs = DEFAULT_HUBS): ChatMessagesResult {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [loading, setLoading] = useState(true)
+  // 76-A1: 기기에 남긴 최근 메시지가 있으면 서버 읽기 전에 그것을 먼저 그린다(오프라인 · 앱이 다시 그려질 때 "빈 채팅" 0). 서버 읽기가 오면 교체한다.
+  const initialRef = useRef<ChatMessage[] | null>(null)
+  if (initialRef.current === null) initialRef.current = readChatCache(currentUserId, coupleId)
+  const [messages, setMessages] = useState<ChatMessage[]>(initialRef.current)
+  const [loading, setLoading] = useState(initialRef.current.length === 0)
+  const fetchedRef = useRef(false)
   const [stories, setStories] = useState<StoryRow[]>([])
   const [storiesLoading, setStoriesLoading] = useState(true)
   /** 메우기가 "마지막으로 받은 메시지"를 읽는 자리(구독 콜백이 낡은 상태를 보지 않게). */
-  const messagesRef = useRef<ChatMessage[]>([])
+  const messagesRef = useRef<ChatMessage[]>(initialRef.current)
   const [hasTextQueued, setHasTextQueued] = useState(false)
   const [hasPhotoQueued, setHasPhotoQueued] = useState(false)
   const lostPhotoIdsRef = useRef<Set<string>>(new Set())
@@ -88,7 +94,7 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
       onStory: (story) => setStories((prev) => (prev.some((x) => x.id === story.id) ? prev : [story, ...prev])),
       onPhotoQueue: (items) => {
         setMessages((prev) => syncPhotoMessages(prev, items))
-        setHasPhotoQueued(items.some((item) => item.status === 'pending'))
+        setHasPhotoQueued(items.some((item) => photoWaitingForRetry(item, hubs.photo.isAttempting(item.clientId))))
       },
       onPhotoLost: (item) => {
         if (item.kind !== 'message') return
@@ -110,9 +116,13 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
       return
     }
     let cancelled = false
-    setLoading(true)
+    setLoading(initialRef.current === null || initialRef.current.length === 0)
     fetchMessages(db, coupleId)
-      .then((rows) => { if (!cancelled) setMessages((prev) => mergeMessages(prev, rows.map(rowToChatMessage))) })
+      .then((rows) => {
+        if (cancelled) return
+        fetchedRef.current = true
+        setMessages((prev) => replaceWithServer(prev, rows.map(rowToChatMessage)))
+      })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -120,6 +130,13 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
   }, [coupleId, db])
 
   messagesRef.current = messages
+
+  // 기기 저장: 바뀔 때마다 서버가 확정한 최근 100건을 남긴다(서버 읽기 전의 빈 목록으로 저장분을 지우지 않는다).
+  useEffect(() => {
+    if (!coupleId || !currentUserId) return
+    if (!fetchedRef.current && messages.length === 0) return
+    writeChatCache(currentUserId, coupleId, messages)
+  }, [messages, coupleId, currentUserId])
 
   // Realtime 구독 - 상대(및 나 자신의 다른 기기)가 보낸 변경을 병합한다.
   useEffect(() => {
@@ -159,6 +176,32 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
       if (recheckTimer !== null) window.clearTimeout(recheckTimer)
       void client.removeChannel(channel)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coupleId, db])
+
+  // 스토리 실시간(76-B1 · R98-3): 채팅 탭에 머무는 동안 상대의 새 스토리가 나타난다. 메시지와 같은 방법(`postgres_changes` - `stories`는 realtime publication에 있다, 018).
+  // 이 훅은 채팅 탭에서만 살아 있어 탭을 떠나면(언마운트) 구독이 풀린다. 구독이 다시 확정될 때(재연결)는 놓친 것을 조회로 메운다 - 실시간은 알림이고 진실은 조회다.
+  useEffect(() => {
+    const client = getSupabase()
+    if (!coupleId || !client || !db) return
+    let subscribedOnce = false
+    const channel = client
+      .channel(`stories:${coupleId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'stories', filter: `couple_id=eq.${coupleId}` },
+        (payload) => {
+          const story = payload.new as StoryRow
+          if (!story || !story.id) return
+          setStories((prev) => (prev.some((x) => x.id === story.id) ? prev : [story, ...prev]))
+        },
+      )
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return
+        if (!subscribedOnce) { subscribedOnce = true; return } // 처음 확정은 목록 로드가 맡는다
+        fetchStories(db, coupleId).then((rows) => setStories(rows)).catch(() => {})
+      })
+    return () => { void client.removeChannel(channel) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coupleId, db])
 

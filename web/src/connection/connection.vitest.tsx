@@ -255,3 +255,70 @@ describe('A-17 올리는 중 거부는 바로 끊김이 아니다', () => {
     expect(probe).not.toHaveBeenCalled()
   })
 })
+
+describe('76-A2 올리는 시간은 연결 판정에서 뺀다 - 판정은 기기 네트워크 상태 + 짧은 확인 요청으로만', () => {
+  const body = () => new Blob([new Uint8Array(8)], { type: 'image/jpeg' })
+  const reject = () => Promise.reject(new TypeError('Failed to fetch'))
+  const url = 'https://x.test/storage/v1/object/a'
+  const hang = (signal?: AbortSignal) => new Promise<unknown>((_, rej) => signal?.addEventListener('abort', () => rej(Object.assign(new Error('a'), { name: 'AbortError' }))))
+  const setOnLine = (v: boolean) => vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(v)
+  afterEach(() => vi.restoreAllMocks())
+
+  it('30초 걸리는 업로드(가짜 타이머)가 성공하면 끝까지 끊김 보고 0, 끝나면 연결 보고', async () => {
+    const report = vi.fn()
+    const slow = (() => new Promise<Response>((res) => setTimeout(() => res(new Response('')), 30_000))) as unknown as typeof fetch
+    const wrapped = trackConnection(slow, report)
+    const p = wrapped(url, { method: 'POST', body: body() })
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(report).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    await p
+    expect(report).toHaveBeenCalledTimes(1)
+    expect(report).toHaveBeenCalledWith(true)
+  })
+
+  it('30초 끝에 업로드가 거부되고 확인 요청도 제한 시간에 걸려도, 기기가 네트워크 있음이면 끊김 0(느린 회선일 뿐)', async () => {
+    setOnLine(true)
+    const report = vi.fn()
+    const slowFail = (() => new Promise<Response>((_, rej) => setTimeout(() => rej(new TypeError('Failed to fetch')), 30_000))) as unknown as typeof fetch
+    const wrapped = trackConnection(slowFail, report, { probe: () => hang, confirmTimeoutMs: 8000 })
+    const p = wrapped(url, { method: 'POST', body: body() }).catch(() => 'rejected')
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(await p).toBe('rejected')
+    await vi.advanceTimersByTimeAsync(8_000)
+    expect(report).not.toHaveBeenCalledWith(false)
+  })
+
+  it('실제 오프라인: 기기가 네트워크 없음이라 하면 올리기 거부는 확인 없이 바로 끊김', async () => {
+    setOnLine(false)
+    const report = vi.fn()
+    const probe = vi.fn(async () => new Response(''))
+    await expect(trackConnection(reject as unknown as typeof fetch, report, { probe: () => probe })(url, { method: 'POST', body: body() })).rejects.toBeTruthy()
+    expect(report).toHaveBeenCalledWith(false)
+    expect(probe).not.toHaveBeenCalled()
+  })
+
+  it('실제 오프라인: 확인 요청이 거부되면(연결 실패) 끊김 - 띠가 나온다', async () => {
+    setOnLine(true)
+    const report = vi.fn()
+    const wrapped = trackConnection(reject as unknown as typeof fetch, report, { probe: () => async () => { throw new TypeError('x') } })
+    await expect(wrapped(url, { method: 'POST', body: body() })).rejects.toBeTruthy()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(report).toHaveBeenCalledWith(false)
+  })
+
+  it('업로드가 도는 중의 다른 요청 거부는 바로 끊김이 아니라 확인 요청을 거친다(회선이 올리기로 찬 탓일 수 있다)', async () => {
+    setOnLine(true)
+    const report = vi.fn()
+    const probe = vi.fn(async () => new Response(''))
+    let n = 0
+    const base = (() => (n++ === 0 ? new Promise<Response>(() => {}) : reject())) as unknown as typeof fetch
+    const wrapped = trackConnection(base, report, { probe: () => probe })
+    void wrapped(url, { method: 'POST', body: body() }) // 도는 중인 업로드
+    await expect(wrapped('https://x.test/rest/v1/a')).rejects.toBeTruthy()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(probe).toHaveBeenCalledTimes(1)
+    expect(report).not.toHaveBeenCalledWith(false)
+    expect(report).toHaveBeenCalledWith(true)
+  })
+})

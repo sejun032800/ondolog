@@ -9,7 +9,10 @@ import { performLogout } from '@/services/settingsCore'
 import { resetCallbackState } from '../../auth/callback'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore, useNoticeStore } from '../../auth/stores'
+import { clearAllDeviceCache } from '../../cache/deviceCache'
+import { clearSignedUrlCache } from '../../cache/signedUrlCache'
 import type { Nav } from '../../navigation'
+import { forgetMainMemory } from '../main/useMainData'
 import { forgetLibrary } from '../magazine/libraryData'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { useDissolutionStore } from '../../stores/dissolutionStore'
@@ -20,7 +23,7 @@ import { resetSettingsSummaryCache } from './useSettingsSummary'
 
 /**
  * 로그아웃 · 탈퇴 요청 때 이 실행의 메모리에 남는 계정 상태를 모두 비운다(D1 - 같은 실행에서 다시 로그인할 때 이전 로그인의 표시를 물려받지 않게).
- * 기기에 저장된 채팅 큐는 건드리지 않는다. 로그인 세션 저장소(Preferences)는 `signOut`이 지운다.
+ * 기기에 저장된 채팅 큐는 건드리지 않는다(보내기 대기 큐 - 기기 저장 요약 `cache/deviceCache`와 다르다, 그것은 여기서 지운다). 로그인 세션 저장소(Preferences)는 `signOut`이 지운다.
  *   zustand: 커플 · 프로필 · 해제 · 온보딩 답(결과 메모리) · 시트 · 서재 뷰어 · 알림(기존 계정 안내)
  *   모듈 메모리: 콜백 코드 칸 + 처리한 코드 표시(`resetCallbackState`) · 서재 기억(`forgetLibrary`) · 설정 요약 기억
  */
@@ -35,6 +38,10 @@ export function resetAccountMemory(): void {
   resetCallbackState()
   forgetLibrary()
   resetSettingsSummaryCache()
+  // 76-A1: 이 기기에 남긴 채팅 100건 · 상대 이름 · 메인 요약 · 마지막 탭, 받아 둔 사진 주소를 지운다(공유 폰에 남지 않게).
+  clearAllDeviceCache()
+  clearSignedUrlCache()
+  forgetMainMemory()
 }
 
 /**

@@ -14,6 +14,9 @@ import {
 } from '@/services/dateRecordApi'
 import { assignStop, groupByMonth, type MonthChapter } from '@/utils/dateRecord'
 import { getSupabase } from '../../auth/client'
+import { useAuthStore } from '../../auth/stores'
+import { readCache, writeCache } from '../../cache/deviceCache'
+import { getSignedUrl, putSignedUrls } from '../../cache/signedUrlCache'
 
 const dbOrNull = (): Db | null => (getSupabase() as unknown as Db | null)
 
@@ -92,8 +95,30 @@ export interface FeedState {
   reload: () => Promise<void>
 }
 
+/** 사진 주소는 이 실행의 메모리(`signedUrlCache`)에만 둔다 - 기기에 저장하지 않는다(서명 만료). 키 버킷 이름. */
+const FEED_URL_BUCKET = 'feed'
+
+/**
+ * 76-B5: 피드를 처음 그릴 때 기기에 남긴 마지막 값(월 묶음 · 이름)과 메모리의 사진 주소가 있으면 그것을 먼저 보인다 - 상세에서 돌아와도 회색 자리 표시로 되돌아가지 않는다.
+ * 자리 표시(`loading`)는 보여 줄 값이 없는 첫 로드에만 쓴다. 서버 읽기가 오면 바꾼다.
+ */
+function initialFeedState(): Omit<FeedState, 'reload'> {
+  const saved = readCache<{ chapters: FeedChapter[]; names: Record<string, string> }>(useAuthStore.getState().userId, 'feed')
+  if (!saved || !Array.isArray(saved.chapters)) return { loading: true, error: null, chapters: [], urls: {}, names: {} }
+  const urls: Record<string, string> = {}
+  for (const c of saved.chapters) {
+    for (const d of c.dates ?? []) {
+      if (d.coverPath) {
+        const url = getSignedUrl(FEED_URL_BUCKET, d.coverPath)
+        if (url) urls[d.coverPath] = url
+      }
+    }
+  }
+  return { loading: false, error: null, chapters: saved.chapters, urls, names: saved.names ?? {} }
+}
+
 export function useFeed(enabled: boolean): FeedState {
-  const [state, setState] = useState<Omit<FeedState, 'reload'>>({ loading: true, error: null, chapters: [], urls: {}, names: {} })
+  const [state, setState] = useState<Omit<FeedState, 'reload'>>(initialFeedState)
   const signal = useFeedSignal((s) => s.version)
 
   const reload = useCallback(async () => {
@@ -113,10 +138,20 @@ export function useFeed(enabled: boolean): FeedState {
       }))
       const coverPaths = items.flatMap((i) => (i.coverPath ? [i.coverPath] : []))
       const authorIds = items.flatMap((i) => (i.quote ? [i.quote.authorId] : []))
-      const [urls, names] = await Promise.all([signPhotoPaths(db, coverPaths), fetchDisplayNames(db, authorIds)])
+      // 이미 받은 주소(만료 전)는 다시 받지 않는다 - 같은 주소라 사진이 다시 내려받아지며 비는 일이 없다(76-B3).
+      const have: Record<string, string> = {}
+      for (const p of coverPaths) {
+        const url = getSignedUrl(FEED_URL_BUCKET, p)
+        if (url) have[p] = url
+      }
+      const [signed, names] = await Promise.all([signPhotoPaths(db, coverPaths.filter((p) => !have[p])), fetchDisplayNames(db, authorIds)])
+      putSignedUrls(FEED_URL_BUCKET, signed)
+      const urls = { ...signed, ...have }
       setState({ loading: false, error: null, chapters, urls, names })
+      writeCache(useAuthStore.getState().userId, 'feed', { chapters, names })
     } catch (e) {
-      setState((s) => ({ ...s, loading: false, error: e instanceof Error ? e.message : '피드를 불러오지 못했어요' }))
+      // 읽기에 실패해도 먼저 보이던 값은 지우지 않는다(오프라인에서 마지막 값 유지). 보일 값이 없을 때만 오류 화면.
+      setState((s) => (s.chapters.length > 0 ? { ...s, loading: false } : { ...s, loading: false, error: e instanceof Error ? e.message : '피드를 불러오지 못했어요' }))
     }
   }, [])
 

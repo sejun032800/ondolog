@@ -22,6 +22,7 @@ export const MIGRATIONS_DIR = path.join(__dirname, '..', '..', 'supabase', 'migr
  *  - schema extensions : 확장 설치 위치로 마이그레이션이 이름을 부른다.
  *  - schema storage + buckets / objects / foldername() : Storage 정책 마이그레이션이 참조한다.
  *  - schema cron + cron.job + cron.schedule() : pg_cron 대용. **예약을 기록만 하고 실행하지 않는다.** 같은 jobname 이면 갱신(pg_cron 과 같음).
+ *  - cron.unschedule(jobname) : pg_cron 과 같은 뜻. 그 jobname 행을 지우고 true, 없으면 오류 (76-m2).
  *  - publication supabase_realtime : 마이그레이션이 테이블을 여기에 더한다.
  *  - 기본 권한 : Supabase 는 public 스키마의 새 개체에 세 역할 권한을 기본으로 준다(마이그레이션의 revoke 가 의미를 가지려면 필요).
  */
@@ -43,6 +44,7 @@ create function storage.foldername(n text) returns text[] language sql as $$ sel
 create table cron.job (jobname text primary key, schedule text, command text);
 create function cron.schedule(n text, s text, c text) returns bigint language sql as $$
   insert into cron.job values (n, s, c) on conflict (jobname) do update set schedule = excluded.schedule, command = excluded.command returning 1::bigint $$;
+create function cron.unschedule(n text) returns boolean language plpgsql as $$ begin delete from cron.job where jobname = n; if not found then raise exception 'could not find valid entry for job %', n; end if; return true; end $$;
 create publication supabase_realtime;
 grant usage on schema public to anon, authenticated, service_role;
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;

@@ -164,6 +164,8 @@ export interface MessageItemProps {
   onRetry: (clientMsgId: string) => void
   onCancel: (clientMsgId: string) => void
   onOpenPhoto: (message: ChatMessage) => void
+  /** 사진이 다 불러와졌을 때(76-B3 - 붙어 있던 목록을 끝에 다시 붙인다). 사진 칸 높이는 CSS가 고정이라 높이가 바뀌지 않지만 배치가 한 번 더 어긋나는 틈을 닫는다. */
+  onPhotoLoad?: () => void
   onCopy?: (text: string) => void
 }
 
@@ -200,13 +202,13 @@ export function TextMessage({ message, isMine, fresh, onRetry, onCancel, onCopy 
   )
 }
 
-export function PhotoMessage({ message, isMine, senderName, photoUri, fresh, onRetry, onCancel, onOpenPhoto }: MessageItemProps) {
+export function PhotoMessage({ message, isMine, senderName, photoUri, fresh, onRetry, onCancel, onOpenPhoto, onPhotoLoad }: MessageItemProps) {
   const queued = Boolean(message.pending || message.failed)
   const long = useLongPress(queued && message.clientMsgId ? () => onCancel(message.clientMsgId as string) : undefined)
   const shownUri = useStickyImage(photoUri) // A-26: 주소가 바뀌는 사이 앞 그림 유지
   const photo = (
     <span className={`chatPhoto ${queued ? 'queued' : ''}`}>
-      {shownUri ? <img src={shownUri} alt="" draggable={false} /> : null}
+      {shownUri ? <img src={shownUri} alt="" draggable={false} onLoad={onPhotoLoad} /> : null}
     </span>
   )
   return (
@@ -336,7 +338,7 @@ export function ChatConversation({ bridge, hubs, now = () => new Date() }: ChatC
 
   // 끝에 붙기: 처음엔 맨 아래, 새 말풍선은 내가 보낸 것이면 끝으로 · 상대 것은 붙어 있을 때만.
   const listRef = useRef<HTMLDivElement>(null)
-  const { onScroll, jump, followAppend, userTouch } = useStickToEnd(listRef)
+  const { onScroll, jump, followAppend, userTouch, isStuck } = useStickToEnd(listRef)
   const wasLoading = useRef(true)
   const rowCount = useRef(0)
   useLayoutEffect(() => {
@@ -345,13 +347,16 @@ export function ChatConversation({ bridge, hubs, now = () => new Date() }: ChatC
       wasLoading.current = false
       rowCount.current = rows.length
       jump()
+      // 76-B3: 배치가 끝난 뒤 맨 아래 붙기를 한 번 더(처음 그린 직후 글꼴 · 사진 자리가 잡히며 어긋나는 틈).
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(() => { if (isStuck()) jump() }))
       return
     }
     if (rows.length <= rowCount.current) { rowCount.current = rows.length; return }
     rowCount.current = rows.length
     const last = messages[messages.length - 1]
     followAppend(last?.senderId === currentUserId)
-  }, [loading, rows.length, messages, currentUserId, jump, followAppend])
+  }, [loading, rows.length, messages, currentUserId, jump, followAppend, isStuck])
+  const repinAfterPhoto = () => { if (isStuck()) jump() }
 
   const pickAndSendPhotos = async (capture: boolean) => {
     try {
@@ -437,6 +442,7 @@ export function ChatConversation({ bridge, hubs, now = () => new Date() }: ChatC
                 onRetry={chat.retryFailed}
                 onCancel={chat.cancelPending}
                 onCopy={setCopyText}
+                onPhotoLoad={repinAfterPhoto}
                 onOpenPhoto={(msg) => {
                   if (!msg.mediaPath) return
                   setPhotoView({ path: msg.mediaPath, senderName: msg.senderId === currentUserId ? selfLabel : partnerLabel, sentAt: msg.sentAt })

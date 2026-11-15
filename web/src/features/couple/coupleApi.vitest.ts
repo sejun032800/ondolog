@@ -14,7 +14,7 @@ import { needsStartDateConfirm } from '@/utils/settingsRules'
 import { resolveWebRoute, webRouteForStep } from '../../auth/finalize'
 import {
   completeOnboardingWithoutCouple, fetchExistingInvite, generateInviteCode, getOrCreateInvite, markInviteDoneAwaitingStartDate,
-  markStartDateOnboardingComplete, redeemInviteCode, saveStartDateAndNickname, setOrConfirmStartDate, startDateConflictNotice,
+  markStartDateOnboardingComplete, redeemInviteCode, saveStartDateAndNickname, setOrConfirmStartDate, startDateConflictKind,
 } from '../../couple/coupleApi'
 import { makeCoupleDb, stepWrites } from '../../testSupportCouple'
 
@@ -195,15 +195,16 @@ describe('A20 먼저 입력한 값이 적용된다(coupleStartApi.test.ts)', () 
         { relationship_start_date: '2025-12-27', start_date_set_by: 'a', nickname: '늘봄' },
         { start_date_confirmed_by: 'b' },
       ])
-      expect(startDateConflictNotice(second, { userId: 'b', date: '2024-01-01', nickname: '다른이름' })).toBe("상대가 먼저 '늘봄'로 정했어요. 설정에서 바꿀 수 있어요.")
-      expect(startDateConflictNotice(first, { userId: 'a', date: '2025-12-27', nickname: '늘봄' })).toBeNull()
+      expect(startDateConflictKind(second, { userId: 'b', date: '2024-01-01', nickname: '다른이름' })).toBe('both')
+      expect(startDateConflictKind(first, { userId: 'a', date: '2025-12-27', nickname: '늘봄' })).toBeNull()
     })
 
     it('R90-4 날짜만 다르면 알림에 화면 형식 날짜가 들어간다 · 같은 값이면 알림 없음', async () => {
       const { client } = makeCoupleDb({ couples: [{ ...base, relationship_start_date: '2025-12-27', start_date_set_by: 'a', nickname: '늘봄' }] })
       const stored = await saveStartDateAndNickname(client, 'c1', 'b', '2024-01-01', '늘봄', now)
-      expect(startDateConflictNotice(stored, { userId: 'b', date: '2024-01-01', nickname: '늘봄' })).toBe("상대가 먼저 '2025.12.27'로 정했어요. 설정에서 바꿀 수 있어요.")
-      expect(startDateConflictNotice(stored, { userId: 'b', date: '2025-12-27', nickname: ' 늘봄 ' })).toBeNull()
+      expect(startDateConflictKind(stored, { userId: 'b', date: '2024-01-01', nickname: '늘봄' })).toBe('date')
+      expect(startDateConflictKind(stored, { userId: 'b', date: '2025-12-27', nickname: '다른이름' })).toBe('nickname')
+      expect(startDateConflictKind(stored, { userId: 'b', date: '2025-12-27', nickname: ' 늘봄 ' })).toBeNull()
     })
 
     it('R90-4 순차 저장: 뒤에 오는 폰은 저장된 값을 받는다(덮어쓰기 0)', async () => {

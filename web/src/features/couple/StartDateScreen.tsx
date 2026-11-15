@@ -14,14 +14,14 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import {
-  NICKNAME_MAX, formatStartDateInput, isValidNickname, nicknameLength, parseStartDateInput, startDateIsoToInput, withGwa, withIga,
+  NICKNAME_MAX, formatStartDateInput, isValidNickname, nicknameLength, parseStartDateInput, startDateIsoToInput, withGwa,
 } from '@/utils/coupleStart'
 import { computeDaysTogetherKst } from '@/utils/relationshipDays'
 import { needsStartDateConfirm } from '@/utils/settingsRules'
 import { getSupabase } from '../../auth/client'
 import { fetchProfile } from '../../auth/finalize'
 import { useAuthStore } from '../../auth/stores'
-import { fetchCouple, markStartDateOnboardingComplete, saveStartDateAndNickname, setOrConfirmStartDate, startDateConflictNotice } from '../../couple/coupleApi'
+import { fetchCouple, markStartDateOnboardingComplete, saveStartDateAndNickname, setOrConfirmStartDate, startDateConflictKind, type StartConflictKind } from '../../couple/coupleApi'
 import type { Nav } from '../../navigation'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { OnboardingScreen, PrimaryButton } from '../../ui'
@@ -37,6 +37,11 @@ export const START_COPY = {
   nicknameTooLong: `${NICKNAME_MAX}자까지 쓸 수 있어요`,
   start: '시작하기',
   confirmSubtitle: '먼저 정한 날짜로 시작해요',
+  // R99-1: 조사 판정 없이 "님이"로 통일(이름 끝 글자에 따라 바뀌지 않는다).
+  firstSetDate: (name: string) => `${name}님이 사귄 날짜를 먼저 정했어요`,
+  firstSetNickname: (name: string) => `${name}님이 커플 닉네임을 먼저 정했어요`,
+  firstSetBoth: (name: string) => `${name}님이 먼저 정했어요`,
+  changedDate: (name: string) => `${name}님이 사귄 날짜를 바꿨어요`,
   confirm: '확인했어요',
   confirmNote: '날짜가 다르면 설정 > 커플에서 함께 고칠 수 있어요',
   saveFailed: '저장하지 못했어요. 다시 시도해주세요.',
@@ -48,7 +53,7 @@ type Phase =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'enter' }
-  | { kind: 'confirm'; date: string; nickname: string | null; notice?: string }
+  | { kind: 'confirm'; date: string; nickname: string | null; differs?: StartConflictKind }
 
 export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?: 'onboarding' | 'recheck' }) {
   const recheck = mode === 'recheck'
@@ -154,6 +159,11 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
 
   if (phase.kind === 'confirm') {
     const days = computeDaysTogetherKst(phase.date)
+    // R99-1: 설정에서 바뀐 값이면(재표시 길) "바꿨어요", 처음 연결이면 "먼저 정했어요"(내 입력과 무엇이 달랐는지에 맞춤 - 달랐던 게 없으면 상대가 이미 정해 둔 값: 닉네임이 있으면 둘 다).
+    const firstKind: StartConflictKind = phase.differs ?? (phase.nickname ? 'both' : 'date')
+    const confirmTitle = recheck
+      ? START_COPY.changedDate(partnerName)
+      : firstKind === 'nickname' ? START_COPY.firstSetNickname(partnerName) : firstKind === 'both' ? START_COPY.firstSetBoth(partnerName) : START_COPY.firstSetDate(partnerName)
     const confirm = async () => {
       if (!db || !coupleId || busy) return
       setBusy(true)
@@ -171,8 +181,8 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
     return (
       <OnboardingScreen
         animKey="confirm"
-        title={`${withIga(partnerName)} 날짜를\n먼저 정했어요`}
-        subtitle={START_COPY.confirmSubtitle}
+        title={confirmTitle}
+        subtitle={recheck ? startDateIsoToInput(phase.date) : START_COPY.confirmSubtitle}
         footer={
           <>
             {error ? <p className="t-sub c-sub" style={{ textAlign: 'center' }} role="alert" data-testid="start-error">{error}</p> : null}
@@ -182,10 +192,10 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
       >
         <div className="codeBox" style={{ marginTop: 32, textAlign: 'center' }}>
           <p className="t-kicker c-mute" style={{ fontSize: 11 }}>SINCE</p>
-          <p className="code c-text" style={{ fontSize: 40, letterSpacing: -1, paddingLeft: 0, margin: '14px 0' }} data-testid="start-since-date">{startDateIsoToInput(phase.date)}</p>
+          {/* 재표시 길은 새 날짜가 제목 아래 둘째 줄에 이미 있다 - 같은 값을 두 번 보이지 않는다. */}
+          {recheck ? null : <p className="code c-text" style={{ fontSize: 40, letterSpacing: -1, paddingLeft: 0, margin: '14px 0' }} data-testid="start-since-date">{startDateIsoToInput(phase.date)}</p>}
           <p className="t-body c-sub" data-testid="start-since-sub">{`오늘 D+${days}${phase.nickname ? ` · ${phase.nickname}` : ''}`}</p>
         </div>
-        {phase.notice ? <p className="t-sub c-sub" style={{ marginTop: 24 }} role="status" data-testid="start-conflict-notice">{phase.notice}</p> : null}
         <p className="t-sub c-mute" style={{ marginTop: 24 }} data-testid="start-confirm-note">{START_COPY.confirmNote}</p>
       </OnboardingScreen>
     )
@@ -207,10 +217,10 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
     setError(null)
     try {
       const row = await saveStartDateAndNickname(db, coupleId, userId, iso, nickname)
-      const notice = startDateConflictNotice(row, { userId, date: iso, nickname })
-      if (notice && row.relationship_start_date) {
+      const differs = startDateConflictKind(row, { userId, date: iso, nickname })
+      if (differs && row.relationship_start_date) {
         // 상대가 먼저 정했고 내 입력과 다르다 - 조용히 버리지 않고 적용된 값을 알린 뒤 확인받는다.
-        setPhase({ kind: 'confirm', date: row.relationship_start_date, nickname: row.nickname, notice })
+        setPhase({ kind: 'confirm', date: row.relationship_start_date, nickname: row.nickname, differs })
         return
       }
       await finish(userId)

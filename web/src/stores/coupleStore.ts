@@ -9,6 +9,7 @@
 import { create } from 'zustand'
 import { DISCONNECTED_TEMPERATURE } from '@/engine/temperature'
 import { getSupabase } from '../auth/client'
+import { clearCoupleCache, readCache, writeCache } from '../cache/deviceCache'
 
 export interface CoupleState {
   /** 아직 조회 전(`unknown`)과 "조회했지만 미연결"을 구분한다. */
@@ -23,7 +24,20 @@ export interface CoupleState {
   /** 연결 해제 유예 중인 커플이 있다(`couples.status = 'dissolving'`). 연결(`connected`)은 아니지만 "아직 혼자"도 아니다(A-24) - 닉네임은 유지하고 새 초대는 막는다. */
   grace: boolean
   refresh: (userId: string) => Promise<void>
+  /** 기기 저장(메인 요약)이 있으면 조회 전에 그것을 먼저 채운다(76-A1). 이미 읽은 값이 있으면 아무 일도 없다. */
+  hydrate: (userId: string) => void
   reset: () => void
+}
+
+/** 기기에 남기는 메인 요약(커플 이름 · 온도 · 사귄 날짜 등 화면에 이미 보이는 값). 연결일 때만 저장한다. */
+interface MainSummary {
+  coupleId: string
+  partnerId: string | null
+  nickname: string | null
+  temperature: number | null
+  temperatureDateOn: string | null
+  relationshipStartDate: string | null
+  referencePhotoPath: string | null
 }
 
 const DISCONNECTED = {
@@ -64,12 +78,15 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
           .eq('status', 'dissolving')
           .maybeSingle()
         if (!dissolvingError && dissolving) {
+          clearCoupleCache(userId)
           set({ status: 'disconnected', ...DISCONNECTED, nickname: dissolving.nickname, grace: true })
           return
         }
       }
       if (error || !data) {
         // 조회 오류에서도 이미 연결로 알고 있던 값은 그대로 둔다(끊긴 연결 때문에 연결된 사람에게 "상대만 있으면 돼요"를 보이지 않는다). 처음이면 RN과 같이 미연결.
+        // 오류 없이 "연결 없음"이면 해제가 끝난 것 - 기기에 남긴 채팅 · 메인 요약을 지운다(76-A1).
+        if (!error) clearCoupleCache(userId)
         if (!wasConnected || !error) set({ status: 'disconnected', ...DISCONNECTED })
         return
       }
@@ -92,9 +109,25 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
         referencePhotoPath: data.reference_photo_path,
         grace: false,
       })
+      writeCache(userId, 'main', {
+        coupleId: data.id,
+        partnerId,
+        nickname: data.nickname,
+        temperature: tempRow?.temperature ?? null,
+        temperatureDateOn: tempRow?.date_on ?? null,
+        relationshipStartDate: data.relationship_start_date,
+        referencePhotoPath: data.reference_photo_path,
+      } satisfies MainSummary)
     } catch {
       if (!wasConnected) set({ status: 'disconnected', ...DISCONNECTED })
     }
+  },
+
+  hydrate: (userId) => {
+    if (get().status !== 'unknown') return
+    const saved = readCache<MainSummary>(userId, 'main')
+    if (!saved || !saved.coupleId || !saved.partnerId) return
+    set({ status: 'connected', grace: false, ...saved })
   },
 
   reset: () => set({ status: 'unknown', ...DISCONNECTED }),

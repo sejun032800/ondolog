@@ -6,24 +6,7 @@ import {
   type UnresolvedKey,
 } from '../../src/engine/constants/unresolved'
 
-describe('UNRESOLVED — 등록된 키 4종은 값이 아니라 throw를 낸다', () => {
-  it('temperature.activityScore는 UnresolvedConstantError를 던지고 메시지에 phase(7)와 doc(MASTER Part 10-7-3)을 싣는다', () => {
-    expect(() => UNRESOLVED({ key: 'temperature.activityScore' })).toThrow(
-      UnresolvedConstantError,
-    )
-    try {
-      UNRESOLVED({ key: 'temperature.activityScore' })
-      throw new Error('여기 도달하면 안 된다 — UNRESOLVED는 반드시 throw한다')
-    } catch (e) {
-      expect(e).toBeInstanceOf(UnresolvedConstantError)
-      const err = e as UnresolvedConstantError
-      expect(err.message).toContain('7')
-      expect(err.message).toContain('MASTER Part 10-7-3')
-      expect(err.phase).toBe(7)
-      expect(err.doc).toBe('MASTER Part 10-7-3')
-    }
-  })
-
+describe('UNRESOLVED — 등록된 키 3종은 값이 아니라 throw를 낸다', () => {
   it('leagueStats.shrinkage는 UnresolvedConstantError를 던지고 메시지에 phase(7)와 doc(MASTER Part 10-8-3)을 싣는다', () => {
     try {
       UNRESOLVED({ key: 'leagueStats.shrinkage' })
@@ -66,10 +49,17 @@ describe('UNRESOLVED — 등록된 키 4종은 값이 아니라 throw를 낸다'
     }
   })
 
-  it('레지스트리에 정확히 이 4개 키만 등록돼 있다 (Part 16-2 목록과 1:1 대응)', () => {
+  it('temperature.activityScore는 r74 v0 확정으로 해소돼 레지스트리에 없다 — 호출하면 UnknownUnresolvedKeyError', () => {
+    expect(Object.keys(UNRESOLVED_REGISTRY)).not.toContain('temperature.activityScore')
+    expect(() => {
+      // @ts-expect-error — 해소·제거된 키는 UnresolvedKey에 속하지 않는다.
+      UNRESOLVED({ key: 'temperature.activityScore' })
+    }).toThrow(UnknownUnresolvedKeyError)
+  })
+
+  it('레지스트리에 정확히 이 3개 키만 등록돼 있다 (Part 16-2 목록과 1:1 대응)', () => {
     expect(Object.keys(UNRESOLVED_REGISTRY).sort()).toEqual(
       [
-        'temperature.activityScore',
         'leagueStats.shrinkage',
         'faceMatch.threshold',
         'dnaScore.chatDelta',
@@ -92,9 +82,8 @@ describe('UNRESOLVED — 결정론 계약', () => {
     expect(new Set(messages).size).toBe(1)
   })
 
-  it('네 키 모두 100회 반복해도 매번 throw하며 메시지가 흔들리지 않는다', () => {
+  it('세 키 모두 100회 반복해도 매번 throw하며 메시지가 흔들리지 않는다', () => {
     const keys: readonly UnresolvedKey[] = [
-      'temperature.activityScore',
       'leagueStats.shrinkage',
       'faceMatch.threshold',
       'dnaScore.chatDelta',

@@ -8,9 +8,17 @@
  *   화면은 같은 문서 기본값을 이름 붙인 상수 한 곳에 둔다(키가 생기면 이 상수만 읽기로 바꾼다).
  */
 import { useEffect, useState } from 'react'
-import { computeBaselineTemperature, type BaselineTemperatureCoefficients } from '@/engine/temperature'
+import {
+  ACTIVITY_V0_PROVISIONAL_COEFFICIENTS,
+  computeBaselineTemperature,
+  computeDailyTemperatureV0,
+  type ActivityV0CountsInput,
+  type BaselineTemperatureCoefficients,
+} from '@/engine/temperature'
+import { kstToday } from '@/utils/magazine'
 import type { EnneagramCore } from '@/constants/enneagram'
 import { getSupabase } from '../../auth/client'
+import { readActivityInput, type ActivityDb } from './activityRead'
 
 export const START_TEMPERATURE_COEFFICIENTS: BaselineTemperatureCoefficients = { contrast: 36.5, neutral: 39, best: 42 }
 
@@ -22,17 +30,42 @@ export function startTemperatureOf(coreA: EnneagramCore | null | undefined, core
   return computeBaselineTemperature(coreA, coreB, START_TEMPERATURE_COEFFICIENTS) ?? null
 }
 
+/** 표시할 시작 온도: `value`(기저 + v0 활동) · `hasActivity`(활동분이 0보다 큰가 - 문구 조건). */
+export interface StartTemperature { value: number; hasActivity: boolean }
+
+/**
+ * R100-1: 저장값이 없을 때의 표시 값 = 엔진 v0(기저 + 활동). `activity`가 null(못 읽음)이면 기저만(= 지금까지의 동작).
+ * 식은 엔진 함수를 그대로 부른다. 코어가 빠지면 null.
+ */
+export function startTemperatureV0(
+  coreA: EnneagramCore | null | undefined,
+  coreB: EnneagramCore | null | undefined,
+  activity: ActivityV0CountsInput | null,
+): StartTemperature | null {
+  const baseline = startTemperatureOf(coreA, coreB)
+  if (baseline === null || coreA == null || coreB == null) return null
+  if (activity === null) return { value: baseline, hasActivity: false }
+  const value = computeDailyTemperatureV0(coreA, coreB, activity, { baseline: START_TEMPERATURE_COEFFICIENTS, activity: ACTIVITY_V0_PROVISIONAL_COEFFICIENTS })
+  return { value, hasActivity: value > baseline }
+}
+
 type ProfileCores = { user_id: string; enneagram_inferred: number | null; enneagram_effective: number | null }
 
-/** 두 사람의 프로필을 읽어 시작 온도를 돌려준다. 못 읽었거나 한쪽이 없으면 null. 읽기만 한다. */
-export function useStartTemperature(userId: string | null, partnerId: string | null, enabled: boolean): number | null {
-  const [value, setValue] = useState<number | null>(null)
+/**
+ * 두 사람의 프로필 + 어제까지 14일 활동을 읽어 표시 값을 돌려준다. 읽기만 한다.
+ * 프로필을 못 읽었거나 한쪽이 없으면 null. 활동을 못 읽었으면 기저만. 값은 두 읽기가 끝난 뒤 한 번만 낸다(기저 -> 활동 반영 깜빡임 0).
+ */
+export function useStartTemperature(userId: string | null, partnerId: string | null, enabled: boolean, coupleId: string | null = null): StartTemperature | null {
+  const [value, setValue] = useState<StartTemperature | null>(null)
   useEffect(() => {
     const db = getSupabase()
     if (!enabled || !userId || !partnerId || !db) { setValue(null); return }
     let cancelled = false
     void (async () => {
       try {
+        const activityRead = coupleId
+          ? readActivityInput(db as unknown as ActivityDb, coupleId, [userId, partnerId], kstToday(new Date())).catch(() => null)
+          : Promise.resolve(null)
         const { data, error } = await db.from('personality_profiles').select('user_id, enneagram_inferred, enneagram_effective').in('user_id', [userId, partnerId])
         if (error || cancelled) return
         const rows = (data ?? []) as ProfileCores[]
@@ -41,12 +74,13 @@ export function useStartTemperature(userId: string | null, partnerId: string | n
           const c = r ? (r.enneagram_effective ?? r.enneagram_inferred) : null
           return (c as EnneagramCore | null) ?? null
         }
-        if (!cancelled) setValue(startTemperatureOf(core(userId), core(partnerId)))
+        const activity = await activityRead
+        if (!cancelled) setValue(startTemperatureV0(core(userId), core(partnerId), activity))
       } catch {
         if (!cancelled) setValue(null)
       }
     })()
     return () => { cancelled = true }
-  }, [userId, partnerId, enabled])
+  }, [userId, partnerId, enabled, coupleId])
   return value
 }

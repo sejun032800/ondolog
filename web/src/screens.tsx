@@ -831,18 +831,24 @@ export function DetailBody(props: {
 }) {
   const { big5, sternberg, core } = props
   // 등장 순서(위 → 아래): 머리 0~0.5s → 빅5 0.8s(막대 1.1s부터 0.5초) → 스턴버그 1.9s(삼각형 2.2s부터) → 나머지(A15) 3.3s에 한 번에.
+  // 76-(R99-3 · R99-2 P4): 읽는 사람이 스크롤하기 시작하면 연출 시간표를 버리고 전부 끝난 모습으로 둔다(빠른 넘김에 빈 화면 · 빈 막대 · 흐림 0). 스크롤 물리 자체는 기기 기본 그대로다.
+  const [settled, setSettled] = useState(false)
   const big5View = useInView<HTMLDivElement>()
   const triView = useInView<HTMLDivElement>()
-  const barsGo = useAfter(1100) && big5View.seen
-  const triGo = useAfter(2200) && triView.seen
-  const restOn = useAfter(3300)
-  const rest = restOn ? { animation: 'appear 900ms cubic-bezier(.2,.7,.2,1) both' } : { opacity: 0 }
-  const a = (ms: number) => ({ animationDelay: `${ms}ms` })
+  const barsTimed = useAfter(1100)
+  const triTimed = useAfter(2200)
+  const restTimed = useAfter(3300)
+  const barsGo = settled || (barsTimed && big5View.seen)
+  const triGo = settled || (triTimed && triView.seen)
+  const restOn = settled || restTimed
+  const rest = settled ? { opacity: 1 } : restOn ? { animation: 'appear 900ms cubic-bezier(.2,.7,.2,1) both' } : { opacity: 0 }
+  const a = (ms: number) => (settled ? { animation: 'none', opacity: 1 } : { animationDelay: `${ms}ms` })
   const geo = useMemo(() => sternbergGeometry(sternberg, TRI_W, TRI_H), [sternberg])
   const center = { x: TRI_W / 2, y: (TRI_H * 2) / 3 }
   const [k, setK] = useState(0)
   useEffect(() => {
     if (!triGo) return
+    if (settled) { setK(1); return }
     let raf = 0
     const t0 = performance.now()
     const step = (now: number) => {
@@ -852,7 +858,7 @@ export function DetailBody(props: {
     }
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [triGo])
+  }, [triGo, settled])
   const pts = (list: ReadonlyArray<{ x: number; y: number }>, f = 1) =>
     list.map((p) => `${center.x + (p.x - center.x) * f},${center.y + (p.y - center.y) * f}`).join(' ')
   const entry = COMPATIBILITY[core]
@@ -860,7 +866,7 @@ export function DetailBody(props: {
   return (
     <div className="screen solid">
       {props.onBack ? <div className="pushHeader"><BackArrow onClick={props.onBack} /><span className="pushHeaderSpacer" aria-hidden="true" /></div> : null}
-      <div className="content" style={{ paddingTop: props.onBack ? 8 : 'calc(var(--top) + 12px)' }}>
+      <div className="content" onScroll={(e) => { if (!settled && e.currentTarget.scrollTop > 8) setSettled(true) }} style={{ paddingTop: props.onBack ? 8 : 'calc(var(--top) + 12px)' }}>
         <p className="t-kicker c-orchid appear" style={{ ...a(100), fontSize: 14, lineHeight: '20px', letterSpacing: 3.4 }}>{props.labelEn}</p>
         <h1 className="t-display c-text appear" style={{ ...a(220), marginTop: 8 }}>{props.labelKo}</h1>
         <p className="t-sub c-sub appear" style={{ ...a(340), marginTop: 8, fontSize: 14.5 }}>{props.meta}</p>

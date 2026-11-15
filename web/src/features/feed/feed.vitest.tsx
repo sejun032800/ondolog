@@ -4,6 +4,7 @@
  * 서버는 가짜(`feedTestSupport.ts`) - 원격 0. 사진 선택기는 가짜(웹 입력은 jsdom에서 열 수 없다).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearSignedUrlCache } from '../../cache/signedUrlCache'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { setSupabaseForTest } from '../../auth/client'
@@ -41,6 +42,8 @@ function useDb(opts: Partial<FeedDbOptions> = {}) {
 }
 
 beforeEach(() => {
+  try { localStorage.clear() } catch { /* 저장소 없음 */ }
+  clearSignedUrlCache() // 76: 기기 저장 · 사진 주소 기억이 시험 사이에 새지 않게
   picker.next = []
   useAuthStore.getState().setUserId('me')
   useCoupleStore.setState({ status: 'connected', coupleId: 'c1', partnerId: 'you' })

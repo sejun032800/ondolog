@@ -15,6 +15,7 @@ import type { Nav } from '../../navigation'
 import { useBackHandler } from '../../platform/backStack'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { PrimaryButton } from '../../ui'
+import { clearAllDeviceCache } from '../../cache/deviceCache'
 import { logoutToStart } from './accountActions'
 import { SettingsFrame } from './parts'
 import { PhraseConfirm, PhraseConfirmCard, PhraseConfirmCardTitle, PhraseConfirmLine } from './PhraseConfirm'
@@ -71,6 +72,7 @@ export function WithdrawScreen({ nav }: { nav: Nav }) {
       return
     }
     setBusy(false)
+    clearAllDeviceCache() // 76-A1: 탈퇴 요청 때 이 기기의 저장분(채팅 · 메인 요약 등)을 지운다.
     setDone({ purgeAt })
   }
 

@@ -1,0 +1,16 @@
+-- 76-m2 (ROADMAP R100-2): 무료 3개월 잠금 cron 'retention-policy' 예약 해제.
+--
+-- 왜: 014_cron.sql 의 원래 예약은 다음과 같다.
+--   select cron.schedule('retention-policy',  '0 4 * * *',
+--     $$ select public.apply_retention_policy(); $$);
+-- 매일 새벽 4시에 촬영일 3개월 넘은 무료 커플 기록을 잠근다. 처리방침 v1.1
+-- "시험 운영 기간에는 적용하지 않습니다"와 실제 동작을 일치시키기 위해 일정만 끈다.
+--
+-- 다시 켜는 것은 M4(구독 · E12 화면 · 사전 고지와 함께). 그때 새 마이그레이션에서
+--   cron.schedule('retention-policy','0 4 * * *', $$ select public.apply_retention_policy(); $$)
+-- 로 다시 예약한다.
+--
+-- 이 파일이 하지 않는 것: apply_retention_policy 함수 본문 변경, 다른 cron
+-- (expire-stories, execute-dissolutions) 변경, 데이터 변경, 권한 변경.
+-- 이미 잠긴 행은 건드리지 않는다.
+select cron.unschedule('retention-policy');

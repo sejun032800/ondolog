@@ -8,7 +8,8 @@ import { useBootSession } from './auth/useBootSession'
 import { IS_TRIAL_BUILD } from './config/env'
 import { useListenerCount, useTrialDiag } from './platform/trialDiag'
 import { AccountProblemHost, RenderGuard } from './components/AccountProblem'
-import { useNoticeStore } from './auth/stores'
+import { useAuthStore, useNoticeStore } from './auth/stores'
+import { saveLastTab } from './cache/deviceCache'
 import { useAccountProblemStore } from './stores/accountProblemStore'
 import { defaultBridge, type NativeBridge } from './platform/bridge'
 import { ALL_ROUTES, isTabRoute, routeOfPathname, type ScreenName } from './app/routes'
@@ -103,6 +104,15 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
     })
     return () => setInviteEntry(null)
   }, [nav])
+  // 76-0-2: 마지막으로 있던 탭을 기기에 남긴다(카메라 복귀로 웹뷰가 다시 시작돼도 그 탭으로 - `useBootSession`). 앱이 가려질 때(카메라로 나감)도 시각을 새로 한다.
+  const sessionUserId = useAuthStore((s) => s.userId)
+  useEffect(() => {
+    if (!sessionUserId || !isTabRoute(screen)) return
+    saveLastTab(sessionUserId, screen)
+    const onHide = () => { if (document.visibilityState === 'hidden') saveLastTab(sessionUserId, screen) }
+    document.addEventListener('visibilitychange', onHide)
+    return () => document.removeEventListener('visibilitychange', onHide)
+  }, [sessionUserId, screen])
   // 경로가 바뀌면(탭을 떠남 포함) 열려 있던 시트도 닫는다 - 다른 화면으로 따라오지 않는다(B4).
   useEffect(() => { useSheetStore.getState().closeAll() }, [location.pathname])
   const [introPhase, setIntroPhase] = useState<'splash' | 'start'>('splash')

@@ -27,6 +27,7 @@ import { useLongPress } from '../../platform/useLongPress'
 import { useSheetStore } from '../../stores/sheetStore'
 import { isRecordable, useDateDetail, useFeedSignal, useRecordingCouple, type DetailStop } from './feedData'
 import { SOLO_CLOSED_TITLE } from './FeedView'
+import { photoBoxRatio } from './photoBox'
 import { pickFeedPhotos, releaseStaged, type StagedPhoto } from './feedPhotoStage'
 import { saveFeedRecord, savablePhotos } from './feedSave'
 
@@ -66,8 +67,10 @@ function StopPhoto({ photo, url, single, mine, onView, onMore }: {
   onMore: (entryId: string) => void
 }) {
   const hold = useLongPress(mine ? () => onMore(photo.id) : undefined)
+  // B4: 큰(한 장) 칸은 사진이 오기 전에 비율로 크기를 잡는다. 크기를 모르면 CSS 고정 높이.
+  const ratio = single ? photoBoxRatio(photo.width, photo.height) : null
   return (
-    <div className={`stopPhoto ${single ? 'single' : 'pair'}`}>
+    <div className={`stopPhoto ${single ? 'single' : 'pair'}`} data-testid={`photo-box-${photo.id}`} style={ratio ? { height: 'auto', aspectRatio: String(ratio) } : undefined}>
       <button
         type="button"
         className={`stopPhotoOpen ${mine ? 'press holdable' : ''}`}

@@ -6,24 +6,24 @@
  * 건드리지 않는다 — 이 파일은 Phase 7 선행 작업(`.claude/state/prompts/phase-7/
  * 03-engine-dev-temperature.md`)에서 새로 구현한 함수 전용이다.
  *
- * ② 활동 변동분의 "하루치 활동 점수" 정의는 `UNRESOLVED('temperature.activityScore')`로
- * 남아 있다(Part 16-2) — 그 값을 지어내지 않고, 이를 소비하는 경로는
- * "throw를 기대"하는 테스트로만 검증한다.
+ * ② 활동 변동분의 "하루치 활동 점수"는 r74 v0(`activity_v0_provisional`)로 해소됐다.
+ * 과거 throw 기대 시험은 v0 기대값으로 교체했다(MASTER 10-7-3 · 16-2 예외).
+ * v0 상세 시험은 `temperatureActivityV0.test.ts`.
  */
 
 import type { EnneagramCore } from '../../src/constants/enneagram'
 import { COMPATIBILITY } from '../../src/constants/compatibility'
-import { UnresolvedConstantError } from '../../src/engine/constants/unresolved'
 import {
   DISCONNECTED_TEMPERATURE,
   type ActivityDeltaCoefficients,
   type BaselineTemperatureCoefficients,
-  type DailyActivityRaw,
+  type DailyActivityCounts,
   type DailyTemperatureCoefficients,
   computeActivityDelta,
   computeActivityDeltaFromScores,
   computeBaselineTemperature,
   computeDailyActivityScore,
+  ACTIVITY_V0_PROVISIONAL_COEFFICIENTS,
   computeDailyTemperature,
 } from '../../src/engine/temperature'
 import { resolveTypeAffinity } from '../../src/engine/typeAffinity'
@@ -150,21 +150,16 @@ describe('computeBaselineTemperature — 기저 온도 (Part 10-7-2), 순수 함
   })
 })
 
-describe('computeDailyActivityScore — 하루치 활동 점수 정의는 UNRESOLVED (Part 10-7-3, Part 16-2)', () => {
-  const raw: DailyActivityRaw = { chatMessageCount: 12, feedPostCount: 1 }
+describe('computeDailyActivityScore — v0 하루치 활동 점수 (Part 10-7-3 r74)', () => {
+  const V0 = ACTIVITY_V0_PROVISIONAL_COEFFICIENTS
+  const day: DailyActivityCounts = { countA: 6, countB: 6, hasRecord: false }
 
-  it('값을 지어내지 않고 UnresolvedConstantError를 던진다', () => {
-    expect(() => computeDailyActivityScore(raw)).toThrow(UnresolvedConstantError)
+  it('[교체: 구 "값을 지어내지 않고 UnresolvedConstantError를 던진다"] 12건 · 두 사람 · 기록 없음 → 0.6 × (12/60) = 0.12', () => {
+    expect(computeDailyActivityScore(day, V0)).toBeCloseTo(0.12, 10)
   })
 
-  it('에러 메시지가 근거 문서(Part 10-7-3)를 싣는다', () => {
-    try {
-      computeDailyActivityScore(raw)
-      throw new Error('여기 도달하면 안 된다 — UNRESOLVED는 반드시 throw한다')
-    } catch (e) {
-      expect(e).toBeInstanceOf(UnresolvedConstantError)
-      expect((e as UnresolvedConstantError).doc).toBe('MASTER Part 10-7-3')
-    }
+  it('[교체: 구 "에러 메시지가 근거 문서를 싣는다"] 계수 버전 문자열은 activity_v0_provisional', () => {
+    expect(V0.version).toBe('activity_v0_provisional')
   })
 })
 
@@ -219,44 +214,35 @@ describe('computeActivityDeltaFromScores — 활동 변동분 식 자체 (Part 1
   })
 })
 
-describe('computeActivityDelta — 원시 활동 입력 진입점 (Part 10-7-3), UNRESOLVED 소비', () => {
-  it('전부 데이터 없음(null)이면 — 없는 날은 0으로 계산 규칙에 따라 throw 없이 0을 반환한다', () => {
-    const dailyActivities: (DailyActivityRaw | null)[] = Array.from({ length: 14 }, () => null)
-    expect(() => computeActivityDelta(dailyActivities, ACTIVITY_COEFFICIENTS)).not.toThrow()
-    expect(computeActivityDelta(dailyActivities, ACTIVITY_COEFFICIENTS)).toBe(0)
+describe('computeActivityDelta — 날짜 슬롯 진입점 (Part 10-7-3 v0)', () => {
+  const V0 = ACTIVITY_V0_PROVISIONAL_COEFFICIENTS
+
+  it('전부 데이터 없음(null)이면 throw 없이 0을 반환한다', () => {
+    const slots: (DailyActivityCounts | null)[] = Array.from({ length: 14 }, () => null)
+    expect(computeActivityDelta(slots, V0)).toBe(0)
   })
 
-  it('창이 아직 안 찬 신규 커플(배열 길이 < windowDays)도 데이터가 없으면 throw 없이 0이다', () => {
-    const dailyActivities: (DailyActivityRaw | null)[] = [null, null, null]
-    expect(computeActivityDelta(dailyActivities, ACTIVITY_COEFFICIENTS)).toBe(0)
+  it('창이 아직 안 찬 신규 커플(배열 길이 < windowDays)도 데이터가 없으면 0이다', () => {
+    expect(computeActivityDelta([null, null, null], V0)).toBe(0)
   })
 
-  it('실제 활동 데이터가 하나라도 섞이면 UnresolvedConstantError를 던진다 — 점수 정의를 지어내지 않는다', () => {
-    const dailyActivities: (DailyActivityRaw | null)[] = [
+  it('[교체: 구 "실제 활동 데이터가 섞이면 UnresolvedConstantError"] 13일 null + 5건(한 사람) → 0.6×(5/60)×0.5/14×55 = 0.1 (소수1자리)', () => {
+    const slots: (DailyActivityCounts | null)[] = [
       ...Array.from({ length: 13 }, () => null),
-      { chatMessageCount: 5, feedPostCount: 0 },
+      { countA: 5, countB: 0, hasRecord: false },
     ]
-    expect(() => computeActivityDelta(dailyActivities, ACTIVITY_COEFFICIENTS)).toThrow(
-      UnresolvedConstantError,
-    )
+    // 0.6 × (5/60 × 0.5) = 0.025 → 0.025/14×55 = 0.098 → 0.1
+    expect(computeActivityDelta(slots, V0)).toBe(0.1)
   })
 })
 
-describe('computeDailyTemperature — 결합 (Part 10-7-1), ②가 미확정이므로 호출 시 throw', () => {
-  it('실제 활동 데이터가 있는 현실적인 호출은 UnresolvedConstantError로 실패한다 — 규격이 의도한 정상 상태', () => {
-    const dailyActivities: (DailyActivityRaw | null)[] = [
-      { chatMessageCount: 3, feedPostCount: 1 },
-      ...Array.from({ length: 13 }, () => null),
-    ]
-    expect(() =>
-      computeDailyTemperature(1, 7, dailyActivities, DAILY_TEMPERATURE_COEFFICIENTS),
-    ).toThrow(UnresolvedConstantError)
+describe('computeDailyTemperature — 결합 (Part 10-7-1)', () => {
+  it('[교체: 구 "실제 활동이 있는 호출은 UnresolvedConstantError"] 기저 42 + 일 점수 합 7(→27.5) = 69.5', () => {
+    const scores = [7, ...Array.from({ length: 13 }, () => 0)]
+    expect(computeDailyTemperature(1, 7, scores, DAILY_TEMPERATURE_COEFFICIENTS)).toBe(69.5)
   })
 
-  it('활동 데이터가 전혀 없는 극단 케이스(신규 연결 직후)는 throw하지 않고 기저 온도를 그대로 반환한다', () => {
-    const dailyActivities: (DailyActivityRaw | null)[] = Array.from({ length: 14 }, () => null)
-    expect(
-      computeDailyTemperature(1, 7, dailyActivities, DAILY_TEMPERATURE_COEFFICIENTS),
-    ).toBe(42)
+  it('활동 데이터가 전혀 없는 극단 케이스(신규 연결 직후)는 기저 온도를 그대로 반환한다', () => {
+    expect(computeDailyTemperature(1, 7, [], DAILY_TEMPERATURE_COEFFICIENTS)).toBe(42)
   })
 })

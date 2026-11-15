@@ -221,16 +221,27 @@ export function useAfter(ms: number, deps: unknown[] = []) {
   return on
 }
 
-/** 요소가 화면에 한 번이라도 보였는가 — 설명이 길어져 아래로 밀린 차트를 보일 때 움직이게 한다. */
+/**
+ * 요소가 화면에 한 번이라도 보였는가 — 설명이 길어져 아래로 밀린 차트를 보일 때 움직이게 한다.
+ * 76-: **이미 지나간(보이는 영역 위로 벗어난) 요소도 본 것으로 센다** - 빠르게 넘기면 임계값 0.35 이상으로 겹친 순간이 없을 수 있어 막대 · 그래프가 빈 채로 남았다.
+ */
 export function useInView<T extends Element>() {
   const ref = useRef<T>(null)
   const [seen, setSeen] = useState(false)
   useEffect(() => {
     const el = ref.current
     if (!el || seen) return
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting && e.intersectionRatio > 0.35)) setSeen(true) }, { threshold: [0, 0.35, 0.6] })
+    const io = new IntersectionObserver((es) => { if (es.some(isSeenEntry)) setSeen(true) }, { threshold: [0, 0.35, 0.6] })
     io.observe(el)
     return () => io.disconnect()
   }, [seen])
   return { ref, seen }
+}
+
+/** 보였거나(35% 이상 겹침) 이미 위로 지나갔다. 아래에 있어 아직 오지 않은 것은 아니다. */
+export function isSeenEntry(e: { isIntersecting: boolean; intersectionRatio: number; boundingClientRect: { bottom: number }; rootBounds: { top: number } | null }): boolean {
+  if (e.isIntersecting && e.intersectionRatio > 0.35) return true
+  if (e.isIntersecting) return false
+  const rootTop = e.rootBounds ? e.rootBounds.top : 0
+  return e.boundingClientRect.bottom <= rootTop
 }

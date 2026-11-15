@@ -27,6 +27,8 @@ import { FrontMatter, IssueViewer, PageReader } from './IssueViewer'
 import { installMagazineDb, issueRow, publishedIssue } from './magazineTestSupport'
 import { ViewerHost } from './ViewerHost'
 import { FIRST_ISSUE_PERCENT_HINT } from './firstIssueHint'
+import { kstToday } from '@/utils/magazine'
+import { monthElapsedPercent } from './monthProgress'
 
 // 기기 저장(Capacitor Preferences)은 메모리 사본으로 바꾼다.
 vi.mock('@capacitor/preferences', () => {
@@ -226,12 +228,12 @@ describe('매거진 탭', () => {
     expect(screen.getAllByRole('button').map((b) => b.getAttribute('data-testid'))).toEqual(['shelf-issue-i1'])
   })
 
-  it('연결 + 발행된 호 0권: D14 첫 호 시작(초안이 없으면 0%)', async () => {
+  it('연결 + 발행된 호 0권: D14 첫 호 시작(초안이 없어도 이번 달 경과율 - 0%로 고정하지 않는다)', async () => {
     installMagazineDb()
     setConnected()
     render(<MagazineTab />)
     expect(await screen.findByTestId('first-issue')).toBeTruthy()
-    expect(screen.getByTestId('first-issue-percent').textContent).toBe('0%')
+    expect(screen.getByTestId('first-issue-percent').textContent).toBe(`${monthElapsedPercent(kstToday(new Date()))}%`)
     expect(screen.queryByText(/제작 현황/)).toBeNull()
   })
 

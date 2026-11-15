@@ -16,23 +16,18 @@
  *     모듈(연애 DNA Part 17-2와 공유)에 있고, 그 모듈이
  *     `src/constants/compatibility.ts`의 기존 `COMPATIBILITY` 룩업을 그대로
  *     재사용한다 — 매트릭스를 재작성하지 않는다.
- *   ② 활동 변동분(`computeActivityDelta`) — 식(Part 10-7-3)은 구현하되,
- *     "하루치 활동 점수"의 정의는 미확정이라
- *     `UNRESOLVED('temperature.activityScore')`를 소비한다
- *     (`computeDailyActivityScore`). 값을 지어내지 않는다.
- *   ③ 결합(`computeDailyTemperature`) — ①+②를 합쳐 클램프하는 로직은
- *     구현하지만, 내부에서 ②를 거치므로 실제 활동 데이터가 있는 호출은
- *     `UnresolvedConstantError`로 실패한다. **이것이 규격이 의도한 정상
- *     상태다**(Part 16-2) — 값이 아니라 throw로 미확정을 표현한다.
+ *   ② 활동 변동분(`computeActivityDeltaV0` 등) — Part 10-7-3 r74 v0
+ *     (`activity_v0_provisional`, ROADMAP R100-1)로 하루치 활동 점수를 확정했다.
+ *     `UNRESOLVED('temperature.activityScore')`는 해소됐다. 계수는 전부 인자
+ *     (기본값 `ACTIVITY_V0_PROVISIONAL_COEFFICIENTS`).
+ *   ③ 결합(`computeDailyTemperature`/`computeDailyTemperatureV0`) — ①+②를 합쳐 클램프.
  *
  * 문서에 확정된 것:
  *   - 미연결 커플: 36.5도 고정 (Part 9-2, SCHEMA.md temperature 컬럼 기본값)
  *   - 범위: 0~100 (SCHEMA.md check 제약)
- *   - 갱신: 일 단위 배치(자정 Edge Function)만. 앱은 저장값을 읽기만
- *     한다 — 실시간 계산 금지(CLAUDE.md 절대 규칙과 동일 원칙, Part 9-2).
- *     이 파일이 export하는 함수들은 그 배치 잡에서 쓰일 순수 계산
- *     유틸일 뿐, 이 함수를 앱 클라이언트에서 호출하는 코드는 절대
- *     작성하지 않는다.
+ *   - 갱신: 일 단위 배치가 저장한다. 저장값이 있으면 저장값이 이긴다(앱은 읽기).
+ *     저장값이 없을 때만 앱이 이 파일의 순수 함수를 **표시용으로** 호출할 수 있다
+ *     (R100-1 · MASTER r74 10-7-3 · 서버 쓰기 0). 배치도 같은 함수를 쓴다.
  *   - DB 정밀도: `numeric(4,1)` — 소수 1자리.
  *
  * 계수 주입 규칙(Part 10-7-5): **모든 임계값·가중치는 인자로만 받는다.**
@@ -48,7 +43,6 @@
 
 import type { EnneagramCore } from '../constants/enneagram'
 import { resolveTypeAffinity, type TypeAffinityCategory } from './typeAffinity'
-import { UNRESOLVED } from './constants/unresolved'
 import { clamp, roundAndClamp, roundTo } from './numeric'
 
 /**
@@ -56,8 +50,11 @@ import { clamp, roundAndClamp, roundTo } from './numeric'
  *
  * 1.1.0: Part 10-7 확정에 따라 기저 온도(①)·활동 변동분 식(②)·결합(③)을
  * 추가했다(이전 1.0.0은 미연결 고정값·클램프 유틸만 보유).
+ *
+ * 1.2.0: 활동 점수 v0(`activity_v0_provisional`, MASTER r74 10-7-3 · ROADMAP R100-1)로
+ * `UNRESOLVED('temperature.activityScore')` 해소. 두 사람 구분 입력(`DailyActivityCounts`)으로 계약 변경.
  */
-export const TEMPERATURE_ENGINE_VERSION = '1.1.0'
+export const TEMPERATURE_ENGINE_VERSION = '1.2.0'
 
 /** 미연결 커플의 고정 기본 온도 (Part 9-2, SCHEMA.md 컬럼 기본값과 동일). */
 export const DISCONNECTED_TEMPERATURE = 36.5
@@ -137,72 +134,84 @@ export function computeBaselineTemperature(
 }
 
 /* ────────────────────────────────────────────────────────────────────
- * ② 활동 변동분 (Part 10-7-3) — 식은 구현, "하루치 활동 점수"의 정의는
- * UNRESOLVED('temperature.activityScore')를 소비한다.
+ * ② 활동 변동분 (Part 10-7-3, r74 v0 `activity_v0_provisional`, ROADMAP R100-1)
+ *
+ * 하루치 활동 점수(dayScore)는 v0 임시 정의로 해소됐다. 베타 실데이터로
+ * M3에서 값·비율 모두 다시 정한다. 모든 계수는 인자(10-7-5) — 문서 기본값은
+ * `ACTIVITY_V0_PROVISIONAL_COEFFICIENTS` 한 곳에만 있다.
  * ──────────────────────────────────────────────────────────────────── */
 
 /**
- * "채팅·피드 건수" 같은 하루치 원시 활동 지표.
- *
- * 필드 구성은 Part 10-7-3 원문("채팅·피드 건수")을 그대로 옮긴 것이며,
- * 이 인터페이스 자체는 문서에 없는 계산식을 지어내지 않는다 — 원시
- * 입력의 "모양"만 표현한다. 실제로 이 값을 점수로 환산하는 규칙은
- * `computeDailyActivityScore`가 `UNRESOLVED`로 소비한다.
- */
-export interface DailyActivityRaw {
-  chatMessageCount: number
-  feedPostCount: number
-}
-
-/**
  * 활동 변동분 계수(Part 10-7-3/10-7-4). 이동창 일수·활동 폭·하한 전부
- * 인자로만 받는다 — "고정"이라는 문서 표현은 "커플마다 다르지 않다"는
- * 뜻이지 "엔진 코드에 하드코딩한다"는 뜻이 아니다(Part 10-7-5 "모든
- * 임계값·가중치는 매개변수다").
+ * 인자로만 받는다(Part 10-7-5 "모든 임계값·가중치는 매개변수다").
  */
 export interface ActivityDeltaCoefficients {
-  /** 이동창 일수 (문서 기본값 14, Part 10-7-3 "이동창 14일 고정"). */
+  /** 이동창 일수 (문서 기본값 14). */
   windowDays: number
-  /** 활동 폭 상한 (문서 기본값 55, Part 10-7-4). */
+  /** 활동 폭 상한 (문서 기본값 55). */
   widthCap: number
-  /** 활동 변동분 하한 (문서 기본값 0, Part 10-7-3). */
+  /** 활동 변동분 하한 (문서 기본값 0). */
   min: number
 }
 
-/**
- * 원시 활동 지표 하루치를 "하루치 활동 점수"로 환산한다.
- *
- * **미확정** (Part 10-7-3, `UNRESOLVED` 레지스트리 `temperature.activityScore`,
- * Part 16-2). 채팅·피드 건수를 몇 점으로 환산하는지는 실사용 데이터
- * 없이 정하면 근거 없는 값이 되므로, 이 함수는 값을 지어내지 않고
- * 호출 즉시 `UnresolvedConstantError`를 던진다.
- *
- * 해소되면(캘리브레이션 데이터 확보 후) 이 함수 본문만 실제 환산식으로
- * 교체한다 — 호출부(`computeActivityDelta`, `computeDailyTemperature`)는
- * 그대로 둔다.
- */
-export function computeDailyActivityScore(raw: DailyActivityRaw): number {
-  void raw
-  return UNRESOLVED({ key: 'temperature.activityScore' })
+/** v0 하루치 점수 계수 + 창 계수 묶음. `version`은 `daily_temperature.factors`에 기록할 계수 버전. */
+export interface ActivityV0Coefficients extends ActivityDeltaCoefficients {
+  version: string
+  /** chatPart 가중 (문서 기본값 0.6). */
+  chatWeight: number
+  /** recordPart 가중 (문서 기본값 0.4). */
+  recordWeight: number
+  /** 메시지 수 포화점 M (문서 기본값 60). */
+  chatSaturation: number
+  /** 한 사람만 보낸 날의 배수 (문서 기본값 0.5). */
+  singleSenderFactor: number
+}
+
+/** MASTER r74 10-7-3 문서 기본값. 호출부가 이 상수나 `app_config` 값을 인자로 주입한다. */
+export const ACTIVITY_V0_PROVISIONAL_COEFFICIENTS: Readonly<ActivityV0Coefficients> = {
+  version: 'activity_v0_provisional',
+  chatWeight: 0.6,
+  recordWeight: 0.4,
+  chatSaturation: 60,
+  singleSenderFactor: 0.5,
+  windowDays: 14,
+  widthCap: 55,
+  min: 0,
+}
+
+/** 하루치 원재료. A/B는 커플 두 사람의 그날 보낸 메시지 수(지운 것 제외). */
+export interface DailyActivityCounts {
+  countA: number
+  countB: number
+  /** 그날 데이트 기록(구간·사진·메모, 지운 것 제외)이 있는가. */
+  hasRecord: boolean
 }
 
 /**
- * 활동 변동분 식(Part 10-7-3) 그 자체 — 이미 환산된 하루치 점수들의
- * 배열을 받아 집계만 한다.
- *
- * ```
- * activityDelta = (dailyScores 합 / windowDays) × widthCap, 상한 widthCap, 하한 min
- * ```
- *
- * 이 함수는 "하루치 활동 점수"가 이미 숫자로 주어졌다고 가정하므로
- * `UNRESOLVED`를 소비하지 않는다 — 그래서 이 식(분모 고정, 폭 상한,
- * 하한 클램프) 자체는 임의의 합성 점수로 완전히 단위 테스트할 수 있다.
- * "점수를 어떻게 만드는가"는 별도로 미확정이며, 그 경계는
- * `computeDailyActivityScore`/`computeActivityDelta`가 맡는다.
- *
- * 분모(`windowDays`)는 창이 아직 안 찼어도 항상 고정값이다 — 호출부가
- * `dailyScores` 길이를 창 크기에 못 미치게 넘기더라도 이 함수는
- * `windowDays`로만 나눈다(Part 10-7-3 "분모는 항상 14").
+ * v0 하루치 활동 점수(0~1).
+ * `dayScore = chatWeight × chatPart + recordWeight × recordPart`
+ * 0건인 날은 0(건너뛰지 않는다). 반올림 없음 — 합산 후 최종에서 한 번만.
+ */
+export function computeDailyActivityScore(
+  day: DailyActivityCounts | null,
+  c: ActivityV0Coefficients,
+): number {
+  if (day === null) return 0
+  const a = Math.max(0, day.countA)
+  const b = Math.max(0, day.countB)
+  const m = a + b
+  let chatPart = 0
+  if (m > 0) {
+    const both = a > 0 && b > 0
+    chatPart = Math.min(1, m / c.chatSaturation) * (both ? 1 : c.singleSenderFactor)
+  }
+  const recordPart = day.hasRecord ? 1 : 0
+  return c.chatWeight * chatPart + c.recordWeight * recordPart
+}
+
+/**
+ * 활동 변동분 식 — 이미 환산된 하루치 점수 배열을 집계만 한다.
+ * `(합 / windowDays) × widthCap`, 하한 min · 상한 widthCap. 분모는 항상 windowDays.
  */
 export function computeActivityDeltaFromScores(
   dailyScores: readonly number[],
@@ -214,33 +223,162 @@ export function computeActivityDeltaFromScores(
 }
 
 /**
- * 활동 변동분(Part 10-7-3) — 원시 활동 지표 입력을 받는 진입점.
- *
- * - `dailyActivities`는 이동창의 각 날짜 슬롯을 그대로 나타낸다.
- *   `null`은 "그 날짜에 데이터 자체가 없음"(가입 초기, 창이 아직 차기
- *   전)을 뜻하며 문서 규칙대로 점수 0으로 계산한다(Part 10-7-3 "없는
- *   날은 0으로 계산한다") — 이 경우는 점수 환산식이 필요 없는 자명한
- *   0이므로 `UNRESOLVED`를 소비하지 않는다.
- * - `DailyActivityRaw` 값(실제로 그 날짜에 커플이 존재했고 원시 활동
- *   지표가 있는 경우)은 반드시 `computeDailyActivityScore`를 거치므로,
- *   실활동이 하나라도 섞여 있으면 이 함수는 `UnresolvedConstantError`로
- *   실패한다 — 이것이 ②가 "식은 구현, 점수 정의는 미확정"인 상태를
- *   코드로 표현하는 방식이다. 집계 식 자체는 `computeActivityDeltaFromScores`에
- *   위임한다(재작성하지 않는다).
+ * 날짜별 원재료 슬롯 배열(이미 창에 맞춰 잘라 둔 것)에서 활동 변동분을 낸다.
+ * `null` = 그날 데이터 없음 = 점수 0.
  */
 export function computeActivityDelta(
-  dailyActivities: readonly (DailyActivityRaw | null)[],
-  coefficients: ActivityDeltaCoefficients,
+  dailyActivities: readonly (DailyActivityCounts | null)[],
+  coefficients: ActivityV0Coefficients,
 ): number {
-  const dailyScores = dailyActivities.map((raw) =>
-    raw === null ? 0 : computeDailyActivityScore(raw),
+  const scores = dailyActivities.map((d) => computeDailyActivityScore(d, coefficients))
+  return computeActivityDeltaFromScores(scores, coefficients)
+}
+
+/* ── KST 날짜 유틸 (UTC+9 고정, 서머타임 없음). 시계 접근 0 — 시각은 전부 인자. ── */
+
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+const KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/** 1970-01-01 기준 일수 (Howard Hinnant days_from_civil). */
+function daysFromCivil(y: number, m: number, d: number): number {
+  const yy = m <= 2 ? y - 1 : y
+  const era = Math.floor(yy / 400)
+  const yoe = yy - era * 400
+  const doy = Math.floor((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1
+  const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy
+  return era * 146097 + doe - 719468
+}
+
+function civilFromDays(z0: number): [number, number, number] {
+  const z = z0 + 719468
+  const era = Math.floor(z / 146097)
+  const doe = z - era * 146097
+  const yoe = Math.floor(
+    (doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365,
   )
-  return computeActivityDeltaFromScores(dailyScores, coefficients)
+  const y = yoe + era * 400
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100))
+  const mp = Math.floor((5 * doy + 2) / 153)
+  const d = doy - Math.floor((153 * mp + 2) / 5) + 1
+  const m = mp + (mp < 10 ? 3 : -9)
+  return [m <= 2 ? y + 1 : y, m, d]
+}
+
+function pad(n: number, w: number): string {
+  return String(n).padStart(w, '0')
+}
+
+function dayNumberFromKey(key: string): number {
+  const m = KEY_RE.exec(key)
+  if (m === null) throw new RangeError(`KST 날짜 키는 YYYY-MM-DD여야 한다: "${key}"`)
+  return daysFromCivil(Number(m[1]), Number(m[2]), Number(m[3]))
+}
+
+function keyFromDayNumber(n: number): string {
+  const [y, m, d] = civilFromDays(n)
+  return `${pad(y, 4)}-${pad(m, 2)}-${pad(d, 2)}`
+}
+
+/** ISO 시각(오프셋 포함) → 한국 시간 날짜 키 `YYYY-MM-DD`. 0시 경계는 KST. */
+export function kstDayKey(iso: string): string {
+  const ms = Date.parse(iso)
+  if (Number.isNaN(ms)) throw new RangeError(`ISO 시각을 해석할 수 없다: "${iso}"`)
+  return keyFromDayNumber(Math.floor((ms + KST_OFFSET_MS) / MS_PER_DAY))
+}
+
+/* ── v0 진입점: 앱이 읽어 온 집계를 받아 표시용으로 부른다 (서버 쓰기 0). ── */
+
+/** 커플 두 사람의 user id. */
+export type CoupleUserIds = readonly [string, string]
+
+/** 메시지 한 건: 보낸 사람 id + 보낸 시각(ISO). 지운 메시지는 호출부가 빼고 넘긴다. */
+export interface ActivityMessage {
+  senderId: string
+  sentAt: string
+}
+
+/** (KST 날짜 · 사람)별 건수. */
+export interface ActivityDailyCount {
+  /** KST `YYYY-MM-DD` */
+  date: string
+  senderId: string
+  count: number
+}
+
+interface ActivityV0InputBase {
+  userIds: CoupleUserIds
+  /** KST 오늘 `YYYY-MM-DD`. 창은 어제까지 windowDays일 — 오늘은 넣지 않는다. 앱은 `kstDayKey(nowIso)`로 만든다. */
+  todayKst: string
+  /** 데이트 기록(구간·사진·메모, 지운 것 제외)이 있는 KST 날짜들(`dates.date_on`). 중복 허용. */
+  recordDates: readonly string[]
+}
+
+/** 진입점 ①: 메시지 단위 입력. */
+export interface ActivityV0MessagesInput extends ActivityV0InputBase {
+  messages: readonly ActivityMessage[]
+}
+
+/** 진입점 ②: 이미 (KST 날짜 · 사람)별로 센 입력. 같은 키가 여럿이면 합산. */
+export interface ActivityV0CountsInput extends ActivityV0InputBase {
+  dailyCounts: readonly ActivityDailyCount[]
+}
+
+function addTally(
+  tally: Map<string, [number, number]>,
+  ids: CoupleUserIds,
+  date: string,
+  senderId: string,
+  n: number,
+): void {
+  const slot: number = senderId === ids[0] ? 0 : senderId === ids[1] ? 1 : -1
+  if (slot < 0) return // 커플 밖 발신자는 무시
+  const cur: [number, number] = tally.get(date) ?? [0, 0]
+  cur[slot as 0 | 1] += n
+  tally.set(date, cur)
+}
+
+/** 창(어제까지 windowDays일)의 일별 점수 — 어제부터 거슬러 올라가는 순서. */
+export function computeDailyScoresV0(
+  input: ActivityV0MessagesInput | ActivityV0CountsInput,
+  coefficients: ActivityV0Coefficients,
+): number[] {
+  if (input.userIds[0] === input.userIds[1]) {
+    throw new RangeError('커플 두 사람의 user id는 서로 달라야 한다')
+  }
+  const tally = new Map<string, [number, number]>()
+  if ('messages' in input) {
+    for (const m of input.messages) {
+      addTally(tally, input.userIds, kstDayKey(m.sentAt), m.senderId, 1)
+    }
+  } else {
+    for (const r of input.dailyCounts) {
+      addTally(tally, input.userIds, r.date, r.senderId, r.count)
+    }
+  }
+  const today = dayNumberFromKey(input.todayKst)
+  const records = new Set(input.recordDates)
+  const scores: number[] = []
+  for (let i = 1; i <= coefficients.windowDays; i += 1) {
+    const key = keyFromDayNumber(today - i)
+    const [countA, countB] = tally.get(key) ?? [0, 0]
+    scores.push(
+      computeDailyActivityScore({ countA, countB, hasRecord: records.has(key) }, coefficients),
+    )
+  }
+  return scores
+}
+
+/** v0 활동 변동분(하한 min ~ 상한 widthCap, 소수 1자리). 입력 순서와 무관하다. */
+export function computeActivityDeltaV0(
+  input: ActivityV0MessagesInput | ActivityV0CountsInput,
+  coefficients: ActivityV0Coefficients,
+): number {
+  return computeActivityDeltaFromScores(computeDailyScoresV0(input, coefficients), coefficients)
 }
 
 /* ────────────────────────────────────────────────────────────────────
- * ③ 결합 (Part 10-7-1) — 구현하되, ②가 미확정이므로 실활동이 있는
- * 호출은 UNRESOLVED로 실패한다. 이것이 규격이 의도한 정상 상태다.
+ * ③ 결합 (Part 10-7-1)
  * ──────────────────────────────────────────────────────────────────── */
 
 /** `computeDailyTemperature`가 받는 계수 묶음 — 전부 인자로만 받는다(Part 10-7-5). */
@@ -250,33 +388,32 @@ export interface DailyTemperatureCoefficients {
 }
 
 /**
- * 일간 최종 온도(Part 10-7-1: `temperature = clamp(baselineTemperature + activityDelta, 0, 100)`).
- *
- * 이 함수는 양측 애니어그램 코어가 모두 갖춰진, 이미 연결된 커플의
- * 일 단위 배치 계산을 표현한다 — 미연결 커플의 고정 온도는
- * `resolveDisconnectedTemperature`가 별도로 처리하며 이 함수의 대상이
- * 아니다.
- *
- * `activityDelta`가 `computeActivityDelta` → `computeDailyActivityScore`를
- * 거치므로, `dailyActivities`에 실제 활동(`DailyActivityRaw`)이 하나라도
- * 있으면 이 함수는 `UnresolvedConstantError`를 던진다. **이것이 이
- * 함수의 정상 상태다** — 하루치 활동 점수의 정의가 해소되기 전까지는
- * 실사용 배치에서 이 함수를 호출해 값을 실사용해서는 안 된다(Part
- * 16-2 "해소 전까지 호출부에서 이 계수를 실사용하지 말 것").
+ * 일간 최종 온도(`clamp(baseline + activityDelta, 0, 100)`, 소수 1자리).
+ * `dailyScores`는 이미 환산된 하루치 점수들(빈 배열 = 활동 0).
  */
 export function computeDailyTemperature(
   coreA: EnneagramCore,
   coreB: EnneagramCore,
-  dailyActivities: readonly (DailyActivityRaw | null)[],
+  dailyScores: readonly number[],
   coefficients: DailyTemperatureCoefficients,
 ): number {
   const baseline = computeBaselineTemperature(coreA, coreB, coefficients.baseline)
-  // coreA/coreB가 필수 인자이므로 computeBaselineTemperature는 이 경로에서
-  // 절대 undefined를 반환하지 않는다(프로파일 미비 분기는 ①의 시그니처가
-  // optional을 받을 때만 발생). 그래도 ①의 반환 타입은 `number | undefined`를
-  // 유지해야 하므로(그 함수 자체의 계약, 위 참고), 여기서는 `!` 대신
-  // 도달 불가능한 방어적 fallback으로 타입을 좁힌다.
   const baselineValue = baseline ?? DISCONNECTED_TEMPERATURE
-  const activityDelta = computeActivityDelta(dailyActivities, coefficients.activity)
+  const activityDelta = computeActivityDeltaFromScores(dailyScores, coefficients.activity)
   return clampTemperature(baselineValue + activityDelta)
+}
+
+/** v0 계수 + 앱 집계 입력으로 최종 온도를 낸다(저장값이 없을 때 표시용). */
+export function computeDailyTemperatureV0(
+  coreA: EnneagramCore,
+  coreB: EnneagramCore,
+  input: ActivityV0MessagesInput | ActivityV0CountsInput,
+  coefficients: { baseline: BaselineTemperatureCoefficients; activity: ActivityV0Coefficients },
+): number {
+  return computeDailyTemperature(
+    coreA,
+    coreB,
+    computeDailyScoresV0(input, coefficients.activity),
+    coefficients,
+  )
 }

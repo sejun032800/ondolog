@@ -3,6 +3,7 @@
  * 실제 채팅 화면 기준으로 다시 둔다. 서버는 가짜(`chatTestSupport.ts`), 사진 선택기는 가짜(웹 입력은 jsdom에서 열 수 없다).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearSignedUrlCache } from '../../cache/signedUrlCache'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { setSupabaseForTest } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
@@ -15,6 +16,7 @@ import { useToastStore } from '../../stores/toastStore'
 import { makeFakeBridge } from '../../testSupport'
 import { ChatTab } from '../../tabs/ChatTab'
 import { CHAT_DISCONNECTED_COPY, ChatMessageItem, LONG_PRESS_MS, MESSAGE_COPY } from './ChatView'
+import { STORY_CLOSE_MS } from './StoryViewer'
 import { savedImageFileName } from '../../platform/imageSave'
 import { CHAT_PROFILES, makeChatWorld, messageRow, type ChatWorld } from './chatTestSupport'
 
@@ -41,6 +43,8 @@ const reduced = (on: boolean) => {
 }
 
 beforeEach(() => {
+  try { localStorage.clear() } catch { /* 저장소 없음 */ }
+  clearSignedUrlCache() // 76: 기기 저장 · 사진 주소 기억이 시험 사이에 새지 않게
   picker.next = []
   picker.calls = []
   useAuthStore.getState().setUserId('me')
@@ -318,6 +322,8 @@ describe('F03 스토리 보기 - 닫는 길은 ✕ 하나, 뒤로 가기는 이�
     fireEvent.click(screen.getByTestId('story-prev'))
     fireEvent.click(screen.getByTestId('story-next'))
     fireEvent.click(screen.getByTestId('story-next'))
+    expect(screen.getByTestId('story-viewer').className).toContain('closing') // 닫힘 연출 중(R98-7)
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_MS) })
     expect(screen.queryByTestId('story-viewer')).toBeNull()
   })
 
@@ -325,11 +331,11 @@ describe('F03 스토리 보기 - 닫는 길은 ✕ 하나, 뒤로 가기는 이�
     open({ stories })
     fireEvent.click(await screen.findByTestId('chat-story-partner'))
     fireEvent.click(screen.getByTestId('story-close'))
-    expect(screen.queryByTestId('story-viewer')).toBeNull()
+    await waitFor(() => expect(screen.queryByTestId('story-viewer')).toBeNull())
     fireEvent.click(screen.getByTestId('chat-story-partner'))
     const goBack = vi.fn()
     act(() => { handleHardwareBack({ canGoBack: () => true, goBack, exitApp: vi.fn() }) })
-    expect(screen.queryByTestId('story-viewer')).toBeNull()
+    await waitFor(() => expect(screen.queryByTestId('story-viewer')).toBeNull())
     expect(goBack).not.toHaveBeenCalled()
     expect(screen.getByTestId('chat-conversation')).toBeTruthy()
   })

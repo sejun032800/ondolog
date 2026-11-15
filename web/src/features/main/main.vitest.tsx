@@ -17,6 +17,8 @@ import { useSheetStore } from '../../stores/sheetStore'
 import { useToastStore } from '../../stores/toastStore'
 import { makeFakeNav } from '../../testSupport'
 import { MainTab } from '../../tabs/MainTab'
+import { kstToday } from '@/utils/magazine'
+import { monthElapsedPercent } from '../magazine/monthProgress'
 import { issueOpenedKey, loadOpenedIssueIds, markIssueOpened } from './issueSeen'
 import { MainView, type MainViewProps } from './MainView'
 import { FIRST_ISSUE_PERCENT_HINT } from '../magazine/firstIssueHint'
@@ -154,7 +156,8 @@ describe('연결: 온도 표시 상태', () => {
     expect(screen.getByText('오늘 시작했어요')).toBeTruthy()
     expect(screen.getByText('FIRST STEP')).toBeTruthy()
     expect(screen.getByText('FIRST ISSUE')).toBeTruthy()
-    expect(screen.getByTestId('main-issue-percent').textContent).toBe('0%')
+    // 76-B2(R98-4 a): 초안이 없어도 이번 달 경과율(같은 공식)이 보인다 - 0%로 고정하지 않는다.
+    expect(screen.getByTestId('main-issue-percent').textContent).toBe(`${monthElapsedPercent(kstToday(NOW))}%`)
     expect(screen.getByTestId('main-issue-hint').textContent).toBe(FIRST_ISSUE_PERCENT_HINT) // R94-7 확정 문장
     expect(FIRST_ISSUE_PERCENT_HINT).toBe('이번 달이 흐르는 만큼 차올라요. 달이 끝나면 두 사람의 호를 만들어요.')
     fireEvent.click(screen.getByTestId('main-first-step-link'))

@@ -48,7 +48,7 @@ export function MainTab({ nav }: { nav: Nav }) {
   const partnerName = usePartnerName(connected ? partnerId : null)
   const summary = useLoveTypeSummary(userId, status === 'disconnected')
   const library = useLibrary(connected ? coupleId : null)
-  const startTemperature = useStartTemperature(userId, partnerId, connected && storedTemperature === null) // 저장값이 있으면 읽지도 않는다(저장값 우선)
+  const startTemperature = useStartTemperature(userId, partnerId, connected && storedTemperature === null, coupleId) // 저장값이 있으면 읽지도 않는다(저장값 우선)
   const facts = useMainFacts({
     userId,
     partnerId: connected ? partnerId : null,
@@ -72,7 +72,8 @@ export function MainTab({ nav }: { nav: Nav }) {
           facts={facts}
           library={library}
           summary={summary}
-          startTemperature={startTemperature}
+          startTemperature={startTemperature?.value ?? null}
+          startTemperatureActive={startTemperature?.hasActivity ?? false}
           onInvite={() => openInvite('intro')}
           onChat={() => nav.replace('chat')}
           onOpenIssue={(issue) => openIssueViewer(issue.id)}

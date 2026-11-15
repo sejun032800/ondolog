@@ -57,6 +57,8 @@ export class PhotoQueueHub {
   private photo: ChatPhotoQueue | null = null
   private generation = 0
   private readonly listeners = new Set<PhotoQueueListener>()
+  /** 지금 올리는 중인(시도가 진행 중인) 항목 id(76-A2). 올리는 중에는 "연결이 끊겼어요" 안내를 보이지 않는다 - 기다리는(백오프) 항목만. */
+  private readonly attempting = new Set<string>()
 
   constructor(private readonly deps: PhotoQueueHubDeps) {}
 
@@ -65,6 +67,11 @@ export class PhotoQueueHub {
     if (!this.key) return null
     const [coupleId, userId] = this.key.split(':')
     return { coupleId, userId }
+  }
+
+  /** 이 항목의 시도가 지금 진행 중인가. */
+  isAttempting(clientId: string): boolean {
+    return this.attempting.has(clientId)
   }
 
   getPhotoQueue(): ChatPhotoQueue | null {
@@ -90,12 +97,19 @@ export class PhotoQueueHub {
 
     const photo = new ChatPhotoQueue({
       attempt: async (item) => {
-        const result = await this.deps.attempt(item)
-        if (result.outcome === 'done') {
-          if (result.message) for (const l of this.listeners) l.onMessage?.(result.message)
-          if (result.story) for (const l of this.listeners) l.onStory?.(result.story)
+        // 시도가 시작됐음을 화면에 다시 알린다(올리는 중 - 끊김 안내 0). 끝나면 러너가 결과를 `onChange`로 알린다.
+        this.attempting.add(item.clientId)
+        for (const l of this.listeners) l.onPhotoQueue?.(photo.getQueue())
+        try {
+          const result = await this.deps.attempt(item)
+          if (result.outcome === 'done') {
+            if (result.message) for (const l of this.listeners) l.onMessage?.(result.message)
+            if (result.story) for (const l of this.listeners) l.onStory?.(result.story)
+          }
+          return result
+        } finally {
+          this.attempting.delete(item.clientId)
         }
-        return result
       },
       onChange: (items) => {
         void this.deps.store.save(coupleId, userId, items)

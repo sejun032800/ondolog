@@ -23,6 +23,8 @@ import type { Db } from '@/services/dateRecordApi'
 import { issueMonthLabel, kstToday, periodElapsedPercent, pickDraftIssue } from '@/utils/magazine'
 import { fetchLatestAssessment, fetchProfile } from '../../auth/finalize'
 import { getSupabase } from '../../auth/client'
+import { useAuthStore } from '../../auth/stores'
+import { readCache, writeCache } from '../../cache/deviceCache'
 import { loadOpenedIssueIds, useIssueOpenedSignal } from './issueSeen'
 
 /** 앱이 다시 보일 때마다 `reload`를 부른다. */
@@ -40,17 +42,28 @@ const asDb = (db: unknown) => db as Db
 // 상대 이름 · 내 연애유형(B05)
 // ---------------------------------------------------------------------------
 
-/** 상대 표시 이름. 못 읽으면 null. */
+/**
+ * 상대 표시 이름. 못 읽으면 null. 기기에 저장한 이름이 있으면 서버 읽기 전에 그것을 먼저 돌려준다(76-A1 - 머리 "상대" 기본 글자가 0.1초도 비치지 않게). 서버 값이 오면 바꾼다.
+ */
 export function usePartnerName(partnerId: string | null): string | null {
-  const [name, setName] = useState<string | null>(null)
+  const savedName = (id: string | null): string | null =>
+    id ? (readCache<{ name: string }>(useAuthStore.getState().userId, 'name', id)?.name ?? null) : null
+  const [name, setName] = useState<string | null>(() => savedName(partnerId))
   useEffect(() => {
     const db = getSupabase()
-    if (!partnerId || !db) { setName(null); return }
+    if (!partnerId || !db) { setName(savedName(partnerId)); return }
     let cancelled = false
+    setName(savedName(partnerId))
     fetchProfile(db, partnerId)
-      .then((p) => { if (!cancelled) setName(p?.display_name ?? null) })
+      .then((p) => {
+        if (cancelled) return
+        const fresh = p?.display_name ?? null
+        if (fresh) writeCache(useAuthStore.getState().userId, 'name', { name: fresh }, partnerId)
+        setName(fresh ?? savedName(partnerId))
+      })
       .catch(() => {})
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerId])
   return name
 }
@@ -113,8 +126,14 @@ export interface LibraryState {
 
 export const EMPTY_LIBRARY: LibraryState = { loading: true, error: false, issues: [], coverUrls: {}, next: null }
 
+/** 76-B5: 메인을 다시 그릴 때(탭 복귀) 마지막으로 읽은 서재 요약을 먼저 보인다 - 회색 자리 표시는 첫 로드만. 이 실행의 메모리(로그아웃 · 탈퇴 때 비운다). */
+let libraryMemory: { coupleId: string; state: LibraryState } | null = null
+export function forgetMainMemory(): void {
+  libraryMemory = null
+}
+
 export function useLibrary(coupleId: string | null): LibraryState {
-  const [state, setState] = useState<LibraryState>(EMPTY_LIBRARY)
+  const [state, setState] = useState<LibraryState>(() => (libraryMemory && libraryMemory.coupleId === coupleId ? libraryMemory.state : EMPTY_LIBRARY))
 
   const reload = useCallback(async () => {
     const db = getSupabase()
@@ -136,7 +155,9 @@ export function useLibrary(coupleId: string | null): LibraryState {
             counts,
           }
         : null
-      setState({ loading: false, error: false, issues, coverUrls, next })
+      const fresh: LibraryState = { loading: false, error: false, issues, coverUrls, next }
+      libraryMemory = { coupleId, state: fresh }
+      setState(fresh)
     } catch {
       setState((s) => ({ ...s, loading: false, error: true }))
     }

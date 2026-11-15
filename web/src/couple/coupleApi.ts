@@ -172,15 +172,15 @@ export async function saveStartDateAndNickname(
   return setOrConfirmStartDate(db, coupleId, userId, date, normalizeNickname(nickname))
 }
 
-/**
- * 내 입력과 저장된 값이 다르면 알림 문장을(상대가 먼저 정했다). 같거나 내가 이긴 쓰기면 null.
- * 닉네임이 다르면 저장된 닉네임, 날짜만 다르면 저장된 날짜(화면 형식 YYYY.MM.DD)를 넣는다.
- */
-export function startDateConflictNotice(stored: Pick<CoupleRow, 'relationship_start_date' | 'start_date_set_by' | 'nickname'>, mine: { userId: string; date: string; nickname: string }): string | null {
+/** 처음 연결 때 내 입력과 저장된 값이 무엇이 달랐는가. 같거나 내가 이긴 쓰기면 null. (안내 제목을 고르는 근거 - R99-1) */
+export type StartConflictKind = 'date' | 'nickname' | 'both'
+
+export function startDateConflictKind(stored: Pick<CoupleRow, 'relationship_start_date' | 'start_date_set_by' | 'nickname'>, mine: { userId: string; date: string; nickname: string }): StartConflictKind | null {
   if (stored.start_date_set_by === mine.userId) return null
   const dateDiffers = !!stored.relationship_start_date && stored.relationship_start_date !== mine.date
   const nicknameDiffers = !!stored.nickname && stored.nickname !== normalizeNickname(mine.nickname)
-  if (!dateDiffers && !nicknameDiffers) return null
-  const shown = nicknameDiffers ? (stored.nickname as string) : startDateIsoToInput(stored.relationship_start_date as string)
-  return `상대가 먼저 '${shown}'로 정했어요. 설정에서 바꿀 수 있어요.`
+  if (dateDiffers && nicknameDiffers) return 'both'
+  if (dateDiffers) return 'date'
+  if (nicknameDiffers) return 'nickname'
+  return null
 }

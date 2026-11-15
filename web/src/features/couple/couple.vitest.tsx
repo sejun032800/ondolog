@@ -460,9 +460,27 @@ describe('A19 사귄 날짜 + 커플 닉네임', () => {
     expect(screen.getByTestId('start-since-date').textContent).toBe('2023.05.05')
     // R90-4: 내 조건부 쓰기는 0행(상대가 이미 정함) -> 확인만 기록하고, 적용된 값을 알린다(조용히 버리지 않는다).
     expect(writes.filter((w) => w.table === 'couples').map((w) => w.payload)).toEqual([{ start_date_confirmed_by: 'me' }])
-    expect(screen.getByTestId('start-conflict-notice').textContent).toBe("상대가 먼저 '봄'로 정했어요. 설정에서 바꿀 수 있어요.")
+    expect(document.querySelector('h1')?.textContent).toBe('서영님이 먼저 정했어요') // 날짜 · 닉네임 둘 다 달랐다
+    expect(screen.queryByTestId('start-conflict-notice')).toBeNull() // 제목과 겹치는 본문 문장은 없다
     expect(stepRows(writes)).toEqual([])
     expect(nav.enterAccount).not.toHaveBeenCalled()
+  })
+
+  it('R99-1 무엇이 달랐는지에 맞춘 제목 - 날짜만 / 닉네임만 / 둘 다, 조사 없이 "님이"', async () => {
+    for (const [mineDate, mineNick, titleText] of [
+      ['20240101', '봄', '서영님이 사귄 날짜를 먼저 정했어요'],
+      ['20230505', '늘봄', '서영님이 커플 닉네임을 먼저 정했어요'],
+      ['20240101', '늘봄', '서영님이 먼저 정했어요'],
+    ] as const) {
+      cleanup()
+      const { tables } = await openA19()
+      fireEvent.change(date(), { target: { value: mineDate } })
+      fireEvent.change(nick(), { target: { value: mineNick } })
+      Object.assign(tables.couples[0], { relationship_start_date: '2023-05-05', start_date_set_by: 'p1', nickname: '봄' })
+      fireEvent.click(submit())
+      await settle()
+      expect(document.querySelector('h1')?.textContent).toBe(titleText)
+    }
   })
 
   it('R90-4 같은 값이면 알림 없이 바로 마무리한다', async () => {
@@ -472,7 +490,6 @@ describe('A19 사귄 날짜 + 커플 닉네임', () => {
     Object.assign(tables.couples[0], { relationship_start_date: '2023-05-05', start_date_set_by: 'p1', nickname: '봄' })
     fireEvent.click(submit())
     await settle()
-    expect(screen.queryByTestId('start-conflict-notice')).toBeNull()
     expect(nav.enterAccount).toHaveBeenCalledWith('main')
   })
 
@@ -495,7 +512,7 @@ describe('A20 상대가 정한 날짜 확인', () => {
     expect(screen.queryByTestId('start-date-input')).toBeNull()
     expect(screen.getByTestId('start-since-date').textContent).toBe('2025.12.27')
     expect(screen.getByTestId('start-since-sub').textContent).toMatch(/^오늘 D\+\d+ · 늘봄$/)
-    expect(document.querySelector('h1')?.textContent).toBe('서영이 날짜를\n먼저 정했어요')
+    expect(document.querySelector('h1')?.textContent).toBe('서영님이 먼저 정했어요') // 닉네임도 정해 둔 값
     expect(screen.getByText('날짜가 다르면 설정 > 커플에서 함께 고칠 수 있어요')).toBeTruthy()
   })
 
@@ -563,7 +580,9 @@ describe('A20 재표시 - 상대가 고친 날짜', () => {
     const nav = makeFakeNav()
     render(<StartDateScreen nav={nav} mode="recheck" />)
     await settle()
-    expect(screen.getByTestId('start-since-date').textContent).toBe('2025.12.27')
+    expect(document.querySelector('h1')?.textContent).toBe('서영님이 사귄 날짜를 바꿨어요')
+    expect(document.querySelector('.subtitle')?.textContent).toBe('2025.12.27')
+    expect(screen.queryByTestId('start-since-date')).toBeNull()
     expect(screen.getByTestId('start-confirm-note').textContent).toBe('날짜가 다르면 설정 > 커플에서 함께 고칠 수 있어요')
     fireEvent.click(screen.getByText('확인했어요'))
     await settle()

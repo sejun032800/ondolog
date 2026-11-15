@@ -1,7 +1,7 @@
 /** A-16 · R94-6 스토리 진행 막대 - 5000ms 자동 넘김 · 시간 채움 · 좌우 탭 · 누르면 멈춤 · 마지막 뒤 닫힘 · 줄인 모션이면 애니메이션만 뺀다. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { STORY_AUTO_ADVANCE_MS, StoryViewer, type StoryViewPayload } from './StoryViewer'
+import { STORY_AUTO_ADVANCE_MS, STORY_CLOSE_MS, STORY_CLOSE_REDUCED_MS, STORY_SWIPE_DOWN_PX, StoryViewer, type StoryViewPayload } from './StoryViewer'
 
 vi.mock('./useSignedMedia', () => ({ useSignedMedia: (_b: string, paths: string[]) => Object.fromEntries(paths.map((p) => [p, `https://x.test/${p}`])) }))
 
@@ -61,6 +61,7 @@ describe('A-16 스토리 막대', () => {
     act(() => { vi.advanceTimersByTime(1) })
     expect(segs()[2].className).toContain('fill')
     act(() => { vi.advanceTimersByTime(5000) })
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_MS) }) // 닫힘 연출 뒤에 닫는다(R98-7)
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -72,6 +73,7 @@ describe('A-16 스토리 막대', () => {
     act(() => { vi.advanceTimersByTime(4999) })
     expect(onClose).not.toHaveBeenCalled()
     act(() => { vi.advanceTimersByTime(1) })
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_MS) }) // 닫힘 연출 뒤에 닫는다(R98-7)
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -123,6 +125,82 @@ describe('A-16 스토리 막대', () => {
     act(() => { vi.advanceTimersByTime(5000) })
     expect(screen.getByTestId('story-segments').querySelectorAll('i.on')).toHaveLength(2)
     act(() => { vi.advanceTimersByTime(5000) })
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_MS) }) // 닫힘 연출 뒤에 닫는다(R98-7)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+/** 76-D1 · R98-7 열림 · 닫힘 연출 - 닫힘은 즉시 언마운트가 아니라 연출(0.22초) 뒤다. */
+describe('D1 스토리 닫힘 연출', () => {
+  const closing = () => screen.getByTestId('story-viewer').className.includes('closing')
+
+  it('✕: 바로 닫지 않고 closing 연출을 시작하고, 0.22초 뒤에 닫는다', () => {
+    const onClose = vi.fn()
+    render(<StoryViewer story={story} onClose={onClose} />)
+    expect(STORY_CLOSE_MS).toBe(220)
+    expect(closing()).toBe(false)
+    fireEvent.click(screen.getByTestId('story-close'))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(closing()).toBe(true)
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_MS - 1) })
+    expect(onClose).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('자동 닫힘(마지막 장이 끝남)도 같은 연출을 지난다', () => {
+    const onClose = vi.fn()
+    render(<StoryViewer story={{ ...story, items: story.items.slice(0, 1) }} onClose={onClose} autoAdvanceMs={5000} />)
+    act(() => { vi.advanceTimersByTime(5000) })
+    expect(closing()).toBe(true)
+    expect(onClose).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_MS) })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('마지막 장에서 다음을 누르면 같은 연출', () => {
+    const onClose = vi.fn()
+    render(<StoryViewer story={{ ...story, items: story.items.slice(0, 1) }} onClose={onClose} />)
+    fireEvent.click(screen.getByTestId('story-next'))
+    expect(closing()).toBe(true)
+    expect(onClose).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_MS) })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('아래로 밀기(80px 넘게 끌고 떼기)도 같은 연출 - 짧은 끌기는 닫지 않는다', () => {
+    vi.stubGlobal('PointerEvent', class extends MouseEvent {}) // jsdom에는 PointerEvent가 없어 clientY를 실으려면 필요
+    const onClose = vi.fn()
+    render(<StoryViewer story={story} onClose={onClose} />)
+    const next = screen.getByTestId('story-next')
+    fireEvent.pointerDown(next, { clientY: 100 })
+    fireEvent.pointerUp(next, { clientY: 100 + STORY_SWIPE_DOWN_PX - 10 })
+    expect(closing()).toBe(false)
+    fireEvent.pointerDown(next, { clientY: 100 })
+    fireEvent.pointerUp(next, { clientY: 100 + STORY_SWIPE_DOWN_PX + 10 })
+    expect(closing()).toBe(true)
+    expect(onClose).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_MS) })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('연출 중 다시 눌러도 한 번만 닫는다', () => {
+    const onClose = vi.fn()
+    render(<StoryViewer story={story} onClose={onClose} />)
+    fireEvent.click(screen.getByTestId('story-close'))
+    fireEvent.click(screen.getByTestId('story-close'))
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('줄인 모션이면 0.15초(투명만) 뒤에 닫는다', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }))
+    const onClose = vi.fn()
+    render(<StoryViewer story={story} onClose={onClose} />)
+    fireEvent.click(screen.getByTestId('story-close'))
+    act(() => { vi.advanceTimersByTime(STORY_CLOSE_REDUCED_MS - 1) })
+    expect(onClose).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(1) })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

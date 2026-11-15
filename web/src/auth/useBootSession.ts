@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { Nav } from '../screens'
+import type { ScreenName } from '../app/routes'
 import { getSupabase } from './client'
 import { fetchProfile, resolveWebRoute } from './finalize'
 import { withJwtRetry } from './retry'
@@ -12,6 +13,8 @@ import { useAuthStore } from './stores'
 import { IS_TRIAL_BUILD } from '../config/env'
 import { safeKind, useTrialDiag } from '../platform/trialDiag'
 import { useAccountProblemStore } from '../stores/accountProblemStore'
+import { isTabRoute } from '../app/routes'
+import { readLastTab } from '../cache/deviceCache'
 
 /** 네트워크가 막혀 확인이 길어져도 첫 화면은 이 시간 안에 보인다. */
 export const BOOT_TIMEOUT_MS = 4000
@@ -44,7 +47,10 @@ export function useBootSession(nav: Nav): boolean {
           const profile = await withJwtRetry(() => fetchProfile(db, id))
           if (profile && !cancelled) {
             const route = await resolveWebRoute(db, id, profile.onboarding_step, profile.deleted_at)
-            if (!cancelled) navRef.current.enterAccount(route)
+            // 76-0-2: 카메라 · 앨범을 다녀오다 Android가 앱(웹뷰)을 죽였다 다시 켜진 것이면(MemoryRouter는 경로를 기억하지 않아 첫 화면에서 다시 시작한다) 방금 있던 탭으로 돌아간다.
+            // 단계가 끝난 계정(메인)이고, 기기에 남긴 마지막 탭이 10분 안(`ROUTE_RESTORE_WINDOW_MS`)일 때만.
+            const last = route === 'main' ? readLastTab(id, isTabRoute) : null
+            if (!cancelled) navRef.current.enterAccount((last as ScreenName | null) ?? route)
           }
           // 프로필이 아직 없는 계정(가입 저장 전)은 첫 화면에서 다시 시작한다 - 답 · 동의를 받은 뒤 로그인하면 `finalizeAfterLogin`이 저장한다.
         }

@@ -12,6 +12,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { FIRST_ISSUE_COPY, NEXT_ISSUE_COPY } from '@/constants/magazineCopy'
 import { FIRST_ISSUE_PERCENT_HINT } from '../magazine/firstIssueHint'
+import { issuePercent } from '../magazine/monthProgress'
 import { LOVE_TYPE_LABEL_BY_CODE } from '@/constants/loveTypeLabels'
 import type { PublishedIssue } from '@/services/magazineApi'
 import {
@@ -23,7 +24,7 @@ import {
   temperatureDisplay,
   type MainHero,
 } from '@/utils/mainScreen'
-import { issueMonthLabel } from '@/utils/magazine'
+import { issueMonthLabel, kstToday } from '@/utils/magazine'
 import { graceDateLabel, graceDaysLeft, type DissolutionState } from '@/utils/dissolution'
 import { computeDaysTogetherKst, getMilestoneStatus } from '@/utils/relationshipDays'
 import { CoupleGate } from '../../components/CoupleGate'
@@ -118,7 +119,7 @@ function MainHeader(props: { connected: boolean; selfName: string | null; partne
   )
 }
 
-function Hero({ hero, connected, temperature, milestoneLabel, startTemperature = null }: { hero: MainHero; connected: boolean; temperature: number; milestoneLabel: string | null; startTemperature?: number | null }) {
+function Hero({ hero, connected, temperature, milestoneLabel, startTemperature = null, startActive = false }: { hero: MainHero; connected: boolean; temperature: number; milestoneLabel: string | null; startTemperature?: number | null; startActive?: boolean }) {
   const label = hero === 'milestone' ? 'TODAY' : connected ? 'OUR TEMPERATURE' : 'MY TEMPERATURE'
   let body: ReactNode
   switch (hero) {
@@ -131,7 +132,8 @@ function Hero({ hero, connected, temperature, milestoneLabel, startTemperature =
       body = startTemperature !== null ? (
         <div className="startTemp" data-testid="main-start-temperature">
           <GlowNumeral value={startTemperature} connected={false} />
-          <p className="startTempCaption" data-testid="main-start-temperature-caption">{START_TEMPERATURE_COPY}</p>
+          {/* R100-1: 활동분이 0일 때(표시 값 = 기저)만. 활동분이 있으면 이미 움직인 값이라 숨긴다(PM 확인 필요). */}
+          {startActive ? null : <p className="startTempCaption" data-testid="main-start-temperature-caption">{START_TEMPERATURE_COPY}</p>}
           <p className="startTempHelper pre">{helper}</p>
         </div>
       ) : <p className="heroText pre">{helper}</p>
@@ -244,8 +246,8 @@ function LastIssueCard({ issue, coverUri, onOpen }: { issue: PublishedIssue; cov
 }
 
 /** NEXT ISSUE / FIRST ISSUE - 진행률은 기간 경과율(R18-6), 정지 값. "제작 현황 →"은 숨긴다(D02는 범위 밖). */
-function IssueProgressCard({ number, first, next }: { number: string; first: boolean; next: NextIssueData | null }) {
-  const percent = next?.percent ?? 0
+function IssueProgressCard({ number, first, next, now }: { number: string; first: boolean; next: NextIssueData | null; now: Date }) {
+  const percent = issuePercent(next, kstToday(now)) // 초안이 없어도 이번 달 경과율(R98-4 a)
   const lines = next ? materialLines(next.counts) : null
   const title = first || !next ? FIRST_ISSUE_COPY.title : `${next.monthLabel}를 ${NEXT_ISSUE_COPY.status}`
   const kicker = first ? FIRST_ISSUE_COPY.kicker : NEXT_ISSUE_COPY.kicker
@@ -362,6 +364,8 @@ export interface MainViewProps {
   summary: LoveTypeSummary | null
   /** 시작 온도(표시 전용, 읽기만) - 두 사람의 프로필이 있을 때만 값. 없으면 null. */
   startTemperature?: number | null
+  /** 시작 온도에 활동분(v0)이 들어 있는가 - 있으면 "시작 온도예요…" 문구를 숨긴다. */
+  startTemperatureActive?: boolean
   onInvite: () => void
   onChat: () => void
   onOpenIssue: (issue: PublishedIssue) => void
@@ -408,7 +412,7 @@ export function MainView(props: MainViewProps) {
     <div className="mainWrap" data-testid={`main-state-${layout.state}`}>
       <Rise order={0}><MainHeader connected selfName={props.selfName} partnerName={props.partnerName} nickname={props.nickname} /></Rise>
       <Rise order={1} className="heroGap">
-        <Hero hero={layout.hero} connected temperature={temperatureValue} milestoneLabel={milestone?.isToday ? milestone.label : null} startTemperature={props.startTemperature ?? null} />
+        <Hero hero={layout.hero} connected temperature={temperatureValue} milestoneLabel={milestone?.isToday ? milestone.label : null} startTemperature={props.startTemperature ?? null} startActive={props.startTemperatureActive ?? false} />
       </Rise>
       <VerticalDate label={dateLabel} />
       <Rise order={2}>
@@ -442,7 +446,7 @@ export function MainView(props: MainViewProps) {
               <LastIssueCard issue={latest} coverUri={latest.coverPath ? library.coverUrls[latest.coverPath] : undefined} onOpen={() => props.onOpenIssue(latest)} />
             ) : null}
             {block.key === 'issueProgress' && block.number ? (
-              <IssueProgressCard number={block.number} first={library.issues.length === 0} next={library.next} />
+              <IssueProgressCard number={block.number} first={library.issues.length === 0} next={library.next} now={props.now} />
             ) : null}
           </Rise>
         ))}

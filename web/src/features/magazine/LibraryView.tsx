@@ -10,9 +10,10 @@
  */
 import { FIRST_ISSUE_COPY, NEXT_ISSUE_COPY, UNCONNECTED_COPY } from '@/constants/magazineCopy'
 import type { PublishedIssue } from '@/services/magazineApi'
-import { issueMonthLabel, type LibraryMode } from '@/utils/magazine'
+import { issueMonthLabel, kstToday, type LibraryMode } from '@/utils/magazine'
 import { Skeleton } from '../../components/Skeleton'
 import { FIRST_ISSUE_PERCENT_HINT } from './firstIssueHint'
+import { issuePercent } from './monthProgress'
 import { PrimaryButton } from '../../ui'
 import type { LibraryState, NextIssueData } from './libraryData'
 
@@ -186,7 +187,7 @@ export function LibraryContent({ mode, library, onOpen, onRetry }: {
   if (mode === 'first') {
     return (
       <div className="libFirst" data-library-mode="first">
-        <FirstIssue percent={library.next?.percent ?? 0} />
+        <FirstIssue percent={issuePercent(library.next, kstToday(new Date()))} />
         <ShelfHint />
       </div>
     )

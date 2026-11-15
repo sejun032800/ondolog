@@ -32,6 +32,11 @@ function isAbort(error: unknown): boolean {
 /** 확인 요청 한 번의 제한(ms). `useOfflineProbe`의 제한과 같은 값. */
 export const CONFIRM_TIMEOUT_MS = 8_000
 
+/** 기기가 스스로 "네트워크 없음"이라 한다(비행기 모드 등) - 확실한 신호. 그 밖에는 모른다(`onLine: true`는 풀림의 증거가 아니다). */
+export function deviceSaysOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
 /** 지금 하는 중인 올리기(본문이 큰 쓰기) 요청 수. 올리는 동안은 회선이 꽉 차 확인 요청이 늦는 것이 정상이라 그것만으로 끊김으로 보지 않는다. */
 let uploadsInFlight = 0
 export function getUploadsInFlight(): number {
@@ -79,7 +84,9 @@ async function confirmAfterUploadFailure(report: (ok: boolean) => void, deps: Tr
     await probe(controller.signal)
     report(true)
   } catch (error) {
-    if (isAbort(error) && uploadsInFlight > 0) return
+    // 76-A2: 확인 요청이 제한에 걸린 것만으로는 끊김이 아니다 - 다른 올리기가 도는 중이거나, 기기가 네트워크 있음이라면 회선이 느린 것일 뿐이다(올리는 시간을 판정에서 뺀다).
+    // 확인 요청이 **거부**(연결 실패)되거나 기기가 "네트워크 없음"이라 할 때만 끊김.
+    if (isAbort(error) && !deviceSaysOffline()) return
     report(false)
   } finally {
     clearTimeout(timer)
@@ -88,7 +95,7 @@ async function confirmAfterUploadFailure(report: (ok: boolean) => void, deps: Tr
 
 /**
  * `fetch`를 감싸 결과를 알린다. 인자는 그대로 넘기고, 응답은 읽지 않고 돌려주며, 거부는 같은 오류 객체를 다시 던진다.
- * 올리기 요청의 거부만 확인 요청을 거친다(A-17) - 일반 요청의 거부는 지금처럼 바로 끊김이다.
+ * 올리기 요청의 거부(와 올리기가 도는 중의 다른 요청의 거부)만 확인 요청을 거친다(A-17 · 76-A2) - 그 밖의 일반 요청의 거부는 바로 끊김이다.
  */
 export function trackConnection(
   base: typeof fetch,
@@ -107,7 +114,9 @@ export function trackConnection(
       (error: unknown) => {
         if (upload) uploadsInFlight -= 1
         if (!isAbort(error)) {
-          if (upload) void confirmAfterUploadFailure(report, deps)
+          // 기기가 "네트워크 없음"이면 바로 끊김. 아니면 올리기 요청의 거부(또는 올리기가 도는 중의 다른 요청 거부)는 확인 요청으로만 판정한다(A-17).
+          if (deviceSaysOffline()) report(false)
+          else if (upload || uploadsInFlight > 0) void confirmAfterUploadFailure(report, deps)
           else report(false)
         }
         throw error
