@@ -25,6 +25,8 @@ export interface PushPort {
   register(): Promise<void>
   /** 이 기기의 FCM 토큰을 없앤다(로그아웃 등). 서버 행을 못 지웠어도 FCM이 "등록 안 된 토큰"이라 해 발송 함수가 지운다. */
   unregister(): Promise<void>
+  /** 76-i: 이 기기 알림 서랍에 남은 이 앱의 알림을 모두 지운다(플러그인 기존 기능 `removeAllDeliveredNotifications`). */
+  clearDelivered(): Promise<void>
   /** Android 알림 채널(메시지 · 변경 안내). 서버 `PUSH_CHANNEL`과 같은 id. */
   createChannels(): Promise<void>
   onRegistration(cb: (token: string) => void): () => void
@@ -76,6 +78,7 @@ export const capacitorPushPort: PushPort = {
   requestPermission: async () => mapPermission((await PushNotifications.requestPermissions()).receive),
   register: () => PushNotifications.register(),
   unregister: () => PushNotifications.unregister(),
+  clearDelivered: () => PushNotifications.removeAllDeliveredNotifications(),
   createChannels: async () => {
     if (Capacitor.getPlatform() !== 'android') return
     for (const c of PUSH_CHANNELS) await PushNotifications.createChannel({ id: c.id, name: c.name, description: c.description, importance: c.importance, visibility: 0 })
@@ -92,6 +95,7 @@ export const webPushPort: PushPort = {
   requestPermission: async () => 'unsupported',
   register: async () => {},
   unregister: async () => {},
+  clearDelivered: async () => {},
   createChannels: async () => {},
   onRegistration: noop,
   onReceived: noop,

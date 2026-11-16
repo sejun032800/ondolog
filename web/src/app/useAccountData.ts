@@ -6,7 +6,7 @@
 import { useEffect } from 'react'
 import { useAuthStore } from '../auth/stores'
 import { purgeOtherUsers } from '../cache/deviceCache'
-import { claimThisDevice } from '../push/pushCore'
+import { claimThisDevice, clearDeliveredHere } from '../push/pushCore'
 import { useCoupleStore } from '../stores/coupleStore'
 import { useDissolutionStore } from '../stores/dissolutionStore'
 import { useProfileStore } from '../stores/profileStore'
@@ -23,9 +23,13 @@ export function useAccountData(route: ScreenName | null): void {
       return
     }
     // 76-A1: 다른 계정으로 로그인했으면 이전 계정의 기기 저장분을 지우고, 이 계정의 저장 요약이 있으면 서버 읽기 전에 먼저 채운다.
-    purgeOtherUsers(userId)
+    const switched = purgeOtherUsers(userId) > 0
     // 78-: 같은 자리 - 이 기기에 남은 다른 사람의 알림 토큰 행을 지운다(계정 전환).
-    void claimThisDevice()
+    // 76-i: 다른 사람의 저장분이 있었으면(계정 전환) 그 사람의 알림이 남은 서랍을 먼저 지운다. 같은 사람의 앱 시작 · 재로그인에는 0.
+    void (async () => {
+      if (switched) await clearDeliveredHere()
+      await claimThisDevice()
+    })()
     if (!inAccount) return
     useCoupleStore.getState().hydrate(userId)
     void useProfileStore.getState().refresh(userId)

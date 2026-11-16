@@ -24,6 +24,13 @@
  *   ④ 작성자가 빈 장소(m3 이전)는 대상 밖이고, 빈 날 판정에서는 "남은 것"으로 센다.
  *   "해제 실행 대기" 규칙은 그대로 - 해제 실행 전 커플의 장소는 건드리지 않는다.
  *
+ * 76-i (R110-4) 숨긴 행 정리: 앱에서 지워 숨김 표시(`deleted_at`)만 된 행을 **숨긴 지 24시간이 지나면 행째** 지운다(내용 비우기 아님).
+ *   대상 = `HIDDEN_TABLES`(data_entries 사진 · 메모 · 그림, messages). 탈퇴 · 해제 단계(76-g · 76-h) **뒤**에 돌고, 그 단계가 맡은 행(통째로 지울 커플 ·
+ *   떠난 사람의 기록)은 세지도 지우지도 않는다. 파일은 다루지 않는다(행이 사라지면 다음 `sweepOrphanFiles`가 남은 파일을 받는다).
+ *   대상 밖: `dates`(같은 날 다시 기록하면 앱이 되살린다 - `ensureDate`) · `date_stops`(숨김 칸 없음, 이미 행 삭제) · `stories`(숨김 칸 없음 - 지우기는 행 삭제,
+ *   만료는 `resolved_at` · `resolution`이라 "지운 것"이 아니다) · 발행된 호(`issues` 등)와 매거진 파일.
+ *   지울 때도 "숨김 표시 있음 · 24시간 지남"을 다시 걸어 지운다. 묶음(100행)이 실패하면 그 수만 실패로 세고 다음 실행 때 다시.
+ *
  * 한 사용자 처리 중 실패하면 그 사용자는 다음 실행 때 다시(파일 · 행 지우기가 멱등) · 다른 사용자는 계속 · 실패 수를 출력.
  * 기본은 미리 보기(대상 사용자 수 · 지울 행 수 · 파일 수). `--apply`일 때만 지운다.
  * 개발 프로젝트 가드: `sweepOrphanFiles.makeProjectGate`(허용 목록의 project= 줄)와 같다 - 맞지 않으면 접속 전에 끝낸다.
@@ -86,7 +93,26 @@ export interface PurgePort extends Pick<ResetPort, 'count' | 'countFiles' | 'rem
   deleteStops(authorId: string, coupleIds: readonly string[]): Promise<void>
   /** authorId 의 것을 빼고 나면 남은 것(장소 - 작성자 빈 옛 장소 포함 · 지우지 않은 사진 · 메모, 두 사람 모두)이 0인 날짜 id. */
   emptyAfter(dateIds: readonly string[], authorId: string): Promise<readonly string[]>
+  /** 76-i: 숨김 표시가 있고 그 시각이 cutoffIso 이전(같음 포함)인 행. */
+  hiddenRows(table: HiddenTable, cutoffIso: string): Promise<readonly HiddenRow[]>
+  /** 76-i: 이 id 중 숨김 표시가 있고 cutoffIso 이전인 행만 지운다. 지운 수. */
+  deleteHidden(table: HiddenTable, ids: readonly string[], cutoffIso: string): Promise<number>
 }
+
+/** 76-i 숨긴 행 정리 대상 [표, 작성자 칸]. dates · date_stops · stories는 대상 밖(머리 주석). */
+export const HIDDEN_TABLES = [
+  ['data_entries', 'author_id'],
+  ['messages', 'sender_id'],
+] as const
+export type HiddenTable = (typeof HIDDEN_TABLES)[number][0]
+export interface HiddenRow {
+  readonly id: string
+  readonly coupleId: string
+  readonly authorId: string | null
+}
+/** 숨긴 지 이 시간이 지나야 지운다. */
+export const HIDDEN_GRACE_MS = 24 * 60 * 60 * 1000
+const HIDDEN_CHUNK = 100
 
 export type PurgeArgs = SweepArgs
 export const parsePurgeArgs = parseSweepArgs
@@ -213,6 +239,18 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
   lines.push(`매거진 파일(magazine · magazine-print): ${magazineFiles}`)
   lines.push(`떠난 사람의 장소: ${placeCount}`)
   lines.push(`빈 날 정리: ${emptyCount}`)
+
+  // 76-i 숨긴 행 정리: 위 단계가 맡은 행(통째로 지울 커플 · 떠난 사람의 기록)은 빼고 센다 - 같은 행을 두 번 세지 않는다.
+  const cutoffIso = new Date(now.getTime() - HIDDEN_GRACE_MS).toISOString()
+  const goneCouples = new Set(coupleIds)
+  const leavers = new Set(leaversWithKept)
+  const hidden: [HiddenTable, string[]][] = []
+  for (const [table] of HIDDEN_TABLES) {
+    const rowsOf = await port.hiddenRows(table, cutoffIso)
+    hidden.push([table, rowsOf.filter((r) => !goneCouples.has(r.coupleId) && !(r.authorId !== null && leavers.has(r.authorId))).map((r) => r.id)])
+  }
+  lines.push(`숨긴 행 정리: ${hidden.reduce((n, [, ids]) => n + ids.length, 0)}`)
+  for (const [table, ids] of hidden) lines.push(`숨긴 행 정리 ${table}: ${ids.length}`)
   if (!args.apply) {
     lines.push('실제로 지우려면 --apply')
     return { kind: 'previewed', lines }
@@ -256,10 +294,25 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
       failed += 1 // 다음 실행 때 다시. 다른 사용자는 계속.
     }
   }
+  // 76-i 숨긴 행 정리 - 탈퇴 · 해제 단계 뒤. 묶음이 실패하면 그 행 수만 실패(다음 실행 때 다시).
+  let hiddenDeleted = 0
+  let hiddenFailed = 0
+  for (const [table, ids] of hidden) {
+    for (let i = 0; i < ids.length; i += HIDDEN_CHUNK) {
+      const part = ids.slice(i, i + HIDDEN_CHUNK)
+      try {
+        hiddenDeleted += await port.deleteHidden(table, part, cutoffIso)
+      } catch {
+        hiddenFailed += part.length
+      }
+    }
+  }
   lines.push(`남길 커플의 남은 파일 지움: ${keptOrphans}`)
+  lines.push(`숨긴 행 지움: ${hiddenDeleted}`)
+  lines.push(`숨긴 행 실패(다음 실행 때 다시): ${hiddenFailed}`)
   lines.push(`지운 사용자: ${done}`)
   lines.push(`실패: ${failed}`)
-  lines.push(failed > 0 ? '완료(실패한 사용자는 다음 실행 때 다시)' : '완료')
+  lines.push(failed > 0 || hiddenFailed > 0 ? '완료(실패한 것은 다음 실행 때 다시)' : '완료')
   return { kind: 'applied', lines }
 }
 
@@ -421,6 +474,27 @@ export function makePurgePort(client: Db): PurgePort {
         }
       }
       return ids.filter((id) => remaining.get(id) === 0)
+    },
+    async hiddenRows(table, cutoffIso) {
+      const author = HIDDEN_TABLES.find(([t]) => t === table)![1]
+      const out: HiddenRow[] = []
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await client.from(table).select(`id, couple_id, ${author}`)
+          .not('deleted_at', 'is', null).lte('deleted_at', cutoffIso)
+          .order('id', { ascending: true }).range(from, from + 999)
+        must(`${table} 숨긴 행 조회`, error)
+        const rows: Record<string, string | null>[] = data ?? []
+        for (const r of rows) out.push({ id: r.id as string, coupleId: r.couple_id as string, authorId: r[author] ?? null })
+        if (rows.length < 1000) break
+      }
+      return out
+    },
+    async deleteHidden(table, ids, cutoffIso) {
+      if (ids.length === 0) return 0
+      const { data, error } = await client.from(table).delete().in('id', [...ids])
+        .not('deleted_at', 'is', null).lte('deleted_at', cutoffIso).select('id')
+      must(`${table} 숨긴 행 삭제`, error)
+      return Array.isArray(data) ? data.length : 0
     },
     async partnerGone(partnerId, nowIso) {
       const { data, error } = await client.from('profiles').select('deleted_at, purge_scheduled_at').eq('id', partnerId).maybeSingle()

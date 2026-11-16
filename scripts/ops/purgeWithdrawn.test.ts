@@ -6,7 +6,7 @@
 import fs from 'fs'
 import path from 'path'
 import { makeProjectGate } from './sweepOrphanFiles.ts'
-import { parsePurgeArgs, runPurge, type CoupleWithStatus, type PurgePort } from './purgeWithdrawn.ts'
+import { HIDDEN_TABLES, parsePurgeArgs, runPurge, type CoupleWithStatus, type PurgePort } from './purgeWithdrawn.ts'
 
 const DEV_REF = 'fakedevref000000aaaa'
 const gate = makeProjectGate({ allowlistText: `project=${DEV_REF}\n`, url: `https://${DEV_REF}.supabase.co` })
@@ -15,7 +15,7 @@ const PAST = '2026-11-01T00:00:00Z'
 const FUTURE = '2026-11-20T00:00:00Z'
 
 interface Profile { id: string; deleted_at: string | null; purge_scheduled_at: string | null }
-interface Rec { table: 'data_entries' | 'messages' | 'stories'; couple_id: string; author: string; path: string; date_id?: string; deleted?: boolean }
+interface Rec { table: 'data_entries' | 'messages' | 'stories'; couple_id: string; author: string; path: string; date_id?: string; deleted?: boolean; deleted_at?: string }
 interface Stop { id: string; couple_id: string; date_id: string; author: string | null }
 interface Diss { couple_id: string; initiated_by: string | null; executed: boolean; cancelled: boolean }
 interface World {
@@ -34,6 +34,8 @@ interface World {
   dates: string[]
   dissolutions: Diss[]
   calls: string[]
+  /** 76-i: 이 표의 숨긴 행 삭제가 한 번 실패한다. */
+  failHiddenOnce?: string
 }
 
 function world(over: Partial<World>): World {
@@ -103,6 +105,18 @@ function port(w: World): PurgePort {
       } else if (authorCol[table] === column) {
         w.recs = w.recs.filter((r) => !(r.table === table && ids.includes(r.author)))
       }
+    },
+    async hiddenRows(table, cutoff) {
+      return w.recs.filter((r) => r.table === table && r.deleted_at !== undefined && Date.parse(r.deleted_at) <= Date.parse(cutoff))
+        .map((r) => ({ id: r.path, coupleId: r.couple_id, authorId: r.author }))
+    },
+    async deleteHidden(table, ids, cutoff) {
+      if (w.failHiddenOnce === table) { w.failHiddenOnce = undefined; throw new Error('삭제 실패') }
+      const hit = (r: Rec) => r.table === table && ids.includes(r.path) && r.deleted_at !== undefined && Date.parse(r.deleted_at) <= Date.parse(cutoff)
+      const n = w.recs.filter(hit).length
+      if (n > 0) w.log.push(`rows:hidden:${table}:${n}`)
+      w.recs = w.recs.filter((r) => !hit(r))
+      return n
     },
     async deleteUser(id) {
       w.log.push(`auth:${id}`)
@@ -348,9 +362,97 @@ describe('76-h 떠난 사람이 남긴 장소', () => {
   })
 })
 
+describe('76-i 숨긴 행 정리(숨긴 지 24시간 지난 행 삭제)', () => {
+  const lineOf = (lines: readonly string[], head: string) => lines.find((l) => l.startsWith(head))
+  const OLD = '2026-11-14T00:00:00Z' // 48시간 전
+  const EDGE = '2026-11-15T00:00:00Z' // 정확히 24시간 전
+  const RECENT = '2026-11-15T12:00:00Z' // 12시간 전
+  const hid = (table: Rec['table'], author: string, at: string, couple = 'c-1', tag = ''): Rec =>
+    ({ ...rec(table, author, couple), path: `${couple}/${author}-${table}-${at}${tag}`, deleted_at: at, deleted: true })
+  const COUPLE = { id: 'c-1', user_a_id: 'u-a', user_b_id: 'u-b', status: 'active' }
+  const setup = () => world({
+    profiles: [live('u-a'), live('u-b')], couples: [COUPLE], issues: [{ couple_id: 'c-1' }],
+    files: { 'c-1': { entries: 2, magazine: 1, 'magazine-print': 1 } },
+    recs: [
+      hid('data_entries', 'u-a', OLD), hid('data_entries', 'u-a', EDGE), hid('data_entries', 'u-a', RECENT),
+      hid('messages', 'u-b', OLD),
+      rec('data_entries', 'u-a'), rec('data_entries', 'u-b'), rec('messages', 'u-a'), rec('stories', 'u-b'),
+    ],
+  })
+
+  it('미리 보기: 숫자만 · 지난 것만 센다 · 삭제 0', async () => {
+    const w = setup()
+    const before = JSON.stringify(w.recs)
+    const out = await runPurge(async () => port(w), { apply: false }, gate, NOW)
+    expect(lineOf(out.lines, '숨긴 행 정리:')).toBe('숨긴 행 정리: 3')
+    expect(out.lines).toContain('숨긴 행 정리 data_entries: 2')
+    expect(out.lines).toContain('숨긴 행 정리 messages: 1')
+    expect(w.log).toEqual([])
+    expect(JSON.stringify(w.recs)).toBe(before)
+  })
+
+  it('적용: 24시간 지난 숨긴 행만 지움 · 24시간 안 · 숨기지 않은 행 · 상대 행 · 스토리 · 호 · 매거진 파일 0건 영향', async () => {
+    const w = setup()
+    const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(out.lines).toContain('숨긴 행 지움: 3')
+    expect(out.lines).toContain('숨긴 행 실패(다음 실행 때 다시): 0')
+    expect(w.recs.map((r) => `${r.table}:${r.author}:${r.deleted_at ?? '-'}`)).toEqual([
+      `data_entries:u-a:${RECENT}`, 'data_entries:u-a:-', 'data_entries:u-b:-', 'messages:u-a:-', 'stories:u-b:-',
+    ])
+    expect(w.issues).toEqual([{ couple_id: 'c-1' }])
+    expect(w.files['c-1']).toEqual({ entries: 2, magazine: 1, 'magazine-print': 1 })
+    expect(w.log.every((l) => l.startsWith('rows:hidden:'))).toBe(true)
+    expect(w.profiles).toHaveLength(2)
+  })
+
+  it('멱등: 다시 돌리면 0 · 결과 같음', async () => {
+    const w = setup()
+    await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    const after = JSON.stringify(w.recs)
+    const again = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(again.lines).toContain('숨긴 행 지움: 0')
+    expect(JSON.stringify(w.recs)).toBe(after)
+  })
+
+  it('탈퇴 · 해제 단계 뒤에 돌고, 그 단계가 맡은 행은 두 번 세지 않는다', async () => {
+    const w = world({
+      profiles: [gone('u-a'), live('u-b'), gone('u-c'), gone('u-d')],
+      couples: [{ id: 'c-1', user_a_id: 'u-a', user_b_id: 'u-b', status: 'dissolved' }, { id: 'c-2', user_a_id: 'u-c', user_b_id: 'u-d', status: 'dissolved' }],
+      recs: [
+        hid('data_entries', 'u-a', OLD), // 떠난 사람(상대가 남음) - 76-g가 지운다
+        hid('data_entries', 'u-b', OLD), // 남은 사람이 직접 지운 것 - 76-i
+        hid('messages', 'u-c', OLD, 'c-2'), // 두 사람 모두 떠난 커플 - cascade
+      ],
+    })
+    const pre = await runPurge(async () => port(w), { apply: false }, gate, NOW)
+    expect(lineOf(pre.lines, '숨긴 행 정리:')).toBe('숨긴 행 정리: 1')
+    const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(out.lines).toContain('숨긴 행 지움: 1')
+    const lastAuth = Math.max(...w.log.map((l, i) => (l.startsWith('auth:') ? i : -1)))
+    expect(w.log.indexOf('rows:hidden:data_entries:1')).toBeGreaterThan(lastAuth)
+    expect(w.recs).toEqual([])
+  })
+
+  it('한 표가 막히면 그 행 수만 실패 · 다른 표는 계속 · 다음 실행에 마무리', async () => {
+    const w = setup()
+    w.failHiddenOnce = 'data_entries'
+    const first = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(first.lines).toContain('숨긴 행 지움: 1')
+    expect(first.lines).toContain('숨긴 행 실패(다음 실행 때 다시): 2')
+    expect(first.lines).toContain('실패: 0')
+    const second = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(second.lines).toContain('숨긴 행 지움: 2')
+    expect(second.lines).toContain('숨긴 행 실패(다음 실행 때 다시): 0')
+  })
+
+  it('대상 표는 data_entries · messages 둘(dates는 앱이 되살림 · date_stops · stories는 숨김 칸 없음)', () => {
+    expect(HIDDEN_TABLES.map(([t]) => t)).toEqual(['data_entries', 'messages'])
+  })
+})
+
 describe('출력 · 가드 · 금지', () => {
   it('출력은 숫자만(경로 · id 0)', async () => {
-    const w = world({ profiles: [gone('u-a'), live('u-b')], couples: [{ id: 'c-1', user_a_id: 'u-a', user_b_id: 'u-b', status: 'dissolved' }], recs: [rec('data_entries', 'u-a')], files: { 'c-1': { entries: 1 } } })
+    const w = world({ profiles: [gone('u-a'), live('u-b')], couples: [{ id: 'c-1', user_a_id: 'u-a', user_b_id: 'u-b', status: 'dissolved' }], recs: [rec('data_entries', 'u-a'), { ...rec('messages', 'u-b'), deleted_at: '2026-11-01T00:00:00Z' }], files: { 'c-1': { entries: 1 } } })
     for (const apply of [false, true]) {
       const out = await runPurge(async () => port(w), { apply }, gate, NOW)
       const text = out.lines.join('\n')

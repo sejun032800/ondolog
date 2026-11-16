@@ -47,6 +47,7 @@ function fakePort(opts: { check?: PushPermission; request?: PushPermission } = {
     requestPermission: async () => { calls.push('request'); return opts.request ?? 'granted' },
     register: async () => { calls.push('register') },
     unregister: async () => { calls.push('unregister') },
+    clearDelivered: async () => {},
     createChannels: async () => { calls.push('channels') },
     onRegistration: (cb) => { reg = cb; return () => { reg = null } },
     onReceived: (cb) => { recv = cb; return () => { recv = null } },

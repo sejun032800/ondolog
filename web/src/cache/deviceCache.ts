@@ -45,9 +45,9 @@ export function writeCache(userId: string | null, kind: CacheKind, value: unknow
   }
 }
 
-function removeWhere(match: (key: string) => boolean): void {
+function removeWhere(match: (key: string) => boolean): number {
   const s = store()
-  if (!s) return
+  if (!s) return 0
   try {
     const keys: string[] = []
     for (let i = 0; i < s.length; i += 1) {
@@ -55,8 +55,10 @@ function removeWhere(match: (key: string) => boolean): void {
       if (k && k.startsWith(PREFIX) && match(k)) keys.push(k)
     }
     keys.forEach((k) => s.removeItem(k))
+    return keys.length
   } catch {
     // 같은 이유
+    return 0
   }
 }
 
@@ -66,9 +68,10 @@ export function clearAllDeviceCache(): void {
 }
 
 /** 계정 전환: 지금 사용자 것이 아닌 저장분을 모두 지운다. */
-export function purgeOtherUsers(userId: string): void {
+/** 지운 수를 돌려준다 - 0보다 크면 이 기기에 다른 사람의 저장분이 있었다(계정 전환, 76-i 서랍 알림 지우기의 신호). */
+export function purgeOtherUsers(userId: string): number {
   const mine = `${PREFIX}${userId}:`
-  removeWhere((k) => !k.startsWith(mine))
+  return removeWhere((k) => !k.startsWith(mine))
 }
 
 /** 해제 완료(커플이 더는 없음): 그 사용자의 커플 자료(채팅 · 메인 요약 · 피드 · 하늘)만. 이름 · 마지막 경로는 남는다. */

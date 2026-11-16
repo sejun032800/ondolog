@@ -10,7 +10,348 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
-cd "C:\Users\sejun\OneDrive\바탕 화면\ONDOLOG\ondolog"
+## `76-i` 숨긴 행 실제 삭제 + 로그아웃 때 서랍 알림 지우기 + 변경 알림 뒤 새로 읽기 + 운영 규칙 2 (메인 세션, 2026-11-16, 위임문 `76-i-dispatch-hard-delete-hidden.md` · 근거 `78-pm-report.md` §4-2 · `78-phone-check-2-pm-report.md` P1 · P2 · R110-4 · R111-2~5) - 완료 (미커밋)
+
+범위: `scripts/ops/purgeWithdrawn.ts` + 시험 · `__tests__/db/` 시험 1 · `web/src/`(④ · ⑤만: `push/` 3 · `app/useAccountData.ts` · `cache/deviceCache.ts` + 시험 2) · HANDOFF · PROGRESS. **마이그레이션 0 · 새 패키지 0 · 네이티브 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 호출 0** · 030 0 · 렌더 0 · 함수 0 · 스크립트 실행 0 · db push 0 · 커밋 0. 위임 0(메인 세션 직접). 원격은 **읽기 질의만**(⑥ 사실 확인: `pg_settings` · 로그 건수) - 숫자만 적음.
+
+검증: 루트 tsc 0 · jest 114/1951 → **115/1960** · PGlite 8/110 → **9/113** · 함수 tsc 0 · `deno check` `purgeWithdrawn.ts` · Deno 초기화 시험 28/28 · web tsc 0 · Vitest 60/986 → **61/997** + 1 건너뜀 · `LEGAL_CHECK=1` 법무 관문 8/8(998/998) · `build` · `build:trial` · `cap sync android`(맨 끝 한 번). Vitest 5회 중 1회 시험 1건 실패 · 4회 통과(어느 시험인지 그 출력에서 못 잡음 - 이번 시험 파일은 단독 2회 통과). 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0 · 파일 이름 ASCII.
+
+### 멈춘 것
+
+- **`dates`(하루) 숨긴 행 - 멈춤(대상 밖).** 앱에 되살리는 기능이 있다: 같은 날 다시 기록하면 `ensureDate`(`src/services/dateRecordApi.ts`, 웹도 같은 함수)가 숨긴 `dates` 행의 `deleted_at`을 비워 **그 행을 되살린다**(R105-1 재검토 조건). 되살아나는 것은 날짜 칸뿐이고 지운 사진 · 메모(`data_entries`)는 되살아나지 않는다. 남는 내용 칸: `region` · `title` · `narrative`(AI 생성) · `last_featured_at` · `feature_count`. PM 선택지:
+  - (가) `dates`도 24시간 뒤 행 삭제 - 앱은 행이 없으면 새로 만들어 동작은 같다(마이그레이션 0). 아주 좁은 경합(정리 순간 같은 날 재기록) 하나
+  - (나) 행은 두고 내용 칸(`region` · `title` · `narrative`)만 24시간 뒤 비우기(마이그레이션 0)
+  - (다) 지금처럼 유지(날짜 칸만 남음, 기록 내용은 이번 단계로 지워짐)
+- 그 밖 멈춤 0. 숨긴 행 삭제를 막는 외래 키 0 · 삭제 트리거 0(PGlite 시험으로 확인) -> 마이그레이션 0.
+
+### ① 소프트 삭제 테이블 표 (손대기 전)
+
+| 테이블 | 숨김 표시 칸 | 숨겨도 남는 내용 칸 | 앱에서 숨기는 경로 | 가리키는 다른 행(외래 키 · on delete) | 행 삭제 가능? |
+|---|---|---|---|---|---|
+| `data_entries`(사진 · 메모 · 그림) | `deleted_at` | `text_content`(메모 글) · `storage_path` · `thumb_path` · `drawing_path` · `captured_at` · `lat` · `lng` · `place_name` · `hashtags` · `ai_tags` 등 | 사진 · 메모 하나 지우기 `fn_delete_own_entry`(023) · 하루 지우기 `fn_delete_my_day`(76-m3) | `stories.archived_entry_id` -> **set null**(하나뿐) | **예 - 이번 대상** |
+| `messages` | `deleted_at` | `body`(대화 원문) · `media_path` · `sentiment` · `warmth_score` | **없음** - 앱(웹 · RN)에 메시지 지우기 기능 0, `deleted_at`을 쓰는 코드 0 | 없음 | **예 - 대상**(지금은 0건 예상, 생기면 같은 규칙) |
+| `dates` | `deleted_at` | `region` · `title` · `narrative` · `last_featured_at` · `feature_count` | 하루 지우기에서 그날 남은 것이 0일 때 | `date_stops.date_id` cascade · `data_entries.date_id` set null | 막힘은 없으나 **앱이 되살림 -> 멈춤 · 대상 밖**(위) |
+| `date_stops` | 없음 | - | 이미 행 삭제(장소 지우기 · 하루 지우기) | `data_entries.date_stop_id` set null | 해당 없음 |
+| `stories` | **없음** | - | 사용자 지우기 = 행 삭제(`stories_delete` 정책) | - | 해당 없음. **만료와 사용자 삭제 구분**: 삭제는 행이 없어지고, 만료는 `resolved_at` · `resolution`('archived' = 아카이브 편입 / 'discarded')으로 남는다 -> 만료 스토리는 이 단계가 건드릴 칸이 없음(0건) |
+| `profiles` | `deleted_at` · `purge_scheduled_at` | 탈퇴 유예 | 탈퇴 요청 | (76-g 표) | 대상 밖 - 76-f · 76-g 탈퇴 최종 삭제가 맡음 |
+
+### 시험 표
+
+| # | 시험 | 어디 | 결과 |
+|---|---|---|---|
+| ② | 미리 보기: 숫자만 · 지난 것만 셈 · 삭제 0 | `purgeWithdrawn.test.ts` | 통과 |
+| ③ | 24시간 안 0건 · 정확히 24시간은 지남 · 숨기지 않은 행 · 상대 행 0건 | 둘 다 | 통과 |
+| ③ | 만료 · 편입된 스토리 행 0건(편입 칸만 비워짐) | `hiddenRows76i.test.ts` | 통과 |
+| ③ | 발행된 호 · 매거진 파일 0건 | 둘 다 | 통과 |
+| ③ | 외래 키 = ① 표(스토리 set null · 날짜 · 장소 그대로 · 숨긴 `dates` 행 그대로) · 막는 외래 키 · 삭제 트리거 0 | `hiddenRows76i.test.ts` | 통과 |
+| ③ | 76-g · 76-h 단계 뒤에 돈다 · 그 단계가 맡은 행(통째로 지울 커플 · 떠난 사람 기록) 두 번 세지 않음 | `purgeWithdrawn.test.ts` | 통과 |
+| ③ | 한 표 막힘 -> 그 행 수만 실패 · 다른 표 계속 · 다음 실행에 마무리 · 멱등 | 둘 다 | 통과 |
+| ③ | 76-g · 76-h · R108-2 회귀 0 · 출력 숫자만 · R34-3 · `demo_responses` 0 | 기존 시험 전부 | 통과 |
+| ④ | 5자리(로그아웃 · 탈퇴 요청 · 해제 요청 · 해제 유예/완료 · 계정 전환) 각각 서랍 지우기 1 | `push76i.vitest.tsx` | 통과 |
+| ④ | 순서 서랍 -> 토큰 -> 세션 · 서랍 실패해도 토큰 삭제 · 로그아웃 진행 · 두 번 불려도 오류 0 · 웹 미리보기 0 | `push76i.vitest.tsx` | 통과 |
+| ④ | 같은 사람의 앱 시작에는 서랍 0(계정 전환일 때만) | `push76i.vitest.tsx` | 통과 |
+| ⑤ | 날짜 변경 안내 -> 새로 읽기 1 · D+ 근원 · 기기 저장값 갱신 / 닉네임 -> 1 · 이름 갱신 / 메시지 -> 0 / 연달아 3건 -> 2회 이하 | `push76i.vitest.tsx` | 통과 |
+| - | 78- 푸시 시험 회귀 0(가짜 다리에 `clearDelivered` 한 줄) | `push78.vitest.tsx` | 통과 |
+
+### 76-i 결정 기록 (출처: R110-4 · R111-2~5)
+
+| 결정 | 근거 |
+|---|---|
+| 숨긴 행 정리 대상 = `data_entries` · `messages`. 숨긴 지 24시간(`deleted_at <= 지금 - 24시간`) 지난 행을 **행째** 삭제. 지울 때 같은 조건을 다시 건다 | R110-4 ② · 위임서 ② |
+| `dates`는 대상 밖 - 앱의 되살리기(`ensureDate`) 때문에 멈춤 · PM 선택 | 위임서 멈춤 조건 · R105-1 |
+| 순서 = 76-h 해제 정리 -> 76-g 탈퇴(사용자별) -> **76-i 숨긴 행**. 통째로 지울 커플 · 떠난 사람 기록 행은 76-i가 세지 않음 | 위임서 ② |
+| 파일은 다루지 않음 - 행이 사라지면 다음 `sweepOrphanFiles`가 받는다(소프트 삭제 행은 이미 "가리키는 행"이 아님, R105-1) | 위임서 ② |
+| 실패 = 100행 묶음 단위로 그 수만 "숨긴 행 실패" 줄에 셈(사용자 "실패" 줄과 따로) · 다음 실행 때 다시 | 위임서 ② |
+| ④ 서랍 지우기 = 플러그인 기존 `removeAllDeliveredNotifications`(새 패키지 · 네이티브 0). `forgetThisDevicePush` 맨 앞(등록 표시와 상관없이) -> 4자리 자동. 계정 전환은 `purgeOtherUsers`가 다른 사람 저장분을 지웠을 때만(같은 사람의 앱 시작에는 서랍을 건드리지 않음) -> 그다음 `push_claim_device` | R111-2 |
+| ⑤ 앞에서 받은 `date` · `nickname` 알림 -> `coupleStore.refresh`(화면 + 기기 저장값). 읽는 중에 또 오면 끝난 뒤 한 번 더(최대 2회). 띠는 그대로 | R111-3 |
+| ⑥ 알림 건강 확인은 `net._http_response`가 아니라 로그(보존 6시간 실측) | R111-5 · 사실 확인 |
+
+### 바뀐 미리 보기 출력 줄 (숫자 자리만)
+
+```
+… (76-h까지 그대로)
+떠난 사람의 장소: n
+빈 날 정리: n
+숨긴 행 정리: n                    <- 76-i 새 줄(합)
+숨긴 행 정리 data_entries: n       <- 76-i
+숨긴 행 정리 messages: n           <- 76-i
+실제로 지우려면 --apply
+```
+
+적용(`--apply`)일 때 끝에 `숨긴 행 지움: n` · `숨긴 행 실패(다음 실행 때 다시): n` 두 줄이 더해진다. 마지막 줄은 실패가 있으면 `완료(실패한 것은 다음 실행 때 다시)`.
+
+다음 월요일 운영에서 달라지는 점: 명령은 76-f 절 그대로. **첫 실행은 미리 보기 숫자(숨긴 행 정리 3줄)를 PE에 보내고 확인 뒤 적용**(행 삭제는 되돌릴 수 없음 - 76-f 첫 실행과 같은 규칙). 그 뒤 `sweepOrphanFiles`가 지운 사진의 남은 파일을 받는다(이미 지워졌다면 0). 그리고 8번 알림 건강 확인 한 줄(76-f 월요일 운영 절).
+
+### 76-i 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 운영 스크립트 - 숨긴 행 정리
+
+```
+git add scripts/ops/purgeWithdrawn.ts
+git add scripts/ops/purgeWithdrawn.test.ts
+git add __tests__/db/hiddenRows76i.test.ts
+git commit -m "76-i ops: hard-delete rows hidden for over 24 hours in the Monday purge"
+```
+
+2) 앱 - 서랍 알림 지우기 · 변경 안내 뒤 새로 읽기
+
+```
+git add web/src/push/pushPort.ts
+git add web/src/push/pushCore.ts
+git add web/src/push/usePushSetup.ts
+git add web/src/app/useAccountData.ts
+git add web/src/cache/deviceCache.ts
+git add web/src/push/push76i.vitest.tsx
+git add web/src/push/push78.vitest.tsx
+git commit -m "76-i web: clear delivered notifications on sign-out and account changes, refresh couple on change notices"
+```
+
+3) 상태 파일
+
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "76-i state: handoff, progress, restore 78 handoff section, ops rules"
+```
+
+### HANDOFF 복구 (알림)
+
+직전 커밋 `b49c64c`에서 HANDOFF의 **`78-` 절 전체(222줄)가 빠지고** 그 자리에 `cd "…"` 한 줄이 들어가 있었다. 같은 커밋에서 허용 목록 경로 한 줄의 `\r`이 줄바꿈으로 바뀌어 두 줄로 깨져 있었다. `6e10c83`의 내용으로 되살리고(`cd` 줄은 뺌) 깨진 줄을 고쳤다 - 되살린 뒤 내용이 `6e10c83`과 글자 단위로 같았다(줄 끝만 지금 커밋 그대로 LF). ⑥이 가리키는 "78- 3번 명령"이 그 절에 있다.
+
+### Proteur 다음 순서
+
+1. 커밋(위 1 · 2 · 3). db push 없음 · 함수 배포 없음
+2. 빌드 · 덮어 설치: `cd web` -> `npm run build:trial` -> `npx cap sync android`(메인 세션이 이미 한 번 돌림 - 그 뒤 코드 변경 0) -> Android Studio 빌드 -> 두 폰 덮어 설치(데이터 유지)
+3. 폰 확인(녹화 · 방해 금지 + 온도록만 예외):
+   - 서랍에 온도록 알림이 있는 채로 로그아웃 -> **서랍에 온도록 0**(다른 앱 알림은 그대로)
+   - A가 메인을 보는 중 B가 사귄 날짜 변경 -> 띠와 함께 **메인 D+가 바로 바뀜**(설정에 가지 않고) · 닉네임 변경 -> 커플 이름 바로 바뀜
+   - 78- 남은 1분 확인 4개: A가 홈(앱 뒤)일 때 B가 날짜 · 닉네임 변경 -> 서랍 알림 -> 누르면 메인 -> 안내 1회 / V40이 받는 쪽 / 설정 "변경 안내 끔" -> 변경 알림 0 / 방해 금지 예외 목록에 온도록이 보이는지
+4. 다음 월요일(11/23): 76-f 월요일 운영 - 미리 보기의 "숨긴 행 정리" 3줄을 PE에 보내고 확인 뒤 적용 · 8번 알림 건강 확인(11/16의 503 22건이 보이면 7일 보존 확인)
+5. PM: 위 "멈춘 것"의 `dates` (가) · (나) · (다)
+
+## `78-` 푸시 알림(Android) + 닉네임 변경 안내 + 처리방침 v1.2 + R108 남은 것 (메인 세션, 2026-11-16, 위임문 `78-dispatch-push.md` · 근거 `78-pm-report-before-dispatch.md` · `PM_legal_minimal_v1.md` v1.2 · R100-4 · R101-5 · R108-2 · R108-3 · R109-1~3) - 완료 (미커밋)
+
+범위: `supabase/migrations/` 새 파일 1(`78-m1`) · `supabase/functions/` 새 함수 1(`push-send`) + `_shared/pushSend.ts` · `__tests__/db/` · `web/`(앱 · `web/android/` 매니페스트 · 알림 아이콘만) · `.gitignore` · HANDOFF · PROGRESS. 새 패키지 `@capacitor/push-notifications@8.1.3` 하나(package.json 한 줄 · lock은 그 패키지만). `consent.ts`는 v1.2 반영만(R109-3 허가). 위임 0(메인 세션 직접). 원격 0 · db push 0 · 함수 배포 0 · 비밀 설정 0 · 커밋 0. `demo_responses` 0 · R34-3 0 · 렌더 0 · RN 0. `web/android/app/build.gradle`은 **변경 0**(Capacitor 템플릿에 `google-services.json`이 있을 때만 플러그인을 적용하는 `try` 블록과 루트 classpath가 이미 있었다). `capacitor.build.gradle` · `capacitor.settings.gradle`은 `cap sync`가 새 플러그인을 등록하며 다시 만든 것(손수정 0). `scripts/ops/` 시험 발송 스크립트는 만들지 않음(폰 확인으로 충분).
+
+검증: web tsc 0 · Vitest 59/961 → **60/986** + 1 건너뜀 · `LEGAL_CHECK=1` 법무 관문 7/7 → **8/8**(v1.2 원본 대조 1건 추가) · `build` · `build:trial` · `cap sync android`(맨 끝 한 번 · `google-services.json` 없이 통과) · 루트 tsc 0 · jest 112/1924 → **114/1951** · PGlite 7/94 → **8/110** · 함수 tsc(`-p supabase/functions/tsconfig.json`) 0 · `deno check` `push-send/index.ts` 통과 · Deno 초기화 시험 28/28 · Python(PROGRESS 줄). 키 · 주소 · ref · id · 이메일 · 토큰 0 · 파일 이름 ASCII · `google-services.json` 추적 0(`.gitignore`).
+
+### 멈춘 것
+
+없음. 판단으로 좁힌 것 하나: **H10 "폰 설정에서 켜기"의 이동** - 앱의 알림 설정 화면을 바로 여는 것은 네이티브 코드(인텐트)가 필요해 허가(아이콘 · 채널 · 권한 · google-services) 밖이다. 대신 권한 창을 다시 띄워 보고(Android가 다시 물을 수 있을 때), 그래도 꺼져 있으면 "폰 설정 > 애플리케이션 > 온도록 > 알림에서 켜 주세요" 글을 보인다. 바로 이동이 필요하면 PM 결정(네이티브 몇 줄 또는 플러그인 하나).
+
+### 0단계
+
+- **R108-2 결과: 막히지 않음.** `__tests__/db/departedPlaces76h.test.ts`에 1건 - 그날(그 장소)을 가리키는 소프트 삭제된 사진 · 메모(남은 사람 것)가 있는 빈 날을 지워도 외래 키(`data_entries.date_id` · `date_stop_id` = set null)에 막히지 않고, 숨겨진 행은 날짜 · 장소 칸만 비워진 채 남는다. 스크립트 수정 0.
+- **R108-3**: PROGRESS에 첫 정기 정리 한 줄(경로 · id 0).
+- **설계 메모**
+  - 토큰 저장: `push_tokens`(사람 · 앱이 만든 기기 id · 토큰 · android/ios · 마지막 확인 시각). 본인만 읽기 · 지우기(RLS), 쓰기는 `push_register` RPC만(같은 토큰 · 같은 기기의 다른 사람 행 정리 = 계정 전환). 사람 삭제 cascade. 설정은 별도 표 `notification_settings`(본인만 - profiles 칸에 두면 상대가 읽을 수 있어서). 행 없음 = 둘 다 켬.
+  - 발송 트리거: `messages` AFTER INSERT · `couples` AFTER UPDATE(이미 있던 날짜 · 닉네임이 바뀔 때만) -> `push_enqueue` -> `push_recipient`(active 커플의 상대 · 탈퇴 유예 아님 · 그 알림 켬) + 토큰 있음 -> `net.http_post`(Vault의 `ondolog_push_url` · `ondolog_push_secret`). 넘기는 것은 종류 · 커플 · 보낸 사람 · 사진 여부뿐(원문 0). 어떤 오류도 메시지 저장을 막지 않는다(예외 삼킴). 앱이 직접 발송을 부르는 길 0.
+  - 함수 인증: `--no-verify-jwt` 배포 + 비밀 헤더 `x-ondolog-push`. 헤더가 없으면 401, 있으면 `push_context(비밀, …)`(service_role 전용 RPC)가 Vault 값과 대조 -> 다르면 401. 앱 키(publishable · 사용자 JWT)로 불러도 헤더가 없거나 틀려 거부. 비밀은 DB 안에서 무작위로 만들어 화면 · 파일에 나오지 않는다. 함수의 DB 접근은 전용 secret key(`push_2026_11` 제안, 함수 비밀 `ONDOLOG_PUSH_DB_KEY`) - legacy service_role이 꺼져 있어(74-k2) 플랫폼 기본 값에 기대지 않는다.
+  - **iOS 확장 지점**: 서버는 그대로(FCM V1이 APNs로 보냄 - 메시지에 `apns-collapse-id` · `thread-id` = 같은 태그를 이미 싣는다). 더 필요한 것: APNs 인증 키(.p8)를 Firebase에 등록 + iOS 앱을 Firebase에 등록(`GoogleService-Info.plist`) + Xcode Push Notifications capability + `AppDelegate` 두 메서드(플러그인 README) + iOS 권한 창(같은 I08 흐름). 앱 코드는 `pushPort.platform = 'ios'`로 이미 갈라 둠 · 채널 만들기는 Android만. **즉 "APNs 키 등록만"으로는 부족하고 iOS 빌드 쪽 설정이 더 든다.**
+
+### 항목별 표
+
+| # | 고친 곳 | 시험 | 폰에서만 확인되는 것 |
+|---|---|---|---|
+| 서버 m1 | `supabase/migrations/20261116180000_m1_push_notify.sql` - pg_net(있을 때만 켬) · `push_tokens` · `notification_settings` · `couples.nickname_changed_by`(트리거만 채움 · set null) · `push_recipient` · `push_enqueue` · 트리거 2 · `push_context` · `push_drop_token` · `push_register` · `push_claim_device` · 실행 권한 | `__tests__/db/pushNotify78m1.test.ts` 15건(pg_net · Vault는 시험 안 스텁): 본인 토큰만 · 직접 쓰기 거부 · 상대 토큰 읽기 0 · 토큰 갱신 · 계정 전환 이동 · claim · 사람 삭제 -> 토큰 · 설정 0 · 메시지 -> 호출 1 · 원문 0 · 사진 · 설정 끔 0 · 유예 · 해제 · 탈퇴 유예 0 · Vault 없음 0 · pg_net 실패해도 저장 · 처음 정하기 0 · 변경 -> 상대에게만 · 바꾼 사람 칸 · 앱 직접 쓰기 거부 · RPC 비밀 대조 · 앱 역할 실행 거부. `withdrawalPurge76g` 외래 키 표에 새 칸 3줄 | 원격 pg_net · Vault 실제 호출 |
+| 함수 | `supabase/functions/push-send/index.ts`(연결만) · `_shared/pushSend.ts`(판단 전부) | `_shared/pushSend.test.ts` 11건(가짜 FCM): 본문 4문장 · 원문 · 새 값 0 · 사진 · 누름 경로 · **연속 3건 태그 · collapse key 같음 · 변경 안내 태그 다름 · 채널 다름** · 401(헤더 없음 · 앱 키 · 틀린 비밀) · 405 · 400 · 받는 사람 없음 0 · 404 · UNREGISTERED · SENDER_ID_MISMATCH -> 행 삭제 / 500 · 400 남김 · 로그에 토큰 · 본문 · 이름 · id · 비밀 0 · RS256 서명 검증 · 접근 토큰 캐시 | 실제 FCM 전달 · 서비스 계정 토큰 발급 |
+| I08 | `web/src/push/PushPermissionScreen.tsx` · `usePushSetup.ts` | `push78.vitest.tsx`: 처음 메인 한 번 · 다시 0 · 유예 · 미연결 0 · 처음부터 허용(V40) = 안내 없이 등록 · 허용 · 거부 · 나중에 | S21 OS 권한 창 · V40 바로 등록 |
+| 등록 | `push/pushCore.ts`(기기 id · 등록 표시 · RPC) · `pushPort.ts`(플러그인 다리) | 토큰 저장 · 바뀐 토큰 재저장 · 받을 수 없을 때 0 | 토큰이 실제로 서버에 생김 |
+| 삭제 5자리 | 로그아웃(`accountActions.logoutToStart`, 세션 지우기 전) · 탈퇴 요청(`WithdrawScreen`) · 해제 요청(`UnlinkScreen`) · 해제 유예/완료(`coupleStore.refresh`의 `clearCoupleCache` 옆) · 계정 전환(`useAccountData`의 `purgeOtherUsers` 옆 -> `push_claim_device`). 서버 행 + FCM `unregister` | 5자리 각각 동작 단언 · 등록한 적 없으면 0 · 두 번 불려도 한 번 | 로그아웃 뒤 알림 0 |
+| I07 | `push/PushBand.tsx` · `capacitor.config.ts` `PushNotifications.presentationOptions: []` | 앞에 있을 때 띠 · 누르면 채팅 · 4초 닫힘 · **보고 있는 채팅이면 메시지 띠 0** · 변경 안내는 띠 | 앞에 있을 때 OS 알림이 안 뜨는지 |
+| 누름 | `usePushSetup` 3) | 메시지 = 채팅 · 변경 = 메인 · 시작 끝난 뒤 한 번 | 앱이 꺼진 상태 · 뒤에 있는 상태에서 누름 |
+| H10 | `features/settings/NotifySettingsScreen.tsx` · `SettingsView.tsx`(NOTIFICATIONS > 알림 - 보드 H02 자리, 루트 `SETTINGS_GROUPS`는 그대로) · 라우트 3(`push-permission` · `settings-notify` · `nickname-recheck`) | 기본 켬 · upsert · 실패 되돌림 · 폰 권한 꺼짐 안내 | - |
+| R101-5 | `couple/useNicknameNotice.ts` · `features/couple/NicknameNoticeScreen.tsx` · `App.tsx` | 판정 · 한 번 · 새 값이면 다시 · 화면 문구 · 둘째 줄 값 · 메인으로 | 상대 폰에서 바꾼 뒤 내 폰 |
+| 네이티브 | `AndroidManifest.xml`(POST_NOTIFICATIONS · 기본 아이콘 · 기본 채널 meta-data) · `res/drawable/ic_stat_ondolog.xml`(흰 실루엣 벡터) · `.gitignore` | `cap sync` · 빌드(파일 없이 통과) | 알림 아이콘이 흰 네모가 아닌지 |
+| v1.2 | `web/src/legal/consent.ts` - 1번 · 4번 표(Google LLC) · 5번 줄 · 시행일 **2026년 11월 16일**(Proteur 답) | `legal.vitest.tsx` 원본 "(v1.2)" 세 줄 대조 + 기존 7 · `push78.vitest.tsx` 문장 = 동작 | 설정 > 개인정보 & 약관 |
+| 시험 보조 | `testSupportCouple.ts` delete · upsert · `settings.vitest.tsx`('알림'이 이제 있음) · `settingsFlow.vitest.tsx`(로그인 때 claim RPC가 탈퇴 취소로 오인되지 않게) · `backRules.vitest.ts`(새 라우트 3) | - | - |
+
+### 보드 대조표(H10 · I07 · I08)
+
+| 보드 | 따른 것 | 다른 것 · 이유 |
+|---|---|---|
+| H10 | ← 알림 머리 · 줄 + 토글 · "채팅" 라벨 | 발행 · 기념일 · CORNERS · 셋로그 시각 줄 뺌(보낼 알림 없음 - R42-5) · "변경 안내" 줄 더함 · 폰 권한 꺼짐 안내 묶음 |
+| I07 | 카드 모양(점 아이콘 · "온도록" · 본문 · "지금") | 화면 위 띠 한 장(서랍 목록이 아님) |
+| I08 | 미리보기 카드 두 장 · "중요한 순간만 알려드릴게요" · [알림 받기] · [나중에] | 본문 · 카드 문장을 지금 실제로 오는 알림(메시지 · 변경 안내)으로 - 보드의 발행 · 답변 · 기념일은 아직 없음 |
+
+### 78- 결정 기록 (출처: R100-4 · R101-5 · R108-2 · R108-3 · R109-1~3)
+
+| 결정 | 근거 |
+|---|---|
+| 설정은 profiles 칸이 아니라 본인 전용 표(상대가 내 알림 설정을 읽지 못하게) | R109-1 ① · 본인만 |
+| 받는 사람 판정을 트리거와 함수가 같은 SQL 함수(`push_recipient`)로 - 트리거에서 거르고(호출 0) 함수가 다시 확인 | 위임서 "설정 끔 -> 호출 0" + "함수가 확인" |
+| 트리거 비밀 = Vault, 함수는 비밀 값을 갖지 않고 DB에 대조를 맡김 - 사람이 값을 두 곳에 넣지 않고, 값이 화면에 나오지 않음 | R109-1 ④ |
+| 함수 DB 키 = 전용 secret key(`ONDOLOG_PUSH_DB_KEY`) - legacy service_role 비활성 | 74-k2 |
+| 메시지 태그 = `ondolog-m-{커플}` = collapse key, 변경 안내는 `ondolog-c-d-` / `ondolog-c-n-`(날짜 · 닉네임 서로도 따로) | R109-2 |
+| 변경 안내는 "이미 있던 값이 바뀔 때"만(온보딩 처음 정하기 0) · 바꾼 사람 = 요청 사용자 | R101-5 · F1 |
+| 닉네임 바꾼 사람 칸은 트리거만 채우고 되돌리지 않음(set null이 되돌려지면 외래 키가 깨짐 - 76-g m3 교훈) | 76-g |
+| Android 10처럼 처음부터 허용이면 I08을 보이지 않고 바로 등록(물을 것이 없는 안내는 거짓 선택) | 위임서 "V40은 권한 창 없이 바로 등록" |
+| 토큰 삭제 = 서버 행 + FCM `unregister` - 오프라인이라 행을 못 지워도 FCM이 UNREGISTERED -> 함수가 행 삭제 | 처리방침 5번 |
+| 계정 전환 = 로그인마다 `push_claim_device`(이전 사람이 로그아웃 못 한 기기) | 위임서 삭제 규칙 |
+| 알림 채널 가시성 = 잠금 화면에서 내용 숨김(private) - 본문에 상대 이름이 있어서 | 판단 |
+| 발송 함수의 HTTP는 주입된 `transport`로만(규칙 C의 LLM 경계 밖 - Google OAuth · FCM) | `cornerPipelineStaticRules` 규칙 C |
+| 법무 관문 7 -> 8(v1.2 원본 대조 1건) | R109-3 |
+
+### 78- 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) R108-2 시험
+
+```
+git add __tests__/db/departedPlaces76h.test.ts
+git commit -m "78 R108-2 test: emptied-day delete is not blocked by soft-deleted entries"
+```
+
+2) 서버 - 토큰 · 설정 · 트리거
+
+```
+git add supabase/migrations/20261116180000_m1_push_notify.sql
+git add __tests__/db/pushNotify78m1.test.ts
+git add __tests__/db/withdrawalPurge76g.test.ts
+git commit -m "78 db: push tokens, notification settings, message and change triggers via pg_net"
+```
+
+3) 발송 함수
+
+```
+git add supabase/functions/_shared/pushSend.ts
+git add supabase/functions/_shared/pushSend.test.ts
+git add supabase/functions/push-send/index.ts
+git commit -m "78 function: push-send via FCM v1 with collapse tags and dead token cleanup"
+```
+
+4) 웹 - 푸시 · H10 · I07 · I08 · 닉네임 안내
+
+```
+git add web/package.json
+git add web/package-lock.json
+git add web/capacitor.config.ts
+git add web/android/app/src/main/AndroidManifest.xml
+git add web/android/app/src/main/res/drawable/ic_stat_ondolog.xml
+git add web/android/app/capacitor.build.gradle
+git add web/android/capacitor.settings.gradle
+git add web/src/push
+git add web/src/couple/useNicknameNotice.ts
+git add web/src/features/couple/NicknameNoticeScreen.tsx
+git add web/src/features/settings/NotifySettingsScreen.tsx
+git add web/src/features/settings/SettingsView.tsx
+git add web/src/features/settings/accountActions.ts
+git add web/src/features/settings/WithdrawScreen.tsx
+git add web/src/features/settings/UnlinkScreen.tsx
+git add web/src/features/settings/settings.vitest.tsx
+git add web/src/features/settings/settingsFlow.vitest.tsx
+git add web/src/stores/coupleStore.ts
+git add web/src/app/useAccountData.ts
+git add web/src/app/routes.ts
+git add web/src/app/routeTable.tsx
+git add web/src/app/backRules.ts
+git add web/src/app/backRules.vitest.ts
+git add web/src/cache/deviceCache.ts
+git add web/src/testSupportCouple.ts
+git add web/src/styles.css
+git add web/src/App.tsx
+git add .gitignore
+git commit -m "78 web: Android push notifications, notification settings, in-app band, nickname change notice"
+```
+
+5) 처리방침 v1.2
+
+```
+git add web/src/legal/consent.ts
+git add web/src/legal/legal.vitest.tsx
+git commit -m "78 legal: privacy policy v1.2 for push tokens, effective 2026-11-16"
+```
+
+6) 상태 파일
+
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "78 state: handoff and progress"
+```
+
+### Proteur 할 일 순서 (맨 위 폴더 · PowerShell · 값 출력 0)
+
+1. **`google-services.json`**: 다운로드 폴더의 파일을 `web\android\app\`에 끌어다 놓는다. 확인:
+
+```
+git status --short web/android/app
+git check-ignore web/android/app/google-services.json
+```
+
+첫 줄은 아무것도 안 나와야 하고, 둘째 줄은 경로 한 줄(무시됨).
+
+2. **db push** (`78-m1` 한 파일)
+
+```
+npx supabase migration list
+npx supabase db push --dry-run
+npx supabase db push
+npx supabase migration list
+```
+
+dry-run에 `20261116180000_m1_push_notify.sql` **하나만** 보여야 한다(76-g 두 파일이 아직 원격에 없다면 그것도 보인다 - 그 경우 76-g 절 순서대로 먼저). 다른 것이 보이면 멈추고 보고. 그 뒤 대시보드 SQL(읽기만): `select extname from pg_extension where extname = 'pg_net';` -> 한 줄. 0줄이면 Database > Extensions에서 pg_net을 켠다.
+
+3. **함수 비밀** - 먼저 대시보드 Settings > API Keys에서 새 secret key `push_2026_11`을 만든다(복사 버튼으로만 옮긴다). 그다음 한 줄씩:
+
+```
+$k = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$k.StartsWith('sb_secret_')
+$sa = @(Get-ChildItem "$env:USERPROFILE\.ondolog\*.json" | Where-Object { (Get-Content -Raw -LiteralPath $_.FullName) -match '"type"\s*:\s*"service_account"' })
+$sa.Count
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($sa[0].FullName))
+$f = Join-Path $env:TEMP ("ondolog-push-" + [guid]::NewGuid().ToString('N') + ".env")
+Set-Content -LiteralPath $f -Encoding ascii -Value @("ONDOLOG_PUSH_DB_KEY=$k", "ONDOLOG_FCM_SERVICE_ACCOUNT_B64=$b64")
+npx supabase secrets set --env-file $f
+Remove-Item -LiteralPath $f
+Remove-Variable k, b64, sa
+npx supabase secrets list
+```
+
+둘째 줄 `True`, 넷째 줄 `1`일 때만 계속. 마지막 줄은 이름(`ONDOLOG_PUSH_DB_KEY` · `ONDOLOG_FCM_SERVICE_ACCOUNT_B64`)과 값 대신 digest만.
+
+4. **트리거 비밀 · 함수 주소(Vault)** - 대시보드 SQL Editor에서. 비밀은 DB가 무작위로 만들어 어디에도 보이지 않는다. 주소의 `<ref>`는 대시보드 주소창의 프로젝트 ref를 그 자리에서만 친다(터미널 · 기록에 쓰지 않음):
+
+```
+select vault.create_secret(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 'ondolog_push_secret');
+select vault.create_secret('https://<ref>.supabase.co/functions/v1/push-send', 'ondolog_push_url');
+select name, length(decrypted_secret) > 0 as filled from vault.decrypted_secrets where name like 'ondolog_push_%';
+```
+
+마지막 줄: 두 줄 모두 `true`.
+
+5. **함수 배포**
+
+```
+npx supabase functions deploy push-send --no-verify-jwt
+```
+
+6. **빌드 · 설치**: `cd web` -> `npm run build:trial` -> `npx cap sync android`(메인 세션이 맨 끝에 한 번 돌림 - `google-services.json`을 넣은 뒤라면 한 번 더) -> Android Studio 빌드 -> 두 폰 덮어 설치(데이터 유지).
+
+7. 끝나면 PowerShell 창을 닫고, 새 창에서 `[bool]$k` -> `False`.
+
+함수 로그(대시보드 Edge Functions > push-send > Logs)에는 `push-send status=200 sent=1 dropped=0 failed=0` 꼴만 보여야 한다. `status=503 config`면 3번 비밀, `status=401`이면 4번 Vault 비밀이 없거나 두 번 만들어진 것 - 보고.
+
+### 폰 확인 순서
+
+1. 새 계정 첫 가입은 R79-3 ①이 가능하면 함께(v1.2 문장으로 가입)
+2. 연결 뒤 첫 메인 -> I08 -> S21 [알림 받기] -> 허용 / (다른 계정이면) 거부. V40은 I08 없이 바로 등록되는지
+3. 상대 폰에서 메시지: 앱 꺼진 상태 · 뒤에 있는 상태(서랍 알림) · 앞에 있는 상태(위쪽 띠, OS 알림 0)
+4. 메시지 5건 연달아 -> 알림 서랍에 하나(본문은 마지막 것)(R109-2)
+5. 설정 > 개인정보 & 약관 -> 처리방침에 알림 토큰 줄 · Google LLC 행 · 5번 토큰 줄 · 시행일 2026년 11월 16일
+6. 그 채팅을 보고 있을 때 메시지 -> 띠 0 · 알림 0
+7. 알림 누름: 메시지 -> 채팅 탭 · 변경 안내 -> 메인(이어 F1 · 닉네임 안내)
+8. 설정 > 알림 -> 채팅 끔 -> 메시지 알림 0 / 변경 안내 끔 -> 변경 알림 0
+9. 상대가 닉네임 · 날짜 변경 -> 알림 + 앱 안 안내 한 번(내가 바꾼 것은 0)
+10. 로그아웃 -> 상대가 메시지 -> 알림 0
+
+### 다음
+
+| 항목 | 다음 |
+|---|---|
+| iOS(실제 커플) | PM 결정 - 빌드 · 서명 · TestFlight · APNs · 카카오 iOS · 51- iOS 한 바퀴. 푸시는 위 "iOS 확장 지점" |
+| 매거진 발행 알림 | 렌더 수정 필요 - 다음 |
+| 알림 조용한 시간 | 실제 커플 사용 뒤 |
+| H10 폰 설정 바로 열기 | PM 결정(네이티브 허가) |
 
 ## `76-h` 떠난 사람이 남긴 장소 지우기 (메인 세션, 2026-11-16, 위임문 `76-h-dispatch-departed-places.md` · 근거 `76-g-pm-report.md` §5 · R106-1~4) - 완료 (미커밋)
 
@@ -355,6 +696,12 @@ deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functi
 6. 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` -> `False`.
 
 7. (76-h · R106-4) `purgeWithdrawn` 미리 보기의 **"해제 실행 대기" 숫자가 두 주 연속 줄지 않으면 PE에 알림** - 매일 해제 실행 일정(cron)이 멈췄다는 신호.
+
+8. (76-i · R111-5) **알림 건강 확인 - 지난 7일 `push-send` 응답을 상태별 건수로만**(값 · 토큰 · 본문 · 주소 0). 대시보드 **Logs**(왼쪽 메뉴) -> 왼쪽 **Time Range**를 지난 7일로 -> **Log Type**은 Edge Function 하나만 -> **Pathname** 필터에 `push-send` -> **Status** 필터로 200 / 그 밖을 나눠 건수만 본다(행을 열어 내용을 보지 않는다). **200이 아닌 것이 한 건이라도 있으면 PE에 건수만 알림**(503 = 함수 비밀 빠짐 · 401 = Vault 비밀).
+   - `net._http_response`(pg_net 응답 표)로는 셀 수 없다: **보존 6시간**(`pg_net.ttl` = 6 hours 실측, pg_net 0.20.4 · 문서 기본값과 같음 · 바꾸려면 Supabase 지원 요청 필요). 마이그레이션 0으로 되는 쪽(로그)을 쓴다.
+   - 로그 보존 실측(2026-11-16, Free 플랜): 같은 로그 저장소에 11/9(7일 전) API 요청 로그 · 11/7(9일 전) DB 로그가 남아 있음 -> 7일은 볼 수 있다. `push-send` 기록은 11/16부터라 **11/23 첫 확인에서 11/16의 503 22건(78- 1차 폰 확인 - 함수 비밀 누락)이 보이면 7일 보존이 확인된 것**(그 22건은 이미 원인을 안다 - 알림 불필요). 보이지 않으면 PE에 "볼 수 있는 기간"을 알림 -> 대안은 날짜별 숫자만 남기는 작은 표(마이그레이션 · PM 결정).
+   - (메인 세션이 대신 볼 때) 로그 질의 - 24시간 창으로 7번:
+     `select toString(log_attributes['response.status_code']) as status, count(*) as n from logs where source = 'function_edge_logs' and toString(log_attributes['request.pathname']) like '%/push-send%' group by status order by status`
 
 `--allow-net`은 프로젝트 호스트 하나, `--allow-env`는 위 이름만, `--allow-read`는 연결 정보 파일과 허용 목록 하나. 허용 목록의 `project=`가 접속 주소와 다르면 두 스크립트 모두 **접속 전에** "거부: …" 한 줄로 끝난다.
 
@@ -1174,6 +1521,8 @@ $env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
 
 - 키 · 주소는 **그 창의 환경 변수에만** 넣는다. 사용자 범위 · 시스템 범위에 영구 저장하지 않는다(`setx` · `[Environment]::SetEnvironmentVariable(..., 'User'/'Machine')` · 시스템 속성 화면 모두 금지, R87-6).
 
+- **(76-i · R111-5) 푸시 함수 키 회전**: secret key `push_2026_11`을 바꾸면(새로 만들고 옛 것 지움) **함수 비밀 `ONDOLOG_PUSH_DB_KEY`를 다시 넣는다** - "`78-` Proteur 할 일 순서" 3번 명령 그대로(같은 명령이 `ONDOLOG_FCM_SERVICE_ACCOUNT_B64`도 다시 넣는다). FCM 서비스 계정 키를 바꿀 때도 같은 3번 명령. 끝 줄 `npx supabase secrets list`로 **두 이름이 있는지**만 본다(값 · digest는 보고에 쓰지 않음). 이걸 빠뜨리면 함수가 `503 config`로 멈추고 **알림만 조용히 0**이 된다(메시지는 정상 - 78- 1차 폰 확인에서 실제로 일어남).
+
 ### 74-k1 커밋 명령 (Proteur, 74-k1 뒤)
 
 **저장소 맨 위 폴더에서 친다.** 한 줄씩:
@@ -1488,8 +1837,7 @@ deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functi
 
 #### 0-6 잠금 — 저장소 밖 허용 목록 (75-, R76-9 · R78-5)
 초기화 스크립트(`resetTestAccount.ts`, 단독 · 커플 모드 · `--with-issues` 모두)는 **저장소 밖 허용 목록 파일**에 있는 이메일만 받는다. 판정은 접속 전(네트워크 0)이고, 미리 보기도 같다.
-- 위치: 환경 변수 `ONDOLOG_RESET_ALLOWLIST`(파일 경로)가 있으면 그 파일, 없으면 `%USERPROFILE%\.ondolog
-eset-allowlist.txt`. 저장소 안에 두지 않는다.
+- 위치: 환경 변수 `ONDOLOG_RESET_ALLOWLIST`(파일 경로)가 있으면 그 파일, 없으면 `%USERPROFILE%\.ondologeset-allowlist.txt`. 저장소 안에 두지 않는다.
 - 형식: UTF-8 텍스트, 한 줄에 하나. `#` 뒤는 주석, 빈 줄 무시.
   - `project=<개발 프로젝트 ref>` 줄 1개 이상(필수) — 접속 주소의 ref가 이 중 하나가 아니면 "개발 프로젝트가 아니다"로 거부
   - 나머지 줄 = 초기화를 허용할 시험 계정 이메일(대소문자 무시)

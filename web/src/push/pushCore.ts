@@ -7,6 +7,8 @@
  * 서버(78-m1): `push_register`(토큰 저장 · 갱신) · `push_claim_device`(계정 전환) · `push_tokens` 이 기기 행 삭제(본인 RLS) · `notification_settings`(H10).
  * 토큰 삭제 자리(76- 기기 저장 삭제와 같은 자리, `forgetThisDevicePush`): 로그아웃 · 탈퇴 요청 · 해제 요청 · 해제 유예 / 완료(커플이 더는 active 아님) + 계정 전환(`claimThisDevice`).
  *   삭제는 서버 행 + FCM 토큰 없애기(`unregister`) 둘 다 - 오프라인이라 행을 못 지워도 FCM이 "등록 안 된 토큰"이라 해 발송 함수가 지운다.
+ * 76-i (R111-2): 같은 5자리에서 **먼저** 이 기기 알림 서랍의 온도록 알림을 모두 지운다(`clearDeliveredHere`) - 남은 알림에 상대 이름이 보이지 않게.
+ *   순서: 서랍 지우기 -> 토큰 삭제 -> 세션 지우기(로그아웃). 하나가 실패해도 나머지는 진행. 웹 미리보기 · 플러그인 없음이면 조용히 0.
  */
 import { create } from 'zustand'
 import { getSupabase } from '../auth/client'
@@ -108,11 +110,22 @@ export async function claimThisDevice(): Promise<void> {
   }
 }
 
+/** 76-i: 이 기기 알림 서랍의 온도록 알림을 모두 지운다. 실패 · 미지원은 조용히(던지지 않는다). */
+export async function clearDeliveredHere(): Promise<void> {
+  try {
+    await getPushPort().clearDelivered()
+  } catch {
+    // 미지원 · 막힘 - 다음 단계는 그대로
+  }
+}
+
 /**
  * 이 기기 토큰 삭제(로그아웃 · 탈퇴 요청 · 해제 요청 · 해제 유예 / 완료). 이 기기가 등록한 적이 없으면 아무 일도 없다(여러 번 불려도 한 번).
  * 서버 행(본인 RLS) -> FCM 토큰 없애기. 서버가 실패 · 시간 초과여도 FCM 토큰은 없앤다.
  */
 export async function forgetThisDevicePush(): Promise<void> {
+  // 76-i: 서랍 먼저 - 등록 표시가 없어도(이미 한 번 지웠어도) 남은 알림은 지운다.
+  await clearDeliveredHere()
   if (!isRegisteredHere()) return
   setRegisteredHere(false)
   const db = loose()
