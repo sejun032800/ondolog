@@ -10,6 +10,133 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
+## `76-f` 파일까지 지우기 (메인 세션, 2026-11-16, 위임문 `76-f-dispatch-file-deletion.md` · R104-3 · R104-4 · R104-5 · R104-6) - 완료(일부 멈춤, 미커밋)
+
+범위: `scripts/ops/` 새 파일 4개(`sweepOrphanFiles.ts` · `purgeWithdrawn.ts` + 시험 2) · HANDOFF · PROGRESS. **`web/` 변경 0**((a) 멈춤) · `resetTestAccount.ts` 변경 0(공용 부분은 export를 그대로 가져다 씀) · 마이그레이션 0 · `consent.ts` 0 · 새 패키지 0 · 네이티브 · RN 0 · `demo_responses` 0 · R34-3 함수 호출 0 · 원격 0 · 스크립트 실행 0. 위임 0(메인 세션 직접).
+
+검증: web tsc 0 · Vitest 58/953 + 1 건너뜀(변화 없음) · `LEGAL_CHECK=1` 법무 관문 7/7 · `build` · `build:trial` · `cap sync android`(맨 끝 한 번) · 루트 tsc 0 · jest 108/1874 → **110/1898**(새 시험 2 파일 · 24건) · Deno 초기화 시험 28/28(회귀 0) · `deno check` 새 스크립트 2개 통과 · PGlite 5/80(변화 없음) · Python(PROGRESS 줄). 키 · 주소 · ref · id · 이메일 · 파일 경로 0 · 파일 이름 ASCII.
+
+### 멈춘 것
+
+| 항목 | 이유(코드 근거) | 선택지 |
+|---|---|---|
+| **(a) 앱이 지운 순간 내 파일 지우기 - 전부**(사진 하나 · 하루 지우기 둘 다) | `storage.objects`에 **DELETE 정책이 어느 마이그레이션에도 없다**(015는 entries · messages · stories · magazine에 select · insert만, 019 avatars는 select · insert · update만). 로그인 사용자의 저장소 `remove()`는 정책이 없으면 오류 없이 0건으로 끝난다 -> 앱에서 지우려면 정책 마이그레이션이 필요. 하루 지우기만이 아니라 사진 하나도 같은 이유 | (1) 마이그레이션 1개: `entries` · `messages` · `stories` 버킷에 `for delete to authenticated using (bucket_id in (...) and owner_id = auth.uid()::text and is_couple_member(첫 폴더))` - 업로더 본인 파일만(상대 파일은 정책이 막음) + 앱 (a) 구현(대기열 재시도) (2) 서버 함수(Edge Function, service_role)로 지우기 - 배포 필요 (3) 앱은 그대로 두고 (b) 월요일 정리로 약속을 채움(지금 상태, 최대 7일 + 다음 월요일 지연) |
+| **(c) 상대가 남아 있는 탈퇴자의 계정 행 · 인증 사용자** | `couples.user_a_id` · `user_b_id`가 `profiles`를 **ON DELETE RESTRICT**로 가리킨다(005). 상대의 기록이 그 커플 행 아래(cascade)에 있어 커플 행을 지울 수 없고, 커플 행이 있으면 프로필 · 인증 사용자를 지울 수 없다. `couple_dissolutions.initiated_by`도 NO ACTION | (1) 마이그레이션: 두 칸을 null 허용 + `on delete set null`(+ `initiated_by` · `start_date_*` 도) - 그다음 `purgeWithdrawn`이 그대로 처리 (2) 그 사이: 이 사용자는 "보류"로 셈만 함. 기록 행은 해제 실행(030, 같은 7일)이 지우고 파일은 `sweepOrphanFiles`가 지움 - **남는 것은 프로필(이름 · 생년월일 · 동의 시각) · 성격 결과 · 인증 사용자(이메일)** |
+
+그 밖 멈춤 0. `purge_scheduled_at`은 실제 스키마(003)에 있고 뜻이 같다(탈퇴 요청 함수 027이 `deleted_at` · `purge_scheduled_at`을 함께 씀).
+
+### (d) 판정 - 해제 실행 뒤 파일
+
+**남는다.** `execute_dissolution`(030)은 요청한 사람의 `data_entries` · `messages` · `stories` 행을 **지우고**(소프트 아님) `profiles.reference_photo_path`를 비우기만 한다. 저장소 API를 부르지 않으므로 `entries` · `messages` · `stories` · `avatars` 파일이 남는다. 행이 사라졌으니 **가리키는 행이 없는 파일**이 되어 `sweepOrphanFiles`가 다음 월요일에 지운다(해제 요청 7일 + 다음 월요일 = 약속 기간 안). 해제 실행 함수는 고치지도 부르지도 않았다(R34-3).
+
+그 밖에 파일이 남는 경로(목록):
+
+| 경로 | 남는 파일 | 정리 |
+|---|---|---|
+| 사진 하나 지우기(023 `fn_delete_own_entry`, 소프트 삭제) | entries | (b) - 지운 행은 "가리키는 행"이 아니다 |
+| 하루 지우기(76-m3, 소프트 삭제 · 장소 삭제) | entries | (b) |
+| 해제 실행(030) - 요청자 행 삭제 | entries · messages · stories · avatars | (b) |
+| 해제 실행(030) - **두 사람 모두 떠남**: 커플 · 호 행 삭제 | **magazine · magazine-print** | **정리되지 않음** - (b)는 매거진 버킷을 열거하지 않고(지시), (c)는 커플 행이 이미 없어 접두를 모른다. 선택지: (b)에 "그 접두의 커플 행이 없을 때만" 매거진 정리를 허용(PM 결정) |
+| 탈퇴 - 상대 남음(위 멈춤) | 위와 같음(해제 실행 경로) | (b) |
+| 스토리 소멸(013 `expire_stories`, 사진 연동 사용자 'discarded') | stories | 정리되지 않음 - 스토리 행이 남아 있어 "가리키는 행 있음"(보수적). 지금 웹 사용자는 사진 연동이 없어 'archived'(파일을 data_entries가 가리킴)로만 감 |
+| 채팅 사진 · 스토리 · 프로필 사진 바꾸기 - **웹 앱에 지우는 길 없음**(메시지 삭제 · 스토리 삭제 · 대표 사진 바꾸기 화면 0) | - | 해당 없음 |
+
+### 76-f 결정 기록 (출처: R104-3 · R104-4 · R104-5 · R104-6)
+
+| 결정 | 근거 |
+|---|---|
+| (a) 전부 멈춤 - 사진 하나도 저장소 DELETE 정책이 없어 하루 지우기와 같은 이유. "하루 지우기만 멈춤"으로 나누지 않음 | 015 · 019 정책 목록 |
+| 상대 파일은 지우지 않는다: 지금은 클라이언트 DELETE 정책이 없어 어떤 파일도 못 지움. (a)를 연다면 정책에 `owner_id = auth.uid()`를 넣어 저장소가 막게 한다(선택지 1) | R104-4 |
+| (b) "가리키는 행" = **지우지 않은** 행. `data_entries`(storage · thumb · drawing) · `messages.media_path`는 `deleted_at is null`인 행만, `stories.media_path` · `profiles` · `couples`의 `reference_photo_path`는 모든 행. 소프트 삭제된 사진 · 메시지의 파일은 지운다 - 처리방침 "언제든 지울 수 있습니다"를 (a) 멈춤 동안 (b)가 채운다 | R104-3 · R104-4 |
+| (b) 버킷을 가리지 않고 모든 경로 칸을 한 집합으로 본다 - 스토리가 아카이브되면 `data_entries.storage_path`가 stories 버킷 경로를 가리킨다(013). 겹치면 남기는 쪽 | 보수적 |
+| (b) 만든 시각을 모르는 파일도 24시간 안처럼 건너뜀 | 보수적 |
+| (b) magazine · magazine-print: 실행 흐름이 열거하지 않고, 실제 포트도 그 이름을 받으면 저장소를 부르기 전에 멈춘다(시험 단언) | R104-4 |
+| 가드: 초기화 허용 목록(저장소 밖 `reset-allowlist.txt`)의 `project=` 줄만 본다(이메일 줄 무시) - `resetAllowlist.parseAllowlist`를 그대로 씀. 접속 전 판정 | R104-4 |
+| (c) 대상 = `deleted_at is not null and purge_scheduled_at <= now()`. 상대 "남아 있음" = 상대 프로필이 있고 탈퇴 요청이 없거나 **유예가 아직 안 끝남**(유예 중에는 탈퇴를 취소할 수 있으므로 함께 지우지 않음 - 030의 "deleted_at만 보면 떠남"보다 좁게) | 처리방침 "두 사람이 모두 떠났을 때만" |
+| (c) 처리 가능한 사용자: 커플 접두 6개 버킷(매거진 포함 - 둘 다 떠남) + 사용자 avatars 접두 -> 커플 행(cascade로 호 · 기록) -> 인증 사용자(profiles 등 cascade). 순서 · 접속 부분은 `resetTestAccount.makePort` 그대로 | R104-4 · 초기화 동작 변화 0 |
+| (c) 한 사용자 실패 -> 그 사용자는 다음 실행 때 다시 · 다른 사용자는 계속 · 실패 수 출력. 같은 커플을 두 사용자가 함께 가지면 앞 사용자가 지운 뒤 뒤 사용자는 빈 작업(멱등) | R104-4 |
+| 월요일 순서: `purgeWithdrawn` 먼저(커플 · 사용자 접두째 지움) -> `sweepOrphanFiles`(남은 낱개). 반대로 하면 (b)가 아직 지울 차례가 아닌 파일을 보지 않으므로 결과는 같지만 숫자가 겹치지 않게 | R104-5 |
+| 로그아웃 · 계정 전환 때 파일 삭제 대기열 규칙: (a) 멈춤으로 대기열을 만들지 않았다 - (a)를 열 때 정함 | - |
+| HANDOFF 옛 절(74-0 명령 "2-1")의 `$al` 줄은 경로 속 `\r`이 줄바꿈 문자로 깨져 있다(`.ondolog` 뒤). 아래 76-f 명령은 바른 경로 - 옛 절은 고치지 않음 | 발견만 |
+
+### 76-f 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 운영 스크립트 - 남은 파일 정리 · 탈퇴 최종 삭제
+
+```
+git add scripts/ops/sweepOrphanFiles.ts
+git add scripts/ops/sweepOrphanFiles.test.ts
+git add scripts/ops/purgeWithdrawn.ts
+git add scripts/ops/purgeWithdrawn.test.ts
+git commit -m "76-f ops: weekly orphan file sweep and withdrawn account purge scripts (preview by default, numbers only)"
+```
+
+2) 상태 파일
+
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "76-f state: handoff and progress"
+```
+
+### 76-f 월요일 운영 (Proteur · 매주 월요일 · 맨 위 폴더 · R104-5)
+
+순서: **`purgeWithdrawn` 미리 보기 -> 적용 -> `sweepOrphanFiles` 미리 보기 -> 적용.** 결과 숫자는 PROGRESS에 "날짜 + 숫자"만(경로 · id 0).
+
+0. 새 PowerShell 창. 키 · 주소는 보안 입력(화면 · 파일 · 보고에 쓰지 않음). 키는 **`ops_2026_11`**:
+
+```
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+```
+
+   마지막 줄이 `True`일 때만 다음으로.
+
+1. 호스트 · 허용 목록 경로(값을 적지 않고 변수로만):
+
+```
+$h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
+$al = Join-Path $env:USERPROFILE '.ondolog\reset-allowlist.txt'
+```
+
+2. 탈퇴 최종 삭제 - 미리 보기:
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/purgeWithdrawn.ts
+```
+
+3. 탈퇴 최종 삭제 - 적용(미리 보기 숫자가 맞을 때만):
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/purgeWithdrawn.ts --apply
+```
+
+4. 남은 파일 정리 - 미리 보기:
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/sweepOrphanFiles.ts
+```
+
+5. 남은 파일 정리 - 적용:
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/sweepOrphanFiles.ts --apply
+```
+
+6. 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` -> `False`.
+
+`--allow-net`은 프로젝트 호스트 하나, `--allow-env`는 위 이름만, `--allow-read`는 연결 정보 파일과 허용 목록 하나. 허용 목록의 `project=`가 접속 주소와 다르면 두 스크립트 모두 **접속 전에** "거부: …" 한 줄로 끝난다.
+
+**첫 실행(이번 한 번)**: 2 · 4 미리 보기만 돌리고 숫자 줄을 PE에 보낸다 -> PE 확인 뒤 3 · 5 적용. `--apply`는 그 뒤부터 월요일마다.
+
+### Proteur 다음 순서 (R104-6)
+
+1. 커밋(위 1 · 2)
+2. 앱 변경 없음 - 빌드 · 설치는 지금 앱 그대로(메인 세션이 `build:trial` · `cap sync`를 한 번 돌렸지만 웹 코드 변화 0)
+3. 폰 확인: 사진 하나 지우기 -> 24시간 뒤 `sweepOrphanFiles` 미리 보기에서 entries "남은 파일"이 **1 늘어난다**(지금은 앱이 파일을 못 지우므로 늘어나는 것이 맞음 - (a) 멈춤) -> 적용하면 지움 1. (a)가 열린 뒤에는 늘지 않아야 한다
+4. PM 결정: (a) 선택지 · (c) 계정 행 선택지 · 해제 실행(둘 다 떠남) 뒤 매거진 파일 정리 허용 여부
+
 ## `76-r` 폰 확인 수정(F1~F8 · S1 · G1) + `76-d` 하루 지우기(D2) (메인 세션, 2026-11-16, 위임문 `76-r-dispatch-fix-and-day-delete.md` · R101-4 · R102-1~5 · R103-3 · R103-5 · MASTER r76 9-8-2) - 완료 (미커밋)
 
 범위: `web/src/` · `supabase/migrations/` 새 파일 1개(`76-m3`, 사전 허가) · `__tests__/db/` 시험 1개 · `.gitignore` 한 줄 · HANDOFF · PROGRESS. 서브에이전트 위임 0(메인 세션 직접). 새 패키지 0 · 네이티브 손수정 0 · RN · 보호 파일 0 · 루트 `src/` 0 · `demo_responses` 0 · R34-3 함수 호출 0 · 원격 0(db push · 커밋 0).
