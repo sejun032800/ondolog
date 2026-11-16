@@ -6,8 +6,8 @@ import fs from 'fs'
 import path from 'path'
 import {
   MIN_FILE_AGE_MS,
+  ISSUE_BUCKETS,
   PATH_COLUMNS,
-  PROTECTED_BUCKETS,
   SWEEP_BUCKETS,
   classifyFiles,
   makeProjectGate,
@@ -27,7 +27,7 @@ const OLD = '2026-11-10T00:00:00Z'
 const YOUNG = '2026-11-15T12:00:00Z' // 12시간 전
 const gate = makeProjectGate({ allowlistText: LIST, url: DEV_URL })
 
-function fakePort(files: Partial<Record<SweepBucket, StoredFile[]>>, live: string[], failRemove = false) {
+function fakePort(files: Partial<Record<SweepBucket, StoredFile[]>>, live: string[], failRemove = false, issueCouples: string[] = ['c-1']) {
   const calls = { list: [] as string[], remove: [] as { bucket: string; paths: readonly string[] }[] }
   const port: SweepPort = {
     async listFiles(bucket) {
@@ -36,6 +36,9 @@ function fakePort(files: Partial<Record<SweepBucket, StoredFile[]>>, live: strin
     },
     async livePaths() {
       return new Set(live)
+    },
+    async issueCoupleIds() {
+      return new Set(issueCouples)
     },
     async removeFiles(bucket, paths) {
       calls.remove.push({ bucket, paths })
@@ -101,18 +104,43 @@ describe('흐름', () => {
     expect(out.lines[out.lines.length - 1]).toContain('실패 1')
   })
 
-  it('magazine · magazine-print 버킷은 열거조차 하지 않는다', async () => {
-    const { port, calls } = fakePort(FILES, LIVE)
-    await runSweep(async () => port, { apply: true }, gate, NOW)
-    expect(calls.list).toEqual([...SWEEP_BUCKETS])
-    for (const b of PROTECTED_BUCKETS) expect(calls.list).not.toContain(b)
+  it('76-g P3 매거진 버킷: 호 행이 있는 커플 파일 0건 · 호 행 없는 커플(둘 다 떠남)만 · 24시간 보호', async () => {
+    const MAG: Partial<Record<SweepBucket, StoredFile[]>> = {
+      ...FILES,
+      magazine: [
+        { path: 'c-1/i-1/cover.jpg', createdAt: OLD }, // 호 행 있는 커플
+        { path: 'c-gone/i-9/cover.jpg', createdAt: OLD }, // 둘 다 떠난 커플
+        { path: 'c-gone/i-9/page-01.jpg', createdAt: YOUNG }, // 24시간 안
+      ],
+      'magazine-print': [{ path: 'c-1/i-1/print.pdf', createdAt: OLD }, { path: 'c-gone/i-9/print.pdf', createdAt: OLD }],
+    }
+    const pre = fakePort(MAG, LIVE)
+    const preview = await runSweep(async () => pre.port, { apply: false }, gate, NOW)
+    expect(pre.calls.remove).toEqual([]) // 미리 보기 삭제 0
+    expect(preview.lines).toContain('magazine: 검사 3 · 남은 파일 1 · 건너뜀(24시간) 1 · 지움 0 · 실패 0')
+    const run = fakePort(MAG, LIVE)
+    const out = await runSweep(async () => run.port, { apply: true }, gate, NOW)
+    expect(run.calls.remove).toEqual([
+      { bucket: 'entries', paths: ['c-1/e-orphan.jpg'] }, // 다른 버킷 규칙 회귀 0
+      { bucket: 'magazine', paths: ['c-gone/i-9/cover.jpg'] },
+      { bucket: 'magazine-print', paths: ['c-gone/i-9/print.pdf'] },
+    ])
+    expect(out.lines).toContain('magazine-print: 검사 2 · 남은 파일 1 · 건너뜀(24시간) 0 · 지움 1 · 실패 0')
   })
 
-  it('실제 포트도 magazine 버킷 요청을 거부한다(저장소 호출 0)', async () => {
+  it('매거진 버킷은 행 경로(livePaths)가 아니라 호 행으로만 판정한다 - 호 행이 있으면 경로가 어디에도 없어도 0건', async () => {
+    const { port, calls } = fakePort({ magazine: [{ path: 'c-1/i-1/x.jpg', createdAt: OLD }] }, [], false, ['c-1'])
+    await runSweep(async () => port, { apply: true }, gate, NOW)
+    expect(calls.remove).toEqual([])
+    expect(calls.list).toEqual([...SWEEP_BUCKETS])
+    expect([...ISSUE_BUCKETS]).toEqual(['magazine', 'magazine-print'])
+  })
+
+  it('실제 포트는 여섯 밖 버킷 요청을 거부한다(저장소 호출 0)', async () => {
     const storageFrom = jest.fn()
     const port = makeSweepPort({ storage: { from: storageFrom }, from: jest.fn() })
-    await expect(port.listFiles('magazine' as SweepBucket)).rejects.toThrow()
-    await expect(port.removeFiles('magazine-print' as SweepBucket, ['x'])).rejects.toThrow()
+    await expect(port.listFiles('exports' as SweepBucket)).rejects.toThrow()
+    await expect(port.removeFiles('other' as SweepBucket, ['x'])).rejects.toThrow()
     expect(storageFrom).not.toHaveBeenCalled()
   })
 

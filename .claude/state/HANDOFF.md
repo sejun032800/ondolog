@@ -10,6 +10,143 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
+## `76-g` 탈퇴 최종 삭제 완성 · 잡지 파일 정리 · 앱 즉시 파일 삭제 (메인 세션, 2026-11-16, 위임문 `76-g-dispatch-withdrawal-purge.md` · 근거 `76-f-pm-report.md` · R105-1~6) - 완료 (미커밋)
+
+범위: `supabase/migrations/` 새 파일 2개(사전 허가) · `__tests__/db/` 시험 1 · `scripts/ops/`(`sweepOrphanFiles.ts` · `purgeWithdrawn.ts` + 시험) · `web/src/`(앱 즉시 삭제) · HANDOFF(옛 `$al` 줄 포함) · PROGRESS. 위임 0(메인 세션 직접). 새 패키지 0 · 네이티브 · RN 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 함수 호출 0 · **030 본문 수정 0** · 렌더(`supabase/functions/` · `render/`) 수정 0 · 원격 0 · 스크립트 실행 0.
+
+검증: web tsc 0 · Vitest 58/953 → **59/961** + 1 건너뜀 · `LEGAL_CHECK=1` 법무 관문 7/7 · `build` · `build:trial` · `cap sync android`(맨 끝 한 번) · 루트 tsc 0 · jest 110/1898 → **111/1912** · PGlite 5/80 → **6/90** · Deno 초기화 시험 28/28 · `deno check` 스크립트 2개 · Python(PROGRESS 줄). 키 · 주소 · ref · id · 이메일 · 경로 0 · 파일 이름 ASCII.
+
+### 멈춘 것
+
+없음. ④ 번짐 기준(앱 고칠 파일 10개 초과 · 렌더 수정 · 030 본문 수정) 어디에도 걸리지 않음 - P2 앱 수정 0 · 렌더 0 · 030 0. 다만 m1 안에서 **막는 곳 둘을 더 찾아 같은 원칙으로** 고쳤다(아래 ① 끝 두 줄 · PGlite 시험으로 찾음).
+
+### ① 외래 키 표 (`profiles` · `auth.users`를 가리키는 것 전부, 마이그레이션에서)
+
+| 테이블.칸 | 가리키는 곳 | 지금 on delete | 비움 허용? | 탈퇴 최종 삭제를 막는가 | 바꿀 동작(76-g-m1) |
+|---|---|---|---|---|---|
+| `profiles.id` | auth.users | cascade | - | 아니오 | 그대로(인증 사용자 삭제 -> 프로필 삭제) |
+| `personality_assessments.user_id`(재검사 행 포함) | profiles | cascade | 아니오 | 아니오 | 그대로(따라 지워짐) |
+| `personality_profiles.user_id` | profiles | cascade | 아니오 | 아니오 | 그대로 |
+| `stat_snapshots.user_id` | profiles | cascade | 아니오 | 아니오 | 그대로 |
+| **`couples.user_a_id`** | profiles | **restrict** | **아니오(not null)** | **예** | **null 허용 · set null** |
+| **`couples.user_b_id`** | profiles | **restrict** | 예 | **예** | **set null** |
+| **`couples.start_date_set_by`** | profiles | **no action** | 예 | **예** | **set null** |
+| **`couples.start_date_confirmed_by`** | profiles | **no action** | 예 | **예** | **set null** |
+| **`couple_dissolutions.initiated_by`** | profiles | **no action** | **아니오(not null)** | **예** | **null 허용 · set null** |
+| `data_entries.author_id` | profiles | restrict | 아니오 | 예(행이 남으면) | **그대로** - 떠난 사람의 기록 행은 지운다: 요청자 것은 030, 그 밖은 `purgeWithdrawn`이 인증 삭제 **전에** 지움. restrict는 빠뜨린 행이 있으면 계정 삭제를 막는 안전망 |
+| `messages.sender_id` | profiles | restrict | 아니오 | 예(행이 남으면) | 그대로(위와 같음) |
+| `stories.author_id` | profiles | restrict | 아니오 | 예(행이 남으면) | 그대로(위와 같음) |
+| `date_stops.author_id`(76-m3) | profiles | set null | 예 | 아니오 | 그대로 - 떠난 사람의 장소는 "옛 장소"로 남음(작성자만 비움) |
+| `issues` · `corners` · `dates` | (사람 칸 없음, couples만) | - | - | 아니오 | - |
+| (검사) **`couples.chk_start_date_owner`** "사귄 날짜가 있으면 정한 사람이 있다" | - | - | - | **예**(정한 사람이 비면 위반) | **해제 끝난(dissolved) 커플에서만** 비어도 됨. 연결 · 유예 중에는 그대로 걸림 |
+| (트리거) **76-m3 `tg_date_stops_author`** UPDATE 때 작성자를 원래 값으로 되돌림 | - | - | - | **예**(set null이 되돌려져 지워진 사람을 가리키는 값이 남음) | **가리키던 프로필이 이미 없을 때만** 비움 허용. 앱이 살아 있는 사람의 작성자를 바꾸는 길은 그대로 막힘 |
+
+저장소(`storage.objects.owner`)는 Supabase 관리 칸이라 마이그레이션 밖 - 떠난 사람이 올린 파일이 남아 있으면 인증 사용자 삭제가 거부될 수 있어 `purgeWithdrawn`이 먼저 지운다(아래 ③).
+
+### ② 견딤 표 (두 사람 칸이 빈 커플 = 해제가 끝난 커플)
+
+칸이 비는 커플은 **status `dissolved`뿐**이다: `purgeWithdrawn`은 상대가 남은 커플이 아직 해제 실행 전이면 기다린다(③).
+
+| 곳 | 결과 | 근거 |
+|---|---|---|
+| 앱 메인 · 채팅 · 피드 · 하늘 · 설정 · 매거진 | **그대로 됨** | 앱은 `pending` · `active` · `dissolving` 커플만 읽는다(`coupleStore` · `coupleApi` · `dissolutionCore`는 `executed_at is null`만). 해제 끝난 커플은 이미 "혼자" 화면 - 상대 이름 자리가 없다 |
+| `issues_public` | 그대로 됨 | 사람 칸을 읽지 않고 `is_couple_member`로만 거른다 |
+| 권한 도우미(011) `is_couple_member` · `current_couple_id` · `partner_id` | 그대로 됨 | `status <> 'dissolved'` 조건 - 해제 끝난 커플은 이미 거짓 · null 비교는 거짓 |
+| `fn_connect_couple`(026 · 75-m1) | 그대로 됨 | `pending` · `user_b_id is null` 초대만 본다. 혼자 초대 행은 탈퇴 최종 삭제가 통째로 지운다(칸이 비지 않음) |
+| 탈퇴 · 해제 요청 함수(027) | 그대로 됨 | `active`만 본다 |
+| 해제 실행(030) | 그대로 됨(**본문 수정 0**) | 칸을 비우는 것은 실행이 끝난 뒤뿐(③ 대기 규칙). 실행 전에 비웠다면 "상대 없음 = 둘 다 떠남"으로 읽어 남은 사람 기록까지 지울 수 있어 그 순서를 스크립트가 막는다 |
+| 렌더(`render/render_issue.py` · `supabase/functions/`) | 그대로 됨(읽기만 확인) | 렌더는 발행 전 · 시험 커플(`test` 표시)에만 돈다. 입력 조립(`inputAssembly.ts`)은 사람 칸을 읽지 않는다 |
+| 커플 정책(012) `couples_update`의 `user_b_id is null and status = 'pending'` | 그대로 됨 | 해제 끝난 커플은 `pending`이 아니다 |
+
+상대 이름 자리에 새 문구는 필요 없음(PM 확인 0).
+
+### ③ 항목별 표
+
+| # | 고친 곳 | 시험 | 폰 · 원격에서만 확인되는 것 |
+|---|---|---|---|
+| P2 m1 | `supabase/migrations/20261116170000_g1_member_set_null.sql` - ① 표 굵은 줄 다섯 칸 + 검사 하나 + m3 트리거 하나 | `__tests__/db/withdrawalPurge76g.test.ts`: 외래 키 표 그대로 · 기록 행이 남으면 계정 삭제 막힘(안전망) · 상대가 남은 탈퇴자 최종 삭제 -> 인증 · 프로필 · 성격 결과(재검사 행) · 기록 · 메시지 0 · 장소는 작성자만 비움 · 남은 사람 커플 행(떠난 칸만 비움) · 발행된 호 · 자기 기록 · 장소 · 메시지 그대로 · 남은 사람 = 해제 완료 상태 · 나중에 남은 사람도 떠나면 커플 · 호까지 · 검사는 연결 커플에 그대로 · 둘 다 떠난 경우 회귀 0 | - |
+| P2 스크립트 | `scripts/ops/purgeWithdrawn.ts`: "보류" 없앰. 상대가 남은 커플(해제 끝남)은 남기고 **떠난 사람 기록의 파일 · 그 커플의 남은 파일(24시간 지남) · avatars -> 떠난 사람 기록 행 -> 인증 사용자**. 상대가 남은 커플이 아직 해제 실행 전이면 "해제 실행 대기"(다음 실행 때) | `purgeWithdrawn.test.ts`: "보류" 0 · 순서 · 커플 · 호 · 상대 기록 · 커플 파일 그대로 · 해제 실행 전 대기 · 상대 유예 중 = 남음 · 중간 실패 뒤 재실행 · 둘 다 떠남 회귀 0 · 출력 숫자만 | 인증 사용자 삭제가 저장소 소유 파일 때문에 거부되지 않는지(실패 수로 보임 - 다음 실행 때 다시) |
+| P3 | `scripts/ops/sweepOrphanFiles.ts`: `magazine` · `magazine-print`는 **그 커플(첫 폴더)에 호 행이 하나도 없을 때만** 남은 파일(24시간 · 시각 모름 건너뜀). 그 밖 버킷 규칙 그대로 | `sweepOrphanFiles.test.ts`: 호 행 있는 커플 0건 · 둘 다 떠난 커플만 · 24시간 · 미리 보기 삭제 0 · 다른 버킷 회귀 0 · 여섯 밖 버킷 거부 | 첫 미리 보기의 magazine 숫자(지금 시험 호가 있는 커플은 0이어야 함) |
+| P1 m2 | `supabase/migrations/20261116170100_g2_storage_own_delete.sql` - `storage.objects` 삭제 정책: `entries` · `messages` · `stories` + 올린 사람 본인(`owner = auth.uid()`) + 같은 커플 경로 | PGlite: 본인 파일 3버킷 지움 · 상대 파일 0 · 매거진 0 · avatars 0 · 비로그인 0 | 실제 저장소가 `owner`를 업로더로 채우는지(폰 확인 아래) |
+| P1 앱 | `web/src/features/feed/fileDelete.ts`(지우기 · 기기 대기열 · 다시 지우기) · `DateDetailScreen.tsx`(사진 하나) · `tabs/FeedTab.tsx`(하루 - 지우기 전에 내 경로를 읽어 둠) · `App.tsx`(앱 시작 · 복귀 · 다시 연결 때 대기열) · `feedTestSupport.ts`(가짜 저장소 지우기) | `fileDelete76g.vitest.tsx` 8건: 성공 -> 호출 1 · 실패 -> 대기열 -> 재시도 · 대기열 지우는 때 3가지 · 사진 하나 성공 1 / 행 실패 0 · 하루 지우기 내 파일만(상대 0) / RPC 실패 0 / 파일 실패 -> 대기열 | 사진 하나 지우기 -> 다음 미리 보기에서 그 파일이 "남은 파일"로 잡히지 않음 |
+| 4단계 | HANDOFF 74-0 절 명령 2-1 `$al` 줄(경로 속 `\r`이 줄바꿈 문자로 깨짐) -> 바른 경로 | - | - |
+
+### 76-g 결정 기록 (출처: R105-1~6)
+
+| 결정 | 근거 |
+|---|---|
+| 기록 칸(`data_entries` · `messages` · `stories`의 작성자)은 restrict 그대로 - "비움"이 아니라 행을 지운다(처리방침 "올린 기록을 지웁니다"). 비움으로 바꾸면 작성자 없는 기록을 앱이 다뤄야 해 번짐 | R105-2 ① 원칙 · ④ |
+| m1에 검사 하나(`chk_start_date_owner`)와 m3 트리거 하나를 더 넣음 - 둘 다 "떠난 사람 칸 비움"을 막던 곳(PGlite 시험으로 찾음). 같은 마이그레이션 · 같은 원칙(지시 ①) | R105-2 ① |
+| 상대가 남은 커플이 해제 실행 전(`dissolving` 등)이면 탈퇴 최종 삭제는 **기다린다** - 030이 칸 빈 커플을 "둘 다 떠남"으로 읽어 남은 사람 기록까지 지우지 않게(030 본문 수정 0). 탈퇴 요청이 같은 7일 해제를 만들어 보통 같은 날 풀림 | R105-2 · 030 0 |
+| 떠난 사람이 올린 파일: 그 사람 기록 행이 가리키는 파일(`data_entries` 경로는 아카이브된 스토리면 stories 버킷이라 두 곳) + 그 커플 접두의 남은 파일(24시간 지남, 030이 행만 지운 것) + avatars 접두를 **인증 삭제 전에** 지움 - 저장소 소유 파일이 남으면 인증 삭제가 거부될 수 있어서. 상대 파일은 행이 살아 있어 남음 | R105-2 ③ |
+| 떠난 사람의 장소(`date_stops`)는 지우지 않고 작성자만 비움(m3 설계 그대로) - 남은 사람의 그날 기록이 장소를 잃지 않게 | m3 |
+| P3: 매거진 두 버킷은 "그 커플에 호 행이 하나도 없음"으로 판정(경로 첫 폴더 = 커플, `magazineMediaPath` · 렌더 저장 경로). 행 경로 규칙과 섞지 않음 | R105-3 |
+| P1 m2: `owner = auth.uid()`(storage.objects의 업로더 칸 - PGlite 스텁에 있는 칸). 대상 = 앱이 올리는 세 버킷. avatars는 웹 앱이 올리지 않아 제외 | R105-4 |
+| P1 앱: 사진 하나 = `deleteOwnEntry`가 true(이번에 지움)일 때만 그 사진 경로를 지움 · 하루 = RPC 전에 내 항목 경로를 읽어 두고 RPC 성공 뒤 지움(m3 수정 · 새 마이그레이션 0). 경로 읽기가 실패해도 행 삭제는 하고 파일은 월요일 정리가 받음 | R105-4 |
+| 파일 지우기 대기열 = 기기 저장 `feed` 범주 scope `trash`(새 범주 0). **로그아웃 · 탈퇴 요청 · 해제 요청 · 해제 완료 · 계정 전환 때 지워짐** - 남은 파일은 행이 이미 지워져 있어 월요일 정리가 받음. 계정이 바뀐 사이에 끝난 재시도는 쓰지 않음 | R105-4 |
+| 저장소 API는 권한 밖 파일을 오류 없이 0건으로 끝낸다 - 앱은 오류일 때만 대기열에 넣음(권한 거부는 월요일 정리가 받음) | 저장소 동작 |
+
+### 76-g 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 서버 - 탈퇴 칸 비움 · 저장소 본인 파일 삭제
+
+```
+git add supabase/migrations/20261116170000_g1_member_set_null.sql
+git add supabase/migrations/20261116170100_g2_storage_own_delete.sql
+git add __tests__/db/withdrawalPurge76g.test.ts
+git commit -m "76-g db: set null on member columns for withdrawn users, storage delete policy for own files"
+```
+
+2) 운영 스크립트 - 상대가 남은 탈퇴자 · 잡지 파일
+
+```
+git add scripts/ops/purgeWithdrawn.ts
+git add scripts/ops/purgeWithdrawn.test.ts
+git add scripts/ops/sweepOrphanFiles.ts
+git add scripts/ops/sweepOrphanFiles.test.ts
+git commit -m "76-g ops: purge withdrawn users even when partner remains, sweep magazine files of couples with no issue rows"
+```
+
+3) 웹 - 지운 순간 내 파일도 지움
+
+```
+git add web/src/features/feed/fileDelete.ts
+git add web/src/features/feed/fileDelete76g.vitest.tsx
+git add web/src/features/feed/DateDetailScreen.tsx
+git add web/src/features/feed/feedTestSupport.ts
+git add web/src/tabs/FeedTab.tsx
+git add web/src/App.tsx
+git commit -m "76-g web: delete my storage file right after a photo or day is deleted, retry queue on device"
+```
+
+4) 상태 파일
+
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "76-g state: handoff and progress"
+```
+
+### 76-g `db push` 순서 (Proteur · 맨 위 폴더 · 값 출력 0)
+
+키 필요 없음(link된 CLI). 비밀번호를 물으면 화면 입력 칸에만.
+
+1. `npx supabase migration list` → `20261116170000` · `20261116170100` 두 개만 Local에만 있고 그 앞(`20261116120000` m3 포함)은 Local · Remote 같아야 한다.
+2. `npx supabase db push --dry-run` → **`20261116170000_g1_member_set_null.sql` · `20261116170100_g2_storage_own_delete.sql` 두 개만**. 다른 것이 보이면 멈추고 보고.
+3. `npx supabase db push`
+4. `npx supabase migration list` → 양쪽에 있으면 끝. (선택) 대시보드 SQL 읽기만: `select policyname, cmd from pg_policies where schemaname = 'storage' and policyname = 'storage_own_delete';` → 한 줄 `DELETE`.
+
+**순서 주의**: m2를 올리기 전에 새 앱으로 사진을 지우면 행은 지워지고 파일은 그대로(오류 없음) - 월요일 정리가 받는다. 새 `purgeWithdrawn`은 m1 **뒤에만** 돌린다(m1 전에는 상대가 남은 탈퇴자에서 인증 삭제가 막혀 "실패"로 셈).
+
+### Proteur 다음 순서
+
+1. 커밋(위 1~4)
+2. db push(위 순서, 두 파일)
+3. `cd web` → `npm run build:trial` → `npx cap sync android`(메인 세션이 맨 끝에 한 번 돌림 - 그 뒤 코드 변경 없으면 생략 가능) → Android Studio 빌드
+4. 두 폰 덮어 설치(데이터 유지)
+5. 폰 확인: **사진 하나 지우기**(오늘 새로 남긴 것) → 24시간 뒤(또는 다음 월요일) `sweepOrphanFiles` 미리 보기에서 entries "남은 파일"이 **그 사진만큼 늘지 않음**(앱이 이미 지웠음). 늘었다면 저장소가 `owner`를 채우지 않는 것 - 보고(월요일 정리가 대신 지우므로 약속은 지켜짐)
+6. 월요일 운영(76-f 절 명령 그대로): `purgeWithdrawn` → `sweepOrphanFiles` 미리 보기 → 적용. 미리 보기 줄이 바뀜: "보류" 줄 대신 "해제 실행 대기" · "상대가 남은 커플" · "떠난 사람 …" 줄, sweep에 magazine · magazine-print 줄이 더해짐. **첫 실행은 미리 보기 숫자를 PE에 보내고 확인 뒤 적용**(R105-6)
+
 ## `76-f` 파일까지 지우기 (메인 세션, 2026-11-16, 위임문 `76-f-dispatch-file-deletion.md` · R104-3 · R104-4 · R104-5 · R104-6) - 완료(일부 멈춤, 미커밋)
 
 범위: `scripts/ops/` 새 파일 4개(`sweepOrphanFiles.ts` · `purgeWithdrawn.ts` + 시험 2) · HANDOFF · PROGRESS. **`web/` 변경 0**((a) 멈춤) · `resetTestAccount.ts` 변경 0(공용 부분은 export를 그대로 가져다 씀) · 마이그레이션 0 · `consent.ts` 0 · 새 패키지 0 · 네이티브 · RN 0 · `demo_responses` 0 · R34-3 함수 호출 0 · 원격 0 · 스크립트 실행 0. 위임 0(메인 세션 직접).
@@ -1221,7 +1358,7 @@ $h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
 2-1. (75- 0-6) 허용 목록 파일 위치를 읽는다 - 아래 "0-6 잠금" 참조:
 
 ```
-$al = Join-Path $env:USERPROFILE '.ondologeset-allowlist.txt'
+$al = Join-Path $env:USERPROFILE '.ondolog\reset-allowlist.txt'
 ```
 
    (`ONDOLOG_RESET_ALLOWLIST`에 다른 경로를 넣었으면 `$al = $env:ONDOLOG_RESET_ALLOWLIST`.)

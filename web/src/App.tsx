@@ -19,6 +19,7 @@ import { SheetHost } from './app/sheets'
 import { useAccountData } from './app/useAccountData'
 import { usePhotoQueueResume } from './photoQueue/usePhotoQueueResume'
 import { useChatQueueResume } from './features/chat/useChatQueueResume'
+import { useFileQueueResume } from './features/feed/fileDelete'
 import { ViewerHost } from './features/magazine/ViewerHost'
 import { useKeyboardOpen } from './platform/useKeyboardOpen'
 import { useStartDateRecheck } from './couple/useStartDateRecheck'
@@ -87,6 +88,8 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
   usePhotoQueueResume()
   // 글 큐도 같은 방식(앱 시작 · 복귀에 이어 보냄)이고, 글 · 사진 큐의 대기 유무를 I02 띠에 알린다(채팅 화면에서 띠가 자리를 내준다).
   useChatQueueResume()
+  // 76-g P1: 지운 사진 파일 중 지우지 못한 것(오프라인 등)을 앱 시작 · 복귀 · 다시 연결 때 다시 지운다.
+  useFileQueueResume()
   // 채팅에서 키보드가 열리면 탭 바를 비킨다(입력줄이 키보드 바로 위에 붙게).
   const keyboardOpen = useKeyboardOpen()
   // 상대가 고친 사귄 날짜는 다음에 앱을 열거나(시작 · 복귀) 메인으로 돌아올 때 확인 화면(A20)으로 한 번 보인다(76-r F1).

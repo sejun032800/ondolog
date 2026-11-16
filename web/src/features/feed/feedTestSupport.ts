@@ -21,6 +21,8 @@ export interface FeedDbOptions {
   deleteFails?: boolean
   /** `fn_delete_my_day`(76-m3)가 오류를 돌려준다(서버가 원자적이라 아무것도 바뀌지 않는다). */
   dayDeleteFails?: boolean
+  /** 저장소 파일 지우기가 앞의 N번 실패한다(76-g P1). */
+  removeFailures?: number
   /** 올리기(Storage upload)가 몇 번째까지 실패하는가(앞의 N번). */
   uploadFailures?: number
 }
@@ -37,6 +39,8 @@ export function makeFeedDb(opts: FeedDbOptions) {
   const writes: Write[] = []
   const uploads: { bucket: string; path: string; bytes: number; contentType?: string }[] = []
   const rpcCalls: { fn: string; args: Row }[] = []
+  const removeCalls: { bucket: string; paths: string[] }[] = []
+  const removeState = { failures: opts.removeFailures ?? 0 }
   let failUploads = opts.uploadFailures ?? 0
   let seq = 0
 
@@ -118,6 +122,15 @@ export function makeFeedDb(opts: FeedDbOptions) {
         return { error: null }
       },
       createSignedUrls: async (paths: string[]) => ({ data: paths.map((path) => ({ path, signedUrl: `https://signed.invalid/${path}` })), error: null }),
+      // 76-g P1: 파일 지우기. `removeFailures`번까지는 실패(오프라인 흉내).
+      remove: async (paths: string[]) => {
+        removeCalls.push({ bucket, paths: [...paths] })
+        if (removeState.failures > 0) {
+          removeState.failures -= 1
+          return { data: null, error: { message: 'network' } }
+        }
+        return { data: paths.map((name) => ({ name })), error: null }
+      },
     }),
   }
 
@@ -163,7 +176,7 @@ export function makeFeedDb(opts: FeedDbOptions) {
     },
   } as unknown as WebSupabase
 
-  return { client, tables, writes, uploads, rpcCalls, rpc }
+  return { client, tables, writes, uploads, rpcCalls, rpc, removeCalls, removeState }
 }
 
 /** 이 유저가 기록할 수 있는 활성 커플 한 쌍. */

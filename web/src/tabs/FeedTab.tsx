@@ -9,6 +9,7 @@
 import { useState } from 'react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DAY_DELETE_COPY, afterDayDeleted, dayDeleteBlocked, deleteMyDay } from '../features/feed/dayDelete'
+import { deleteMyFiles, readMyDayFilePaths } from '../features/feed/fileDelete'
 import { showToast } from '../stores/toastStore'
 import { useAuthStore } from '../auth/stores'
 import { CoupleGate } from '../components/CoupleGate'
@@ -47,7 +48,10 @@ export function FeedTab({ nav }: { nav: Nav }) {
     if (dayDeleteBlocked()) { setPending(null); setOpenId(null); showToast(DAY_DELETE_COPY.offline); return }
     setBusy(true)
     try {
+      // 76-g P1: 지우기 전에 그날 내 파일 경로를 읽어 두고(RPC는 경로를 돌려주지 않는다), 행 삭제가 성공한 뒤에만 지운다.
+      const paths = await readMyDayFilePaths(pending.id, userId)
       const result = await deleteMyDay(pending.id)
+      void deleteMyFiles(paths)
       if (result.dayRemoved) feed.dropDay?.(pending.id)
       afterDayDeleted(pending.id, pending.dateOn, result)
       setPending(null)

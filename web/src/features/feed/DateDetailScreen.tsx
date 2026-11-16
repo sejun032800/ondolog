@@ -11,6 +11,7 @@
  */
 import { useState } from 'react'
 import { canDeleteEntry, deleteOwnEntry, StopTimeInputError, type Db } from '@/services/dateRecordApi'
+import { deleteMyFiles } from './fileDelete'
 import { buildDateHead, kstTimeOf } from '@/utils/dateRecord'
 import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
@@ -149,7 +150,10 @@ export function DateDetailScreen({ nav }: { nav: Nav }) {
     setDeleting(true)
     try {
       if (!db) throw new Error('연결할 수 없어요')
-      await deleteOwnEntry(db, pending.id)
+      // 76-g P1: 행이 지워진 뒤에만 내 파일을 지운다(실패하면 기기 대기열). 행 삭제가 실패하면 아래로 오지 않는다.
+      const filePath = allPhotos.find((p) => p.id === pending.id)?.storage_path ?? null
+      const removed = await deleteOwnEntry(db, pending.id)
+      if (removed) void deleteMyFiles([filePath])
       setPending(null)
       bump()
       await detail.reload()

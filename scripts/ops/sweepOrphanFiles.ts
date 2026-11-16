@@ -2,8 +2,10 @@
  * 76-f (b) 남은 파일 정리 (R104-3 · R104-4 · R104-5) - 저장소에 남아 있지만 **가리키는 살아 있는 행이 없는** 파일만 지운다 (Deno 전용, 사람 실행).
  * 앱(`web/` `app/` `src/`)에서는 부르지 않는다. 매주 월요일 `purgeWithdrawn` 다음에 미리 보기 -> 적용(HANDOFF "76-f 월요일 운영").
  *
- * 대상 버킷: `entries` · `messages` · `stories` · `avatars`(015 · 019의 실제 이름).
- * **`magazine` · `magazine-print`는 열거조차 하지 않는다**(발행된 호는 두 사람이 모두 떠날 때까지 남긴다 - 처리방침). 포트도 이 넷 밖 버킷은 거부한다.
+ * 대상 버킷: `entries` · `messages` · `stories` · `avatars`(015 · 019의 실제 이름) - 아래 "가리키는 행" 규칙.
+ * `magazine` · `magazine-print`(76-g P3, R105-3): **그 커플(경로 첫 폴더)에 호 행(`issues`)이 하나도 없을 때만** 남은 파일이다.
+ *   호 행은 한 사람이라도 남아 있으면 지워지지 않으므로(030 · purgeWithdrawn) 정의상 두 사람 모두 떠난 커플만 잡힌다(처리방침 "두 사람이 모두 떠날 때까지 남긴다").
+ *   호 행이 하나라도 있는 커플의 파일은 0건. 24시간 규칙은 같다(렌더 중인 파일 보호). 이 여섯 밖 버킷은 포트가 거부한다.
  *
  * "가리키는 행" = 아래 경로 칸 중 하나에 그 파일 경로가 있는 **지우지 않은** 행(`deleted_at`이 있는 표는 null인 행만):
  *   data_entries.storage_path · thumb_path · drawing_path (deleted_at is null)   - 스토리가 아카이브되면 stories 버킷 경로가 여기 들어간다(013 expire_stories)
@@ -28,11 +30,13 @@
 import { OpsStopError, projectRefFromUrl, redactSecrets } from './opsGuards.ts'
 import { parseAllowlist, resolveAllowlistPath } from './resetAllowlist.ts'
 
-/** 정리하는 버킷(이 넷뿐). */
-export const SWEEP_BUCKETS = ['entries', 'messages', 'stories', 'avatars'] as const
+/** 행 규칙으로 정리하는 버킷. */
+export const ROW_BUCKETS = ['entries', 'messages', 'stories', 'avatars'] as const
+/** 호 행 규칙으로 정리하는 버킷(76-g P3). */
+export const ISSUE_BUCKETS = ['magazine', 'magazine-print'] as const
+/** 정리하는 버킷 전부(이 여섯뿐). */
+export const SWEEP_BUCKETS = [...ROW_BUCKETS, ...ISSUE_BUCKETS] as const
 export type SweepBucket = (typeof SWEEP_BUCKETS)[number]
-/** 손대지 않는(열거도 하지 않는) 버킷. */
-export const PROTECTED_BUCKETS = ['magazine', 'magazine-print'] as const
 /** 이보다 새 파일은 건너뛴다(진행 중인 업로드). */
 export const MIN_FILE_AGE_MS = 24 * 60 * 60 * 1000
 
@@ -59,6 +63,8 @@ export interface SweepPort {
   listFiles(bucket: SweepBucket): Promise<readonly StoredFile[]>
   /** 살아 있는 행이 가리키는 경로 전부(PATH_COLUMNS). */
   livePaths(): Promise<ReadonlySet<string>>
+  /** 호 행(issues)이 하나라도 있는 커플 id 전부. */
+  issueCoupleIds(): Promise<ReadonlySet<string>>
   /** 지운 수 · 실패 수. */
   removeFiles(bucket: SweepBucket, paths: readonly string[]): Promise<{ removed: number; failed: number }>
 }
@@ -128,6 +134,11 @@ export function classifyFiles(files: readonly StoredFile[], live: ReadonlySet<st
   return { orphans, skippedYoung }
 }
 
+/** 매거진 버킷 판정(순수): 첫 폴더(커플)에 호 행이 없고 24시간 지난 파일만. */
+export function classifyMagazineFiles(files: readonly StoredFile[], issueCouples: ReadonlySet<string>, now: number): { orphans: string[]; skippedYoung: number } {
+  return classifyFiles(files.filter((f) => !issueCouples.has(f.path.split('/')[0])), new Set(), now)
+}
+
 /** 순수 흐름 - 문(접속 전) -> 살아 있는 경로 -> 버킷마다 판정 -> (apply일 때만) 삭제. 출력은 숫자만. */
 export async function runSweep(connect: () => Promise<SweepPort>, args: SweepArgs, gate: ProjectGate, now: number = Date.now()): Promise<OpsOutcome> {
   const blocked = gate()
@@ -140,11 +151,13 @@ export async function runSweep(connect: () => Promise<SweepPort>, args: SweepArg
     throw error
   }
   const live = await port.livePaths()
+  const issueCouples = await port.issueCoupleIds()
   const lines = [args.apply ? '실행: 남은 파일 정리' : '미리 보기(지우지 않음): 남은 파일']
   let failedTotal = 0
   for (const bucket of SWEEP_BUCKETS) {
     const files = await port.listFiles(bucket)
-    const { orphans, skippedYoung } = classifyFiles(files, live, now)
+    const isIssueBucket = (ISSUE_BUCKETS as readonly string[]).includes(bucket)
+    const { orphans, skippedYoung } = isIssueBucket ? classifyMagazineFiles(files, issueCouples, now) : classifyFiles(files, live, now)
     const t: BucketTally = { checked: files.length, orphan: orphans.length, skippedYoung, removed: 0, failed: 0 }
     if (args.apply && orphans.length > 0) {
       const r = await port.removeFiles(bucket, orphans)
@@ -210,6 +223,17 @@ export function makeSweepPort(client: Db): SweepPort {
           for (const r of rows) if (r[column]) set.add(r[column] as string)
           if (rows.length < PAGE) break
         }
+      }
+      return set
+    },
+    async issueCoupleIds() {
+      const set = new Set<string>()
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await client.from('issues').select('couple_id').order('couple_id', { ascending: true }).range(from, from + PAGE - 1)
+        must('issues 조회', error)
+        const rows: { couple_id: string }[] = data ?? []
+        for (const r of rows) set.add(r.couple_id)
+        if (rows.length < PAGE) break
       }
       return set
     },
