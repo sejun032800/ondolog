@@ -131,3 +131,116 @@ describe('76-i 숨긴 행 정리', () => {
     expect(trig).toBe(0) // DELETE 트리거 0
   })
 })
+
+/**
+ * 76-j (R112-2) 숨긴 하루(dates) 행 - 실제 포트와 같은 질의:
+ *   고르기 = 숨김 표시 있음 · 기준 이전 / 살아 있는 기록(숨기지 않은 data_entries · date_stops)이 가리키면 건너뜀(고를 때 · 지울 때 두 번) /
+ *   지우기 = 그 id 중 아직 숨겨져 있고 기준 이전인 행만(시험은 한 커플로 좁혀 앞 시험이 남긴 행을 세지 않는다). `between`은 고른 뒤 지우기 전에 일어나는 일(경쟁 상태 흉내).
+ */
+async function purgeHiddenDays(nowIso: string, couple: string, between?: () => Promise<void>): Promise<{ deleted: number; skipped: number; late: number }> {
+  const cutoff = new Date(Date.parse(nowIso) - 24 * 3600 * 1000).toISOString()
+  const liveOf = async (ids: string[]): Promise<Set<string>> => new Set((await db.query<Row>(
+    `select date_id from data_entries where date_id = any($1::uuid[]) and deleted_at is null
+     union select date_id from date_stops where date_id = any($1::uuid[])`, [ids])).rows.map((r) => r.date_id as string))
+  let ids = (await db.query<Row>(`select id, couple_id from dates where deleted_at is not null and deleted_at <= $1 and couple_id = $2 order by id`, [cutoff, couple])).rows.map((r) => r.id as string)
+  const live = await liveOf(ids)
+  const skipped = ids.filter((id) => live.has(id)).length
+  ids = ids.filter((id) => !live.has(id))
+  if (between) await between()
+  const late = await liveOf(ids)
+  const part = ids.filter((id) => !late.has(id))
+  const deleted = (await db.query<Row>(`delete from dates where id = any($1::uuid[]) and deleted_at is not null and deleted_at <= $2 returning id`, [part, cutoff])).rows.length
+  return { deleted, skipped, late: ids.length - part.length }
+}
+
+/** 앱 `ensureDate`(src/services/dateRecordApi.ts)와 같은 질의: 찾기 -> 숨겨져 있으면 되살리기 / 없으면 새로 만들기. */
+async function ensureDateLikeApp(c: string, dateOn: string): Promise<{ id: string; created: boolean }> {
+  const found = (await db.query<Row>(`select id, deleted_at from dates where couple_id = $1 and date_on = $2`, [c, dateOn])).rows[0]
+  if (found) {
+    if (found.deleted_at !== null) await db.query(`update dates set deleted_at = null where id = $1`, [found.id])
+    return { id: found.id as string, created: false }
+  }
+  const made = await one(`insert into dates(couple_id,date_on,source,user_confirmed) values ($1,$2,'manual',true) returning id`, [c, dateOn])
+  return { id: made.id as string, created: true }
+}
+
+describe('76-j 숨긴 하루(dates) 행 정리', () => {
+  async function aiDay(c: string, deletedAt: string | null): Promise<{ id: string; dateOn: string }> {
+    const r = await one(
+      `insert into dates(couple_id,date_on,deleted_at,title,narrative,region) values ($1, date '2026-06-01' + $2::int, $3,'AI 제목','AI 서사','연남동') returning id, date_on::text as date_on`,
+      [c, ++n, deletedAt],
+    )
+    return { id: r.id as string, dateOn: r.date_on as string }
+  }
+
+  it('지난 숨긴 날만 행째 삭제(AI 제목 · 서사 0) · 24시간 안 · 숨기지 않은 날 · 상대 기록 · 장소가 있는 날 0건 · 호 0건 · 멱등', async () => {
+    const A = await user()
+    const B = await user()
+    const C = await couple(A, B)
+    const old = await aiDay(C, OLD)
+    const recent = await aiDay(C, RECENT)
+    const shown = await aiDay(C, null)
+    const partner = await aiDay(C, OLD)
+    await memo(C, B, partner.id, null) // 상대의 살아 있는 메모
+    const withStop = await aiDay(C, OLD)
+    await db.query(`insert into date_stops(date_id,couple_id,seq,arrived_at) values ($1,$2,0,now())`, [withStop.id, C])
+    const hiddenOnly = await aiDay(C, OLD)
+    const hiddenMemo = await memo(C, A, hiddenOnly.id, OLD)
+    const issue = (await one(`insert into issues(couple_id,issue_type,issue_number,period_start,period_end,published_at) values ($1,(enum_range(null::issue_type))[1],2,'2026-06-01','2026-06-30',now()) returning id`, [C])).id as string
+
+    expect(await purgeHidden(NOW)).toEqual({ data_entries: 1, messages: 0 }) // 76-i 표가 먼저(같은 단계)
+    expect(await count(`select count(*) n from data_entries where id = $1`, [hiddenMemo])).toBe(0)
+    expect(await purgeHiddenDays(NOW, C)).toEqual({ deleted: 2, skipped: 2, late: 0 })
+
+    const left = (await db.query<Row>(`select id from dates where couple_id = $1`, [C])).rows.map((r) => r.id).sort()
+    expect(left).toEqual([recent.id, shown.id, partner.id, withStop.id].sort())
+    expect(await count(`select count(*) n from dates where title = 'AI 제목' and id = any($1::uuid[])`, [[old.id, hiddenOnly.id]])).toBe(0)
+    expect(await count(`select count(*) n from date_stops where date_id = $1`, [withStop.id])).toBe(1)
+    expect(await count(`select count(*) n from data_entries where date_id = $1 and deleted_at is null`, [partner.id])).toBe(1)
+    expect(await count(`select count(*) n from issues where id = $1`, [issue])).toBe(1)
+    expect(await purgeHiddenDays(NOW, C)).toEqual({ deleted: 0, skipped: 2, late: 0 })
+  })
+
+  it('경쟁 상태: 고른 뒤 지우기 전에 앱이 되살린 날은 0건(삭제 문장의 숨김 조건)', async () => {
+    const A = await user()
+    const C = await couple(A, await user())
+    const day = await aiDay(C, OLD)
+    const r = await purgeHiddenDays(NOW, C, async () => { await ensureDateLikeApp(C, day.dateOn) })
+    expect(r.deleted).toBe(0)
+    expect(await one(`select deleted_at, title from dates where id = $1`, [day.id])).toEqual({ deleted_at: null, title: 'AI 제목' })
+  })
+
+  it('경쟁 상태: 고른 뒤 살아 있는 장소가 생긴 날은 지울 때 다시 보고 건너뜀(cascade로 살아 있는 장소가 지워지지 않음)', async () => {
+    const A = await user()
+    const C = await couple(A, await user())
+    const day = await aiDay(C, OLD)
+    const r = await purgeHiddenDays(NOW, C, async () => {
+      await db.query(`insert into date_stops(date_id,couple_id,seq,arrived_at) values ($1,$2,0,now())`, [day.id, C])
+    })
+    expect(r).toMatchObject({ deleted: 0, late: 1 })
+    expect(await count(`select count(*) n from date_stops where date_id = $1`, [day.id])).toBe(1)
+  })
+
+  it('24시간 안에 되살아난 날은 대상 밖 · 지운 뒤 같은 날 다시 기록하면 앱 질의가 새 행을 만든다(AI 칸 비어 있음)', async () => {
+    const A = await user()
+    const C = await couple(A, await user())
+    const revived = await aiDay(C, OLD)
+    await ensureDateLikeApp(C, revived.dateOn)
+    const gone = await aiDay(C, OLD)
+    expect((await purgeHiddenDays(NOW, C)).deleted).toBe(1)
+    expect(await count(`select count(*) n from dates where id = $1`, [revived.id])).toBe(1)
+    expect(await count(`select count(*) n from dates where id = $1`, [gone.id])).toBe(0)
+    const again = await ensureDateLikeApp(C, gone.dateOn)
+    expect(again.created).toBe(true)
+    expect(await one(`select title, narrative, region, deleted_at from dates where id = $1`, [again.id])).toEqual({ title: null, narrative: null, region: null, deleted_at: null })
+    await memo(C, A, again.id, null) // 새 날에 기록이 붙는다(외래 키 정상)
+  })
+
+  it('dates 삭제: 가리키는 외래 키 = date_stops cascade · data_entries set null 둘뿐 · 삭제 트리거 0', async () => {
+    const refs = (await db.query<Row>(
+      `select conrelid::regclass::text as tbl, confdeltype from pg_constraint where contype = 'f' and confrelid = 'public.dates'::regclass order by 1`,
+    )).rows
+    expect(refs).toEqual([{ tbl: 'data_entries', confdeltype: 'n' }, { tbl: 'date_stops', confdeltype: 'c' }])
+    expect(await count(`select count(*) n from pg_trigger where not tgisinternal and tgrelid = 'public.dates'::regclass and (tgtype & 8) <> 0`)).toBe(0)
+  })
+})

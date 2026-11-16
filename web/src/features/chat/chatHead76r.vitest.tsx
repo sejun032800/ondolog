@@ -36,7 +36,8 @@ describe('F5 채팅 머리 이름', () => {
     render(<ChatTab bridge={makeFakeBridge()} hubs={w.hubs} />)
     const name = CHAT_PROFILES.find((p) => p.id === 'you')?.display_name as string
     await waitFor(() => expect(head()).toBe(name))
-    expect(readChatHeadName('me', 'c1')).toBe(name)
+    // 76-j: 저장은 이름을 그린 뒤의 effect(ChatView)라 화면보다 늦을 수 있다 - 저장분도 기다린다(바로 읽으면 가끔 null).
+    await waitFor(() => expect(readChatHeadName('me', 'c1')).toBe(name))
   })
 
   it('오프라인 · 이름 저장분 없음 · 상대 id 모름이어도 머리에 마지막 상대 이름(빈칸 · "상대" 0)', async () => {

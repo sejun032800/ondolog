@@ -25,11 +25,15 @@
  *   "해제 실행 대기" 규칙은 그대로 - 해제 실행 전 커플의 장소는 건드리지 않는다.
  *
  * 76-i (R110-4) 숨긴 행 정리: 앱에서 지워 숨김 표시(`deleted_at`)만 된 행을 **숨긴 지 24시간이 지나면 행째** 지운다(내용 비우기 아님).
- *   대상 = `HIDDEN_TABLES`(data_entries 사진 · 메모 · 그림, messages). 탈퇴 · 해제 단계(76-g · 76-h) **뒤**에 돌고, 그 단계가 맡은 행(통째로 지울 커플 ·
+ *   대상 = `HIDDEN_TABLES`(data_entries 사진 · 메모 · 그림, messages, dates 하루). 탈퇴 · 해제 단계(76-g · 76-h) **뒤**에 돌고, 그 단계가 맡은 행(통째로 지울 커플 ·
  *   떠난 사람의 기록)은 세지도 지우지도 않는다. 파일은 다루지 않는다(행이 사라지면 다음 `sweepOrphanFiles`가 남은 파일을 받는다).
- *   대상 밖: `dates`(같은 날 다시 기록하면 앱이 되살린다 - `ensureDate`) · `date_stops`(숨김 칸 없음, 이미 행 삭제) · `stories`(숨김 칸 없음 - 지우기는 행 삭제,
+ *   대상 밖: `date_stops`(숨김 칸 없음, 이미 행 삭제) · `stories`(숨김 칸 없음 - 지우기는 행 삭제,
  *   만료는 `resolved_at` · `resolution`이라 "지운 것"이 아니다) · 발행된 호(`issues` 등)와 매거진 파일.
- *   지울 때도 "숨김 표시 있음 · 24시간 지남"을 다시 걸어 지운다. 묶음(100행)이 실패하면 그 수만 실패로 세고 다음 실행 때 다시.
+ *   지울 때도 "숨김 표시 있음 · 24시간 지남"을 다시 걸어 지운다 - 고른 뒤 앱이 되살린 행(`ensureDate`가 `deleted_at`을 비움)은 그래서 지워지지 않는다.
+ *   묶음(100행)이 실패하면 그 수만 실패로 세고 다음 실행 때 다시.
+ * 76-j (R112-2) `dates`: 위 규칙에 더해, 그 날짜를 가리키는 **살아 있는** 기록(숨기지 않은 사진 · 메모 · 그림, 장소 - 장소는 숨김 칸이 없어 있으면 살아 있음)이
+ *   하나라도 있으면 지우지 않고 "건너뜀"으로 센다(정상이면 0). 고를 때와 지울 때 두 번 본다. 같은 단계에서 `data_entries` · `messages` 다음에 돈다.
+ *   앱(`ensureDate`)은 그대로 - 행이 없으면 새로 만든다.
  *
  * 한 사용자 처리 중 실패하면 그 사용자는 다음 실행 때 다시(파일 · 행 지우기가 멱등) · 다른 사용자는 계속 · 실패 수를 출력.
  * 기본은 미리 보기(대상 사용자 수 · 지울 행 수 · 파일 수). `--apply`일 때만 지운다.
@@ -97,12 +101,15 @@ export interface PurgePort extends Pick<ResetPort, 'count' | 'countFiles' | 'rem
   hiddenRows(table: HiddenTable, cutoffIso: string): Promise<readonly HiddenRow[]>
   /** 76-i: 이 id 중 숨김 표시가 있고 cutoffIso 이전인 행만 지운다. 지운 수. */
   deleteHidden(table: HiddenTable, ids: readonly string[], cutoffIso: string): Promise<number>
+  /** 76-j: 이 날짜 id 중 살아 있는 기록(숨기지 않은 data_entries · date_stops)이 가리키는 것. */
+  liveDateIds(dateIds: readonly string[]): Promise<readonly string[]>
 }
 
-/** 76-i 숨긴 행 정리 대상 [표, 작성자 칸]. dates · date_stops · stories는 대상 밖(머리 주석). */
+/** 76-i · 76-j 숨긴 행 정리 대상 [표, 작성자 칸]. dates는 작성자 칸이 없다. date_stops · stories는 대상 밖(머리 주석). 순서 = 지우는 순서. */
 export const HIDDEN_TABLES = [
   ['data_entries', 'author_id'],
   ['messages', 'sender_id'],
+  ['dates', null],
 ] as const
 export type HiddenTable = (typeof HIDDEN_TABLES)[number][0]
 export interface HiddenRow {
@@ -245,12 +252,21 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
   const goneCouples = new Set(coupleIds)
   const leavers = new Set(leaversWithKept)
   const hidden: [HiddenTable, string[]][] = []
+  let liveSkipped = 0
   for (const [table] of HIDDEN_TABLES) {
     const rowsOf = await port.hiddenRows(table, cutoffIso)
-    hidden.push([table, rowsOf.filter((r) => !goneCouples.has(r.coupleId) && !(r.authorId !== null && leavers.has(r.authorId))).map((r) => r.id)])
+    let ids = rowsOf.filter((r) => !goneCouples.has(r.coupleId) && !(r.authorId !== null && leavers.has(r.authorId))).map((r) => r.id)
+    if (table === 'dates' && ids.length > 0) {
+      // 76-j: 살아 있는 기록이 가리키는 날은 지우지 않는다(건너뜀). 앞 표에서 지울 숨긴 기록은 살아 있는 기록이 아니다.
+      const live = new Set(await port.liveDateIds(ids))
+      liveSkipped += ids.filter((id) => live.has(id)).length
+      ids = ids.filter((id) => !live.has(id))
+    }
+    hidden.push([table, ids])
   }
   lines.push(`숨긴 행 정리: ${hidden.reduce((n, [, ids]) => n + ids.length, 0)}`)
   for (const [table, ids] of hidden) lines.push(`숨긴 행 정리 ${table}: ${ids.length}`)
+  lines.push(`건너뜀(살아 있는 기록): ${liveSkipped}`)
   if (!args.apply) {
     lines.push('실제로 지우려면 --apply')
     return { kind: 'previewed', lines }
@@ -297,10 +313,17 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
   // 76-i 숨긴 행 정리 - 탈퇴 · 해제 단계 뒤. 묶음이 실패하면 그 행 수만 실패(다음 실행 때 다시).
   let hiddenDeleted = 0
   let hiddenFailed = 0
+  let lateSkipped = 0
   for (const [table, ids] of hidden) {
     for (let i = 0; i < ids.length; i += HIDDEN_CHUNK) {
-      const part = ids.slice(i, i + HIDDEN_CHUNK)
+      let part = ids.slice(i, i + HIDDEN_CHUNK)
       try {
+        if (table === 'dates') {
+          // 76-j: 지우기 직전에 한 번 더 - 고른 뒤 살아 있는 기록이 생긴 날은 건너뜀.
+          const live = new Set(await port.liveDateIds(part))
+          lateSkipped += part.filter((id) => live.has(id)).length
+          part = part.filter((id) => !live.has(id))
+        }
         hiddenDeleted += await port.deleteHidden(table, part, cutoffIso)
       } catch {
         hiddenFailed += part.length
@@ -310,6 +333,7 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
   lines.push(`남길 커플의 남은 파일 지움: ${keptOrphans}`)
   lines.push(`숨긴 행 지움: ${hiddenDeleted}`)
   lines.push(`숨긴 행 실패(다음 실행 때 다시): ${hiddenFailed}`)
+  lines.push(`건너뜀(지울 때 살아 있는 기록): ${lateSkipped}`)
   lines.push(`지운 사용자: ${done}`)
   lines.push(`실패: ${failed}`)
   lines.push(failed > 0 || hiddenFailed > 0 ? '완료(실패한 것은 다음 실행 때 다시)' : '완료')
@@ -479,15 +503,28 @@ export function makePurgePort(client: Db): PurgePort {
       const author = HIDDEN_TABLES.find(([t]) => t === table)![1]
       const out: HiddenRow[] = []
       for (let from = 0; ; from += 1000) {
-        const { data, error } = await client.from(table).select(`id, couple_id, ${author}`)
+        const { data, error } = await client.from(table).select(author ? `id, couple_id, ${author}` : 'id, couple_id')
           .not('deleted_at', 'is', null).lte('deleted_at', cutoffIso)
           .order('id', { ascending: true }).range(from, from + 999)
         must(`${table} 숨긴 행 조회`, error)
         const rows: Record<string, string | null>[] = data ?? []
-        for (const r of rows) out.push({ id: r.id as string, coupleId: r.couple_id as string, authorId: r[author] ?? null })
+        for (const r of rows) out.push({ id: r.id as string, coupleId: r.couple_id as string, authorId: author ? r[author] ?? null : null })
         if (rows.length < 1000) break
       }
       return out
+    },
+    async liveDateIds(dateIds) {
+      const live = new Set<string>()
+      const ids = uniq(dateIds)
+      for (let i = 0; i < ids.length; i += 100) {
+        const part = ids.slice(i, i + 100)
+        const { data: entries, error: e1 } = await client.from('data_entries').select('date_id').in('date_id', part).is('deleted_at', null)
+        must('data_entries 조회', e1)
+        const { data: stops, error: e2 } = await client.from('date_stops').select('date_id').in('date_id', part)
+        must('date_stops 조회', e2)
+        for (const r of [...(entries ?? []), ...(stops ?? [])] as { date_id: string }[]) live.add(r.date_id)
+      }
+      return [...live]
     },
     async deleteHidden(table, ids, cutoffIso) {
       if (ids.length === 0) return 0

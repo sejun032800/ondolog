@@ -36,10 +36,16 @@ interface World {
   calls: string[]
   /** 76-i: 이 표의 숨긴 행 삭제가 한 번 실패한다. */
   failHiddenOnce?: string
+  /** 76-j: 날짜(하루) 행 - 숨김 표시 · AI 제목 · 서사. */
+  days: Day[]
+  /** 76-j: 고른 뒤(liveDateIds 두 번째 부름 = 지우기 직전) 일어나는 일 - 경쟁 상태 흉내. */
+  beforeDayDelete?: (w: World) => void
+  dayChecks: number
 }
+interface Day { id: string; couple_id: string; deleted_at: string | null; title: string | null; narrative: string | null }
 
 function world(over: Partial<World>): World {
-  return { profiles: [], couples: [], files: {}, issues: [], recs: [], orphans: {}, log: [], stops: [], dates: [], dissolutions: [], calls: [], ...over }
+  return { profiles: [], couples: [], files: {}, issues: [], recs: [], orphans: {}, log: [], stops: [], dates: [], dissolutions: [], calls: [], days: [], dayChecks: 0, ...over }
 }
 
 function port(w: World): PurgePort {
@@ -107,16 +113,32 @@ function port(w: World): PurgePort {
       }
     },
     async hiddenRows(table, cutoff) {
+      if (table === 'dates') {
+        return w.days.filter((d) => d.deleted_at !== null && Date.parse(d.deleted_at) <= Date.parse(cutoff)).map((d) => ({ id: d.id, coupleId: d.couple_id, authorId: null }))
+      }
       return w.recs.filter((r) => r.table === table && r.deleted_at !== undefined && Date.parse(r.deleted_at) <= Date.parse(cutoff))
         .map((r) => ({ id: r.path, coupleId: r.couple_id, authorId: r.author }))
     },
     async deleteHidden(table, ids, cutoff) {
       if (w.failHiddenOnce === table) { w.failHiddenOnce = undefined; throw new Error('삭제 실패') }
+      if (table === 'dates') {
+        const gone = (d: Day) => ids.includes(d.id) && d.deleted_at !== null && Date.parse(d.deleted_at) <= Date.parse(cutoff)
+        const m = w.days.filter(gone).length
+        if (m > 0) w.log.push(`rows:hidden:dates:${m}`)
+        w.days = w.days.filter((d) => !gone(d))
+        return m
+      }
       const hit = (r: Rec) => r.table === table && ids.includes(r.path) && r.deleted_at !== undefined && Date.parse(r.deleted_at) <= Date.parse(cutoff)
       const n = w.recs.filter(hit).length
       if (n > 0) w.log.push(`rows:hidden:${table}:${n}`)
       w.recs = w.recs.filter((r) => !hit(r))
       return n
+    },
+    async liveDateIds(dateIds) {
+      w.dayChecks += 1
+      if (w.dayChecks === 2 && w.beforeDayDelete) w.beforeDayDelete(w)
+      return dateIds.filter((d) =>
+        w.stops.some((s) => s.date_id === d) || w.recs.some((r) => r.table === 'data_entries' && r.date_id === d && r.deleted_at === undefined))
     },
     async deleteUser(id) {
       w.log.push(`auth:${id}`)
@@ -445,8 +467,87 @@ describe('76-i 숨긴 행 정리(숨긴 지 24시간 지난 행 삭제)', () => 
     expect(second.lines).toContain('숨긴 행 실패(다음 실행 때 다시): 0')
   })
 
-  it('대상 표는 data_entries · messages 둘(dates는 앱이 되살림 · date_stops · stories는 숨김 칸 없음)', () => {
-    expect(HIDDEN_TABLES.map(([t]) => t)).toEqual(['data_entries', 'messages'])
+  it('대상 표는 data_entries · messages · dates(이 순서로 지움 · date_stops · stories는 숨김 칸 없음)', () => {
+    expect(HIDDEN_TABLES.map(([t]) => t)).toEqual(['data_entries', 'messages', 'dates'])
+  })
+})
+
+describe('76-j 숨긴 하루(dates) 행 정리', () => {
+  const lineOf = (lines: readonly string[], head: string) => lines.find((l) => l.startsWith(head))
+  const OLD = '2026-11-14T00:00:00Z'
+  const RECENT = '2026-11-15T12:00:00Z'
+  const day = (id: string, at: string | null, couple = 'c-1'): Day => ({ id, couple_id: couple, deleted_at: at, title: 'AI 제목', narrative: 'AI 서사' })
+  const setup = () => world({
+    profiles: [live('u-a'), live('u-b')], couples: [{ id: 'c-1', user_a_id: 'u-a', user_b_id: 'u-b', status: 'active' }],
+    issues: [{ couple_id: 'c-1' }], files: { 'c-1': { magazine: 1, 'magazine-print': 1 } },
+    days: [day('d-old', OLD), day('d-recent', RECENT), day('d-live', null), day('d-partner', OLD), day('d-stop', OLD), day('d-hidden-entry', OLD)],
+    recs: [
+      { ...rec('data_entries', 'u-b'), date_id: 'd-partner' }, // 상대의 살아 있는 사진
+      { ...rec('data_entries', 'u-a'), path: 'c-1/hidden.jpg', date_id: 'd-hidden-entry', deleted_at: OLD, deleted: true }, // 숨긴 기록만 - 같은 단계에서 먼저 지워짐
+    ],
+    stops: [{ id: 's1', couple_id: 'c-1', date_id: 'd-stop', author: 'u-b' }],
+  })
+
+  it('미리 보기: 지난 것만 · 살아 있는 기록이 있는 날은 건너뜀 · 숫자만 · 삭제 0', async () => {
+    const w = setup()
+    const out = await runPurge(async () => port(w), { apply: false }, gate, NOW)
+    expect(out.lines).toContain('숨긴 행 정리 dates: 2')
+    expect(out.lines).toContain('건너뜀(살아 있는 기록): 2')
+    expect(lineOf(out.lines, '숨긴 행 정리:')).toBe('숨긴 행 정리: 3') // 숨긴 사진 1 + 날 2
+    expect(w.days).toHaveLength(6)
+    expect(w.log).toEqual([])
+    for (const bad of ['d-old', 'c-1', 'AI']) expect(out.lines.join('\n')).not.toContain(bad)
+  })
+
+  it('적용: 지난 날만 행째 삭제(AI 제목 · 서사가 남지 않음) · 24시간 안 · 숨기지 않은 날 · 상대 기록 · 장소가 있는 날 0건 · 호 · 매거진 파일 0건', async () => {
+    const w = setup()
+    const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(w.days.map((d) => d.id)).toEqual(['d-recent', 'd-live', 'd-partner', 'd-stop'])
+    expect(w.days.some((d) => d.id === 'd-old' || d.id === 'd-hidden-entry')).toBe(false)
+    expect(out.lines).toContain('숨긴 행 지움: 3')
+    expect(out.lines).toContain('건너뜀(지울 때 살아 있는 기록): 0')
+    expect(w.stops).toHaveLength(1)
+    expect(w.recs.map((r) => r.date_id)).toEqual(['d-partner'])
+    expect(w.issues).toEqual([{ couple_id: 'c-1' }])
+    expect(w.files['c-1']).toEqual({ magazine: 1, 'magazine-print': 1 })
+    expect(w.log.indexOf('rows:hidden:data_entries:1')).toBeLessThan(w.log.indexOf('rows:hidden:dates:2'))
+  })
+
+  it('경쟁 상태: 고른 뒤 지우기 전에 앱이 되살린 날(deleted_at 비움)은 0건', async () => {
+    const w = setup()
+    w.beforeDayDelete = (x) => { x.days.find((d) => d.id === 'd-old')!.deleted_at = null }
+    const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(w.days.find((d) => d.id === 'd-old')).toMatchObject({ deleted_at: null, title: 'AI 제목' })
+    expect(out.lines).toContain('숨긴 행 지움: 2') // 숨긴 사진 1 + d-hidden-entry
+    expect(out.lines).toContain('숨긴 행 실패(다음 실행 때 다시): 0')
+  })
+
+  it('경쟁 상태: 고른 뒤 살아 있는 기록이 생긴 날은 지울 때 다시 보고 건너뜀', async () => {
+    const w = setup()
+    w.beforeDayDelete = (x) => { x.stops.push({ id: 's9', couple_id: 'c-1', date_id: 'd-old', author: 'u-a' }) }
+    const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(w.days.some((d) => d.id === 'd-old')).toBe(true)
+    expect(out.lines).toContain('건너뜀(지울 때 살아 있는 기록): 1')
+  })
+
+  it('24시간 안에 되살아난 날(숨김 표시 없음)은 대상 밖', async () => {
+    const w = world({ days: [day('d-revived', null)] })
+    const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(out.lines).toContain('숨긴 행 정리 dates: 0')
+    expect(w.days).toHaveLength(1)
+  })
+
+  it('두 사람 모두 떠난 커플의 날은 76-g cascade가 맡음 - 두 번 세지 않음 · 멱등', async () => {
+    const w = setup()
+    w.profiles = [gone('u-a'), gone('u-b')]
+    const pre = await runPurge(async () => port(w), { apply: false }, gate, NOW)
+    expect(pre.lines).toContain('숨긴 행 정리 dates: 0')
+    const v = setup()
+    await runPurge(async () => port(v), { apply: true }, gate, NOW)
+    const after = JSON.stringify(v.days)
+    const again = await runPurge(async () => port(v), { apply: true }, gate, NOW)
+    expect(again.lines).toContain('숨긴 행 지움: 0')
+    expect(JSON.stringify(v.days)).toBe(after)
   })
 })
 

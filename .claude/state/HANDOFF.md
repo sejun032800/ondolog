@@ -9,6 +9,112 @@
 > `#13-r4`(브랜드 생성자 이전)도 같은 이유로 `#13` 절을 그대로 두고
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
+> **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
+
+## `76-j` 흔들리는 시험 잡기 + 숨긴 "하루" 행 실제 삭제 (메인 세션, 2026-11-16, 위임문 `76-j-dispatch-dates-and-flaky.md` · 근거 `76-i-pm-report.md` · R112-2 · R112-3 · R112-5 · R112-6) - 완료 (미커밋)
+
+범위: `scripts/ops/purgeWithdrawn.ts` + 시험 · `__tests__/db/hiddenRows76i.test.ts` · 흔들리는 시험 1파일(`web/src/features/chat/chatHead76r.vitest.tsx`, 시험만) · HANDOFF · PROGRESS. **마이그레이션 0 · 원격 접속 0(R112-3 - 이번 허용 질의 없음, 실행한 원격 질의 0) · 새 패키지 0 · 네이티브 0 · `consent.ts` 0 · 030 0 · 렌더 0 · 함수 0 · `demo_responses` 0 · R34-3 호출 0** · 스크립트 실행 0 · 커밋 0 · db push 0. **web 앱 코드 변경 0 -> build · cap sync 안 돌림**(위임서: web 코드를 고쳤을 때만). `ensureDate`(앱) 변경 0.
+
+검증: 루트 tsc 0 · jest 115/1960 → **115/1971** · PGlite 9/113 → **9/118** · `deno check` `purgeWithdrawn.ts` · Deno 초기화 28/28 · web tsc 0 · **Vitest 고친 뒤 10회 연속 61/997 + 1 건너뜀** · 법무 관문 8/8. 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0.
+
+### 멈춘 것
+
+없음.
+
+### ① 흔들리는 시험 (R112-5)
+
+| 회차 | 결과 | 실패 |
+|---|---|---|
+| 1~10 | 10/10 통과 | - |
+| 11~20 | 7/10 통과 | 12 · 15 · 19회: `chatHead76r.vitest.tsx` "F5 채팅 머리 이름 > 온라인에서 받은 상대 이름을 채팅 저장분에 남긴다" - `AssertionError: expected null to be '<상대 이름>'` |
+| 고친 뒤 21~30 | **10/10 연속 통과** | - |
+
+- 원인(한 줄): 시험이 화면에 이름이 보이자마자(`waitFor`) 기기 저장분을 **바로** 읽는데, 저장은 이름을 그린 뒤의 effect(`ChatView.tsx:300` `useEffect` -> `writeChatHeadName`)라 화면보다 몇 ms 늦을 수 있다 - 기계가 바쁠 때 effect가 늦게 돌면 `null`. (76-i 때 1회 실패도 루트 jest와 겹쳐 돈 때였다.)
+- 제품 결함 아님: 저장은 곧바로 이어서 일어나고, 저장분은 다음 오프라인 진입 때만 쓰인다(앱을 그 몇 ms 안에 닫는 경우만 이번 이름이 안 남고, 그때도 전에 저장된 이름이 보인다). PM 판단 불필요.
+- 고친 곳: 그 시험 한 줄 - 저장분 읽기도 `waitFor`로 기다린다. 제품 코드 0.
+- 회차별 결과 파일(JSON)은 스크래치 폴더에만 두었다(저장소 밖).
+
+### ② 숨긴 "하루"(`dates`) 행 실제 삭제 (R112-2 · (가)안)
+
+- 76-i "숨긴 행 정리"에 `dates` 추가(`HIDDEN_TABLES` = data_entries -> messages -> **dates** 순서로 지움). 숨긴 지 24시간 지난 행을 **행째** 삭제 -> AI 제목 · 서사 · 지역이 DB에 남지 않음.
+- 되살린 행 보호: 삭제 문장 자체에 "아직 숨겨져 있음(`deleted_at is not null`) · 숨긴 시각 <= 기준"을 건다 - 고른 뒤 앱의 `ensureDate`가 되살린 행은 지워지지 않는다.
+- 안전 조건: 그 날짜를 가리키는 **살아 있는** 기록(숨기지 않은 사진 · 메모 · 그림, 장소 - 장소는 숨김 칸이 없어 있으면 살아 있음)이 하나라도 있으면 지우지 않고 "건너뜀"(실패 아님). **고를 때 한 번 · 지우기 직전 한 번** 본다 -> cascade로 살아 있는 장소가 지워지는 일 0.
+- 같은 단계 안에서 숨긴 `data_entries`가 먼저 지워지므로, 숨긴 기록만 남은 날은 그 뒤 지워진다.
+- 남는 좁은 틈(받아들임 - R112-2): 정리가 행을 지운 **바로 그 순간** 앱이 같은 날을 되살리려 하면 앱의 그 한 번 저장이 실패하고(행 없음), 다시 저장하면 새 행을 만들어 정상.
+
+| 시험 | 어디 | 결과 |
+|---|---|---|
+| 24시간 안 숨긴 날 0건 · 지난 것만 행째 삭제 · AI 제목 · 서사 남지 않음 | 둘 다 | 통과 |
+| 24시간 안에 되살아난 날 대상 밖 | 둘 다 | 통과 |
+| 고른 뒤 지우기 전에 되살아난 날 0건(경쟁 상태) | 둘 다 | 통과 |
+| 고른 뒤 살아 있는 장소가 생긴 날 -> 지울 때 건너뜀 · 장소 그대로 | 둘 다 | 통과 |
+| 상대 기록이 있는 날 · 살아 있는 장소가 있는 날 0건(건너뜀 수) | 둘 다 | 통과 |
+| 지운 뒤 같은 날 다시 기록 -> 앱 `ensureDate`와 같은 질의가 새 행(AI 칸 빈) · 기록이 붙음 | `hiddenRows76i.test.ts`(PGlite, 앱 질의 그대로 재현) | 통과 |
+| 외래 키 = `date_stops` cascade · `data_entries` set null 둘뿐 · 삭제 트리거 0 | `hiddenRows76i.test.ts` | 통과 |
+| 두 사람 모두 떠난 커플의 날은 76-g cascade가 맡음(두 번 세지 않음) · 멱등 · 미리 보기 삭제 0 · 출력 숫자만 | `purgeWithdrawn.test.ts` | 통과 |
+| 발행된 호 · 매거진 파일 0건 · 76-g · 76-h · 76-i 회귀 0 | 둘 다 · 기존 시험 | 통과 |
+
+시험 메모: `ensureDate`의 가짜 저장소 시험은 `__tests__/services/`(이번 편집 범위 밖)라, PGlite에서 `ensureDate`와 같은 질의(찾기 -> 숨겨져 있으면 되살리기 / 없으면 만들기)를 SQL로 그대로 재현해 확인했다.
+
+### 바뀐 미리 보기 출력 줄 (숫자 자리만)
+
+```
+숨긴 행 정리: n                    (합 - dates 포함)
+숨긴 행 정리 data_entries: n
+숨긴 행 정리 messages: n
+숨긴 행 정리 dates: n              <- 76-j 새 줄
+건너뜀(살아 있는 기록): n          <- 76-j 새 줄(0 기대)
+실제로 지우려면 --apply
+```
+
+`--apply`일 때 끝에 `건너뜀(지울 때 살아 있는 기록): n`(76-j 새 줄, 0 기대)이 더해진다.
+
+### 76-j 결정 기록 (출처: R112-2 · R112-3 · R112-5 · R112-6)
+
+| 결정 | 근거 |
+|---|---|
+| `dates`도 숨긴 지 24시간 뒤 행 삭제 · 앱은 그대로 | R112-2 (가) |
+| 삭제 문장에 숨김 · 기준 조건 + 살아 있는 기록 확인 두 번(고를 때 · 지우기 직전) · 살아 있으면 "건너뜀" | 위임서 ② |
+| `dates`는 같은 단계의 마지막(숨긴 기록이 먼저 지워진 뒤) | 위임서 ② 순서 |
+| 원격 질의 0(이번 허용 질의 없음) | R112-3 |
+| 흔들리는 시험은 시험 쪽 순서 의존(effect 저장을 기다리지 않음)만 고침 | R112-5 |
+
+### 76-j 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 운영 스크립트 - 숨긴 하루 행 정리
+
+```
+git add scripts/ops/purgeWithdrawn.ts
+git add scripts/ops/purgeWithdrawn.test.ts
+git add __tests__/db/hiddenRows76i.test.ts
+git commit -m "76-j ops: hard-delete hidden day rows after 24 hours, skip days with live records"
+```
+
+2) 흔들리는 시험
+
+```
+git add web/src/features/chat/chatHead76r.vitest.tsx
+git commit -m "76-j test: wait for the saved chat head name instead of reading it right after render"
+```
+
+3) 상태 파일
+
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "76-j state: handoff and progress"
+```
+
+### Proteur 다음 순서
+
+1. 커밋(위 1 · 2 · 3). **빌드 · 설치 불필요**(앱 코드 변경 0 - 76-i 빌드 그대로). db push · 함수 배포 없음
+2. 폰 확인(76-i ④⑤ + 78- 남은 4개)은 76-i 절 그대로
+3. **11/23(월) 첫 행 삭제 정리** - 76-f 월요일 운영 절 명령 그대로:
+   1. `purgeWithdrawn` **미리 보기**만 -> 숫자 줄 전체(특히 "숨긴 행 정리" 4줄 · "건너뜀(살아 있는 기록)")를 PE에 보냄
+   2. PE 확인을 받은 뒤에만 `--apply`(행 삭제는 되돌릴 수 없음) -> 적용 출력 숫자도 PE에
+   3. 그다음 `sweepOrphanFiles` 미리 보기 -> 적용
+   4. 같은 날 8번 알림 건강 확인: 대시보드 Logs 지난 7일 `push-send` 상태별 건수 - **11/16의 503 22건이 보이면 로그 7일 보존 확인**, 안 보이면 볼 수 있는 기간을 PE에
+4. HANDOFF는 덮어쓰지 않고 메인 세션이 고친 것을 커밋만(R112-4). `b49c64c` 원인 한 줄을 PE · 메인 세션에 알려 주면 PROGRESS에 그대로 적음
 
 ## `76-i` 숨긴 행 실제 삭제 + 로그아웃 때 서랍 알림 지우기 + 변경 알림 뒤 새로 읽기 + 운영 규칙 2 (메인 세션, 2026-11-16, 위임문 `76-i-dispatch-hard-delete-hidden.md` · 근거 `78-pm-report.md` §4-2 · `78-phone-check-2-pm-report.md` P1 · P2 · R110-4 · R111-2~5) - 완료 (미커밋)
 
