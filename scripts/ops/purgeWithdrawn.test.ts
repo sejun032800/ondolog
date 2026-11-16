@@ -15,7 +15,9 @@ const PAST = '2026-11-01T00:00:00Z'
 const FUTURE = '2026-11-20T00:00:00Z'
 
 interface Profile { id: string; deleted_at: string | null; purge_scheduled_at: string | null }
-interface Rec { table: 'data_entries' | 'messages' | 'stories'; couple_id: string; author: string; path: string }
+interface Rec { table: 'data_entries' | 'messages' | 'stories'; couple_id: string; author: string; path: string; date_id?: string; deleted?: boolean }
+interface Stop { id: string; couple_id: string; date_id: string; author: string | null }
+interface Diss { couple_id: string; initiated_by: string | null; executed: boolean; cancelled: boolean }
 interface World {
   profiles: Profile[]
   couples: (CoupleWithStatus & { status: string })[]
@@ -27,10 +29,15 @@ interface World {
   orphans: Record<string, number>
   log: string[]
   failOnce?: string
+  /** 76-h */
+  stops: Stop[]
+  dates: string[]
+  dissolutions: Diss[]
+  calls: string[]
 }
 
 function world(over: Partial<World>): World {
-  return { profiles: [], couples: [], files: {}, issues: [], recs: [], orphans: {}, log: [], ...over }
+  return { profiles: [], couples: [], files: {}, issues: [], recs: [], orphans: {}, log: [], stops: [], dates: [], dissolutions: [], calls: [], ...over }
 }
 
 function port(w: World): PurgePort {
@@ -66,8 +73,29 @@ function port(w: World): PurgePort {
       w.orphans[coupleId] = 0
       return n
     },
+    async dissolvedInitiators() {
+      w.calls.push('dissolvedInitiators')
+      return w.dissolutions
+        .filter((d) => d.executed && !d.cancelled && d.initiated_by !== null && w.couples.some((c) => c.id === d.couple_id && c.status === 'dissolved'))
+        .map((d) => ({ coupleId: d.couple_id, initiatorId: d.initiated_by as string }))
+    },
+    async stopDateIds(author, coupleIds) { return w.stops.filter((s) => s.author === author && coupleIds.includes(s.couple_id)).map((s) => s.date_id) },
+    async entryDateIds(author, coupleIds) {
+      return [...new Set(w.recs.filter((r) => r.table === 'data_entries' && r.author === author && coupleIds.includes(r.couple_id) && r.date_id).map((r) => r.date_id as string))]
+    },
+    async deleteStops(author, coupleIds) {
+      const n = w.stops.filter((s) => s.author === author && coupleIds.includes(s.couple_id)).length
+      if (n > 0) w.log.push(`rows:date_stops:${author}`)
+      w.stops = w.stops.filter((s) => !(s.author === author && coupleIds.includes(s.couple_id)))
+    },
+    async emptyAfter(dateIds, author) {
+      return [...new Set(dateIds)].filter((d) =>
+        !w.stops.some((s) => s.date_id === d && s.author !== author) &&
+        !w.recs.some((r) => r.table === 'data_entries' && r.date_id === d && !r.deleted && r.author !== author))
+    },
     async deleteRows(table, column, ids) {
       w.log.push(`rows:${table}:${ids.join(',')}`)
+      if (table === 'dates') { w.dates = w.dates.filter((d) => !ids.includes(d)); return }
       if (table === 'couples') {
         w.couples = w.couples.filter((c) => !ids.includes(c.id))
         w.issues = w.issues.filter((r) => !ids.includes(r.couple_id)) // cascade
@@ -79,6 +107,8 @@ function port(w: World): PurgePort {
     async deleteUser(id) {
       w.log.push(`auth:${id}`)
       w.profiles = w.profiles.filter((p) => p.id !== id)
+      for (const s of w.stops) if (s.author === id) s.author = null // m3 · m1: 작성자 비움
+      for (const d of w.dissolutions) if (d.initiated_by === id) d.initiated_by = null
       for (const c of w.couples) { // m1: 비움
         if (c.user_a_id === id) (c as { user_a_id: string | null }).user_a_id = null
         if (c.user_b_id === id) (c as { user_b_id: string | null }).user_b_id = null
@@ -211,6 +241,110 @@ describe('실패 · 멱등', () => {
     expect((await runPurge(async () => port(w), { apply: true }, gate, NOW)).lines).toContain('지운 사용자: 1')
     expect(w.profiles.map((p) => p.id)).toEqual(['u-b'])
     expect(w.recs).toEqual([])
+  })
+})
+
+describe('76-h 떠난 사람이 남긴 장소', () => {
+  const stop = (id: string, date: string, author: string | null, couple = 'c-1'): Stop => ({ id, couple_id: couple, date_id: date, author })
+  const lineOf = (lines: readonly string[], head: string) => lines.find((l) => l.startsWith(head))
+
+  describe('① 탈퇴', () => {
+    const setup = () => world({
+      profiles: [gone('u-a'), live('u-b')],
+      couples: [{ id: 'c-1', user_a_id: 'u-a', user_b_id: 'u-b', status: 'dissolved' }],
+      dates: ['d-only-a', 'd-shared', 'd-old'],
+      stops: [stop('s1', 'd-only-a', 'u-a'), stop('s2', 'd-shared', 'u-a'), stop('s3', 'd-shared', 'u-b'), stop('s4', 'd-old', 'u-a'), stop('s5', 'd-old', null)],
+      recs: [
+        { ...rec('data_entries', 'u-a'), date_id: 'd-only-a' },
+        { ...rec('data_entries', 'u-b'), path: 'c-1/b-photo.jpg', date_id: 'd-shared' },
+      ],
+    })
+
+    it('미리 보기: "떠난 사람의 장소" · "빈 날 정리" 숫자 · 삭제 0', async () => {
+      const w = setup()
+      const out = await runPurge(async () => port(w), { apply: false }, gate, NOW)
+      expect(lineOf(out.lines, '떠난 사람의 장소:')).toBe('떠난 사람의 장소: 3')
+      expect(lineOf(out.lines, '빈 날 정리:')).toBe('빈 날 정리: 1')
+      expect(w.log).toEqual([])
+      expect(w.stops).toHaveLength(5)
+    })
+
+    it('떠난 사람의 장소만 지움 · 남은 사람 장소 · 사진 0건 영향 · 작성자 빈 장소 0건 · 빈 날만 정리 · 장소 -> 계정 순서', async () => {
+      const w = setup()
+      await runPurge(async () => port(w), { apply: true }, gate, NOW)
+      expect(w.stops.map((s) => s.id)).toEqual(['s3', 's5'])
+      expect(w.recs.map((r) => r.author)).toEqual(['u-b'])
+      expect(w.dates).toEqual(['d-shared', 'd-old']) // d-only-a만 비었다(d-old는 작성자 빈 옛 장소가 남음)
+      expect(w.log.indexOf('rows:date_stops:u-a')).toBeLessThan(w.log.indexOf('auth:u-a'))
+      expect(w.log.indexOf('rows:dates:d-only-a')).toBeLessThan(w.log.indexOf('auth:u-a'))
+    })
+
+    it('해제 실행 전(대기)이면 장소도 0건', async () => {
+      const w = setup()
+      w.couples[0].status = 'dissolving'
+      const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+      expect(lineOf(out.lines, '떠난 사람의 장소:')).toBe('떠난 사람의 장소: 0')
+      expect(w.stops).toHaveLength(5)
+      expect(w.dates).toHaveLength(3)
+    })
+
+    it('다시 돌려도 같은 결과(멱등)', async () => {
+      const w = setup()
+      await runPurge(async () => port(w), { apply: true }, gate, NOW)
+      const after = JSON.stringify([w.stops, w.dates, w.recs])
+      const again = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+      expect(JSON.stringify([w.stops, w.dates, w.recs])).toBe(after)
+      expect(lineOf(again.lines, '떠난 사람의 장소:')).toBe('떠난 사람의 장소: 0')
+    })
+  })
+
+  describe('② 해제(해제된 커플 정리)', () => {
+    const setup = (status = 'dissolved') => world({
+      profiles: [live('u-a'), live('u-b')],
+      couples: [{ id: 'c-1', user_a_id: 'u-a', user_b_id: 'u-b', status }],
+      dissolutions: [{ couple_id: 'c-1', initiated_by: 'u-a', executed: status === 'dissolved', cancelled: false }],
+      dates: ['d1', 'd2'],
+      stops: [stop('s1', 'd1', 'u-a'), stop('s2', 'd2', 'u-a'), stop('s3', 'd2', 'u-b'), stop('s4', 'd1', null)],
+      recs: [{ ...rec('data_entries', 'u-b'), date_id: 'd2' }],
+    })
+
+    it('요청자 장소만 지우고 요청받은 사람 장소 · 사진은 남김 · 작성자 빈 장소 0건 · 탈퇴자 0명이어도 돈다', async () => {
+      const w = setup()
+      const pre = await runPurge(async () => port(w), { apply: false }, gate, NOW)
+      expect(lineOf(pre.lines, '떠난 사람의 장소:')).toBe('떠난 사람의 장소: 2')
+      expect(lineOf(pre.lines, '빈 날 정리:')).toBe('빈 날 정리: 0') // d1은 옛 장소, d2는 상대 것이 남음
+      await runPurge(async () => port(w), { apply: true }, gate, NOW)
+      expect(w.stops.map((s) => s.id)).toEqual(['s3', 's4'])
+      expect(w.dates).toEqual(['d1', 'd2'])
+      expect(w.recs).toHaveLength(1)
+    })
+
+    it('남은 것이 0인 날은 그날 행도 정리', async () => {
+      const w = setup()
+      w.stops = [stop('s1', 'd1', 'u-a'), stop('s3', 'd2', 'u-b')]
+      w.recs = []
+      await runPurge(async () => port(w), { apply: true }, gate, NOW)
+      expect(w.dates).toEqual(['d2'])
+    })
+
+    it('해제 실행 전(유예 중) · 취소된 해제는 0건', async () => {
+      for (const make of [() => setup('dissolving'), () => { const w = setup(); w.dissolutions[0].cancelled = true; return w }]) {
+        const w = make()
+        const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+        expect(lineOf(out.lines, '떠난 사람의 장소:')).toBe('떠난 사람의 장소: 0')
+        expect(w.stops).toHaveLength(4)
+      }
+    })
+
+    it('해제 정리는 탈퇴 단계보다 먼저(같은 실행에서 요청자가 지워져도 장소를 가를 수 있게)', async () => {
+      const w = setup()
+      w.profiles = [gone('u-a'), live('u-b')]
+      const pre = await runPurge(async () => port(w), { apply: false }, gate, NOW)
+      expect(lineOf(pre.lines, '떠난 사람의 장소:')).toBe('떠난 사람의 장소: 2') // 두 단계가 같은 장소를 두 번 세지 않음
+      await runPurge(async () => port(w), { apply: true }, gate, NOW)
+      expect(w.stops.map((s) => s.id)).toEqual(['s3', 's4'])
+      expect(w.log.indexOf('rows:date_stops:u-a')).toBeLessThan(w.log.indexOf('auth:u-a'))
+    })
   })
 })
 

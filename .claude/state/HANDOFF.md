@@ -10,6 +10,95 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
+## `76-h` 떠난 사람이 남긴 장소 지우기 (메인 세션, 2026-11-16, 위임문 `76-h-dispatch-departed-places.md` · 근거 `76-g-pm-report.md` §5 · R106-1~4) - 완료 (미커밋)
+
+범위: `scripts/ops/purgeWithdrawn.ts` + 시험 · `__tests__/db/` 시험 1 · HANDOFF(월요일 운영 한 줄 포함) · PROGRESS. **마이그레이션 0 · 030 수정 0 · `web/` 0**(빌드 불필요) · `sweepOrphanFiles.ts` 변경 0 · 새 패키지 0 · `demo_responses` 0 · R34-3 함수 호출 0 · 원격 0 · 스크립트 실행 0. 위임 0(메인 세션 직접).
+
+검증: 루트 tsc 0 · jest 111/1912 → **112/1924** · PGlite 6/90 → **7/94** · Deno 초기화 시험 28/28 · `deno check` 스크립트 2개. 키 · 주소 · ref · id · 이메일 · 경로 0 · 파일 이름 ASCII.
+
+### 멈춘 것
+
+없음. 장소 작성자는 m3 작성자 칸(`date_stops.author_id`)만으로 가른다 - 다른 근거 불필요.
+
+### ②를 넣은 곳 · ③ 데이트 행 테이블
+
+- **② 해제 정리 = `purgeWithdrawn.ts`의 "해제된 커플 정리" 단계**(권고 그대로). 행을 지우는 규칙이라 파일만 다루는 `sweepOrphanFiles`에 넣지 않았다. 매주 월요일 같은 명령에서 돈다.
+  - **탈퇴 단계보다 먼저** 돈다: 요청자가 같은 실행에서 탈퇴 최종 삭제되면 m1이 작성자 칸을 비워 더는 가를 수 없어서.
+  - 대상 = `couple_dissolutions.initiated_by`(실제 칸 이름 확인) - 실행됨(`executed_at` 있음) · 취소 안 됨 · 칸이 비지 않음 + 그 커플 `status = 'dissolved'`.
+- **③ 데이트 행 = `public.dates`**(006). 그 사람 것을 빼고 그날 남은 것(`date_stops` - 작성자 빈 옛 장소 포함 · 지우지 않은 `data_entries`, 두 사람 모두)이 0이면 그 `dates` 행을 지운다(행 삭제 - `date_stops` cascade · 소프트 삭제된 기록의 `date_id`는 비워짐). 하나라도 남으면 유지.
+
+### 시험 표
+
+| 시험 | 어디 | 결과 |
+|---|---|---|
+| 떠난 사람(탈퇴) 장소만 지움 · 남은 사람 장소 · 사진 · 메모 0건 영향 | `purgeWithdrawn.test.ts` · `departedPlaces76h.test.ts` | 통과 |
+| 해제: 요청자 장소만 · 요청받은 사람 장소 남음 · 해제 실행 전(유예 중) · 취소된 해제 0건 | 둘 다 | 통과 |
+| 빈 날: 남은 것 0 -> 그날 행 정리 / 남은 것 있음 -> 유지(옛 장소 · 상대 사진도 "남은 것") | 둘 다 | 통과 |
+| 작성자 null 장소 0건 | 둘 다 | 통과 |
+| 탈퇴 순서: 장소 -> 빈 날 -> 로그인 계정 · 계정 삭제가 장소 때문에 막히지 않음 | 둘 다 | 통과 |
+| 해제 정리가 탈퇴 단계보다 먼저 · 같은 장소를 두 번 세지 않음 | `purgeWithdrawn.test.ts` | 통과 |
+| 해제 실행 대기 커플은 장소도 0건 | `purgeWithdrawn.test.ts` | 통과 |
+| 미리 보기 삭제 0 · 출력 숫자만 · R34-3 · `demo_responses` 0 | `purgeWithdrawn.test.ts` | 통과 |
+| 다시 돌려도 같은 결과(멱등) | 둘 다 | 통과 |
+| 76-g 시험 회귀 0 | `purgeWithdrawn.test.ts` · `withdrawalPurge76g.test.ts` | 통과 |
+
+### 76-h 결정 기록 (출처: R106-1~4)
+
+| 결정 | 근거 |
+|---|---|
+| ② 해제 정리는 `purgeWithdrawn`의 첫 단계 - 행을 지우는 규칙(파일 스크립트와 나눔) · 같은 월요일 명령 | R106-2 · 위임서 권고 |
+| 해제 정리를 탈퇴 단계보다 먼저 - 요청자가 같은 실행에서 지워지면 작성자 칸이 비어 가를 수 없음. 같은 (사람, 커플)을 두 단계가 함께 맡으면 해제 정리만 센다 | 시험으로 확인 |
+| 탈퇴 ①은 상대가 남은 커플(해제 끝남)에서만 - 통째로 지울 커플은 커플 행 cascade로 장소 · 날짜가 함께 지워짐. "해제 실행 대기" 규칙 그대로 | R106-2 · 76-g |
+| 빈 날 판정에는 작성자 빈 옛 장소도 "남은 것"(④ 0건 영향) · 소프트 삭제된 기록은 남은 것이 아님(76-f 해석과 같음) | R106-2 ③ ④ · R105-1 |
+| 빈 날은 `dates` 행 **삭제**(76-d의 소프트 삭제가 아님) - 떠난 사람만 남긴 날이라 되살릴 사람이 없고, 처리방침 "지웁니다"와 맞춤 | R106-2 |
+| 해제 정리의 실패는 "실패" 숫자에 함께 셈 · 다음 실행 때 다시(멱등) | 76-f 규칙 |
+
+### 바뀐 미리 보기 출력 줄 (숫자 자리만)
+
+```
+미리 보기(지우지 않음): 탈퇴 최종 삭제
+유예 끝난 사용자: n
+처리 대상: n
+해제 실행 대기(다음 실행 때): n
+상대가 남은 커플(커플 · 호 · 상대 기록 남김): n
+couples: n
+… (표마다 한 줄 - 76-g와 같음)
+떠난 사람 data_entries(상대가 남은 커플): n
+떠난 사람 messages(상대가 남은 커플): n
+떠난 사람 stories(상대가 남은 커플): n
+auth 사용자: n
+Storage: n
+매거진 파일(magazine · magazine-print): n
+떠난 사람의 장소: n        <- 76-h 새 줄(해제 정리 + 탈퇴 합)
+빈 날 정리: n              <- 76-h 새 줄
+실제로 지우려면 --apply
+```
+
+### 76-h 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 운영 스크립트 - 떠난 사람이 남긴 장소
+
+```
+git add scripts/ops/purgeWithdrawn.ts
+git add scripts/ops/purgeWithdrawn.test.ts
+git add __tests__/db/departedPlaces76h.test.ts
+git commit -m "76-h ops: delete places left by withdrawn users and dissolution initiators, clean up emptied days"
+```
+
+2) 상태 파일
+
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "76-h state: handoff and progress"
+```
+
+### Proteur 다음 순서
+
+1. 커밋(위 1 · 2). db push 없음 · 빌드 없음
+2. 월요일 운영은 76-f 절 명령 그대로(`purgeWithdrawn` -> `sweepOrphanFiles`, 미리 보기 -> 적용). 미리 보기에 "떠난 사람의 장소" · "빈 날 정리" 두 줄이 더해짐
+3. **운영 신호(R106-4)**: "해제 실행 대기" 숫자가 **두 주 연속 줄지 않으면** PE에 알림(매일 해제 실행 일정이 멈췄다는 신호) - 76-f 월요일 운영 절에도 한 줄 넣음
+
 ## `76-g` 탈퇴 최종 삭제 완성 · 잡지 파일 정리 · 앱 즉시 파일 삭제 (메인 세션, 2026-11-16, 위임문 `76-g-dispatch-withdrawal-purge.md` · 근거 `76-f-pm-report.md` · R105-1~6) - 완료 (미커밋)
 
 범위: `supabase/migrations/` 새 파일 2개(사전 허가) · `__tests__/db/` 시험 1 · `scripts/ops/`(`sweepOrphanFiles.ts` · `purgeWithdrawn.ts` + 시험) · `web/src/`(앱 즉시 삭제) · HANDOFF(옛 `$al` 줄 포함) · PROGRESS. 위임 0(메인 세션 직접). 새 패키지 0 · 네이티브 · RN 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 함수 호출 0 · **030 본문 수정 0** · 렌더(`supabase/functions/` · `render/`) 수정 0 · 원격 0 · 스크립트 실행 0.
@@ -262,6 +351,8 @@ deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functi
 ```
 
 6. 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` -> `False`.
+
+7. (76-h · R106-4) `purgeWithdrawn` 미리 보기의 **"해제 실행 대기" 숫자가 두 주 연속 줄지 않으면 PE에 알림** - 매일 해제 실행 일정(cron)이 멈췄다는 신호.
 
 `--allow-net`은 프로젝트 호스트 하나, `--allow-env`는 위 이름만, `--allow-read`는 연결 정보 파일과 허용 목록 하나. 허용 목록의 `project=`가 접속 주소와 다르면 두 스크립트 모두 **접속 전에** "거부: …" 한 줄로 끝난다.
 

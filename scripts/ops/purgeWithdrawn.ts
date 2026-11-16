@@ -16,6 +16,14 @@
  *   "남아 있음" = 상대 프로필이 있고, 탈퇴 요청이 없거나 그 유예가 아직 안 끝남(유예 중에는 탈퇴를 취소할 수 있으므로 함께 지우지 않는다).
  * 상대가 없거나(혼자 초대 행) 상대도 유예가 끝났으면: 그 커플들의 파일(커플 접두 6개 버킷 - 매거진 포함) + 사용자 avatars 접두 -> 커플 행 -> 인증 사용자.
  *
+ * 76-h (R106-2) 떠난 사람이 남긴 장소(`date_stops`, 76-m3 작성자 칸으로만 가른다):
+ *   ① 탈퇴 - 상대가 남은 커플에서 작성자 = 떠난 사람인 장소를 **인증 사용자 삭제 전에** 지운다(지운 뒤에는 작성자 칸이 비어(m1) 가를 수 없다).
+ *   ② 해제 - "해제된 커플 정리" 단계: 해제가 실행된(`couples.status = 'dissolved'`) 커플에서 작성자 = 해제 요청자(`couple_dissolutions.initiated_by`,
+ *      실행됨 · 취소 안 됨)인 장소를 지운다. 030은 m3 이전 설계라 장소를 사람 단위로 지우지 않는다(030 수정 0). 탈퇴 단계보다 **먼저** 돈다(같은 이유).
+ *   ③ 빈 날 - 그 사람 것을 빼고 그날 남은 것(장소 · 지우지 않은 사진 · 메모, 두 사람 모두)이 0이면 그날 `dates` 행도 지운다. 하나라도 남으면 유지.
+ *   ④ 작성자가 빈 장소(m3 이전)는 대상 밖이고, 빈 날 판정에서는 "남은 것"으로 센다.
+ *   "해제 실행 대기" 규칙은 그대로 - 해제 실행 전 커플의 장소는 건드리지 않는다.
+ *
  * 한 사용자 처리 중 실패하면 그 사용자는 다음 실행 때 다시(파일 · 행 지우기가 멱등) · 다른 사용자는 계속 · 실패 수를 출력.
  * 기본은 미리 보기(대상 사용자 수 · 지울 행 수 · 파일 수). `--apply`일 때만 지운다.
  * 개발 프로젝트 가드: `sweepOrphanFiles.makeProjectGate`(허용 목록의 project= 줄)와 같다 - 맞지 않으면 접속 전에 끝낸다.
@@ -68,6 +76,16 @@ export interface PurgePort extends Pick<ResetPort, 'count' | 'countFiles' | 'rem
   dueUserIds(nowIso: string): Promise<readonly string[]>
   /** 상대가 떠났는가: 프로필이 없거나, 탈퇴 요청이 있고 그 유예가 끝남. */
   partnerGone(partnerId: string, nowIso: string): Promise<boolean>
+  /** 76-h ②: 해제가 실행된(`couples.status = 'dissolved'`) 커플과 그 요청자(`couple_dissolutions.initiated_by`, 실행됨 · 취소 안 됨 · 칸이 비지 않음). */
+  dissolvedInitiators(): Promise<readonly { readonly coupleId: string; readonly initiatorId: string }[]>
+  /** 이 커플들에서 작성자 = authorId 인 장소(`date_stops`)의 날짜 id(장소 하나당 하나). */
+  stopDateIds(authorId: string, coupleIds: readonly string[]): Promise<readonly string[]>
+  /** 이 커플들에서 작성자 = authorId 인 기록(`data_entries`)의 날짜 id. */
+  entryDateIds(authorId: string, coupleIds: readonly string[]): Promise<readonly string[]>
+  /** 이 커플들에서 작성자 = authorId 인 장소를 지운다. 작성자가 빈 장소는 건드리지 않는다. */
+  deleteStops(authorId: string, coupleIds: readonly string[]): Promise<void>
+  /** authorId 의 것을 빼고 나면 남은 것(장소 - 작성자 빈 옛 장소 포함 · 지우지 않은 사진 · 메모, 두 사람 모두)이 0인 날짜 id. */
+  emptyAfter(dateIds: readonly string[], authorId: string): Promise<readonly string[]>
 }
 
 export type PurgeArgs = SweepArgs
@@ -105,6 +123,27 @@ export const AUTHORED_TABLES = [
   ['messages', 'sender_id'],
   ['stories', 'author_id'],
 ] as const
+
+const uniq = (xs: readonly string[]): string[] => [...new Set(xs)]
+
+/** 76-h: 한 사람(커플 범위)의 장소 · 빈 날 계획. 미리 보기 · 적용이 같은 숫자를 쓴다. */
+interface PlaceTask {
+  readonly authorId: string
+  readonly coupleIds: readonly string[]
+  /** 지울 장소 수. */
+  readonly stops: number
+  /** 그 사람 것을 빼면 남은 것이 0이 되는 날짜. */
+  readonly emptyDates: readonly string[]
+}
+
+/** stopCouples: 장소를 지울 커플 · entryCouples: 기록 행도 지워지는 커플(빈 날 판정에 함께 본다). */
+async function placeTask(port: PurgePort, authorId: string, stopCouples: readonly string[], entryCouples: readonly string[]): Promise<PlaceTask> {
+  const stopDates = await port.stopDateIds(authorId, stopCouples)
+  const entryDates = entryCouples.length > 0 ? await port.entryDateIds(authorId, entryCouples) : []
+  const touched = uniq([...stopDates, ...entryDates])
+  const emptyDates = touched.length === 0 ? [] : await port.emptyAfter(touched, authorId)
+  return { authorId, coupleIds: stopCouples, stops: stopDates.length, emptyDates }
+}
 
 /** 순수 흐름 - 문(접속 전) -> 대상 -> 사용자마다 판정 -> 집계 -> (apply일 때만) 저장소 -> 행 -> 인증. 출력은 숫자만. */
 export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArgs, gate: ProjectGate, now: Date = new Date()): Promise<OpsOutcome> {
@@ -146,6 +185,22 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
   for (const bucket of USER_BUCKETS) for (const u of userIds) files += await port.countFiles(bucket, u)
   for (const u of leaversWithKept) files += (await port.authoredPaths(u)).length
 
+  // 76-h ② 해제된 커플 정리: 요청자의 장소(작성자 = 요청자) + 빈 날. 해제 실행 전(dissolving) 커플은 대상이 아니다.
+  //   탈퇴 단계보다 먼저 센다/지운다 - 요청자가 같은 실행에서 지워지면 작성자 칸이 비어(m1) 더는 가를 수 없어서.
+  const dissolvedTasks: PlaceTask[] = []
+  for (const d of await port.dissolvedInitiators()) dissolvedTasks.push(await placeTask(port, d.initiatorId, [d.coupleId], []))
+  const covered = new Set(dissolvedTasks.flatMap((t) => t.coupleIds.map((c) => `${t.authorId}|${c}`)))
+  // 76-h ① 탈퇴: 상대가 남은 커플에서 떠난 사람의 장소(통째로 지울 커플은 cascade로 함께 지워진다). 해제 정리가 이미 맡은 (사람, 커플)은 두 번 세지 않는다.
+  const leaverTasks = new Map<string, PlaceTask>()
+  for (const p of ready) {
+    if (p.keptCoupleIds.length === 0) continue
+    const stopCouples = p.keptCoupleIds.filter((c) => !covered.has(`${p.userId}|${c}`))
+    leaverTasks.set(p.userId, await placeTask(port, p.userId, stopCouples, p.keptCoupleIds))
+  }
+  const allTasks = [...dissolvedTasks, ...leaverTasks.values()]
+  const placeCount = allTasks.reduce((n, t) => n + t.stops, 0)
+  const emptyCount = uniq(allTasks.flatMap((t) => t.emptyDates)).length
+
   const lines = [args.apply ? '실행: 탈퇴 최종 삭제' : '미리 보기(지우지 않음): 탈퇴 최종 삭제']
   lines.push(`유예 끝난 사용자: ${plans.length}`)
   lines.push(`처리 대상: ${ready.length}`)
@@ -156,6 +211,8 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
   lines.push(`auth 사용자: ${ready.length}`)
   lines.push(`Storage: ${files}`)
   lines.push(`매거진 파일(magazine · magazine-print): ${magazineFiles}`)
+  lines.push(`떠난 사람의 장소: ${placeCount}`)
+  lines.push(`빈 날 정리: ${emptyCount}`)
   if (!args.apply) {
     lines.push('실제로 지우려면 --apply')
     return { kind: 'previewed', lines }
@@ -164,6 +221,16 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
   let done = 0
   let failed = 0
   let keptOrphans = 0
+  // 76-h ② 해제된 커플 정리 먼저(위 집계와 같은 이유). 실패한 커플은 다음 실행 때 다시(멱등).
+  for (const t of dissolvedTasks) {
+    try {
+      await port.deleteStops(t.authorId, t.coupleIds)
+      const empty = await port.emptyAfter(t.emptyDates, t.authorId)
+      if (empty.length > 0) await port.deleteRows('dates', 'id', empty)
+    } catch {
+      failed += 1
+    }
+  }
   for (const p of ready) {
     try {
       // 1) 저장소: 통째로 지울 커플 접두 · 떠난 사람 avatars · 떠난 사람 기록의 파일 · 남길 커플의 남은 파일
@@ -173,8 +240,14 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
         await port.removeAuthoredFiles(p.userId)
         for (const id of p.keptCoupleIds) keptOrphans += await port.removeCoupleOrphans(id, now.getTime())
       }
-      // 2) 행: 떠난 사람의 기록(남길 커플) -> 통째로 지울 커플(cascade)
+      // 2) 행: 떠난 사람의 장소 · 기록(남길 커플) -> 빈 날 -> 통째로 지울 커플(cascade). 장소는 계정보다 먼저(지운 뒤에는 작성자 칸이 비어 가를 수 없음).
+      const task = leaverTasks.get(p.userId)
+      if (task) await port.deleteStops(p.userId, task.coupleIds)
       if (p.keptCoupleIds.length > 0) for (const [table, column] of AUTHORED_TABLES) await port.deleteRows(table, column, [p.userId])
+      if (task && task.emptyDates.length > 0) {
+        const empty = await port.emptyAfter(task.emptyDates, p.userId)
+        if (empty.length > 0) await port.deleteRows('dates', 'id', empty)
+      }
       if (p.goneCoupleIds.length > 0) await port.deleteRows('couples', 'id', p.goneCoupleIds)
       // 3) 인증 사용자(profiles · 성격 결과 cascade, 커플 · 해제 칸은 m1이 비움). 앞 사용자가 같은 커플을 이미 지웠으면 빈 작업(멱등).
       await port.deleteUser(p.userId)
@@ -282,6 +355,72 @@ export function makePurgePort(client: Db): PurgePort {
         if (rows.length < 1000) break
       }
       return ids
+    },
+    async dissolvedInitiators() {
+      const pairs: { couple_id: string; initiated_by: string }[] = []
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await client
+          .from('couple_dissolutions')
+          .select('couple_id, initiated_by')
+          .not('executed_at', 'is', null)
+          .is('cancelled_at', null)
+          .not('initiated_by', 'is', null)
+          .order('couple_id', { ascending: true })
+          .range(from, from + 999)
+        must('couple_dissolutions 조회', error)
+        const rows: { couple_id: string; initiated_by: string }[] = data ?? []
+        pairs.push(...rows)
+        if (rows.length < 1000) break
+      }
+      const coupleIds = uniq(pairs.map((p) => p.couple_id))
+      const dissolved = new Set<string>()
+      for (let i = 0; i < coupleIds.length; i += 100) {
+        const { data, error } = await client.from('couples').select('id').in('id', coupleIds.slice(i, i + 100)).eq('status', 'dissolved')
+        must('couples 조회', error)
+        for (const r of (data ?? []) as { id: string }[]) dissolved.add(r.id)
+      }
+      const seen = new Set<string>()
+      const out: { coupleId: string; initiatorId: string }[] = []
+      for (const p of pairs) {
+        const key = `${p.couple_id}|${p.initiated_by}`
+        if (!dissolved.has(p.couple_id) || seen.has(key)) continue
+        seen.add(key)
+        out.push({ coupleId: p.couple_id, initiatorId: p.initiated_by })
+      }
+      return out
+    },
+    async stopDateIds(authorId, coupleIds) {
+      if (coupleIds.length === 0) return []
+      const { data, error } = await client.from('date_stops').select('date_id').eq('author_id', authorId).in('couple_id', [...coupleIds])
+      must('date_stops 조회', error)
+      return ((data ?? []) as { date_id: string }[]).map((r) => r.date_id)
+    },
+    async entryDateIds(authorId, coupleIds) {
+      if (coupleIds.length === 0) return []
+      const { data, error } = await client.from('data_entries').select('date_id').eq('author_id', authorId).in('couple_id', [...coupleIds]).not('date_id', 'is', null)
+      must('data_entries 조회', error)
+      return uniq(((data ?? []) as { date_id: string }[]).map((r) => r.date_id))
+    },
+    async deleteStops(authorId, coupleIds) {
+      if (coupleIds.length === 0) return
+      const { error } = await client.from('date_stops').delete().eq('author_id', authorId).in('couple_id', [...coupleIds])
+      must('date_stops 삭제', error)
+    },
+    async emptyAfter(dateIds, authorId) {
+      const ids = uniq(dateIds)
+      const remaining = new Map<string, number>(ids.map((id) => [id, 0]))
+      for (let i = 0; i < ids.length; i += 100) {
+        const part = ids.slice(i, i + 100)
+        const { data: stops, error: e1 } = await client.from('date_stops').select('date_id, author_id').in('date_id', part)
+        must('date_stops 조회', e1)
+        const { data: entries, error: e2 } = await client.from('data_entries').select('date_id, author_id').in('date_id', part).is('deleted_at', null)
+        must('data_entries 조회', e2)
+        for (const r of [...(stops ?? []), ...(entries ?? [])] as { date_id: string; author_id: string | null }[]) {
+          // 작성자가 빈 옛 장소(m3 이전)도 남은 것으로 센다(76-h ④).
+          if (r.author_id !== authorId) remaining.set(r.date_id, (remaining.get(r.date_id) ?? 0) + 1)
+        }
+      }
+      return ids.filter((id) => remaining.get(id) === 0)
     },
     async partnerGone(partnerId, nowIso) {
       const { data, error } = await client.from('profiles').select('deleted_at, purge_scheduled_at').eq('id', partnerId).maybeSingle()
