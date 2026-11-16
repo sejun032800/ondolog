@@ -26,6 +26,7 @@ import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
 import { readCache, writeCache } from '../../cache/deviceCache'
 import { loadOpenedIssueIds, useIssueOpenedSignal } from './issueSeen'
+import { useFeedSignal } from '../feed/feedData'
 
 /** 앱이 다시 보일 때마다 `reload`를 부른다. */
 function useReloadOnVisible(reload: () => void): void {
@@ -132,8 +133,57 @@ export function forgetMainMemory(): void {
   libraryMemory = null
 }
 
+// ---------------------------------------------------------------------------
+// 76-r F3 · F4(R102-4): 메인 요약을 기기에 남긴다 - R98-1 저장 장치(`cache/deviceCache`)의 `main` 범주 하나에 scope만 나눠 둔다.
+//  - `main`(scope 없음): 커플 이름 · 온도 · 사귄 날짜(D+) - `coupleStore`가 이미 쓴다.
+//  - `main:library`: 발행된 호 목록 · 다음 호(매거진 %) - 표지 서명 URL은 남기지 않는다(만료 · 76-A1 규칙).
+//  - `main:facts`: 활동 유무 · 프로필 완성 · 열어 본 호.
+//  - `main:start`: 시작 온도(표시 값 · 활동분 유무).
+//  새 범주가 아니라 `main`의 scope라 로그아웃 · 탈퇴 요청 · 해제 요청(유예 시작) · 해제 완료 · 계정 전환 삭제 규칙에 그대로 든다(시험 단언).
+//  값 안에 커플 id를 두고, 지금 커플과 다르면 쓰지 않는다.
+// ---------------------------------------------------------------------------
+
+const me = (): string | null => useAuthStore.getState().userId
+
+interface SavedLibrary { coupleId: string; issues: PublishedIssue[]; next: NextIssueData | null }
+interface SavedFacts { coupleId: string; hasActivity: boolean; profilesComplete: boolean; openedIssueIds: string[]; openedFor: string }
+export interface SavedStart { coupleId: string; value: number; hasActivity: boolean }
+
+function savedLibrary(coupleId: string | null): LibraryState | null {
+  if (!coupleId) return null
+  const v = readCache<SavedLibrary>(me(), 'main', 'library')
+  if (!v || v.coupleId !== coupleId || !Array.isArray(v.issues)) return null
+  return { loading: false, error: false, issues: v.issues, coverUrls: {}, next: v.next ?? null }
+}
+
+function savedFacts(coupleId: string | null): MainFacts | null {
+  if (!coupleId) return null
+  const v = readCache<SavedFacts>(me(), 'main', 'facts')
+  if (!v || v.coupleId !== coupleId || typeof v.openedFor !== 'string') return null
+  return { hasActivity: v.hasActivity, profilesComplete: v.profilesComplete, openedIssueIds: new Set(v.openedIssueIds ?? []), openedFor: v.openedFor }
+}
+
+export function readSavedStart(coupleId: string | null): SavedStart | null {
+  if (!coupleId) return null
+  const v = readCache<SavedStart>(me(), 'main', 'start')
+  return v && v.coupleId === coupleId && typeof v.value === 'number' ? v : null
+}
+export function writeSavedStart(value: SavedStart): void {
+  writeCache(me(), 'main', value, 'start')
+}
+
+function firstLibrary(coupleId: string | null): LibraryState {
+  if (libraryMemory && libraryMemory.coupleId === coupleId) return libraryMemory.state
+  return savedLibrary(coupleId) ?? EMPTY_LIBRARY
+}
+
 export function useLibrary(coupleId: string | null): LibraryState {
-  const [state, setState] = useState<LibraryState>(() => (libraryMemory && libraryMemory.coupleId === coupleId ? libraryMemory.state : EMPTY_LIBRARY))
+  const [state, setState] = useState<LibraryState>(() => firstLibrary(coupleId))
+  // 커플 id가 늦게 정해지면(앱 시작 - 저장 요약이 채워지기 전 첫 그림) 그때 저장값을 먼저 채운다. 이미 값이 있으면 그대로.
+  useEffect(() => {
+    if (!coupleId) return
+    setState((s) => (s.loading ? firstLibrary(coupleId) : s))
+  }, [coupleId])
 
   const reload = useCallback(async () => {
     const db = getSupabase()
@@ -158,8 +208,10 @@ export function useLibrary(coupleId: string | null): LibraryState {
       const fresh: LibraryState = { loading: false, error: false, issues, coverUrls, next }
       libraryMemory = { coupleId, state: fresh }
       setState(fresh)
+      writeCache(me(), 'main', { coupleId, issues, next } satisfies SavedLibrary, 'library')
     } catch {
-      setState((s) => ({ ...s, loading: false, error: true }))
+      // 76-r F3: 이미 보이는 값(이번 실행 · 기기 저장)이 있으면 오프라인에서도 그대로 둔다(매거진 % 유지). 보일 값이 없을 때만 오류.
+      setState((s) => (s.loading ? { ...s, loading: false, error: true } : s))
     }
   }, [coupleId])
 
@@ -192,21 +244,31 @@ export function useMainFacts(input: {
   issueIds: readonly string[]
 }): MainFacts {
   const { userId, partnerId, coupleId, storedTemperature, issueIds } = input
-  const [facts, setFacts] = useState<MainFacts>(EMPTY_FACTS)
+  // 76-r F3 · F4: 기기에 남긴 마지막 사실이 있으면 먼저 그린다(오프라인 · 탭 재진입에 회색 자리 표시 0). 뒤에서 새로 읽어 바꾼다.
+  const [facts, setFacts] = useState<MainFacts>(() => savedFacts(coupleId) ?? EMPTY_FACTS)
+  useEffect(() => {
+    if (!coupleId) return
+    setFacts((f) => (f.openedFor === null ? (savedFacts(coupleId) ?? f) : f))
+  }, [coupleId])
   const issueKey = issueIds.join(',')
   // 뷰어(74-6)가 호를 열어 봤다고 남기면 다시 읽는다(메인은 덮개 아래에 그대로 떠 있다). 읽는 동안 값은 비우지 않는다.
   const openedSignal = useIssueOpenedSignal((s) => s.version)
+  const recordsSignal = useFeedSignal((s) => s.version) // 76-d: 하루 지우기 뒤 활동 유무를 다시 본다
 
   const reload = useCallback(async () => {
     const db = getSupabase()
     if (!userId || !partnerId || !coupleId || !db) return
+    let readOk = true
+    const saved = savedFacts(coupleId)
     const [activity, profiles, opened] = await Promise.all([
-      fetchHasActivity(asDb(db), coupleId).catch(() => storedTemperature !== null),
-      fetchProfilesComplete(asDb(db), userId, partnerId).catch(() => true),
+      // 읽기 실패(오프라인): 기기에 남긴 값이 있으면 그것, 없으면 지금까지의 대체값.
+      fetchHasActivity(asDb(db), coupleId).catch(() => { readOk = false; return saved?.hasActivity ?? storedTemperature !== null }),
+      fetchProfilesComplete(asDb(db), userId, partnerId).catch(() => { readOk = false; return saved?.profilesComplete ?? true }),
       loadOpenedIssueIds(userId, issueKey ? issueKey.split(',') : []),
     ])
     setFacts({ hasActivity: activity, profilesComplete: profiles, openedIssueIds: opened, openedFor: issueKey })
-  }, [userId, partnerId, coupleId, storedTemperature, issueKey, openedSignal])
+    if (readOk) writeCache(me(), 'main', { coupleId, hasActivity: activity, profilesComplete: profiles, openedIssueIds: [...opened], openedFor: issueKey } satisfies SavedFacts, 'facts')
+  }, [userId, partnerId, coupleId, storedTemperature, issueKey, openedSignal, recordsSignal])
 
   useEffect(() => { void reload() }, [reload])
   useReloadOnVisible(() => { void reload() })

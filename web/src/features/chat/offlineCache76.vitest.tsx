@@ -223,6 +223,39 @@ describe('C1 다시 연결 감지 즉시 큐 한 번 비우기', () => {
     expect(w.db.inserts.map((r) => r.body)).toEqual(['하나'])
   })
 
+  it('76-r F6: 다시 연결 직후 첫 시도가 실패해도(경로 준비 전) 백오프를 기다리지 않고 1초 뒤 다시 보낸다', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const w = world({ offline: true })
+    const chat = renderHook(() => useChatMessages('c1', 'me', w.hubs))
+    renderHook(() => useChatQueueResume(w.hubs.text, w.hubs.photo))
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    await act(async () => { await chat.result.current.sendText('셋'); await vi.advanceTimersByTimeAsync(1) })
+    // 기기는 연결됐다고 알리지만 첫 요청은 아직 실패(offline 그대로)
+    await act(async () => { window.dispatchEvent(new Event('online')); await vi.advanceTimersByTimeAsync(10) })
+    expect(w.db.inserts).toHaveLength(0)
+    w.db.state.offline = false
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) }) // 다음 백오프(수 초)보다 앞
+    expect(w.db.inserts.map((r) => r.body)).toEqual(['셋'])
+  })
+
+  it('76-r F6: 기기 네트워크 상태 바뀜(navigator.connection change)에서도 바로 비운다', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const conn = new EventTarget()
+    Object.defineProperty(navigator, 'connection', { value: conn, configurable: true })
+    try {
+      const w = world({ offline: true })
+      const chat = renderHook(() => useChatMessages('c1', 'me', w.hubs))
+      renderHook(() => useChatQueueResume(w.hubs.text, w.hubs.photo))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      await act(async () => { await chat.result.current.sendText('넷'); await vi.advanceTimersByTimeAsync(1) })
+      w.db.state.offline = false
+      await act(async () => { conn.dispatchEvent(new Event('change')); await vi.advanceTimersByTimeAsync(10) })
+      expect(w.db.inserts.map((r) => r.body)).toEqual(['넷'])
+    } finally {
+      delete (navigator as unknown as { connection?: unknown }).connection
+    }
+  })
+
   it('끊김 띠가 풀리는 순간(확인 요청 성공)에도 바로 비운다', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     const w = world({ offline: true })

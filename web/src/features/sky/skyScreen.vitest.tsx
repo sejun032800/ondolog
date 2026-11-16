@@ -120,6 +120,13 @@ describe('C02 지난 하늘', () => {
     expect(screen.getByTestId('sky-ring-200').tagName).toBe('SPAN')
   })
 
+  it('76-r S1(R103-3): C01 아래 안내는 "위로 끌면 지난 하늘"만(옛 뒷말 0)', () => {
+    hoisted.data = monthly()
+    render(<SkyScreen nav={makeFakeNav()} />)
+    expect(screen.getByTestId('sky-hint').textContent).toBe('위로 끌면 지난 하늘')
+    expect(document.body.textContent).not.toContain(['놓으면', '오늘로'].join(' '))
+  })
+
   it('위로 끌어 지난 달에 있으면 머리가 "지난 하늘" · "{첫 달}월부터 · 별 n · 달 n" · 안내 "아래로 내리면 이번 달 ↓"', () => {
     hoisted.data = monthly()
     render(<SkyScreen nav={makeFakeNav()} />)

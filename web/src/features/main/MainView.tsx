@@ -31,7 +31,7 @@ import { CoupleGate } from '../../components/CoupleGate'
 import { Skeleton } from '../../components/Skeleton'
 import type { CoupleState } from '../../stores/coupleStore'
 import { PrimaryButton } from '../../ui'
-import { START_TEMPERATURE_COPY } from './startTemperature'
+import { TEMPERATURE_CAPTION, temperatureCaption } from './startTemperature'
 import { GRACE_COPY } from '../settings/DissolutionGrace'
 import type { LibraryState, LoveTypeSummary, MainFacts, NextIssueData } from './useMainData'
 
@@ -44,7 +44,6 @@ export const MAIN_COPY = {
   read: '읽기',
   newIssueFallbackTitle: '새 호가 꽂혔어요',
   noRecords: '아직 온도를 잴\n기록이 없어요',
-  awaitingBatch: '첫 온도는 기록한\n다음 날 나와요',
   connectHint: '연인과 연결하면 두 사람의 온도로 바뀌어요',
   today: '오늘로 함께한 지',
   startedToday: '오늘 시작했어요',
@@ -119,24 +118,40 @@ function MainHeader(props: { connected: boolean; selfName: string | null; partne
   )
 }
 
+/** 온도 아래 한 문장(F2 · R102-2) - 상태마다 정확히 한 문장. */
+function TemperatureCaption({ text }: { text: string }) {
+  return <p className="startTempCaption" data-testid="main-temperature-caption">{text}</p>
+}
+
 function Hero({ hero, connected, temperature, milestoneLabel, startTemperature = null, startActive = false }: { hero: MainHero; connected: boolean; temperature: number; milestoneLabel: string | null; startTemperature?: number | null; startActive?: boolean }) {
   const label = hero === 'milestone' ? 'TODAY' : connected ? 'OUR TEMPERATURE' : 'MY TEMPERATURE'
   let body: ReactNode
   switch (hero) {
-    case 'temperature': body = <GlowNumeral value={temperature} connected />; break
+    // 저장된 일간 온도: 활동분 > 0으로 본다(저장값은 배치가 기록을 본 뒤 생기고, 그 뒤로 하루 한 번 바뀐다 - R102-2 결정 기록).
+    case 'temperature': body = (
+      <div className="startTemp">
+        <GlowNumeral value={temperature} connected />
+        <TemperatureCaption text={temperatureCaption({ stored: true, activityShare: true })} />
+      </div>
+    ); break
     case 'fixedTemperature': body = <GlowNumeral value={temperature} connected={false} />; break
-    // A-2-5: 두 사람의 프로필이 있으면 저장된 온도가 없는 동안 시작 온도(36.5 / 39 / 42)를 바로 보인다(저장값이 있으면 위 'temperature'가 이긴다). 글은 기존 보조 문구를 그대로 곁들인다.
+    // A-2-5: 두 사람의 프로필이 있으면 저장된 온도가 없는 동안 시작 온도(36.5 / 39 / 42 + v0 활동분)를 바로 보인다(저장값이 있으면 위 'temperature'가 이긴다).
+    // 아래 문장은 정확히 하나: 활동분 0이면 "시작 온도예요…", 활동분 > 0이면 "최근 2주의…"(R102-2). 옛 보조 문구는 쓰지 않는다.
     case 'noRecords':
     case 'awaitingBatch': {
-      const helper = hero === 'noRecords' ? MAIN_COPY.noRecords : MAIN_COPY.awaitingBatch
-      body = startTemperature !== null ? (
-        <div className="startTemp" data-testid="main-start-temperature">
-          <GlowNumeral value={startTemperature} connected={false} />
-          {/* R100-1: 활동분이 0일 때(표시 값 = 기저)만. 활동분이 있으면 이미 움직인 값이라 숨긴다(PM 확인 필요). */}
-          {startActive ? null : <p className="startTempCaption" data-testid="main-start-temperature-caption">{START_TEMPERATURE_COPY}</p>}
-          <p className="startTempHelper pre">{helper}</p>
-        </div>
-      ) : <p className="heroText pre">{helper}</p>
+      if (startTemperature !== null) {
+        body = (
+          <div className="startTemp" data-testid="main-start-temperature">
+            <GlowNumeral value={startTemperature} connected={false} />
+            <TemperatureCaption text={temperatureCaption({ stored: false, activityShare: startActive })} />
+          </div>
+        )
+      } else if (hero === 'noRecords') {
+        body = <p className="heroText pre">{MAIN_COPY.noRecords}</p>
+      } else {
+        // 시작 온도를 못 구했고(프로필 한쪽 없음 등) 활동은 있다 - 숫자를 지어내지 않고 문장만.
+        body = <TemperatureCaption text={TEMPERATURE_CAPTION.moving} />
+      }
       break
     }
     case 'milestone': {
@@ -364,7 +379,7 @@ export interface MainViewProps {
   summary: LoveTypeSummary | null
   /** 시작 온도(표시 전용, 읽기만) - 두 사람의 프로필이 있을 때만 값. 없으면 null. */
   startTemperature?: number | null
-  /** 시작 온도에 활동분(v0)이 들어 있는가 - 있으면 "시작 온도예요…" 문구를 숨긴다. */
+  /** 시작 온도에 활동분(v0)이 들어 있는가 - 있으면 온도 아래 문장이 "최근 2주의…"로 바뀐다(R102-2). */
   startTemperatureActive?: boolean
   onInvite: () => void
   onChat: () => void

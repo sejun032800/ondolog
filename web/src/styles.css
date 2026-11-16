@@ -159,6 +159,10 @@ input { font: inherit; }
 /* 등장 연출 공용 */
 .appear { opacity: 0; animation: appear 700ms cubic-bezier(.2,.7,.2,1) forwards; }
 @keyframes appear { from { opacity: 0; transform: translateY(10px); filter: blur(4px) } to { opacity: 1; transform: none; filter: blur(0) } }
+/* 76-r F8: 결과 상세 머리 - 첫 프레임부터 보이게(시작 투명 .55, 흐림 없음). 등장 연출은 짧게 남긴다. */
+.appearTop { animation: appearTop 420ms cubic-bezier(.2,.7,.2,1) both; }
+@keyframes appearTop { from { opacity: .55; transform: translateY(6px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .appearTop { animation: none; } }
 
 /* A14 */
 .barRow { display: flex; align-items: center; gap: 14px; }
@@ -223,6 +227,12 @@ input { font: inherit; }
 .chatPhoto { display: block; height: 220px; background: var(--inkRaise2); overflow: hidden; }
 .chatPhoto img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .chatPhoto.queued { opacity: .55; }
+.chatPhoto { position: relative; }
+/* 76-r F7: 들어오기 전 자리 표시 색(맥박) · 들어오면 흐려 나타남. 줄인 모션은 맥박 · 흐려짐 없이. */
+.chatPhoto.waiting::before { content: ''; position: absolute; inset: 0; background: var(--text); opacity: .06; animation: skeletonPulse 1600ms ease-in-out infinite alternate; }
+.chatPhoto img { opacity: 0; transition: opacity 260ms ease-out; position: relative; }
+.chatPhoto.ready img { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .chatPhoto.waiting::before { animation: none; } .chatPhoto img { transition: none; } }
 .chatPhotoCaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 20px 6px; }
 .chatPhotoCaption .who { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 17px; color: var(--textMute); }
 
@@ -295,7 +305,7 @@ input { font: inherit; }
 .shareCardBody { display: flex; flex-direction: column; align-items: center; padding: 0 32px; margin-top: -40px; }
 .shareCardTitle { font-weight: 600; font-size: 40px; line-height: 52px; letter-spacing: -0.8px; max-width: 260px; margin-top: 18px; color: var(--text); }
 .shareCardBrand { position: absolute; left: 0; right: 0; bottom: calc(var(--bot) + 40px); letter-spacing: 6px; }
-.still .appear { opacity: 1; animation: none; }
+.still .appear, .still .appearTop { opacity: 1; animation: none; }
 
 /* ═══ 74-1 앱 뼈대: 탭 바 · 탭 화면 · 시트/확인/토스트/띠 · 공통 상태 ═══ */
 /* 모든 컨테이너 바탕 #0A0814 단색(B5: 흰 프레임 · 반투명 겹침 0). 연출은 CSS만. */
@@ -489,6 +499,13 @@ input { font: inherit; }
 .quoteRow { display: flex; align-items: baseline; gap: 10px; padding: 0 4px; }
 .feedQuote { font-family: 'MaruBuri', serif; font-size: 15px; line-height: 23px; color: var(--textSub); min-width: 0; }
 .dateGrid { display: flex; flex-wrap: wrap; gap: 12px; }
+/* 76-d 하루 지우기: 카드를 왼쪽으로 밀면 오른쪽에 빨간 [지우기]. 세로 스크롤은 브라우저 몫(pan-y). */
+.swipeRow { position: relative; overflow: hidden; border-radius: 28px; touch-action: pan-y; }
+.dateCell .swipeRow { border-radius: 24px; }
+.swipeAction { position: absolute; top: 0; right: 0; bottom: 0; width: 88px; display: flex; align-items: center; justify-content: center; background: #D64550; color: #fff; font-size: 14px; font-weight: 700; border-radius: 0 28px 28px 0; }
+.swipeFront { position: relative; z-index: 1; touch-action: pan-y; }
+.swipeFront.settle { transition: transform 200ms cubic-bezier(.2,.8,.2,1); }
+@media (prefers-reduced-motion: reduce) { .swipeFront.settle { transition: none; } }
 .dateCell { flex: 1 1 44%; min-width: 0; }
 .feedIndex { position: absolute; right: 8px; top: calc(var(--top) + 128px); z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .feedIndexItem { min-width: 28px; min-height: 28px; font-weight: 600; font-size: 10.5px; line-height: 14px; color: var(--textMute); }

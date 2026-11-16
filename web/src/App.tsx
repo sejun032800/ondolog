@@ -89,8 +89,8 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
   useChatQueueResume()
   // 채팅에서 키보드가 열리면 탭 바를 비킨다(입력줄이 키보드 바로 위에 붙게).
   const keyboardOpen = useKeyboardOpen()
-  // 상대가 고친 사귄 날짜는 탭 화면에서 다음에 들어올 때(시작 · 복귀) 확인 화면(A20)으로 다시 보인다.
-  useStartDateRecheck(nav, onTab)
+  // 상대가 고친 사귄 날짜는 다음에 앱을 열거나(시작 · 복귀) 메인으로 돌아올 때 확인 화면(A20)으로 한 번 보인다(76-r F1).
+  useStartDateRecheck(nav, onTab, screen === 'main')
   // 상대가 해제(또는 탈퇴)를 요청했으면 내가 앱에 들어올 때 처음 한 번 커플 화면(H14 유예 화면)을 보인다(앱 안 표시뿐, 푸시 없음).
   useDissolutionNotice(nav, onTab)
   // I01 커플 게이트의 두 버튼(+ 이후 커플 전용 기능)이 초대 · 코드 입력 화면으로 가는 입구. 이미 그 화면이면 다시 쌓지 않는다.

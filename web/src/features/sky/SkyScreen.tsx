@@ -28,7 +28,7 @@ import {
 
 export const SKY_COPY = {
   subtitle: '우리가 함께한 하루가 별이 됐어요',
-  hintNow: '위로 끌면 지난 하늘 · 놓으면 오늘로',
+  hintNow: '위로 끌면 지난 하늘', // R103-3 · MASTER r76 9-8-2: 옛 뒷말은 실제 동작과 달라 뺌
   hintPast: '아래로 내리면 이번 달 ↓',
   pastTitle: '지난 하늘',
   emptyTitle: '우리의 하늘',

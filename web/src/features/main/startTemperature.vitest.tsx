@@ -49,19 +49,27 @@ describe('메인 히어로', () => {
     summary: null, onInvite: () => {}, onChat: () => {}, onOpenIssue: () => {}, ...over,
   })
 
-  it('활동 0일: 시작 온도 숫자 + 안내 문장 + 기존 보조 문구', () => {
+  const captions = () => screen.getAllByTestId('main-temperature-caption').map((n) => n.textContent)
+
+  it('활동 0일: 시작 온도 숫자 + "시작 온도예요…" 정확히 한 문장(옛 보조 문구 없음)', () => {
     render(<MainView {...base({ startTemperature: 42 })} />)
     expect(screen.getByTestId('main-start-temperature')).toBeTruthy()
     expect(screen.getByRole('img', { name: '42.0도' })).toBeTruthy()
-    expect(screen.getByTestId('main-start-temperature-caption').textContent).toBe(START_TEMPERATURE_COPY)
+    expect(captions()).toEqual([START_TEMPERATURE_COPY])
     expect(START_TEMPERATURE_COPY).toBe('시작 온도예요. 기록이 쌓이면 다음 날부터 움직여요.')
-    expect(document.body.textContent).toContain('아직 온도를 잴')
+    expect(document.body.textContent).not.toContain('아직 온도를 잴')
   })
 
-  it('활동은 있는데 저장값이 아직 없을 때도(첫 배치 전) 시작 온도 + "첫 온도는 기록한 다음 날 나와요"', () => {
+  it('활동은 있는데 활동분 0(14일 창 밖)이고 저장값이 없을 때: 시작 온도 + "시작 온도예요…" 한 문장', () => {
     render(<MainView {...base({ startTemperature: 39, facts: { hasActivity: true, profilesComplete: true, openedIssueIds: new Set(), openedFor: '' } })} />)
     expect(screen.getByRole('img', { name: '39.0도' })).toBeTruthy()
-    expect(document.body.textContent).toContain('첫 온도는 기록한')
+    expect(captions()).toEqual([START_TEMPERATURE_COPY])
+  })
+
+  it('활동분 > 0: "최근 2주의 대화와 기록으로 하루에 한 번 바뀌어요." 정확히 한 문장', () => {
+    render(<MainView {...base({ startTemperature: 44.7, startTemperatureActive: true, facts: { hasActivity: true, profilesComplete: true, openedIssueIds: new Set(), openedFor: '' } })} />)
+    expect(screen.getByRole('img', { name: '44.7도' })).toBeTruthy()
+    expect(captions()).toEqual(['최근 2주의 대화와 기록으로 하루에 한 번 바뀌어요.'])
   })
 
   it('저장값이 있으면 저장값이 이긴다 - 시작 온도를 그리지 않는다', () => {

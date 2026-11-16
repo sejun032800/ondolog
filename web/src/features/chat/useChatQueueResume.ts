@@ -12,11 +12,14 @@ import { useEffect } from 'react'
 import { resolveChatQueueTarget } from '@/utils/chatQueueResume'
 import { useAuthStore } from '../../auth/stores'
 import { setChatQueueWaiting } from '../../connection/chatQueueSignal'
-import { useConnectionStore } from '../../connection/connectionMonitor'
+import { deviceSaysOffline, useConnectionStore } from '../../connection/connectionMonitor'
 import { photoWaitingForRetry } from '../../connection/queueNotice'
 import { photoQueueHub, type PhotoQueueHub } from '../../photoQueue/photoQueueHub'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { textQueueHub, type TextQueueHub } from './textQueueHub'
+
+/** 다시 연결 감지 뒤 한 번씩 더 찔러 보는 시각(ms). */
+export const RECONNECT_FOLLOW_UP_MS = [1_000, 2_000, 4_000] as const
 
 export function useChatQueueResume(hub: TextQueueHub = textQueueHub, photoHub: PhotoQueueHub = photoQueueHub): void {
   const userId = useAuthStore((s) => s.userId)
@@ -40,12 +43,25 @@ export function useChatQueueResume(hub: TextQueueHub = textQueueHub, photoHub: P
 
   // 76-C1: 다시 연결을 알아챈 즉시(브라우저 `online` 이벤트 · 끊김 띠가 풀린 순간 = 확인 요청 성공) 남은 글 · 사진을 한 번 바로 보낸다 - 다음 백오프 시각(15~20초)까지 기다리지 않는다.
   // 진행 중인 항목은 허브가 건드리지 않아 겹쳐 보내지 않는다.
+  // 76-r F6(R102-4): 기기 네트워크 상태 이벤트(`online` · `navigator.connection`의 `change`)에서 바로 비우고, 잠깐 뒤(1 · 2 · 4초) 한 번씩 더 찔러 본다.
+  // 비행기 모드를 끈 직후 첫 시도는 경로가 아직 안 잡혀 실패하기 쉽고, 그러면 다음 백오프(약 8~16초)까지 기다렸다(폰 약 10초). kick은 진행 중 항목을 건드리지 않아 겹쳐 보내지 않는다.
   useEffect(() => {
     const kickAll = () => { hub.kick(); photoHub.kick() }
-    window.addEventListener('online', kickAll)
+    let timers: ReturnType<typeof setTimeout>[] = []
+    const burst = () => {
+      timers.forEach(clearTimeout)
+      kickAll()
+      timers = RECONNECT_FOLLOW_UP_MS.map((ms) => setTimeout(() => { if (!deviceSaysOffline()) kickAll() }, ms))
+    }
+    const onNetworkChange = () => { if (!deviceSaysOffline()) burst() }
+    window.addEventListener('online', burst)
+    const conn = (navigator as Navigator & { connection?: EventTarget }).connection
+    conn?.addEventListener?.('change', onNetworkChange)
     const offStore = useConnectionStore.subscribe((state, prev) => { if (prev.offline && !state.offline) kickAll() })
     return () => {
-      window.removeEventListener('online', kickAll)
+      window.removeEventListener('online', burst)
+      conn?.removeEventListener?.('change', onNetworkChange)
+      timers.forEach(clearTimeout)
       offStore()
     }
   }, [hub, photoHub])

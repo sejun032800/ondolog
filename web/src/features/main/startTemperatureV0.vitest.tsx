@@ -257,10 +257,11 @@ describe('메인 히어로 문구 조건', () => {
       summary: null, onInvite: () => {}, onChat: () => {}, onOpenIssue: () => {},
     }
     const { rerender } = render(<MainView {...base} startTemperature={42} startTemperatureActive={false} />)
-    expect(screen.getByTestId('main-start-temperature-caption')).toBeTruthy()
+    const captions = () => screen.getAllByTestId('main-temperature-caption').map((n) => n.textContent)
+    expect(captions()).toEqual(['시작 온도예요. 기록이 쌓이면 다음 날부터 움직여요.'])
     rerender(<MainView {...base} startTemperature={44.3} startTemperatureActive />)
     expect(screen.getByRole('img', { name: '44.3도' })).toBeTruthy()
-    expect(screen.queryByTestId('main-start-temperature-caption')).toBeNull()
+    expect(captions()).toEqual(['최근 2주의 대화와 기록으로 하루에 한 번 바뀌어요.'])
     rerender(<MainView {...base} startTemperature={44.3} startTemperatureActive storedTemperature={38.2} />)
     expect(screen.queryByTestId('main-start-temperature')).toBeNull()
     expect(screen.getByRole('img', { name: '38.2도' })).toBeTruthy()

@@ -21,6 +21,7 @@ import { needsStartDateConfirm } from '@/utils/settingsRules'
 import { getSupabase } from '../../auth/client'
 import { fetchProfile } from '../../auth/finalize'
 import { useAuthStore } from '../../auth/stores'
+import { readCache } from '../../cache/deviceCache'
 import { fetchCouple, markStartDateOnboardingComplete, saveStartDateAndNickname, setOrConfirmStartDate, startDateConflictKind, type StartConflictKind } from '../../couple/coupleApi'
 import type { Nav } from '../../navigation'
 import { useCoupleStore } from '../../stores/coupleStore'
@@ -61,7 +62,11 @@ export function StartDateScreen({ nav, mode = 'onboarding' }: { nav: Nav; mode?:
   const db = getSupabase()
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' })
   const [coupleId, setCoupleId] = useState<string | null>(null)
-  const [partnerName, setPartnerName] = useState('상대')
+  // 76-r F1: 기기에 남긴 상대 이름이 있으면 처음부터 그 이름으로(서버 이름이 오면 바꾼다).
+  const [partnerName, setPartnerName] = useState(() => {
+    const pid = useCoupleStore.getState().partnerId
+    return (pid ? readCache<{ name: string }>(useAuthStore.getState().userId, 'name', pid)?.name : null) ?? '상대'
+  })
   const [dateText, setDateText] = useState('')
   const [nickname, setNickname] = useState('')
   const [busy, setBusy] = useState(false)

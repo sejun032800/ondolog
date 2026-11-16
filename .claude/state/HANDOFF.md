@@ -10,6 +10,176 @@
 > 위에 새 절만 추가한다.)
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 
+## `76-r` 폰 확인 수정(F1~F8 · S1 · G1) + `76-d` 하루 지우기(D2) (메인 세션, 2026-11-16, 위임문 `76-r-dispatch-fix-and-day-delete.md` · R101-4 · R102-1~5 · R103-3 · R103-5 · MASTER r76 9-8-2) - 완료 (미커밋)
+
+범위: `web/src/` · `supabase/migrations/` 새 파일 1개(`76-m3`, 사전 허가) · `__tests__/db/` 시험 1개 · `.gitignore` 한 줄 · HANDOFF · PROGRESS. 서브에이전트 위임 0(메인 세션 직접). 새 패키지 0 · 네이티브 손수정 0 · RN · 보호 파일 0 · 루트 `src/` 0 · `demo_responses` 0 · R34-3 함수 호출 0 · 원격 0(db push · 커밋 0).
+
+검증(메인 세션 직접): web tsc 0 · Vitest 54/921 → **58/953** + 1 건너뜀 · `LEGAL_CHECK=1` 법무 관문 7/7 · `build` · `build:trial`(dist는 시험 빌드) · `cap sync android` · 루트 tsc 0 · jest 107/1858 → **108/1874**(PGlite 4/64 → **5/80**) · Python(PROGRESS 줄). 키 · 주소 · ref · id · 이메일 0 · 새 파일 이름 ASCII · 줄 끝은 원래 파일 그대로.
+
+### 멈춘 것
+
+| 항목 | 이유 | 선택지 |
+|---|---|---|
+| F2 옛 문구 "코드 전체 0" 중 **RN 쪽 5곳** | 위임서가 RN · 루트 `src/` 편집을 막음. 웹(`web/src` 앱 · 시험 · 상수)은 0이고 정적 검색 시험이 지킨다 | RN 파일: `src/components/main/MainHero.tsx:29`(문구 상수) · `src/utils/mainScreen.ts:24`(주석) · `app/(tabs)/main.tsx:6`(주석) · `__tests__/components/u1Main.test.tsx:199,205` · `__tests__/utils/mainScreen.test.ts:44`. (a) RN은 출시 경로가 아니니 그대로 둔다 (b) 다음 위임서에서 RN 편집 허가 |
+
+그 밖 멈춤 0. F1은 서버 쓰기 · 마이그레이션 없이 됨(아래). m3 밖 마이그레이션 필요 0.
+
+### F1 원인 판정 (보고 맨 앞)
+
+**(c) 그 밖 - 확인 시점 누락.** `useStartDateRecheck`는 "탭 화면이 처음 열릴 때"(`enabled` 거짓 -> 참)와 `visibilitychange`에서만 확인했다. 탭끼리 옮길 때는 `enabled`(= 탭 화면인가)가 계속 참이라 다시 보지 않는다. 폰 B는 2:20.0 설정 -> 2:41.6 메인으로 **앱 안에서 탭만 옮겼고**, 값은 `useCoupleRefresh`(탭 진입마다 다시 읽기)로 333이 됐지만 안내 확인은 돌지 않았다. Capacitor `resume`도 듣지 않았다.
+- (a) 아님: 이 훅은 처음 연결 흐름과 무관하게 탭 화면에서 돈다(처음 연결 흐름은 `StartDateScreen` 온보딩 길).
+- (b) 아님: "봤음"은 이번 실행 메모리에만 있었고 키에 정한 사람이 들어 있다. 판정(`needsStartDateConfirm`)은 정한 사람 = 상대일 때만 참이라 내 변경 · 상대 변경을 가른다. 서버 쓰기(`updateStartDateByMe`)도 정한 사람 = 바꾼 사람 · 확인 = null로 맞다.
+- 수정: 메인 탭으로 돌아올 때(`screen === 'main'` 거짓 -> 참) · 앱 복귀(`onAppResume` = Capacitor `resume` + `visibilitychange`) · 앱 시작에 확인. 띄운 순간 기기에 "봤음"(`main:dateNotice`, 키 = 커플 · 정한 사람 · 날짜)을 남겨 같은 값으로는 다시 안 뜸(뒤로 닫아도). 오프라인이면 읽기 실패 -> 조용히 넘어가고 다음 메인 복귀 · 열기 때. **서버 쓰기 · 마이그레이션 0**([확인했어요]의 `start_date_confirmed_by`는 기존 쓰기 그대로).
+
+### 항목별 표
+
+| # | 고친 곳 | 시험 | 폰에서만 확인되는 것 |
+|---|---|---|---|
+| F2 | `features/main/startTemperature.ts`(`TEMPERATURE_CAPTION` · `temperatureCaption` 순수) · `MainView.tsx` Hero: 상태마다 **정확히 한 문장**. 옛 보조 문구 상수 삭제 | `temperatureCopy76r.vitest.ts`(web/src 전체 옛 문구 0 정적 검색 · 고르기 3경우) · `startTemperature.vitest.tsx` · `startTemperatureV0.vitest.tsx` · `main.vitest.tsx`(두 상태 각각 한 문장 · 저장값 상태 한 문장) | 두 폰 44.7° 아래 "최근 2주의…" 한 줄 |
+| F1 | `couple/useStartDateRecheck.ts`(메인 복귀 · 앱 복귀 · 기기 "봤음") · `App.tsx` 한 줄 · `StartDateScreen.tsx`(제목 이름을 저장된 상대 이름으로 먼저) | `couple.vitest.tsx` +3: 상대 변경 -> 메인 복귀 때 1회 · 다시 메인 0 · 앱 다시 열기 0 / 내 변경 0 / 오프라인 -> 다음 메인 복귀 때 1회 | A가 바꾸고 B에서 (가) 앱 켜 둔 채 설정 -> 메인 (나) 홈 -> 복귀 |
+| F3 · F4 | `features/main/useMainData.ts`: `main` 범주의 scope `library`(호 목록 · 다음 호 = 매거진 %, 표지 서명 URL 0) · `facts` · `start`를 남기고 첫 그림에 먼저 씀. 오프라인 실패는 저장값을 덮지 않음 · 서재 오류는 보일 값이 있으면 그대로. `startTemperature.ts` 훅도 저장값 먼저 | `main.vitest.tsx` +3: 재진입 첫 프레임 자리 표시 0 · 오프라인 온도 · 이름 · D+ · % · 저장값 없으면 자리 표시 | 비행기 모드 메인(A 0:15.5 재현) · 메인 탭 재진입 0.3~0.8초 회색 0 |
+| F5 | `chat/chatCache.ts`(`chat` 범주 scope `{커플}:head` 마지막 상대 이름) · `ChatView.tsx` 머리 = 서버 이름 -> 저장 이름 -> "상대" | `chatHead76r.vitest.tsx`: 온라인 저장 · 오프라인 · 상대 id 모름에도 이름 · 다른 커플 0 + **지우는 때 4가지**(로그아웃 · 탈퇴 요청 · 해제 요청(유예 시작) · 해제 완료 · 계정 전환) | 비행기 모드 채팅 머리 이름 |
+| F6 | `chat/useChatQueueResume.ts`: `online` · `navigator.connection` `change`에서 즉시 + 1 · 2 · 4초 뒤 한 번씩 더(첫 시도가 경로 준비 전에 실패해 백오프로 밀리던 것) | `offlineCache76.vitest.tsx` +2: 첫 시도 실패해도 1초 안 · connection change | 비행기 모드 끔 -> 전송 시각(목표 1~2초) |
+| F7 | `ChatView.tsx` 사진 칸 `waiting`(자리 표시 맥박) -> `ready`(흐려 나타남 0.26초) · `styles.css` | `lowFixes76r.vitest.tsx` F7 | B 0:55.6 빈칸 느낌 |
+| F8 | `screens.tsx` 결과 상세 머리 4개 `appear`(시작 투명 0 · 지연 0.1~0.46초) -> `appearTop`(시작 .55 · 지연 0~0.12초) · `styles.css`. 아래 카드 연출은 그대로 | `lowFixes76r.vitest.tsx` F8 · `scrollReveal76` 회귀 0 | B 2:08.2 진입 첫 프레임 |
+| S1 | `sky/SkyScreen.tsx` C01 안내 "위로 끌면 지난 하늘"만 · C02 "아래로 내리면 이번 달 ↓" 그대로. 놓기 동작 77- 그대로 | `skyScreen.vitest.tsx` +1(두 문구 · 옛 뒷말 0) | 하늘 C01 · C02 안내 |
+| G1 | `.gitignore` 한 줄. **이 파일은 이미 추적 중이라** 커밋 때 `git rm --cached` 한 줄 필요(아래 명령) | - | - |
+| D2 서버 | `supabase/migrations/20261116120000_m3_day_delete.sql` | `__tests__/db/dayDelete76m3.test.ts` 16건 | - |
+| D2 앱 | `features/feed/dayDelete.ts`(RPC 하나 · 뒤처리) · `FeedView.tsx`(`SwipeRow`) · `feedData.ts`(`dropDay` · `dropDayFromChapters`) · `tabs/FeedTab.tsx`(I05 확인 · 오프라인 막기) · `feedTestSupport.ts`(가짜 RPC) · `styles.css` | `dayDelete76d.vitest.tsx` 10건: 밀기 · 세로 먼저면 아님 · 미연결 없음 · 확인 문구 · 취소 · 내 것만 -> 카드 사라짐(기기 저장분도) · 상대 것 남음 -> 남은 것만 · 서버 실패 그대로 · 오프라인 막힘 · 하늘 저장분 | 손가락 밀기 감 · 세로 스크롤과 겹침 0 · 하늘 별 변화 |
+
+77- 하늘(`sky`)과 같은 장치인가: **같은 장치 하나**(`cache/deviceCache`). F3 · F4는 `main`, F5는 `chat` 범주의 scope로 넣어 새 범주가 생기지 않았다 - 삭제 규칙(`COUPLE_KINDS`)이 그대로 덮는다.
+
+### 76-r · 76-d 결정 기록 (출처: R101-4 · R102-2~5 · R103-3 · R103-5)
+
+| 결정 | 근거 |
+|---|---|
+| **저장된 일간 온도가 있으면 "활동분 > 0"으로 본다** -> "최근 2주의…" 한 문장. 저장값은 배치가 기록을 본 뒤에 생기고 그 뒤로 하루 한 번 바뀌는 값이라 "시작 온도"가 아니다(저장값이 기저와 같아도) | R102-2 |
+| 시작 온도 표시 중 활동분 판정 = v0 표시 값 > 기저(76- 그대로). 활동은 있는데 14일 창 밖이면 활동분 0 -> "시작 온도예요…" | R100-1 · R102-2 |
+| 시작 온도를 못 구했고(프로필 한쪽 없음) 활동은 있는 B03: 숫자 없이 "최근 2주의…" 한 문장. 활동 없음이면 기존 "아직 온도를 잴 기록이 없어요"(온도 아래 문장이 아니라 숫자 자리 글) | 지어내지 않기 |
+| 날짜 변경 "봤음"은 띄운 순간 기기에 남긴다(확인 버튼 전). 뒤로 닫아도 같은 값으로는 다시 안 뜸 - "한 번 보면 다시 안 뜸" | R102-3 |
+| `date_stops.author_id`: 새 행은 BEFORE INSERT 트리거가 `auth.uid()`로 덮음(앱 값 무시) · BEFORE UPDATE는 원래 값 유지 · service_role 넣기는 null(옛 장소와 같게 취급) · 프로필 삭제 시 null(on delete set null - 탈퇴 배치를 막지 않음) | R101-4 |
+| 정책: `date_stops_all` 하나를 넷으로. **넣기만 본인**, 읽기 · 고치기 · 지우기는 커플 구성원 그대로(두 앱이 서로의 장소 순서를 다시 매김 - `resequenceStops`) | R101-4 · 기존 동작 유지 |
+| RPC `fn_delete_my_day(p_date_id)`: 내 항목(사진 · 메모 · 그림) 소프트 삭제 · 내 장소 삭제 · 남은 것(상대 항목 · 작성자 있는 장소) 0이면 옛 장소 삭제 + `dates` 소프트 삭제(같은 날 다시 기록하면 앱이 되살리는 기존 규칙) · 남으면 파생 칸 재계산(023과 같은 식) · 해제 완료 거부 · **유예 중 허용**(`is_couple_member`) · 이미 지운 날 멱등 | R101-4 · R98-8 |
+| 상대 사진이 내 장소에 붙어 있었어도 내 장소는 지운다(위임서 문언). 상대 사진은 남고 화면은 시각 규칙(규칙 4)으로 남은 장소에 다시 놓는다(FK `on delete set null`) | R98-8 "내가 남긴 장소" |
+| **저장된 사진 파일(storage)은 지우지 않는다** - 기존 사진 삭제 경로(023 `fn_delete_own_entry`)와 같음(보관 정책 §11-2) | 위임서 "기존 사진 삭제 경로를 따름" |
+| 앱 밀기: 카드 전체(가로 사진 줄 없음 - E01) · 첫 이동 8px에서 가로/세로를 가름 · `touch-action: pan-y` · [지우기] 폭 88 · 절반 넘으면 열림 · 열린 카드를 누르면 닫힘 · 한 번에 한 장만 열림 · 닫힌 동안 [지우기] 비활성 | R98-8 · 76- E01 |
+| [지우기] 색 `#D64550`(디자인 토큰에 빨강 없음 - 위임서 "빨간") | PM 확인 1 |
+| 오프라인 안내 "연결되면 지울 수 있어요" · 실패 안내 "지우지 못했어요. 다시 시도해 주세요"(위임서에 문구 없음 - 짧은 안내) | PM 확인 2 |
+| 지운 뒤: 피드는 즉시 카드 빼기(내 것만이면) + 다시 읽기 · 하늘 저장분에서 그날 기록 빼고 그 달부터 그날 온도 비움 · 기록 신호(`useFeedSignal`)로 메인 시작 온도 · 활동 유무 · 하늘 · 상세 다시 읽기 | R101-4 "바로 반영" |
+| 지우기는 연결 또는 해제 유예 중에만(서버와 같음) | 서버 규칙과 일치 |
+| `src/types/database.ts`(루트 생성 타입)에 `author_id` · 새 RPC 없음 - 앱은 이 타입을 거치지 않고 부름. 다음 타입 생성 때 반영 | 루트 `src/` 편집 0 |
+
+### 76-r 커밋 명령 (Proteur, 맨 위 폴더에서 · 한 줄씩)
+
+1) 서버 - 하루 지우기(m3)
+
+```
+git add supabase/migrations/20261116120000_m3_day_delete.sql
+git add __tests__/db/dayDelete76m3.test.ts
+git commit -m "76-m3 db: date_stops author column set by server, self-only insert policy, fn_delete_my_day atomic day delete"
+```
+
+2) 웹 - 온도 문구(F2)
+
+```
+git add web/src/features/main/startTemperature.ts
+git add web/src/features/main/MainView.tsx
+git add web/src/features/main/temperatureCopy76r.vitest.ts
+git add web/src/features/main/startTemperature.vitest.tsx
+git add web/src/features/main/startTemperatureV0.vitest.tsx
+git commit -m "76-r web: one caption under temperature (start vs last two weeks), old first-temperature line removed"
+```
+
+3) 웹 - 날짜 변경 안내(F1)
+
+```
+git add web/src/couple/useStartDateRecheck.ts
+git add web/src/App.tsx
+git add web/src/features/couple/StartDateScreen.tsx
+git add web/src/features/couple/couple.vitest.tsx
+git commit -m "76-r web: partner date change notice on return to main and app resume, shown once per value"
+```
+
+4) 웹 - 저장 장치(F3 · F4 · F5) · 큐 즉시(F6)
+
+```
+git add web/src/features/main/useMainData.ts
+git add web/src/features/main/main.vitest.tsx
+git add web/src/features/chat/chatCache.ts
+git add web/src/features/chat/ChatView.tsx
+git add web/src/features/chat/chatHead76r.vitest.tsx
+git add web/src/features/chat/useChatQueueResume.ts
+git add web/src/features/chat/offlineCache76.vitest.tsx
+git commit -m "76-r web: saved main summary first offline and on re-entry, last partner name in chat header, immediate queue flush on network change"
+```
+
+5) 웹 - 낮음(F7 · F8 · S1)
+
+```
+git add web/src/screens.tsx
+git add web/src/styles.css
+git add web/src/lowFixes76r.vitest.tsx
+git add web/src/features/sky/SkyScreen.tsx
+git add web/src/features/sky/skyScreen.vitest.tsx
+git commit -m "76-r web: photo slot placeholder fade, result detail header visible from first frame, sky hint copy"
+```
+
+6) 웹 - 하루 지우기(D2)
+
+```
+git add web/src/features/feed/dayDelete.ts
+git add web/src/features/feed/FeedView.tsx
+git add web/src/features/feed/feedData.ts
+git add web/src/features/feed/feedTestSupport.ts
+git add web/src/features/feed/dayDelete76d.vitest.tsx
+git add web/src/tabs/FeedTab.tsx
+git commit -m "76-d web: swipe a feed day card to delete only my places, photos and memos"
+```
+
+7) G1 - 추적 해제 + 무시(파일은 디스크에 남음)
+
+```
+git rm --cached web/android/.idea/deploymentTargetSelector.xml
+git add .gitignore
+git commit -m "76-r chore: stop tracking android studio deployment target selector"
+```
+
+8) 상태 파일
+
+```
+git add .claude/state/HANDOFF.md
+git add .claude/state/PROGRESS.md
+git commit -m "76-r state: handoff and progress"
+```
+
+(`styles.css`는 F7 · F8 · D2가 함께 고쳐 5)에 한 번 넣는다.)
+
+### 76-r `db push` 순서 (Proteur · 맨 위 폴더 · 값 출력 0)
+
+키 필요 없음(link된 CLI). 비밀번호를 물으면 화면 입력 칸에만.
+
+1. `npx supabase migration list` → `20261116120000`만 Local에만 있고 그 앞(`20261115160000` 포함)은 Local · Remote 같아야 한다. 76- m2가 아직 Remote에 없으면 76- 순서(m2)를 먼저 끝낸다.
+2. `npx supabase db push --dry-run` → **`20261116120000_m3_day_delete.sql` 하나만**. 다른 것이 보이면 멈추고 보고.
+3. `npx supabase db push`
+4. `npx supabase migration list` → 양쪽에 있으면 끝. (선택) 대시보드 SQL 읽기만: `select policyname from pg_policies where tablename = 'date_stops' order by 1;` → `date_stops_delete` · `date_stops_insert` · `date_stops_select` · `date_stops_update` 넷.
+
+**순서 주의**: m3를 올리기 **전에** 새 앱을 깔아 지우기를 누르면 "지우지 못했어요"(RPC 없음)만 뜨고 아무것도 안 지워진다. 옛 앱은 m3 뒤에도 그대로 동작(장소 넣기는 트리거가 작성자를 채워 정책 통과).
+
+### Proteur 다음 순서 (R102-5)
+
+1. 커밋(위 1~8)
+2. db push(위 순서, m3 한 파일)
+3. `cd web` → `npm run build:trial` → `npx cap sync android`(메인 세션이 이미 한 번 돌림 - 그 뒤 코드 변경 없으면 생략 가능)
+4. 두 폰 덮어 설치(데이터 유지)
+5. 폰 확인 순서(녹화 · 방해 금지 모드 · 상태 표시줄 날짜 한 번 보이기 - D+ 셈 확정):
+   1. **온도 문구**: 두 폰 메인 온도 아래 "최근 2주의 대화와 기록으로 하루에 한 번 바뀌어요." 한 줄(옛 문구 · 둘째 줄 0)
+   2. **날짜 변경 안내**: A가 설정 > 커플에서 사귄 날짜 변경 → B (가) 앱 켜 둔 채 설정 → 메인 탭: "폰A…님이 사귄 날짜를 바꿨어요" + 새 날짜 한 번 → [확인했어요] (나) 같은 값으로 다시 메인 · 홈 → 복귀: 0 (다) A 폰에는 0
+   3. **비행기 모드 메인 · 채팅 머리**: 메인에 마지막 온도 · 이름 · D+ · % (회색 틀 0) · 채팅 머리 상대 이름
+   4. **메인 재진입**: 다른 탭 → 메인 3번, 회색 틀 0프레임
+   5. **큐 즉시**: 비행기 모드에서 글 1개 → 모드 끔 → 상대 폰 수신까지 시각(목표 1~2초)
+   6. **하루 지우기**(db push 뒤): (가) 내 것만 있는 날 카드 왼쪽으로 밀기 → [지우기] → 확인 문구 → [취소] 그대로 → 다시 [지우기] → 카드 사라짐 · 하늘 그 별 사라짐 (나) 둘이 함께 남긴 날 → 내 것만 지움 → 카드 남고 상대 사진 · 메모만 · 상대 폰에서도 같음 · 하늘 별 그대로(크기만 바뀔 수 있음) (다) 비행기 모드에서 [지우기] → 짧은 안내 · 확인 창 0 (라) 세로 스크롤 중 카드가 옆으로 안 밀림
+   7. (함께) 받은 사진 칸 빈칸 느낌 · 결과 상세 진입 첫 프레임 · 하늘 C01 안내 "위로 끌면 지난 하늘" · 상세 손 떼고 3초(B4 판정)
+
 ## `77-` 우리의 하늘 1단계 (메인 세션, 2026-11-16, 위임문 `77-dispatch-our-sky-1.md` · R99-4 · R100-3 · R101-2 · R101-6 · MASTER r75 9-8) - 완료 (미커밋)
 
 범위: `src/engine/`("함께한 하루" 판정 + 온도 v0 입력) · `web/src/` · HANDOFF(0-1 명령 정정) · PROGRESS. 위임: engine-dev 1 · ui-builder 1. **마이그레이션 0 · 서버 쓰기 0**(하늘 코드에 insert · update · upsert · delete · rpc · `issues` 직접 조회 0) · 새 패키지 0 · 네이티브 0 · 원격 0.

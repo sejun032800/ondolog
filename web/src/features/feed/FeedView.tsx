@@ -3,11 +3,112 @@
  * 보드 `N-T-Tabs` E01 · `N-S-E2-Feed` E13 + CURRENT.md 바뀐 점: 월 머리는 "메모 N · 사진 N · 데이트 N"("기록 4" -> "메모 4", 별 0).
  * 피드형/지도형 토글은 숨긴다(지도는 범위 밖). 얼굴 인식 안내 카드 없음(R13-2).
  */
-import { useRef } from 'react'
+import { useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { buildCardTexts, englishMonth } from '@/utils/dateRecord'
 import { EmptyState } from '../../components/EmptyState'
 import { Skeleton } from '../../components/Skeleton'
 import type { FeedChapter, FeedState } from './feedData'
+import { DAY_DELETE_COPY } from './dayDelete'
+
+// ---------------------------------------------------------------------------
+// 76-d 하루 지우기 - 날짜 카드를 왼쪽으로 밀면 오른쪽에 빨간 [지우기]
+// ---------------------------------------------------------------------------
+
+/** 오른쪽에 드러나는 [지우기] 폭(px). */
+export const SWIPE_ACTION_W = 88
+/** 가로 · 세로를 가르는 첫 이동 문턱(px). 세로가 먼저 넘으면 이 카드는 손을 뗄 때까지 세로 스크롤에 맡긴다. */
+export const SWIPE_AXIS_SLOP = 8
+
+/**
+ * 밀어서 지우기 줄. 카드에 가로 사진 줄이 없으므로(보드 E01 · 76- 대조) 카드 전체에서 민다.
+ * - 세로 스크롤과 겹치지 않게: `touch-action: pan-y`(세로는 브라우저 몫) + 첫 이동이 가로일 때만 붙잡는다.
+ * - 열려 있을 때 카드를 누르면 열지 않고 닫는다. 민 직후의 클릭은 삼킨다.
+ */
+export function SwipeRow({ enabled, open, onOpenChange, onDelete, label, children, testId }: {
+  enabled: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onDelete: () => void
+  label: string
+  children: ReactNode
+  testId?: string
+}) {
+  const [drag, setDragState] = useState<number | null>(null)
+  const dragRef = useRef<number | null>(null)
+  const setDrag = (v: number | null) => { dragRef.current = v; setDragState(v) }
+  const start = useRef<{ x: number; y: number; id: number; axis: 'x' | 'y' | null; base: number } | null>(null)
+  const swiped = useRef(false)
+  if (!enabled) return <>{children}</>
+  const offset = drag ?? (open ? -SWIPE_ACTION_W : 0)
+
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
+    swiped.current = false
+    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, axis: null, base: open ? -SWIPE_ACTION_W : 0 }
+  }
+  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const s = start.current
+    if (!s || s.id !== e.pointerId) return
+    const dx = e.clientX - s.x
+    const dy = e.clientY - s.y
+    if (s.axis === null) {
+      if (Math.abs(dx) < SWIPE_AXIS_SLOP && Math.abs(dy) < SWIPE_AXIS_SLOP) return
+      s.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+      if (s.axis === 'x') { try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* 지원 안 함 */ } }
+    }
+    if (s.axis !== 'x') return
+    swiped.current = true
+    setDrag(Math.max(-SWIPE_ACTION_W, Math.min(0, s.base + dx)))
+  }
+  const up = () => {
+    const s = start.current
+    start.current = null
+    const last = dragRef.current
+    if (!s || s.axis !== 'x' || last === null) { setDrag(null); return }
+    const next = last < -SWIPE_ACTION_W / 2
+    setDrag(null)
+    if (next !== open) onOpenChange(next)
+  }
+  const clickCapture = (e: ReactMouseEvent) => {
+    if (swiped.current) { e.preventDefault(); e.stopPropagation(); swiped.current = false; return }
+    if (open) { e.preventDefault(); e.stopPropagation(); onOpenChange(false) }
+  }
+
+  return (
+    <div className={`swipeRow ${open ? 'open' : ''}`} data-testid={testId}>
+      <button
+        type="button"
+        className="swipeAction press"
+        aria-label={`${label} ${DAY_DELETE_COPY.action}`}
+        tabIndex={open ? 0 : -1}
+        aria-hidden={!open}
+        disabled={!open}
+        onClick={onDelete}
+        data-testid="day-delete-action"
+      >
+        {DAY_DELETE_COPY.action}
+      </button>
+      <div
+        className={`swipeFront ${drag === null ? 'settle' : ''}`}
+        style={{ transform: offset ? `translate3d(${offset}px, 0, 0)` : undefined }}
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={up}
+        onClickCapture={clickCapture}
+        data-testid="swipe-front"
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/** 피드가 하루 지우기에 넘겨 주는 것. 없으면(미연결 등) 밀기 없음. */
+export interface DaySwipe {
+  openId: string | null
+  setOpenId: (id: string | null) => void
+  onDelete: (dateId: string, dateOn: string) => void
+}
 
 /** 연결 전 E13 배너의 제목(= 이유). 기록 시트가 직접 열렸을 때도 같은 문장을 쓴다. */
 export const SOLO_CLOSED_TITLE = '연인과 연결되면 기록할 수 있어요'
@@ -58,8 +159,10 @@ export function MonthChapterHeader({ chapter }: { chapter: FeedChapter }) {
 }
 
 /** 피드의 한 달 - 머리 + 대표 카드(그 달 가장 최근 데이트) + 원문 한 줄 + 2열 작은 카드. */
-export function FeedChapterView({ chapter, urls, names, onOpenDate }: {
+export function FeedChapterView({ chapter, urls, names, onOpenDate, swipe }: {
   chapter: FeedChapter
+  /** 76-d 하루 지우기(연결 · 유예 중일 때만). */
+  swipe?: DaySwipe
   /** 사진 경로 -> 서명 URL */
   urls: Record<string, string>
   /** 작성자 id -> 표시 이름 */
@@ -70,17 +173,31 @@ export function FeedChapterView({ chapter, urls, names, onOpenDate }: {
   const photoOf = (path: string | null) => (path ? urls[path] : undefined)
   const leadTexts = buildCardTexts(lead, false)
   const quoteAuthor = lead.quote ? names[lead.quote.authorId] : undefined
+  const row = (id: string, dateOn: string, label: string, card: ReactNode) => (
+    <SwipeRow
+      enabled={!!swipe}
+      open={swipe?.openId === id}
+      onOpenChange={(o) => swipe?.setOpenId(o ? id : null)}
+      onDelete={() => swipe?.onDelete(id, dateOn)}
+      label={label}
+      testId={`day-swipe-${id}`}
+    >
+      {card}
+    </SwipeRow>
+  )
   return (
     <section className="feedChapter" data-testid={`chapter-${chapter.key}`}>
       <MonthChapterHeader chapter={chapter} />
-      <DateCard
-        photoUrl={photoOf(lead.coverPath)}
-        noPhoto={lead.coverPath === null}
-        dateLabel={leadTexts.dateLabel}
-        title={leadTexts.title}
-        meta={`사진 ${lead.photoCount} · 메모 ${lead.memoCount}`}
-        onOpen={() => onOpenDate(lead.id)}
-      />
+      {row(lead.id, lead.dateOn, leadTexts.dateLabel, (
+        <DateCard
+          photoUrl={photoOf(lead.coverPath)}
+          noPhoto={lead.coverPath === null}
+          dateLabel={leadTexts.dateLabel}
+          title={leadTexts.title}
+          meta={`사진 ${lead.photoCount} · 메모 ${lead.memoCount}`}
+          onOpen={() => onOpenDate(lead.id)}
+        />
+      ))}
       {lead.quote ? (
         <div className="quoteRow">
           <span className="feedQuote" data-testid="feed-quote">{`“${lead.quote.text}”`}</span>
@@ -93,7 +210,7 @@ export function FeedChapterView({ chapter, urls, names, onOpenDate }: {
             const texts = buildCardTexts(d, true)
             return (
               <div key={d.id} className="dateCell">
-                <DateCard compact photoUrl={photoOf(d.coverPath)} noPhoto={d.coverPath === null} dateLabel={texts.dateLabel} title={texts.title} onOpen={() => onOpenDate(d.id)} />
+                {row(d.id, d.dateOn, texts.dateLabel, <DateCard compact photoUrl={photoOf(d.coverPath)} noPhoto={d.coverPath === null} dateLabel={texts.dateLabel} title={texts.title} onOpen={() => onOpenDate(d.id)} />)}
               </div>
             )
           })}
@@ -133,8 +250,10 @@ export function AddFab({ onPress, disabled }: { onPress: () => void; disabled?: 
   )
 }
 
-export function FeedView({ feed, onOpenDate, onAdd, addOff }: {
+export function FeedView({ feed, onOpenDate, onAdd, addOff, swipe }: {
   feed: FeedState
+  /** 76-d 하루 지우기. */
+  swipe?: DaySwipe
   onOpenDate: (dateId: string) => void
   onAdd: () => void
   /** 연결 전: [첫 기록 남기기]를 + 버튼과 같은 비활성 모양으로(A-5). 눌림은 살아 있어 기록 시트의 닫힘 안내가 뜬다. */
@@ -170,7 +289,7 @@ export function FeedView({ feed, onOpenDate, onAdd, addOff }: {
       ) : (
         feed.chapters.map((chapter) => (
           <div key={chapter.key} ref={(el) => { chapterEls.current[chapter.key] = el }}>
-            <FeedChapterView chapter={chapter} urls={feed.urls} names={feed.names} onOpenDate={onOpenDate} />
+            <FeedChapterView chapter={chapter} urls={feed.urls} names={feed.names} onOpenDate={onOpenDate} swipe={swipe} />
           </div>
         ))
       )}

@@ -19,10 +19,27 @@ import { kstToday } from '@/utils/magazine'
 import type { EnneagramCore } from '@/constants/enneagram'
 import { getSupabase } from '../../auth/client'
 import { readActivityInput, type ActivityDb } from './activityRead'
+import { useFeedSignal } from '../feed/feedData'
+import { readSavedStart, writeSavedStart } from './useMainData'
 
 export const START_TEMPERATURE_COEFFICIENTS: BaselineTemperatureCoefficients = { contrast: 36.5, neutral: 39, best: 42 }
 
-export const START_TEMPERATURE_COPY = '시작 온도예요. 기록이 쌓이면 다음 날부터 움직여요.'
+/**
+ * 온도 아래 한 문장(R102-2 · F2). 상태마다 정확히 한 문장만 보인다.
+ *  - `start`: 활동분 0(표시 값 = 기저) - 시작 온도.
+ *  - `moving`: 활동분 > 0, **또는 저장된 일간 온도(`daily_temperature`)가 있을 때** - 저장값은 배치가 기록을 본 뒤에 생기고 그 뒤로 하루 한 번 바뀌는 값이라 "시작 온도"가 아니다.
+ */
+export const TEMPERATURE_CAPTION = {
+  start: '시작 온도예요. 기록이 쌓이면 다음 날부터 움직여요.',
+  moving: '최근 2주의 대화와 기록으로 하루에 한 번 바뀌어요.',
+} as const
+
+export const START_TEMPERATURE_COPY = TEMPERATURE_CAPTION.start
+
+/** 온도 아래 문장 고르기(순수). 저장값이 있으면 활동분 > 0으로 본다. */
+export function temperatureCaption(input: { stored: boolean; activityShare: boolean }): string {
+  return input.stored || input.activityShare ? TEMPERATURE_CAPTION.moving : TEMPERATURE_CAPTION.start
+}
 
 /** 두 사람의 코어로 시작 온도. 코어가 빠지면 null(지어내지 않는다). */
 export function startTemperatureOf(coreA: EnneagramCore | null | undefined, coreB: EnneagramCore | null | undefined): number | null {
@@ -54,12 +71,20 @@ type ProfileCores = { user_id: string; enneagram_inferred: number | null; enneag
 /**
  * 두 사람의 프로필 + 어제까지 14일 활동을 읽어 표시 값을 돌려준다. 읽기만 한다.
  * 프로필을 못 읽었거나 한쪽이 없으면 null. 활동을 못 읽었으면 기저만. 값은 두 읽기가 끝난 뒤 한 번만 낸다(기저 -> 활동 반영 깜빡임 0).
+ * 76-r F3 · F4: 기기에 남긴 마지막 값(`main:start`)이 있으면 먼저 돌려주고, 읽기가 실패하면(오프라인) 그 값을 그대로 둔다.
+ * 기록이 바뀌면(하루 지우기 등 - `useFeedSignal`) 다시 읽는다(온도 v0 = 함께한 하루 함수에 바로 반영).
  */
 export function useStartTemperature(userId: string | null, partnerId: string | null, enabled: boolean, coupleId: string | null = null): StartTemperature | null {
-  const [value, setValue] = useState<StartTemperature | null>(null)
+  const saved = (): StartTemperature | null => {
+    const v = enabled ? readSavedStart(coupleId) : null
+    return v ? { value: v.value, hasActivity: v.hasActivity } : null
+  }
+  const [value, setValue] = useState<StartTemperature | null>(saved)
+  const signal = useFeedSignal((s) => s.version)
   useEffect(() => {
     const db = getSupabase()
     if (!enabled || !userId || !partnerId || !db) { setValue(null); return }
+    setValue((v) => v ?? saved())
     let cancelled = false
     void (async () => {
       try {
@@ -67,7 +92,7 @@ export function useStartTemperature(userId: string | null, partnerId: string | n
           ? readActivityInput(db as unknown as ActivityDb, coupleId, [userId, partnerId], kstToday(new Date())).catch(() => null)
           : Promise.resolve(null)
         const { data, error } = await db.from('personality_profiles').select('user_id, enneagram_inferred, enneagram_effective').in('user_id', [userId, partnerId])
-        if (error || cancelled) return
+        if (error || cancelled) return // 못 읽음: 먼저 보인 저장값을 그대로 둔다
         const rows = (data ?? []) as ProfileCores[]
         const core = (id: string): EnneagramCore | null => {
           const r = rows.find((x) => x.user_id === id)
@@ -75,12 +100,17 @@ export function useStartTemperature(userId: string | null, partnerId: string | n
           return (c as EnneagramCore | null) ?? null
         }
         const activity = await activityRead
-        if (!cancelled) setValue(startTemperatureV0(core(userId), core(partnerId), activity))
+        if (cancelled) return
+        const fresh = startTemperatureV0(core(userId), core(partnerId), activity)
+        if (activity === null && fresh !== null && readSavedStart(coupleId)) return // 활동을 못 읽음(오프라인) - 저장값이 더 정확하다
+        setValue(fresh)
+        if (fresh && coupleId) writeSavedStart({ coupleId, value: fresh.value, hasActivity: fresh.hasActivity })
       } catch {
-        if (!cancelled) setValue(null)
+        // 오프라인 등: 먼저 보인 저장값을 그대로 둔다(저장값이 없으면 null).
       }
     })()
     return () => { cancelled = true }
-  }, [userId, partnerId, enabled, coupleId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, partnerId, enabled, coupleId, signal])
   return value
 }

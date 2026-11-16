@@ -29,6 +29,22 @@ export function writeChatCache(userId: string | null, coupleId: string | null, m
 }
 
 /**
+ * 76-r F5(R102-4): 채팅 머리의 마지막 상대 이름. 같은 저장 장치의 `chat` 범주(커플 id scope + `:head`)라 커플 자료 삭제 규칙에 그대로 든다.
+ * 상대 id를 아직 모르거나(오프라인 시작) 이름 저장분이 없어도 머리가 비지 않게 한다.
+ */
+export function readChatHeadName(userId: string | null, coupleId: string | null): string | null {
+  if (!userId || !coupleId) return null
+  const saved = readCache<{ coupleId: string; name: string }>(userId, 'chat', `${coupleId}:head`)
+  return saved && saved.coupleId === coupleId && typeof saved.name === 'string' && saved.name ? saved.name : null
+}
+
+export function writeChatHeadName(userId: string | null, coupleId: string | null, name: string): void {
+  if (!userId || !coupleId || !name) return
+  if (readChatHeadName(userId, coupleId) === name) return
+  writeCache(userId, 'chat', { coupleId, name }, `${coupleId}:head`)
+}
+
+/**
  * 서버 읽기가 오면 기기 저장분을 **교체**한다: 서버가 확정한 옛 행은 서버 목록으로 바뀌고(서버에서 지워진 것은 사라진다),
  * 보내는 중 · 실패 말풍선과, 서버 목록보다 새로 실시간으로 들어온 행은 남긴다.
  */

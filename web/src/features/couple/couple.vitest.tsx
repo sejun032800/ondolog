@@ -27,6 +27,7 @@ beforeEach(() => {
   useSheetStore.getState().closeAll()
   useToastStore.getState().hide()
   useCoupleStore.getState().reset()
+  localStorage.clear() // 날짜 변경 안내 "봤음" 표시(기기 저장)가 시험 사이에 남지 않게
 })
 afterEach(() => {
   cleanup()
@@ -556,6 +557,65 @@ describe('A20 재표시 - 상대가 고친 날짜', () => {
     // 앱이 다시 보여도(복귀) 같은 값이면 다시 열지 않는다.
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
     act(() => { document.dispatchEvent(new Event('visibilitychange')) })
+    await settle()
+    expect(nav.push).toHaveBeenCalledTimes(1)
+  })
+
+  function MainProbe({ nav, onMain }: { nav: ReturnType<typeof makeFakeNav>; onMain: boolean }) {
+    useStartDateRecheck(nav, true, onMain)
+    return null
+  }
+
+  it('76-r F1: 앱을 켜 둔 채 상대가 바꾸면 메인으로 돌아올 때 한 번 뜬다 · 다시 메인에 와도 0 · 앱을 다시 열어도 0', async () => {
+    const db = setup({ couples: [{ ...FIXED_BY_PARTNER, start_date_set_by: 'me', start_date_confirmed_by: 'p1' }] })
+    const nav = makeFakeNav()
+    const { rerender, unmount } = render(<MainProbe nav={nav} onMain={false} />) // 설정 탭에 있다
+    await settle()
+    expect(nav.push).not.toHaveBeenCalled()
+    // 상대가 설정에서 날짜를 바꾼다(정한 사람 = 상대 · 확인 비움)
+    Object.assign(db.tables.couples[0], { relationship_start_date: '2025-12-27', start_date_set_by: 'p1', start_date_confirmed_by: null })
+    rerender(<MainProbe nav={nav} onMain />) // 메인으로 돌아온다(앱 복귀 신호 없음)
+    await settle()
+    expect(nav.push).toHaveBeenCalledTimes(1)
+    expect(nav.push).toHaveBeenCalledWith('start-date-recheck', { urgent: true })
+    rerender(<MainProbe nav={nav} onMain={false} />)
+    rerender(<MainProbe nav={nav} onMain />)
+    await settle()
+    expect(nav.push).toHaveBeenCalledTimes(1)
+    // 앱을 다시 연다(새로 그림) - 같은 값은 이미 봤다(확인을 누르지 않고 닫았어도)
+    unmount()
+    const nav2 = makeFakeNav()
+    render(<MainProbe nav={nav2} onMain />)
+    await settle()
+    expect(nav2.push).not.toHaveBeenCalled()
+  })
+
+  it('76-r F1: 내가 바꾼 날짜는 메인으로 돌아와도 뜨지 않는다', async () => {
+    const db = setup({ couples: [{ ...FIXED_BY_PARTNER, start_date_set_by: 'p1', start_date_confirmed_by: 'me' }] })
+    const nav = makeFakeNav()
+    const { rerender } = render(<MainProbe nav={nav} onMain={false} />)
+    await settle()
+    Object.assign(db.tables.couples[0], { relationship_start_date: '2025-12-20', start_date_set_by: 'me', start_date_confirmed_by: null })
+    rerender(<MainProbe nav={nav} onMain />)
+    await settle()
+    expect(nav.push).not.toHaveBeenCalled()
+  })
+
+  it('76-r F1: 오프라인이면 띄우지 않고 다음 메인 복귀(온라인) 때 뜬다', async () => {
+    const db = setup({ couples: [FIXED_BY_PARTNER] })
+    const realFrom = (db.client as unknown as { from: (t: string) => unknown }).from.bind(db.client)
+    let offline = true
+    ;(db.client as { from: unknown }).from = (t: string) => {
+      if (offline && t === 'couples') throw new Error('Failed to fetch')
+      return realFrom(t)
+    }
+    const nav = makeFakeNav()
+    const { rerender } = render(<MainProbe nav={nav} onMain />)
+    await settle()
+    expect(nav.push).not.toHaveBeenCalled()
+    offline = false
+    rerender(<MainProbe nav={nav} onMain={false} />)
+    rerender(<MainProbe nav={nav} onMain />)
     await settle()
     expect(nav.push).toHaveBeenCalledTimes(1)
   })

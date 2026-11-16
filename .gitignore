@@ -52,3 +52,4 @@ web/android/.gradle/
 web/android/local.properties
 web/android/capacitor-cordova-android-plugins/build/
 web/android/app/src/main/assets/public/
+web/android/.idea/deploymentTargetSelector.xml

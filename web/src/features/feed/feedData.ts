@@ -93,6 +93,8 @@ export interface FeedState {
   /** 작성자 id -> 표시 이름. */
   names: Record<string, string>
   reload: () => Promise<void>
+  /** 76-d: 지운 날 카드를 다시 읽기 전에 바로 뺀다(내 것만 있던 날). */
+  dropDay?: (dateId: string) => void
 }
 
 /** 사진 주소는 이 실행의 메모리(`signedUrlCache`)에만 둔다 - 기기에 저장하지 않는다(서명 만료). 키 버킷 이름. */
@@ -157,7 +159,20 @@ export function useFeed(enabled: boolean): FeedState {
 
   useEffect(() => { if (enabled) void reload() }, [enabled, reload, signal])
   useReloadOnVisible(() => { if (enabled) void reload() })
-  return { ...state, reload }
+  const dropDay = useCallback((dateId: string) => {
+    setState((s) => ({ ...s, chapters: dropDayFromChapters(s.chapters, dateId) }))
+  }, [])
+  return { ...state, reload, dropDay }
+}
+
+/** 월 묶음에서 그날 카드를 뺀다(빈 달은 빠지고 달 합계는 다시 센다). 순수. */
+export function dropDayFromChapters(chapters: readonly FeedChapter[], dateId: string): FeedChapter[] {
+  return chapters.flatMap((c) => {
+    const dates = c.dates.filter((d) => d.id !== dateId)
+    if (dates.length === c.dates.length) return [c]
+    if (dates.length === 0) return []
+    return [{ ...c, dates, photoTotal: dates.reduce((n, d) => n + d.photoCount, 0), memoTotal: dates.reduce((n, d) => n + d.memoCount, 0) }]
+  })
 }
 
 // ---------------------------------------------------------------------------

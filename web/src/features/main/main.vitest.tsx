@@ -23,6 +23,7 @@ import { issueOpenedKey, loadOpenedIssueIds, markIssueOpened } from './issueSeen
 import { MainView, type MainViewProps } from './MainView'
 import { FIRST_ISSUE_PERCENT_HINT } from '../magazine/firstIssueHint'
 import type { LibraryState, LoveTypeSummary, MainFacts } from './useMainData'
+import { forgetMainMemory } from './useMainData'
 
 // 기기 저장(Capacitor Preferences)은 메모리 사본으로 바꿔 읽기 · 쓰기 호출을 센다.
 vi.mock('@capacitor/preferences', () => {
@@ -165,12 +166,12 @@ describe('연결: 온도 표시 상태', () => {
     expect(screen.queryByText(/제작 현황/)).toBeNull()
   })
 
-  it('B03 활동 있음 + 저장된 온도 없음: "첫 온도는 기록한 다음 날 나와요"(같은 틀), 첫 대화 권유 없음', () => {
+  it('B03 활동 있음 + 저장된 온도 없음 + 시작 온도 못 구함: 숫자 없이 "최근 2주의…" 한 문장(R102-2), 첫 대화 권유 없음', () => {
     setCouple({ temperature: null, relationshipStartDate: TODAY_KST })
     view({ fact: { hasActivity: true } })
     expect(screen.getByTestId('main-state-B03')).toBeTruthy()
     expect(screen.getByTestId('main-hero-awaitingBatch')).toBeTruthy()
-    expect(screen.getByText(/첫 온도는 기록한/)).toBeTruthy()
+    expect(screen.getAllByTestId('main-temperature-caption').map((n) => n.textContent)).toEqual(['최근 2주의 대화와 기록으로 하루에 한 번 바뀌어요.'])
     expect(screen.queryByText(/아직 온도를 잴/)).toBeNull()
     expect(screen.queryByText('FIRST STEP')).toBeNull()
   })
@@ -181,6 +182,8 @@ describe('연결: 온도 표시 상태', () => {
     expect(screen.getByTestId('main-state-B01')).toBeTruthy()
     expect(screen.getByTestId('main-hero-temperature')).toBeTruthy()
     expect(screen.getByRole('img', { name: '38.2도' }).className).toContain('glow')
+    // 저장된 일간 온도 = 활동분 > 0으로 본다(R102-2 결정 기록) - 한 문장.
+    expect(screen.getAllByTestId('main-temperature-caption').map((n) => n.textContent)).toEqual(['최근 2주의 대화와 기록으로 하루에 한 번 바뀌어요.'])
     expect(screen.getByText('38')).toBeTruthy()
     expect(screen.getByText('.2°')).toBeTruthy()
     expect(screen.getByText('D+298')).toBeTruthy()
@@ -406,7 +409,7 @@ describe('MainTab - 훅까지(가짜 클라이언트)', () => {
     await waitFor(() => expect(screen.getByText(/세준 · 서영/)).toBeTruthy())
   })
 
-  it('연결 · 기록 있음 · 온도 없음: "첫 온도는 기록한 다음 날 나와요"', async () => {
+  it('연결 · 기록 있음 · 온도 없음: awaitingBatch(옛 문구 없음)', async () => {
     setSupabaseForTest(makeDb({ messages: [{ id: 'm1', couple_id: 'c1' }], profiles: [{ id: 'u2', display_name: '서영' }], personality_profiles: [{ user_id: 'me' }, { user_id: 'u2' }] }))
     setCouple({ temperature: null })
     mount()
@@ -458,6 +461,71 @@ describe('MainTab - 훅까지(가짜 클라이언트)', () => {
     fireEvent.click(screen.getByTestId('main-new-issue-read'))
     expect(useToastStore.getState().toast?.message).toBe('매거진 뷰어는 곧 열려요')
     await act(async () => {})
+  })
+
+  // 76-r F3 · F4(R102-4): 메인 요약 기기 저장 - 오프라인 · 탭 재진입에서 회색 틀 대신 마지막 값.
+  describe('76-r 메인 요약 저장값 먼저', () => {
+    const offlineDb = () => {
+      const fail = () => Promise.reject(new TypeError('Failed to fetch'))
+      const b: Record<string, unknown> = {}
+      for (const k of ['select', 'order', 'limit', 'eq', 'in', 'is', 'not', 'gte', 'lt', 'lte', 'or']) b[k] = () => b
+      b.maybeSingle = fail
+      b.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => fail().then(res, rej)
+      return {
+        from: () => b,
+        rpc: fail,
+        storage: { from: () => ({ createSignedUrls: fail }) },
+        auth: { getSession: async () => ({ data: { session: null }, error: null }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) },
+      } as never
+    }
+    const online = () => makeDb({
+      issues_public: [ISSUE_ROW], messages: [{ id: 'm1', couple_id: 'c1' }], profiles: [{ id: 'u2', display_name: '서영' }],
+      personality_profiles: [{ user_id: 'me', enneagram_inferred: 7, enneagram_effective: 7 }, { user_id: 'u2', enneagram_inferred: 2, enneagram_effective: 2 }],
+    })
+
+    beforeEach(() => { localStorage.clear(); forgetMainMemory() })
+
+    it('F4: 메인 탭에 다시 들어오면 첫 그림부터 저장값(자리 표시 0) - 뒤에서 새로 읽는다', async () => {
+      setSupabaseForTest(online())
+      setCouple({ temperature: 38.6 })
+      const first = mount()
+      await waitFor(() => expect(screen.getByTestId('main-days')).toBeTruthy())
+      first.unmount()
+      forgetMainMemory() // 이번 실행 메모리 없이 기기 저장만으로
+      mount()
+      expect(screen.queryByTestId('main-wait')).toBeNull() // 첫 프레임
+      expect(screen.getByTestId('main-days').textContent).toBe('D+298')
+      expect(screen.getByRole('img', { name: '38.6도' })).toBeTruthy()
+      await act(async () => {})
+    })
+
+    it('F3: 오프라인 메인 - 회색 틀 대신 마지막 온도 · 커플 이름 · D+ · 매거진 %', async () => {
+      setSupabaseForTest(online())
+      setCouple({ temperature: 38.6 })
+      const first = mount()
+      await waitFor(() => expect(screen.getByTestId('main-days')).toBeTruthy())
+      await waitFor(() => expect(screen.getByText(/서영/)).toBeTruthy())
+      const percent = screen.queryByTestId('main-issue-percent')?.textContent ?? null
+      first.unmount()
+      forgetMainMemory()
+      setSupabaseForTest(offlineDb())
+      mount()
+      await act(async () => { await Promise.resolve() })
+      await act(async () => {})
+      expect(screen.queryByTestId('main-wait')).toBeNull()
+      expect(screen.getByRole('img', { name: '38.6도' })).toBeTruthy()
+      expect(screen.getByTestId('main-header').textContent).toContain('늘봄')
+      expect(screen.getByTestId('main-header').textContent).toContain('서영')
+      expect(screen.getByTestId('main-days').textContent).toBe('D+298')
+      expect(screen.queryByTestId('main-issue-percent')?.textContent ?? null).toBe(percent)
+    })
+
+    it('F3: 저장값이 없으면(처음) 지금까지처럼 자리 표시', () => {
+      setSupabaseForTest(offlineDb())
+      setCouple({ temperature: 38.6 })
+      mount()
+      expect(screen.getByTestId('main-wait')).toBeTruthy()
+    })
   })
 })
 

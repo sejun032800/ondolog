@@ -27,6 +27,7 @@ import { useCoupleStore } from '../../stores/coupleStore'
 import { showToast } from '../../stores/toastStore'
 import { pickPhotos, releasePhotoUrls } from '../feed/photoPicker'
 import { usePartnerName } from '../main/useMainData'
+import { readChatHeadName, writeChatHeadName } from './chatCache'
 import { saveChatPhoto, shareChatPhoto } from './chatPhotoActions'
 import { saveNotice } from '../../platform/imageSave'
 import { useQueuedPreviews } from './localPreview'
@@ -206,9 +207,12 @@ export function PhotoMessage({ message, isMine, senderName, photoUri, fresh, onR
   const queued = Boolean(message.pending || message.failed)
   const long = useLongPress(queued && message.clientMsgId ? () => onCancel(message.clientMsgId as string) : undefined)
   const shownUri = useStickyImage(photoUri) // A-26: 주소가 바뀌는 사이 앞 그림 유지
+  // 76-r F7: 사진이 들어오기 전에는 자리 표시 색(은은한 맥박), 들어오면 흐려 나타난다 - 빈 칸 느낌을 줄인다(칸 높이는 이미 고정).
+  // 한 번 그려진 뒤에는(주소만 바뀌어도) 다시 숨기지 않는다.
+  const [shown, setShown] = useState(false)
   const photo = (
-    <span className={`chatPhoto ${queued ? 'queued' : ''}`}>
-      {shownUri ? <img src={shownUri} alt="" draggable={false} onLoad={onPhotoLoad} /> : null}
+    <span className={`chatPhoto ${queued ? 'queued' : ''} ${shown ? 'ready' : 'waiting'}`} data-testid="chat-photo-box">
+      {shownUri ? <img src={shownUri} alt="" draggable={false} onLoad={() => { setShown(true); onPhotoLoad?.() }} /> : null}
     </span>
   )
   return (
@@ -291,7 +295,10 @@ export function ChatConversation({ bridge, hubs, now = () => new Date() }: ChatC
   const chat = useChatMessages(coupleId, currentUserId, hubs)
   const { messages, loading, stories } = chat
 
-  const partnerLabel = partnerName ?? '상대'
+  // 76-r F5: 오프라인에서도 머리에 마지막 상대 이름(채팅 저장분). 서버 이름이 오면 저장하고 그것을 쓴다.
+  const savedHead = useMemo(() => readChatHeadName(currentUserId, coupleId), [currentUserId, coupleId])
+  useEffect(() => { if (partnerName) writeChatHeadName(currentUserId, coupleId, partnerName) }, [currentUserId, coupleId, partnerName])
+  const partnerLabel = partnerName ?? savedHead ?? '상대'
   const selfLabel = selfName ?? '나'
   const days = startDate ? computeDaysTogetherKst(startDate, now()) : null
 

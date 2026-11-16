@@ -843,6 +843,8 @@ export function DetailBody(props: {
   const restOn = settled || restTimed
   const rest = settled ? { opacity: 1 } : restOn ? { animation: 'appear 900ms cubic-bezier(.2,.7,.2,1) both' } : { opacity: 0 }
   const a = (ms: number) => (settled ? { animation: 'none', opacity: 1 } : { animationDelay: `${ms}ms` })
+  // 76-r F8: 머리(영문 · 이름 · 한 줄 · 설명)는 첫 프레임부터 보인다 - 투명 0에서 시작하지 않고 살짝 흐린 채로 떠오른다(`appearTop`, 지연 0~0.12초).
+  const top = (ms: number) => (settled ? { animation: 'none', opacity: 1 } : { animationDelay: `${ms}ms` })
   const geo = useMemo(() => sternbergGeometry(sternberg, TRI_W, TRI_H), [sternberg])
   const center = { x: TRI_W / 2, y: (TRI_H * 2) / 3 }
   const [k, setK] = useState(0)
@@ -867,10 +869,10 @@ export function DetailBody(props: {
     <div className="screen solid">
       {props.onBack ? <div className="pushHeader"><BackArrow onClick={props.onBack} /><span className="pushHeaderSpacer" aria-hidden="true" /></div> : null}
       <div className="content" onScroll={(e) => { if (!settled && e.currentTarget.scrollTop > 8) setSettled(true) }} style={{ paddingTop: props.onBack ? 8 : 'calc(var(--top) + 12px)' }}>
-        <p className="t-kicker c-orchid appear" style={{ ...a(100), fontSize: 14, lineHeight: '20px', letterSpacing: 3.4 }}>{props.labelEn}</p>
-        <h1 className="t-display c-text appear" style={{ ...a(220), marginTop: 8 }}>{props.labelKo}</h1>
-        <p className="t-sub c-sub appear" style={{ ...a(340), marginTop: 8, fontSize: 14.5 }}>{props.meta}</p>
-        <div className="appear" style={{ ...a(460), marginTop: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <p className="t-kicker c-orchid appearTop" data-testid="detail-head-kicker" style={{ ...top(0), fontSize: 14, lineHeight: '20px', letterSpacing: 3.4 }}>{props.labelEn}</p>
+        <h1 className="t-display c-text appearTop" data-testid="detail-head-title" style={{ ...top(40), marginTop: 8 }}>{props.labelKo}</h1>
+        <p className="t-sub c-sub appearTop" style={{ ...top(80), marginTop: 8, fontSize: 14.5 }}>{props.meta}</p>
+        <div className="appearTop" data-testid="detail-head-body" style={{ ...top(120), marginTop: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {props.description.map((para, i) => (
             <p key={i} className="t-body c-sub" style={{ fontSize: 15.5, lineHeight: '26px' }}>{para}</p>
           ))}

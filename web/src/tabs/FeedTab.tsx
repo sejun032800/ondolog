@@ -4,11 +4,16 @@
  *  - 미연결 유저도 이 화면에 들어온다(혼자 기록). 합쳐진 보기(커플 전용)는 `<CoupleGate>` fallback에 E13 배너를 둔다. 배너의 [초대 →]는 I01 시트(한 번).
  *  - 업로드 버튼(FAB) -> E11 기록 시트. **연결(active) 전에는 닫힌다**(R30-3 · R77-1): FAB · 빈 화면의 [첫 기록 남기기]가 비활성이고 배너가 이유 + 초대 안내를 적는다. 혼자 기록은 열지 않는다.
  *  - 기록하고 돌아오거나 앱이 다시 보이면 다시 읽는다(`feedData.ts`).
+ *  - 76-d 하루 지우기: 날짜 카드를 왼쪽으로 밀면 [지우기] -> I05 확인 -> RPC 하나(`features/feed/dayDelete`). 연결 · 해제 유예 중에만 민다. 오프라인이면 막고 짧은 안내.
  */
+import { useState } from 'react'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DAY_DELETE_COPY, afterDayDeleted, dayDeleteBlocked, deleteMyDay } from '../features/feed/dayDelete'
+import { showToast } from '../stores/toastStore'
 import { useAuthStore } from '../auth/stores'
 import { CoupleGate } from '../components/CoupleGate'
 import { isRecordable, useRecordingCouple, useFeed } from '../features/feed/feedData'
-import { AddFab, FeedView, SoloBanner } from '../features/feed/FeedView'
+import { AddFab, FeedView, SoloBanner, type DaySwipe } from '../features/feed/FeedView'
 import type { Nav } from '../navigation'
 import { useCoupleStore } from '../stores/coupleStore'
 import { useSheetStore } from '../stores/sheetStore'
@@ -22,6 +27,38 @@ export function FeedTab({ nav }: { nav: Nav }) {
   // 연결 전에도 시트를 연다 - 기록 시트가 닫힘 안내(이유 + [초대하러 가기])를 보이고 저장 함수는 부르지 않는다(74-h2 ②).
   const openRecord = () => { useSheetStore.getState().open('record') }
 
+  // 76-d 하루 지우기
+  const status = useCoupleStore((s) => s.status)
+  const canDelete = status === 'connected' || grace
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [pending, setPending] = useState<{ id: string; dateOn: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const swipe: DaySwipe | undefined = canDelete ? {
+    openId,
+    setOpenId,
+    onDelete: (id, dateOn) => {
+      if (dayDeleteBlocked()) { setOpenId(null); showToast(DAY_DELETE_COPY.offline); return }
+      setPending({ id, dateOn })
+    },
+  } : undefined
+  const cancelDelete = () => { if (!busy) { setPending(null); setOpenId(null) } }
+  const confirmDelete = async () => {
+    if (!pending || busy) return
+    if (dayDeleteBlocked()) { setPending(null); setOpenId(null); showToast(DAY_DELETE_COPY.offline); return }
+    setBusy(true)
+    try {
+      const result = await deleteMyDay(pending.id)
+      if (result.dayRemoved) feed.dropDay?.(pending.id)
+      afterDayDeleted(pending.id, pending.dateOn, result)
+      setPending(null)
+      setOpenId(null)
+    } catch {
+      showToast(DAY_DELETE_COPY.failed)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="screen solid tabScreen feedTab" data-testid="tab-screen-feed">
       <div className="feedScroll">
@@ -30,9 +67,19 @@ export function FeedTab({ nav }: { nav: Nav }) {
         <CoupleGate fallback={recording.loading ? <></> : <SoloBanner onInvite={grace ? undefined : () => useSheetStore.getState().open('couple-gate')} />}>
           {null}
         </CoupleGate>
-        <FeedView feed={feed} onOpenDate={(id) => nav.push('date-detail', { params: { id } })} onAdd={openRecord} addOff={!canRecord} />
+        <FeedView feed={feed} onOpenDate={(id) => nav.push('date-detail', { params: { id } })} onAdd={openRecord} addOff={!canRecord} swipe={swipe} />
       </div>
       <AddFab disabled={!canRecord} onPress={openRecord} />
+      <ConfirmDialog
+        open={pending !== null}
+        title={DAY_DELETE_COPY.title}
+        message={DAY_DELETE_COPY.confirm}
+        confirmLabel={DAY_DELETE_COPY.action}
+        onConfirm={() => void confirmDelete()}
+        onCancel={cancelDelete}
+        busy={busy}
+        testId="day-delete-confirm"
+      />
     </div>
   )
 }

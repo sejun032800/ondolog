@@ -19,6 +19,8 @@ export interface FeedDbOptions {
   entries?: Row[]
   /** `fn_delete_own_entry`가 오류를 돌려준다. */
   deleteFails?: boolean
+  /** `fn_delete_my_day`(76-m3)가 오류를 돌려준다(서버가 원자적이라 아무것도 바뀌지 않는다). */
+  dayDeleteFails?: boolean
   /** 올리기(Storage upload)가 몇 번째까지 실패하는가(앞의 N번). */
   uploadFailures?: number
 }
@@ -121,6 +123,23 @@ export function makeFeedDb(opts: FeedDbOptions) {
 
   const rpc = vi.fn(async (fn: string, args: Row) => {
     rpcCalls.push({ fn, args })
+    if (fn === 'fn_delete_my_day') {
+      // 76-m3 규칙 그대로: 내 항목 소프트 삭제 · 내 장소 삭제 · 남은 것이 없으면 옛 장소 삭제 + 날짜 소프트 삭제.
+      if (opts.dayDeleteFails) return { data: null, error: { message: 'boom' } }
+      const id = args.p_date_id
+      const mine = tables.data_entries.filter((r) => r.date_id === id && r.author_id === opts.me && !r.deleted_at)
+      mine.forEach((r) => { r.deleted_at = '2026-10-06T00:00:00Z' })
+      const before = tables.date_stops.length
+      tables.date_stops = tables.date_stops.filter((r) => !(r.date_id === id && r.author_id === opts.me))
+      const stops = before - tables.date_stops.length
+      const left = tables.data_entries.some((r) => r.date_id === id && !r.deleted_at) || tables.date_stops.some((r) => r.date_id === id && r.author_id)
+      if (left) return { data: { entries: mine.length, stops, old_stops: 0, day_removed: false }, error: null }
+      const old = tables.date_stops.filter((r) => r.date_id === id).length
+      tables.date_stops = tables.date_stops.filter((r) => r.date_id !== id)
+      const d = tables.dates.find((r) => r.id === id)
+      if (d) d.deleted_at = '2026-10-06T00:00:00Z'
+      return { data: { entries: mine.length, stops, old_stops: old, day_removed: true }, error: null }
+    }
     if (fn !== 'fn_delete_own_entry') return { data: null, error: { message: 'unknown rpc' } }
     if (opts.deleteFails) return { data: null, error: { message: 'boom' } }
     const row = tables.data_entries.find((r) => r.id === args.p_entry_id)
