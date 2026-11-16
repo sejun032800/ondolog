@@ -1,13 +1,13 @@
 /**
  * 시험 보조(시험 파일이 아니다): 상태를 가진 가짜 Supabase 클라이언트 - couples · profiles를 메모리 행으로 두고
- * `select / eq / in / lt / or / insert / update / single / maybeSingle / rpc`를 흉내 낸다. 쓰기는 `writes`에 모두 남는다.
+ * `select / eq / in / lt / or / insert / update / delete / upsert / single / maybeSingle / rpc`를 흉내 낸다(delete · upsert는 78-). 쓰기는 `writes`에 모두 남는다.
  * 실제 주소 · 키는 어디에도 없다.
  */
 import { vi } from 'vitest'
 import type { WebSupabase } from './auth/client'
 
 export type FakeRow = Record<string, unknown>
-export interface FakeWrite { table: string; op: 'insert' | 'update'; payload: FakeRow }
+export interface FakeWrite { table: string; op: 'insert' | 'update' | 'delete' | 'upsert'; payload: FakeRow }
 type RpcResult = { data: unknown; error: { code?: string; message?: string } | null }
 
 export interface CoupleDbOptions {
@@ -41,8 +41,9 @@ export function makeCoupleDb(opts: CoupleDbOptions = {}) {
   let seq = 0
 
   const from = (table: string) => {
-    let mode: 'select' | 'insert' | 'update' = 'select'
+    let mode: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select'
     let payload: FakeRow = {}
+    let conflictKey = 'id'
     const filters: Array<(r: FakeRow) => boolean> = []
     const b: Record<string, unknown> = {}
     const chain = () => b
@@ -61,6 +62,8 @@ export function makeCoupleDb(opts: CoupleDbOptions = {}) {
     }
     b.insert = (p: FakeRow) => { mode = 'insert'; payload = p; return b }
     b.update = (p: FakeRow) => { mode = 'update'; payload = p; return b }
+    b.delete = () => { mode = 'delete'; return b }
+    b.upsert = (p: FakeRow, o?: { onConflict?: string }) => { mode = 'upsert'; payload = p; conflictKey = o?.onConflict ?? 'id'; return b }
     const run = (): { rows: FakeRow[]; error: { code: string } | null } => {
       const rows = tables[table] ?? []
       if (mode === 'insert') {
@@ -72,7 +75,21 @@ export function makeCoupleDb(opts: CoupleDbOptions = {}) {
         return { rows: [row], error: null }
       }
       if (table === 'couples' && opts.failCoupleReads && mode === 'select') return { rows: [], error: { code: 'XX000' } }
+      if (mode === 'upsert') {
+        if ((opts.failUpdates ?? []).includes(table)) return { rows: [], error: { code: 'XX000' } }
+        writes.push({ table, op: 'upsert', payload })
+        const found = rows.find((r) => r[conflictKey] === payload[conflictKey])
+        if (found) Object.assign(found, payload)
+        else rows.push({ ...payload })
+        tables[table] = rows
+        return { rows: [found ?? payload], error: null }
+      }
       const matched = rows.filter((r) => filters.every((f) => f(r)))
+      if (mode === 'delete') {
+        if (matched.length > 0) writes.push({ table, op: 'delete', payload: {} })
+        tables[table] = rows.filter((r) => !matched.includes(r))
+        return { rows: matched, error: null }
+      }
       if (mode === 'update' && (opts.failUpdates ?? []).includes(table)) return { rows: [], error: { code: 'XX000' } }
       if (mode === 'update') {
         // 바뀐 행이 없으면(`.lt` 조건에 안 맞음 등) 쓰기가 일어난 것이 아니다.

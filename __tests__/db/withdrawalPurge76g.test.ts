@@ -82,6 +82,7 @@ describe('m1 외래 키 표 그대로', () => {
     // a=no action r=restrict c=cascade n=set null, ! = not null
     expect(map).toEqual({
       'couple_dissolutions.initiated_by': 'n',
+      'couples.nickname_changed_by': 'n', // 78-m1: 닉네임 바꾼 사람 - 비움
       'couples.start_date_confirmed_by': 'n',
       'couples.start_date_set_by': 'n',
       'couples.user_a_id': 'n',
@@ -89,8 +90,10 @@ describe('m1 외래 키 표 그대로', () => {
       'data_entries.author_id': 'r!',
       'date_stops.author_id': 'n',
       'messages.sender_id': 'r!',
+      'notification_settings.user_id': 'c!', // 78-m1: 알림 설정 - 함께 지움
       'personality_assessments.user_id': 'c!',
       'personality_profiles.user_id': 'c!',
+      'push_tokens.user_id': 'c!', // 78-m1: 기기 토큰 - 함께 지움
       'stat_snapshots.user_id': 'c!',
       'stories.author_id': 'r!',
     })

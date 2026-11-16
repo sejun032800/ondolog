@@ -9,8 +9,8 @@
  */
 const PREFIX = 'ondolog.dc1:'
 
-/** 저장 종류. `route`는 커플 자료가 아니다(해제 완료 때 남는다). */
-export type CacheKind = 'chat' | 'main' | 'feed' | 'sky' | 'name' | 'route'
+/** 저장 종류. `route` · `push`(78- 권한 안내를 보였음)는 커플 자료가 아니다(해제 완료 때 남는다). */
+export type CacheKind = 'chat' | 'main' | 'feed' | 'sky' | 'name' | 'route' | 'push'
 /** 커플 자료 종류 - 로그아웃 · 탈퇴 요청 · 해제 요청(유예 진입) · 해제 완료 · 계정 전환에서 지워진다. 하늘('sky', 77-)도 여기에 든다. */
 export const COUPLE_KINDS: readonly CacheKind[] = ['chat', 'main', 'feed', 'sky']
 

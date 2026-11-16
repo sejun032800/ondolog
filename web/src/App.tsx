@@ -24,6 +24,9 @@ import { ViewerHost } from './features/magazine/ViewerHost'
 import { useKeyboardOpen } from './platform/useKeyboardOpen'
 import { useStartDateRecheck } from './couple/useStartDateRecheck'
 import { useDissolutionNotice } from './features/settings/useDissolutionNotice'
+import { useNicknameNotice } from './couple/useNicknameNotice'
+import { usePushSetup } from './push/usePushSetup'
+import { PushBand } from './push/PushBand'
 import { ConnectionBanner } from './components/ConnectionBanner'
 import { ToastHost } from './components/ToastHost'
 import { useSheetStore } from './stores/sheetStore'
@@ -94,6 +97,10 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
   const keyboardOpen = useKeyboardOpen()
   // 상대가 고친 사귄 날짜는 다음에 앱을 열거나(시작 · 복귀) 메인으로 돌아올 때 확인 화면(A20)으로 한 번 보인다(76-r F1).
   useStartDateRecheck(nav, onTab, screen === 'main')
+  // R101-5: 상대가 바꾼 커플 닉네임도 같은 때 앱 안에 한 번(78-).
+  useNicknameNotice(nav, onTab, screen === 'main')
+  // 78- 푸시: 권한 · 토큰 등록 · 앞에 있을 때 띠(I07) · 누른 알림의 갈 곳.
+  usePushSetup(nav, screen, bootDone)
   // 상대가 해제(또는 탈퇴)를 요청했으면 내가 앱에 들어올 때 처음 한 번 커플 화면(H14 유예 화면)을 보인다(앱 안 표시뿐, 푸시 없음).
   useDissolutionNotice(nav, onTab)
   // I01 커플 게이트의 두 버튼(+ 이후 커플 전용 기능)이 초대 · 코드 입력 화면으로 가는 입구. 이미 그 화면이면 다시 쌓지 않는다.
@@ -218,6 +225,7 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
         <ConnectionBanner inChat={screen === 'chat'} />
         <ToastHost aboveTabBar={onTab} top={toastAtTop} />
         <NoticeBanner />
+        <PushBand nav={nav} screen={screen} />
         <AccountProblemHost nav={nav} />
         <div className="grain" />
       </div>

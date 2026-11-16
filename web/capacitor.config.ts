@@ -15,6 +15,8 @@ const config: CapacitorConfig = {
     SplashScreen: { launchAutoHide: false, backgroundColor: INK, showSpinner: false },
     StatusBar: { style: 'DARK', backgroundColor: INK },
     SystemBars: { insetsHandling: 'native', initialViewportFitValueHint: 'cover', style: 'DARK' },
+    // 78- I07: 앱이 앞에 있을 때 온 알림은 OS 알림을 띄우지 않고 앱 안 띠로만 보인다(`push/PushBand`).
+    PushNotifications: { presentationOptions: [] },
   },
 }
 

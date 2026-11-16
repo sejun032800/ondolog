@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from 'react'
 import { DissolutionError, requestDissolution, type DissolutionDb } from '@/services/dissolutionCore'
+import { forgetThisDevicePush } from '../../push/pushCore'
 import { UNLINK_PHRASE } from '@/utils/dissolution'
 import { fetchProfile } from '../../auth/finalize'
 import { getSupabase } from '../../auth/client'
@@ -56,6 +57,7 @@ export function UnlinkScreen({ nav }: { nav: Nav }) {
     setError(null)
     try {
       await requestDissolution(db as unknown as DissolutionDb)
+      void forgetThisDevicePush() // 78-: 해제 요청 때 이 기기의 알림 토큰을 지운다(처리방침 5번).
       setRequested(true)
       await Promise.all([useDissolutionStore.getState().refresh(userId), useCoupleStore.getState().refresh(userId)])
       nav.back()

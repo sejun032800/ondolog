@@ -53,3 +53,6 @@ web/android/local.properties
 web/android/capacitor-cordova-android-plugins/build/
 web/android/app/src/main/assets/public/
 web/android/.idea/deploymentTargetSelector.xml
+
+# 78- Firebase Android 설정(키 문자열 포함 - 사람이 web/android/app/에 직접 넣는다, 커밋 0)
+web/android/app/google-services.json

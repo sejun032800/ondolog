@@ -87,7 +87,9 @@ describe('H01 · H02 설정 목록', () => {
     const labels = SETTINGS_GROUPS.flatMap((g) => g.items.map((i) => i.label))
     expect(labels).toEqual(['프로필', '연결된 계정', '연인', '커플 닉네임', '성격 프로필', '개인정보 & 약관', '앱 정보 · 문의'])
     for (const l of labels) expect(screen.getByText(l)).toBeTruthy()
-    for (const hidden of ['구독', '사진 앱 연동', '알림', '데이터 내려받기', '빠진 지면', '생체정보', '오픈소스', '유성', '연결 해제', '회원 탈퇴']) {
+    // 78-: '알림'(H10)은 이제 갈 곳이 있다 - NOTIFICATIONS 묶음에 한 줄(아래 시험). 그 밖 숨김은 그대로.
+    expect(screen.getByTestId('settings-row-notify').textContent).toContain('알림')
+    for (const hidden of ['구독', '사진 앱 연동', '데이터 내려받기', '빠진 지면', '생체정보', '오픈소스', '유성', '연결 해제', '회원 탈퇴']) {
       expect(screen.queryByText(new RegExp(hidden))).toBeNull()
     }
   })

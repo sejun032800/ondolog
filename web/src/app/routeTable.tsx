@@ -13,6 +13,9 @@ import {
 import { consumeInviteStep } from './inviteEntry'
 import { InviteScreen } from '../features/couple/InviteScreen'
 import { StartDateScreen } from '../features/couple/StartDateScreen'
+import { NicknameNoticeScreen } from '../features/couple/NicknameNoticeScreen'
+import { NotifySettingsScreen } from '../features/settings/NotifySettingsScreen'
+import { PushPermissionScreen } from '../push/PushPermissionScreen'
 import { DateDetailScreen } from '../features/feed/DateDetailScreen'
 import { StopEditScreen } from '../features/feed/StopEditScreen'
 import { SkyScreen } from '../features/sky/SkyScreen'
@@ -78,6 +81,9 @@ export const ROUTE_ELEMENTS: Record<ScreenName, (c: RouteCtx) => ReactElement | 
   'settings-withdraw': (c) => <WithdrawScreen nav={c.nav} />,
   'withdraw-cancel': (c) => <WithdrawCancelScreen nav={c.nav} />,
   sky: (c) => <SkyScreen nav={c.nav} />,
+  'push-permission': (c) => <PushPermissionScreen nav={c.nav} />,
+  'settings-notify': (c) => <NotifySettingsScreen nav={c.nav} />,
+  'nickname-recheck': (c) => <NicknameNoticeScreen nav={c.nav} />,
   main: (c) => <MainTab nav={c.nav} />,
   chat: (c) => <ChatTab bridge={c.bridge} />,
   feed: (c) => <FeedTab nav={c.nav} />,

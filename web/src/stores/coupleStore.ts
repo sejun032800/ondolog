@@ -10,6 +10,7 @@ import { create } from 'zustand'
 import { DISCONNECTED_TEMPERATURE } from '@/engine/temperature'
 import { getSupabase } from '../auth/client'
 import { clearCoupleCache, readCache, writeCache } from '../cache/deviceCache'
+import { forgetThisDevicePush } from '../push/pushCore'
 
 export interface CoupleState {
   /** 아직 조회 전(`unknown`)과 "조회했지만 미연결"을 구분한다. */
@@ -85,6 +86,7 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
           .maybeSingle()
         if (!dissolvingError && dissolving) {
           clearCoupleCache(userId)
+          void forgetThisDevicePush() // 78-: 해제 유예(상대가 요청) - 같은 자리에서 알림 토큰도. 등록한 적 없으면 아무 일도 없다.
           set({
             status: 'disconnected', ...DISCONNECTED, nickname: dissolving.nickname, grace: true,
             graceCoupleId: dissolving.id,
@@ -96,7 +98,10 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
       if (error || !data) {
         // 조회 오류에서도 이미 연결로 알고 있던 값은 그대로 둔다(끊긴 연결 때문에 연결된 사람에게 "상대만 있으면 돼요"를 보이지 않는다). 처음이면 RN과 같이 미연결.
         // 오류 없이 "연결 없음"이면 해제가 끝난 것 - 기기에 남긴 채팅 · 메인 요약을 지운다(76-A1).
-        if (!error) clearCoupleCache(userId)
+        if (!error) {
+          clearCoupleCache(userId)
+          void forgetThisDevicePush() // 78-: 해제 완료 - 같은 자리
+        }
         if (!wasConnected || !error) set({ status: 'disconnected', ...DISCONNECTED })
         return
       }

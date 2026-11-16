@@ -16,6 +16,7 @@ import { useBackHandler } from '../../platform/backStack'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { PrimaryButton } from '../../ui'
 import { clearAllDeviceCache } from '../../cache/deviceCache'
+import { forgetThisDevicePush } from '../../push/pushCore'
 import { logoutToStart } from './accountActions'
 import { SettingsFrame } from './parts'
 import { PhraseConfirm, PhraseConfirmCard, PhraseConfirmCardTitle, PhraseConfirmLine } from './PhraseConfirm'
@@ -73,6 +74,7 @@ export function WithdrawScreen({ nav }: { nav: Nav }) {
     }
     setBusy(false)
     clearAllDeviceCache() // 76-A1: 탈퇴 요청 때 이 기기의 저장분(채팅 · 메인 요약 등)을 지운다.
+    void forgetThisDevicePush() // 78-: 같은 자리에서 이 기기의 알림 토큰도.
     setDone({ purgeAt })
   }
 

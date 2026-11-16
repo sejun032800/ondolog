@@ -3,6 +3,8 @@
  * 값(운영자 · 문의 메일 · 저장 지역 · 시행일)은 출력하지 않는다. 비었는지만 본다.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MIN_AGE_YEARS } from '@/constants/consent'
@@ -57,6 +59,22 @@ describe('네 문서 전문', () => {
     expect(text).toContain('동의하지 않아도 온도록의 모든 기능을 쓸 수 있습니다.')
     expect(text).toContain(`동의한 뒤에도 언제든 ${LEGAL_CONTACT_EMAIL}로 철회할 수 있고, 철회하면 그날부터 보내지 않습니다.`)
     expect(text).toContain('이 동의로 모으는 새 정보는 없습니다(처리방침 1번의 "마케팅 정보 수신 동의 여부"만 기록합니다).')
+  })
+
+  it('v1.2(78- · R109-3) - 원본(PM_legal_minimal_v1.md)의 "(v1.2)" 줄이 처리방침에 그대로 있다(굵은 표시 · 판 표시만 뺌)', () => {
+    const md = readFileSync(join(__dirname, '..', '..', '..', '.claude', 'state', 'prompts', 'phase-7', 'PM_legal_minimal_v1.md'), 'utf8')
+    const privacyPart = md.slice(md.indexOf('## 1. 개인정보 처리방침'), md.indexOf('## 2. 이용약관'))
+    const v12 = privacyPart.split(/\r?\n/).filter((l) => l.includes('(v1.2)'))
+    expect(v12).toHaveLength(3) // 1번 · 4번 표 · 5번
+    const text = legalPlainText(LEGAL_DOCUMENTS.privacy)
+    const clean = (l: string) => l.replace(/\*\*/g, '').replace(/\s*\(v1\.2\)\s*/, '').replace(/^- /, '').trim()
+    // 1번 · 5번: 글머리 줄 그대로
+    expect(text).toContain(clean(v12[0]))
+    expect(text).toContain(clean(v12[2]))
+    // 4번 표: 칸을 " | "로 이은 줄 그대로
+    const row = clean(v12[1]).replace(/^\|\s*/, '').replace(/\s*\|$/, '').split(/\s*\|\s*/).join(' | ')
+    expect(text).toContain(row)
+    expect(text).not.toContain('v1.2')
   })
 
   it('동의 화면 한 줄이 R38-2 문장을 대체했다', () => {

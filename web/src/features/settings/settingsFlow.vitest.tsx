@@ -128,7 +128,9 @@ describe('탈퇴 유예 계정은 단계보다 먼저 유예 화면(withdraw-can
   it('탈퇴를 취소하면 토스트 "탈퇴를 취소했어요"와 함께 원래 단계(메인)로 돌아간다', async () => {
     const db = settingsDb({
       profiles: [PENDING],
-      rpc: () => {
+      rpc: (fn) => {
+        // 78-: 로그인마다 부르는 push_claim_device 같은 다른 RPC는 탈퇴 취소가 아니다.
+        if (fn !== 'fn_cancel_withdrawal') return { data: null, error: null }
         db.tables.profiles[0].deleted_at = null
         db.tables.profiles[0].purge_scheduled_at = null
         return { data: null, error: null }

@@ -20,6 +20,7 @@ import { useProfileStore } from '../../stores/profileStore'
 import { useSheetStore } from '../../stores/sheetStore'
 import { useViewerOpenStore } from '../../stores/viewerOpenStore'
 import { resetSettingsSummaryCache } from './useSettingsSummary'
+import { forgetThisDevicePush, usePushStore } from '../../push/pushCore'
 
 /**
  * 로그아웃 · 탈퇴 요청 때 이 실행의 메모리에 남는 계정 상태를 모두 비운다(D1 - 같은 실행에서 다시 로그인할 때 이전 로그인의 표시를 물려받지 않게).
@@ -42,6 +43,7 @@ export function resetAccountMemory(): void {
   clearAllDeviceCache()
   clearSignedUrlCache()
   forgetMainMemory()
+  usePushStore.getState().reset()
 }
 
 /**
@@ -50,6 +52,8 @@ export function resetAccountMemory(): void {
  */
 export async function logoutToStart(nav: Nav): Promise<void> {
   const db = getSupabase()
+  // 78-: 로그인 세션이 살아 있을 때 이 기기의 알림 토큰을 지운다(서버 행 + FCM 토큰). 오프라인이면 시간 제한 뒤 넘어간다.
+  await forgetThisDevicePush().catch(() => undefined)
   try {
     await performLogout({
       resetMemory: resetAccountMemory,

@@ -32,6 +32,14 @@
 
         </activity>
 
+        <!-- 78- 푸시: 흰 실루엣 알림 아이콘 · 기본 채널(앱이 만드는 메시지 채널과 같은 id) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_ondolog" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="ondolog_messages" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -46,4 +54,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 78- 푸시: Android 13 이상 알림 권한(그 아래는 무시된다) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

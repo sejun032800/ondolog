@@ -32,6 +32,8 @@ export const STACK_ROUTES = [
   'settings-profile', 'settings-couple', 'settings-unlink', 'settings-personality', 'settings-result', 'retest',
   'settings-privacy', 'settings-about', 'settings-withdraw', 'withdraw-cancel',
   'sky',
+  // 78-: I08 알림 권한 안내 · H10 알림 설정 · R101-5 닉네임 변경 안내(F1과 같은 재표시). 모두 뒤로 = 앞 화면.
+  'push-permission', 'settings-notify', 'nickname-recheck',
 ] as const
 
 export type OnboardingRoute = (typeof ONBOARDING_ROUTES)[number]

@@ -92,6 +92,27 @@ describe('① 탈퇴 - 상대가 남은 커플', () => {
     expect((await one(`select author_id from date_stops where id = $1`, [bStop])).author_id).toBe(B)
   })
 
+  it('R108-2: 그날을 가리키는 소프트 삭제된 사진 · 메모가 있어도 빈 날 삭제가 외래 키에 막히지 않는다', async () => {
+    const A = await user()
+    const B = await user()
+    const C = await couple(A, B, 'dissolved')
+    const d = await date(C)
+    const aStop = await stop(C, d, A)
+    // 남은 사람(B)이 그날(그 장소) 남겼다가 지운(소프트 삭제) 사진 · 메모 - 빈 날 판정에서는 "남은 것"이 아니다
+    const hidden = await ids(
+      `insert into data_entries(couple_id,author_id,date_id,date_stop_id,entry_type,storage_path,text_content,deleted_at)
+       values ($1,$2,$3,$5,'photo',$4,null,now()), ($1,$2,$3,$5,'memo',null,'m',now()) returning id`,
+      [C, B, d, `${C}/${++n}.jpg`, aStop],
+    )
+    const r = await removePlaces(A, [C])
+    expect(r.emptied).toEqual([d])
+    expect(await ids(`select id from dates where id = $1`, [d])).toEqual([])
+    // 숨겨진 행은 날짜만 비워진 채 남는다(행 · 작성자 그대로)
+    const left = (await db.query<Row>(`select id, date_id, date_stop_id, deleted_at is not null as gone from data_entries where id = any($1::uuid[]) order by id`, [hidden])).rows
+    expect(left.map((x) => x.id)).toEqual([...hidden].sort())
+    expect(left.every((x) => x.date_id === null && x.date_stop_id === null && x.gone === true)).toBe(true)
+  })
+
   it('다시 돌려도 같은 결과(멱등)', async () => {
     const A = await user()
     const B = await user()
