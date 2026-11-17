@@ -388,6 +388,48 @@ test.describe('79- 화면 스모크', () => {
     await check(page, w, 'cache-broken')
   })
 
+  test('로그아웃 확인(81-b): 보내지 못한 메시지가 있으면 수와 한 줄 더(R119-2) · [취소]하면 그대로', async ({ page }) => {
+    // 대기열(기기 Preferences) - 자동 재시도가 멈춘(failed) 글 2 · 사진 1. 앱 시작 이어 보내기가 바로 보내지 않는 상태(사람이 [다시 보내기]를 눌러야 감).
+    await page.addInitScript(() => {
+      const t = (id: string) => ({ clientMsgId: id, coupleId: 'smoke-couple', senderId: 'smoke-user-a', body: '글', sentAt: '2026-11-17T00:00:00Z', retryCount: 5, status: 'failed' })
+      const p = { clientId: 'q-photo', kind: 'message', coupleId: 'smoke-couple', userId: 'smoke-user-a', localUri: 'chat-photo-queue/q-photo.jpg', ext: 'jpg', contentType: 'image/jpeg', sentAt: '2026-11-17T00:00:00Z', retryCount: 5, status: 'failed' }
+      try {
+        localStorage.setItem('CapacitorStorage.chat_queue:smoke-couple', JSON.stringify({ __v: 1, items: [t('q-1'), t('q-2')] }))
+        localStorage.setItem('CapacitorStorage.chat_photo_queue:smoke-couple:smoke-user-a', JSON.stringify({ __v: 1, items: [p] }))
+      } catch { /* 없음 */ }
+    })
+    const w = await openAccount(page)
+    await tab(page, 'settings')
+    await page.getByTestId('settings-row-profile').click()
+    await settle(page)
+    await page.getByTestId('profile-logout').click()
+    await seen(page.getByTestId('logout-confirm'))
+    await expect(page.getByTestId('confirm-note')).toHaveText('아직 보내지 못한 메시지 3개가 있어요. 같은 계정으로 다시 로그인하면 이어서 보내요.')
+    await expect(page.getByText('다시 로그인하면 기록은 그대로 볼 수 있어요.')).toBeVisible()
+    await check(page, w, 'logout-unsent')
+    await page.getByTestId('confirm-no').click()
+    await expect(page.getByTestId('logout-confirm')).toBeHidden()
+    const kept = await page.evaluate(() => localStorage.getItem('CapacitorStorage.chat_queue:smoke-couple'))
+    expect(JSON.parse(kept ?? '{}').items).toHaveLength(2)
+  })
+
+  test('오프라인 첫 실행(81-b): 저장된 로그인 + 기기 저장값 비움 -> 시작 화면 0 · 메인 자리 표시 + 끊김 띠', async ({ page }) => {
+    // 기기가 오프라인이라 함(navigator.onLine = false - 스모크 서버 자체는 열려 있어야 해서 연결은 끊지 않고 기기 신호만) + 가짜 클라이언트가 모든 요청을 연결 오류로,
+    // 세션 갱신도 실패(세션 null + 오류). 저장된 로그인은 Preferences에 있다(81- 덮어 설치 직후 비행기 모드와 같은 모양). 기기 저장값(ondolog.dc1:)은 0.
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false })
+      try { localStorage.setItem('CapacitorStorage.sb-smoke-auth-token', JSON.stringify({ access_token: 'smoke', refresh_token: 'smoke', expires_at: 1, user: { id: 'smoke-user-a' } })) } catch { /* 없음 */ }
+    })
+    const w = await open(page, 'world=account')
+    await expect(page.getByTestId('tab-bar')).toBeVisible({ timeout: 8000 })
+    await settle(page)
+    await expect(page.locator('[data-screen="main"]')).toBeVisible()
+    await expect(page.getByTestId('connection-banner')).toBeVisible()
+    await expect(page.getByTestId('account-problem')).toHaveCount(0)
+    for (const s of ['intro', 'basic', 'auth', 'callback', 'consent']) await expect(page.locator(`[data-screen="${s}"]`)).toHaveCount(0)
+    await check(page, w, 'offline-first-run')
+  })
+
   test('법무: 세 문서 전문 · 자리표시자 0', async ({ page }) => {
     const w = await openAccount(page)
     await tab(page, 'settings')

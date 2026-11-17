@@ -74,6 +74,8 @@ const skyValue = shape({
 
 // ---- route · push · qkeep ------------------------------------------------
 const routeValue = shape({ route: isStr, at: isNum })
+/** 81-b: 마지막으로 서버가 정해 준 계정 화면(오프라인 첫 실행에 그 화면으로). */
+const bootRoute = shape({ route: isStr })
 const pushAsked = shape({ asked: isBool })
 /** 보존한 대기열 원본(81-). 원본은 글자 그대로(`raw`) - 다시 해석하지 않는다. */
 export const queueKeepValue = shape({ entries: arrayOf(shape({ at: isStr, raw: isStr })) })
@@ -108,6 +110,7 @@ export function checkFor(kind: keyof typeof CACHE_VERSION, scope?: string): Chec
     case 'sky':
       return scope ? skyValue : null
     case 'route':
+      if (scope === 'boot') return bootRoute
       return scope === undefined ? routeValue : null
     case 'push':
       return scope === 'asked' ? pushAsked : null

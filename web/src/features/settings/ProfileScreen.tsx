@@ -18,6 +18,8 @@ import type { Nav } from '../../navigation'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useProfileStore } from '../../stores/profileStore'
 import { logoutToStart } from './accountActions'
+import { countUnsentMessages, logoutNotes, type UnsentCounts } from './unsentCount'
+import { useCoupleStore } from '../../stores/coupleStore'
 import { ListGroup, ListRow, SettingsFrame, SettingsSkeletonBlock } from './parts'
 
 type Gender = Database['public']['Enums']['gender_type']
@@ -48,6 +50,15 @@ export function ProfileScreen({ nav }: { nav: Nav }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [logoutAsk, setLogoutAsk] = useState(false) // D7: 로그아웃은 한 번 더 묻는다(I05)
+  // 81-b(R118-3 · R119-2): 보내지 못한 메시지가 있으면 확인 창에 줄을 더한다(말없이 사라지지 않게). 동작은 그대로(R39-5 b).
+  const [unsent, setUnsent] = useState<UnsentCounts>({ queued: 0, kept: 0 })
+  const coupleId = useCoupleStore((s) => s.coupleId ?? s.graceCoupleId)
+  useEffect(() => {
+    if (!logoutAsk) { setUnsent({ queued: 0, kept: 0 }); return }
+    let cancelled = false
+    void countUnsentMessages(userId, coupleId).then((n) => { if (!cancelled) setUnsent(n) }, () => undefined)
+    return () => { cancelled = true }
+  }, [logoutAsk, userId, coupleId])
 
   useEffect(() => {
     const db = getSupabase()
@@ -151,6 +162,7 @@ export function ProfileScreen({ nav }: { nav: Nav }) {
         open={logoutAsk}
         title={PROFILE_COPY.logoutConfirmTitle}
         message={PROFILE_COPY.logoutConfirmMessage}
+        notes={logoutNotes(unsent)}
         confirmLabel={PROFILE_COPY.logout}
         cancelLabel={PROFILE_COPY.logoutCancel}
         onConfirm={() => { setLogoutAsk(false); void logoutToStart(nav) }}

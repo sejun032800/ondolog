@@ -5,10 +5,12 @@
  */
 import { useBackHandler } from '../platform/backStack'
 
-export function ConfirmDialog({ open, title, message, confirmLabel = '지우기', cancelLabel = '취소', onConfirm, onCancel, busy = false, testId }: {
+export function ConfirmDialog({ open, title, message, notes, confirmLabel = '지우기', cancelLabel = '취소', onConfirm, onCancel, busy = false, testId }: {
   open: boolean
   title: string
   message: string
+  /** 81-b: 있으면 본문 아래 줄마다 하나씩 더(예: 로그아웃 때 보내지 못한 메시지 수). */
+  notes?: readonly string[]
   confirmLabel?: string
   cancelLabel?: string
   onConfirm: () => void
@@ -23,6 +25,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel = '지우기'
       <div className="dialogCard" role="alertdialog" aria-modal="true" aria-label={title}>
         <h2 className="dialogTitle">{title}</h2>
         <p className="dialogMsg">{message}</p>
+        {(notes ?? []).map((n) => <p key={n} className="dialogMsg" data-testid="confirm-note">{n}</p>)}
         <div className="dialogBtns">
           <button type="button" className="dBtn danger press" disabled={busy} onClick={onConfirm} data-testid="confirm-yes">{confirmLabel}</button>
           <button type="button" className="dBtn press" disabled={busy} onClick={onCancel} data-testid="confirm-no">{cancelLabel}</button>

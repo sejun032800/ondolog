@@ -311,3 +311,41 @@ export function readLastTab(userId: string | null, isTab: (r: string) => boolean
   if (now - saved.at > ROUTE_RESTORE_WINDOW_MS || now < saved.at) return null
   return isTab(saved.route) ? saved.route : null
 }
+
+// ---------------------------------------------------------------------------
+// 81-b 부팅 화면 - 저장된 로그인이 있는데 서버를 못 읽을 때(오프라인) 들어갈 계정 화면. 서버가 정해 준 마지막 화면을 남긴다.
+// ---------------------------------------------------------------------------
+
+export function saveBootRoute(userId: string | null, route: string): void {
+  writeCache(userId, 'route', { route }, 'boot')
+}
+
+export function readBootRoute(userId: string | null): string | null {
+  return readCache<{ route: string }>(userId, 'route', 'boot')?.route ?? null
+}
+
+/** 81-b: 이 사용자의 보존 칸 원본 글자 전부(모든 커플 · 글 · 사진). 로그아웃 경고의 수를 셀 때. 던지지 않는다. */
+export function listQueueOriginals(userId: string | null): string[] {
+  if (!userId) return []
+  const s = store()
+  if (!s) return []
+  const out: string[] = []
+  try {
+    const mine = `${PREFIX}${userId}:qkeep:`
+    const keys: string[] = []
+    for (let i = 0; i < s.length; i += 1) {
+      const k = s.key(i)
+      if (k && k.startsWith(mine)) keys.push(k)
+    }
+    for (const k of keys) {
+      const raw = s.getItem(k)
+      if (!raw) continue
+      const v = judgeStored(raw, 'qkeep', k.slice(mine.length))
+      if (v.ok) out.push(...(v.value as { entries: { raw: string }[] }).entries.map((e) => e.raw))
+      else out.push(raw) // 깨진 보존 칸도 원본 한 건
+    }
+  } catch {
+    // 셀 수 없으면 센 만큼
+  }
+  return out
+}

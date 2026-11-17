@@ -57,14 +57,46 @@ export function pushBody(kind: PushKind, senderName: string | null | undefined, 
   return kind === 'date' ? PUSH_COPY.date(name) : PUSH_COPY.nickname(name)
 }
 
-/** 커플 기준 고정 태그. 메시지는 하나로 갈아 끼우고(R109-2), 변경 안내는 종류별로 따로. 64바이트 안(APNs collapse id 한도). */
+/** 커플 기준 고정 태그(묶음 이름). 메시지는 하나로 갈아 끼우고(R109-2), 변경 안내는 종류별로 따로. 64바이트 안(APNs collapse id 한도). */
 export function pushTag(kind: PushKind, coupleId: string): string {
   return kind === 'message' ? `ondolog-m-${coupleId}` : `ondolog-c-${kind === 'date' ? 'd' : 'n'}-${coupleId}`
 }
 
-/** FCM HTTP V1 메시지 하나. */
-export function fcmMessage(token: string, kind: PushKind, body: string, coupleId: string): Record<string, unknown> {
-  const tag = pushTag(kind, coupleId)
+// ── 다시 울림(81-b · R118-4) ───────────────────────────────────────────────────────────────────────
+// 같은 묶음(받는 사람 · 커플 · 종류) 알림이 직전 알림 뒤 10분 **안**이면 같은 태그로 조용히 갈아 끼우고(R109-2 유지),
+// 10분이 **넘은** 공백 뒤 첫 알림은 새 태그로 보내 소리 · 팝업으로 다시 울린다. 같은 태그 갈아 끼우기는 기기(삼성)가 울리지 않으므로 태그를 바꾸는 것이 확실한 길이다.
+// 태그 = 묶음 이름 + "공백 뒤 첫 알림 시각"(초, 36진수). 메시지는 받는 사람이 상대 하나라 묶음 = (커플, 보낸 사람) - 직전 시각은 이미 있는 행
+// `messages.sent_at`(보낸 사람의 최근 메시지)에서 얻는다(마이그레이션 0). 변경 안내는 직전 시각을 기존 행에서 얻을 수 없어 **매번 울림**(드물다).
+// iOS: 같은 값을 `apns-collapse-id`에, 묶음 이름은 `thread-id`에(서랍에서 한 줄기로 모임).
+
+/** 이 시간(포함) 안의 연타는 하나로 조용히. */
+export const REALERT_GAP_MS = 10 * 60 * 1000
+/** 공백을 찾을 때 거슬러 보는 최근 메시지 수. 이보다 긴 연타(10분 안 간격으로 계속)는 가장 오래 본 것을 시작으로 본다. */
+export const BURST_LOOKBACK = 200
+
+/**
+ * 연타의 시작 시각(ms). `timesDesc` = 보낸 사람의 최근 메시지 시각(최신 먼저, 지금 메시지 포함).
+ * 앞 메시지와의 간격이 `gapMs` 이하인 동안 거슬러 간다. 읽을 수 있는 시각이 없으면 null. 순수(시계 0).
+ */
+export function burstStart(timesDesc: readonly string[], gapMs: number = REALERT_GAP_MS): number | null {
+  const ms = timesDesc.map((t) => Date.parse(t)).filter((n) => Number.isFinite(n))
+  if (ms.length === 0) return null
+  let start = ms[0]
+  for (let i = 1; i < ms.length; i++) {
+    if (start - ms[i] > gapMs) break
+    start = ms[i]
+  }
+  return start
+}
+
+/** 다시 울림 태그 = 묶음 이름 + 시작 시각(초, 36진수). 64바이트 안. */
+export function burstTag(kind: PushKind, coupleId: string, startMs: number): string {
+  return `${pushTag(kind, coupleId)}-${Math.floor(startMs / 1000).toString(36)}`
+}
+
+/** FCM HTTP V1 메시지 하나. `alertTag`가 없으면 묶음 이름 그대로(78-). */
+export function fcmMessage(token: string, kind: PushKind, body: string, coupleId: string, alertTag: string = pushTag(kind, coupleId)): Record<string, unknown> {
+  const tag = alertTag
   return {
     message: {
       token,
@@ -77,7 +109,7 @@ export function fcmMessage(token: string, kind: PushKind, body: string, coupleId
       },
       apns: {
         headers: { 'apns-collapse-id': tag },
-        payload: { aps: { 'thread-id': tag } },
+        payload: { aps: { 'thread-id': pushTag(kind, coupleId) } },
       },
     },
   }
@@ -176,6 +208,10 @@ export interface PushDeps {
   /** 78-m1 `push_drop_token`. */
   dropToken(secret: string, tokenId: string): Promise<void>
   accessToken(): Promise<string>
+  /** 81-b: 보낸 사람의 이 커플 최근 메시지 시각(최신 먼저, 최대 `BURST_LOOKBACK`). 없으면 다시 울림 없이 78- 그대로. */
+  recentMessageTimes?(coupleId: string, actorId: string): Promise<string[]>
+  /** 81-b: 지금 시각(ms) - 변경 안내 태그. 시험은 고정 시계. 없으면 78- 그대로. */
+  nowMs?(): number
   transport: Transport
   projectId: string
   /** 한 줄 - 결과 코드 · 숫자만. */
@@ -197,9 +233,10 @@ export function isDeadToken(status: number, error: unknown): boolean {
 }
 
 export async function handlePush(req: PushRequest, deps: PushDeps): Promise<PushResult> {
+  let realertNote = ''
   const done = (r: PushResult, codes: number[] = []): PushResult => {
     const counts = 'sent' in r.body ? ` sent=${r.body.sent} dropped=${r.body.dropped} failed=${r.body.failed}` : ''
-    deps.log(`push-send status=${r.status}${counts}${codes.length ? ` fcm=${codes.join(',')}` : ''}`)
+    deps.log(`push-send status=${r.status}${counts}${codes.length ? ` fcm=${codes.join(',')}` : ''}${realertNote}`)
     return r
   }
   if (req.method !== 'POST') return done({ status: 405, body: { error: 'method' } })
@@ -221,6 +258,21 @@ export async function handlePush(req: PushRequest, deps: PushDeps): Promise<Push
   if (tokens.length === 0) return done({ status: 200, body: { sent: 0, dropped: 0, failed: 0 } })
 
   const body = pushBody(kind, ctx.sender_name, kind === 'message' && payload.photo === true)
+  // 81-b 다시 울림 태그. 시각을 못 읽으면 78- 묶음 이름 그대로(조용히 갈아 끼움 - 발송은 막지 않는다).
+  let alertTag = pushTag(kind, coupleId)
+  let realertFailed = false
+  if (kind === 'message') {
+    if (deps.recentMessageTimes) {
+      try {
+        const start = burstStart(await deps.recentMessageTimes(coupleId, actorId))
+        if (start !== null) alertTag = burstTag(kind, coupleId, start)
+      } catch {
+        realertFailed = true
+      }
+    }
+  } else if (deps.nowMs) {
+    alertTag = burstTag(kind, coupleId, deps.nowMs())
+  }
   const access = await deps.accessToken()
   const url = `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(deps.projectId)}/messages:send`
   let sent = 0
@@ -232,7 +284,7 @@ export async function handlePush(req: PushRequest, deps: PushDeps): Promise<Push
       const res = await deps.transport(url, {
         method: 'POST',
         headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(fcmMessage(t.token, kind, body, coupleId)),
+        body: JSON.stringify(fcmMessage(t.token, kind, body, coupleId, alertTag)),
       })
       if (res.ok) {
         sent += 1
@@ -250,5 +302,6 @@ export async function handlePush(req: PushRequest, deps: PushDeps): Promise<Push
       failed += 1
     }
   }
+  if (realertFailed) realertNote = ' realert=err'
   return done({ status: 200, body: { sent, dropped, failed } }, codes)
 }

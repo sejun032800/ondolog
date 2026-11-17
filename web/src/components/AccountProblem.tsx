@@ -45,7 +45,8 @@ export function AccountProblemHost({ nav }: { nav: Nav }) {
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 40 }} data-testid="account-problem-host">
       <AccountProblemView
-        onRetry={() => { useAccountProblemStore.getState().clear(); problem.retry() }}
+        // 81-b: 다시 시도만 한다 - 안내를 먼저 걷지 않는다(걷으면 그 아래 첫 화면이 보여 온보딩 · 로그인으로 들어가게 된다). 성공하면 부른 쪽이 걷는다.
+        onRetry={() => { problem.retry() }}
         onLogout={() => { useAccountProblemStore.getState().clear(); void logoutToStart(nav) }}
       />
     </div>

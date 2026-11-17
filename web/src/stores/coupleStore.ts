@@ -10,7 +10,10 @@ import { create } from 'zustand'
 import { DISCONNECTED_TEMPERATURE } from '@/engine/temperature'
 import { getSupabase } from '../auth/client'
 import { clearCoupleCache, readCache, writeCache } from '../cache/deviceCache'
+import { deviceSaysOffline, useConnectionStore } from '../connection/connectionMonitor'
 import { forgetThisDevicePush } from '../push/pushCore'
+
+const networkDown = (): boolean => deviceSaysOffline() || useConnectionStore.getState().offline
 
 export interface CoupleState {
   /** 아직 조회 전(`unknown`)과 "조회했지만 미연결"을 구분한다. */
@@ -102,6 +105,8 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
           clearCoupleCache(userId)
           void forgetThisDevicePush() // 78-: 해제 완료 - 같은 자리
         }
+        // 81-b: 연결이 없어서 못 읽었으면 "미연결"이 아니다 - 처음이면 자리 표시(loading) 그대로 두고 연결이 돌아오면 다시 읽는다(네트워크 실패 != 계정 · 커플 없음).
+        if (error && !known && networkDown()) return
         if (!wasConnected || !error) set({ status: 'disconnected', ...DISCONNECTED })
         return
       }
@@ -136,12 +141,15 @@ export const useCoupleStore = create<CoupleState>((set, get) => ({
         referencePhotoPath: data.reference_photo_path,
       } satisfies MainSummary)
     } catch {
+      if (!known && networkDown()) return // 81-b: 위와 같음
       if (!wasConnected) set({ status: 'disconnected', ...DISCONNECTED })
     }
   },
 
   hydrate: (userId) => {
-    if (get().status !== 'unknown') return
+    // 81-b: 화면(자식)의 첫 읽기가 먼저 시작돼 'loading'이어도 아직 아는 값이 없으면 저장 요약으로 채운다(오프라인 시작에서 메인이 자리 표시로 굳던 순서 문제).
+    const st = get().status
+    if (st !== 'unknown' && st !== 'loading') return
     const saved = readCache<MainSummary>(userId, 'main')
     if (!saved || !saved.coupleId || !saved.partnerId) return
     set({ status: 'connected', grace: false, graceCoupleId: null, gracePartnerId: null, ...saved })

@@ -8,7 +8,7 @@
  * 접근 토큰 발급 · 캐시 · 서명 검증 · 로그에 토큰 · 본문 · id 0.
  */
 import {
-  AccessTokenCache, GOOGLE_TOKEN_URL, PUSH_CHANNEL, fcmMessage, handlePush, parseServiceAccount, pushBody, pushTag, signServiceJwt,
+  AccessTokenCache, GOOGLE_TOKEN_URL, PUSH_CHANNEL, REALERT_GAP_MS, burstStart, burstTag, fcmMessage, handlePush, parseServiceAccount, pushBody, pushTag, signServiceJwt,
   type PushContext, type PushDeps, type PushKind, type PushRequest, type Transport,
 } from './pushSend.ts'
 
@@ -114,6 +114,112 @@ describe('쌓임 방지(R109-2)', () => {
   it('태그는 64바이트 안(APNs collapse id 한도)', () => {
     for (const k of ['message', 'date', 'nickname'] as PushKind[]) expect(new TextEncoder().encode(pushTag(k, COUPLE)).length).toBeLessThanOrEqual(64)
     expect(fcmMessage('t', 'message', 'b', COUPLE)).toHaveProperty('message.android.priority', 'HIGH')
+  })
+})
+
+describe('다시 울림(81-b · R118-4) - 10분 안 연타는 조용히, 10분 넘은 공백 뒤 첫 알림은 새 태그(울림)', () => {
+  const T0 = Date.parse('2026-11-17T09:00:00Z')
+  const iso = (ms: number) => new Date(ms).toISOString()
+  /** 보낸 사람의 메시지 시각(서버 행) - 함수가 읽는 것은 이것뿐. 시계는 주입(실제 시계 0). */
+  function realertHarness(clock = T0) {
+    const h = harness()
+    const sentTimes: number[] = []
+    let now = clock
+    h.deps.recentMessageTimes = async (coupleId, actorId) => {
+      expect([coupleId, actorId]).toEqual([COUPLE, ACTOR])
+      return [...sentTimes].sort((a, b) => b - a).map(iso)
+    }
+    h.deps.nowMs = () => now
+    const send = async (atMs: number, extra: Record<string, unknown> = {}) => {
+      sentTimes.push(atMs)
+      now = atMs
+      await handlePush(req(msg(extra)), h.deps)
+      return h.sent[h.sent.length - 1].body.message
+    }
+    const change = async (kind: 'date' | 'nickname', atMs: number) => {
+      now = atMs
+      await handlePush(req(msg({ kind })), h.deps)
+      return h.sent[h.sent.length - 1].body.message
+    }
+    return { h, send, change }
+  }
+  const tagOf = (m: { android: { notification: { tag: string }; collapse_key: string } }) => m.android.notification.tag
+
+  it('10분 안 연타 3건 -> 같은 태그(조용히 갈아 끼움) · collapse key · APNs collapse id 같음 · 다시 울림 표시 0', async () => {
+    const r = realertHarness()
+    const a = await r.send(T0)
+    const b = await r.send(T0 + 60_000)
+    const c = await r.send(T0 + 9 * 60_000)
+    expect(new Set([a, b, c].map(tagOf)).size).toBe(1)
+    expect(new Set([a, b, c].map((m) => m.android.collapse_key)).size).toBe(1)
+    expect(new Set([a, b, c].map((m) => m.apns.headers['apns-collapse-id'])).size).toBe(1)
+    expect(tagOf(a)).toBe(burstTag('message', COUPLE, T0))
+    for (const m of [a, b, c]) expect(JSON.stringify(m)).not.toMatch(/realert|sound|notification_count/)
+  })
+
+  it('직전 알림 뒤 10분 1초 -> 새 태그(울림) · 그 뒤 10분 안은 다시 그 태그', async () => {
+    const r = realertHarness()
+    const a = await r.send(T0)
+    const b = await r.send(T0 + REALERT_GAP_MS + 1000)
+    const c = await r.send(T0 + REALERT_GAP_MS + 1000 + 5 * 60_000)
+    expect(tagOf(b)).not.toBe(tagOf(a))
+    expect(tagOf(b)).toBe(burstTag('message', COUPLE, T0 + REALERT_GAP_MS + 1000))
+    expect(tagOf(c)).toBe(tagOf(b))
+    // 서랍 한 줄기(iOS thread-id)는 같은 묶음 이름
+    expect(b.apns.payload.aps['thread-id']).toBe(pushTag('message', COUPLE))
+    expect(b.apns.headers['apns-collapse-id']).toBe(tagOf(b))
+  })
+
+  it('정확히 10분 경계 -> 같은 태그(조용히) · 10분 + 1ms -> 새 태그', async () => {
+    expect(burstStart([iso(T0 + REALERT_GAP_MS), iso(T0)])).toBe(T0)
+    expect(burstStart([iso(T0 + REALERT_GAP_MS + 1), iso(T0)])).toBe(T0 + REALERT_GAP_MS + 1)
+    const r = realertHarness()
+    const a = await r.send(T0)
+    const b = await r.send(T0 + REALERT_GAP_MS)
+    expect(tagOf(b)).toBe(tagOf(a))
+  })
+
+  it('긴 대화(10분 안 간격으로 계속)는 처음 시각 하나로 · 공백 계산은 서버 행 시각만(순서 섞여 와도 같음)', () => {
+    const times = [0, 9, 18, 27, 36].map((m) => iso(T0 + m * 60_000)).reverse()
+    expect(burstStart(times)).toBe(T0)
+    expect(burstStart([])).toBeNull()
+    expect(burstStart(['깨진 시각'])).toBeNull()
+  })
+
+  it('메시지와 변경 안내 묶음은 서로 영향 0 · 변경 안내는 매번 새 태그(울림)', async () => {
+    const r = realertHarness()
+    const a = await r.send(T0)
+    const d1 = await r.change('date', T0 + 60_000)
+    const b = await r.send(T0 + 2 * 60_000)
+    const d2 = await r.change('date', T0 + 3 * 60_000)
+    const n1 = await r.change('nickname', T0 + 3 * 60_000)
+    expect(tagOf(b)).toBe(tagOf(a)) // 변경 안내가 끼어도 메시지 연타는 그대로 조용히
+    expect(tagOf(d1)).not.toBe(tagOf(d2))
+    expect(tagOf(d1).startsWith(pushTag('date', COUPLE))).toBe(true)
+    expect(tagOf(n1).startsWith(pushTag('nickname', COUPLE))).toBe(true)
+    expect(tagOf(n1)).not.toBe(tagOf(d2))
+    for (const m of [d1, d2, n1]) expect(m.android.notification.channel_id).toBe(PUSH_CHANNEL.change)
+  })
+
+  it('시각을 못 읽으면 78- 묶음 이름 그대로 보내고(발송은 막지 않음) 로그에 realert=err만', async () => {
+    const h = harness()
+    h.deps.recentMessageTimes = async () => { throw new Error('db') }
+    const r = await handlePush(req(msg()), h.deps)
+    expect(r.body).toEqual({ sent: 1, dropped: 0, failed: 0 })
+    expect(h.sent[0].body.message.android.notification.tag).toBe(pushTag('message', COUPLE))
+    expect(h.logs).toEqual(['push-send status=200 sent=1 dropped=0 failed=0 realert=err'])
+  })
+
+  it('다시 울림 태그도 64바이트 안 · 받지 않는 요청(401 · 설정 끔)에서는 시각을 읽지 않음', async () => {
+    for (const k of ['message', 'date', 'nickname'] as PushKind[]) {
+      expect(new TextEncoder().encode(burstTag(k, COUPLE, Date.parse('2099-12-31T23:59:59Z'))).length).toBeLessThanOrEqual(64)
+    }
+    let reads = 0
+    const off = harness(() => ({ ok: true, tokens: [] }))
+    off.deps.recentMessageTimes = async () => { reads += 1; return [] }
+    await handlePush(req(msg()), off.deps)
+    await handlePush(req(msg(), { 'x-ondolog-push': 'wrong' }), off.deps)
+    expect(reads).toBe(0)
   })
 })
 

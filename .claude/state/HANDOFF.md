@@ -11,6 +11,89 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `81-b` 알림 다시 울림 + 로그아웃 확인 문구 + 오프라인 첫 실행 (메인 세션, 2026-11-17, 위임문 `phase-7/81-b-dispatch-realert-logout-warning.md` + 보충 지시(R119-1~4) · 근거 `81-and-phone-check-3-pm-report.md` §B · R118-2~5 · R109-2 · R119-1~5) - 완료 (미커밋 · 함수 배포 전)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
+
+범위: `supabase/functions/_shared/pushSend.ts` · `pushSend.test.ts` · `supabase/functions/push-send/index.ts` · `web/src/auth/useBootSession.ts` · 새 `web/src/auth/storedSession.ts` · `web/src/components/AccountProblem.tsx` · `web/src/components/ConfirmDialog.tsx` · `web/src/stores/coupleStore.ts` · `web/src/app/useAccountData.ts` · `web/src/features/chat/useChatMessages.ts` · `web/src/cache/deviceCache.ts` · `web/src/cache/cacheShapes.ts` · `web/src/features/settings/ProfileScreen.tsx` · 새 `web/src/features/settings/unsentCount.ts` · 새 `web/src/offlineBoot81b.vitest.tsx` · `web/smoke/fakeClient.ts` · `web/smoke/screens.smoke.ts` · HANDOFF · PROGRESS. **멈춤 0 · 마이그레이션 0 · 원격 접속 0(허용 질의 없음 - 실행한 원격 질의 0) · 새 패키지 0 · 네이티브 0 · `consent.ts` 0 · RN 0 · `demo_responses` 0 · R34-3 호출 0 · 커밋 0 · db push 0 · 함수 배포 0(사람).** `web/android/.idea/deploymentTargetSelector.xml`은 시작 때 바뀌어 있었으나(Android Studio) 건드리지 않았고, 끝날 때는 변경이 없었다.
+
+검증: **`npm run gate` 통과 122.5초**(web tsc 8.2초 → Vitest **65/1096** + 1 건너뜀 23.6초 → 법무 8/8 5.2초 → `smoke:webkit` **28/28** 85.5초) · 루트 tsc 0 · jest **116/1994**(함수 시험 +7) · PGlite 10/129 · `deno check supabase/functions/push-send/index.ts` 통과 · Python 324 OK · `build` · `build:trial` · `cap sync android`(맨 끝 한 번). 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0 · 새 파일 이름 ASCII.
+
+### 원인 판정 (보충 3 · 오프라인 첫 실행에서 "계정 정보를 불러오지 못했어요" → [다시 시도] → 시작 화면 · 온보딩 · 카카오 로그인)
+| 후보 | 판정 | 근거 |
+|---|---|---|
+| ① 81-가 계정 쪽 저장값을 버림 | **아님** | 계정 판정(세션 · 진행 단계)은 기기 저장 범주에 원래 없다(②). 81-은 버전 없는 이전 값을 검사 통과 시 받아들인다 - `web/src/cache/deviceCache.ts` `judgeStored`(버전 없음 + 지금 버전 1 → 검사) · 시험 `cacheShape81` "버전 없는 81- 이전 값(지금 모양)은 받아들인다". 메인 요약은 `coupleStore`가 일곱 칸을 늘 다 써서 검사를 지난다 |
+| ② 계정 정보가 원래 기기에 저장되지 않음 | **맞음(원인)** | 81-b 전 `useBootSession.ts`: 세션 확인 뒤 들어갈 화면을 **서버** `profiles.onboarding_step`로만 정했다(`fetchProfile` → `resolveWebRoute` → `enterAccount`). 기기에 "어느 계정 화면인가"가 없어 서버를 못 읽으면 계정 화면에 들어갈 수 없었다 |
+| ③ [다시 시도]가 "세션 없음"으로 잘못 판정 | **맞음(원인, 두 갈래)** | (a) `AccountProblemHost`의 [다시 시도]가 **안내 화면을 먼저 걷었다**(81-b 전 `AccountProblem.tsx` `onRetry={() => { clear(); problem.retry() }}`). 부팅이 계정 화면에 들어간 적이 없어 그 아래는 첫 화면(intro)이었다 → 걷히는 순간 시작 화면 → 온보딩 → 로그인. (b) 접근 토큰이 만료된 채 오프라인이면 `auth.getSession()`이 갱신에 실패해 **세션 null + 오류**를 돌려주는데, 81-b 전 코드는 오류를 보지 않고 "저장된 로그인 없음"으로 조용히 첫 화면으로 보냈다(주석 "세션 자체를 못 읽었으면 저장된 로그인 없음으로 본다"). supabase-js는 이때 저장분을 지우지 않는다 - 세션은 살아 있었다(R119-3 관찰과 맞음) |
+| (함께) 커플 상태 "미연결" 오판 | **맞음(같은 원칙 위반)** | 81-b 전 `coupleStore.refresh`: 처음 읽기가 오류로 끝나면 `disconnected`(미연결)로 둠 → 오프라인 + 저장값 없음이면 메인이 "상대만 있으면 돼요" 쪽으로 판정될 수 있었다 |
+| 채팅 오프라인 회색 틀(76-A1 회귀 의심) | **76-A1 저장 자체는 정상 · 읽는 순서 결함 둘** | (1) `useChatMessages`가 기기 저장분을 **첫 그림 한 번만** 읽었다 - 그때 커플 id가 아직 없으면 빈 목록이 굳어 오프라인에서 서버 읽기도 실패 → 회색 틀/빈 채팅. (2) `coupleStore.hydrate`(저장 요약으로 커플 id 채움)가 `status === 'unknown'`일 때만 돌았는데, 화면(자식)의 첫 `refresh`가 먼저 `loading`으로 바꿔 **채우기가 건너뛰어졌다** → 오프라인에서는 커플 id가 끝내 null. 시험 `offlineBoot81b` "저장값 있음"이 이 순서 결함을 잡았다(처음 실행에서 메인이 자리 표시로 굳음). 언제부터인지(회귀 시점)는 판정하지 않음 - 76-A1 시험은 `hydrate`를 직접 불러 이 순서를 지나지 않았다 |
+
+### 81-b 결정 기록 (출처: R118-2~5 · R109-2 · R119-1~5)
+- **다시 울림 구현(R118-4)**: 같은 태그 갈아 끼우기는 삼성에서 소리 · 팝업이 없으므로(§B 관찰) **태그를 바꾸는 것**으로 울림을 보장한다. 알림 태그 = 묶음 이름(78- `pushTag`) + "공백 뒤 첫 알림 시각"(초, 36진수). 10분 **이하** 간격 연타 = 같은 시작 시각 = 같은 태그 → 조용히 갈아 끼움(R109-2 유지) · 10분을 **넘은** 공백 뒤 첫 알림 = 새 시작 시각 = 새 태그 → 새 알림(울림). 경계: 정확히 10분은 같은 태그(조용히), 10분 + 1ms부터 새 태그.
+- **"직전 시각"의 출처**: 이미 있는 행 **`messages.sent_at`**. 메시지 알림의 받는 사람은 보낸 사람의 상대 하나뿐이라 묶음(받는 사람 · 커플 · 종류) = (커플, 보낸 사람)이고, 그 묶음의 직전 알림 = 보낸 사람의 직전 메시지다. 함수가 기존 함수 전용 키로 `messages`에서 `sent_at` 한 칸만 읽는다(couple_id · sender_id 조건 · sent_at 내림차순 · 최대 200 - 기존 색인 `idx_messages_thread`). 본문 · 다른 칸 0. **마이그레이션 0 · 트리거 · RPC 변경 0.** 200건 넘게 10분 안 간격으로 이어진 대화는 가장 오래 본 것을 시작으로 본다(그 지점에서 한 번 더 울릴 수 있음 - 받아들임). 지운 메시지 행도 그때 알림이 갔으므로 거르지 않는다.
+- **시각을 못 읽으면**(조회 오류): 78- 묶음 이름 그대로 보낸다(조용히 갈아 끼움 - 발송은 막지 않음) · 로그에 `realert=err`만. 받는 사람이 없거나(설정 끔 등) 인증 실패면 시각을 읽지 않는다(시험).
+- **변경 안내(날짜 · 닉네임)**: 직전 변경 시각을 기존 행에서 종류별로 얻을 수 없어 **매번 울림**으로 단순화(태그 = 묶음 이름 + 보낸 시각). 함수 시계는 주입(`nowMs`), 시험은 고정 시계. 메시지 묶음과 서로 영향 0(시험).
+- **서랍에 몇 개**: 같은 연타 안에서는 하나(갈아 끼움). **공백 뒤에는 새 알림이 하나 더 생겨 서랍에 둘 이상이 될 수 있다**(이전 연타의 읽지 않은 알림 + 새 알림) - 태그를 바꿔야 울리므로. 변경 안내도 바뀔 때마다 하나씩. 로그아웃 · 계정 전환 때 서랍 지우기(76-i)는 태그와 무관(`removeAllDeliveredNotifications`)이라 그대로.
+- **iOS 값**: `apns-collapse-id` = 알림 태그(연타 안에서 갈아 끼움 · 공백 뒤 새 알림), `thread-id` = 묶음 이름(서랍에서 한 줄기로 모임). Android `collapse_key`도 알림 태그와 같게(78- 시험 "collapse key = 태그" 그대로). **Mac 뒤 목록에 한 줄**: "iOS에서 같은 collapse id 갈아 끼우기가 울리는지 · 새 collapse id가 울리는지 · thread-id 묶음 표시".
+- 로드맵 줄 확인: R118-4가 ROADMAP에 두 판(1481 "태그에 10분 구간" + "채팅 탭 진입 때 서랍 지움" / 1492 "직전 알림 뒤 10분")으로 있다. **위임서는 1492판(직전 알림 기준 · 서랍 지움 없음)** - 위임서대로 했다. "채팅 진입 때 메시지 알림 서랍 지움"은 위임서에 없어 하지 않았다(PM이 원하면 다음 위임).
+- **로그아웃 확인 문구(R119-1 · R119-2 확정안 그대로, 동작 변경 0 - R39-5 b)**: 대기열 n개 → "아직 보내지 못한 메시지 {n}개가 있어요. 같은 계정으로 다시 로그인하면 이어서 보내요." · 81- 보존 원본 m개 → "보내지 못한 메시지 {m}개는 로그아웃하면 이 폰에서 사라져요." · 둘 다 0이면 지금 문장 그대로. n = 지금 커플의 글 대기열 + 사진 대기열(사진 메시지 · 이야기 모두 "메시지"로 셈 · 자동 재시도가 멈춘 것 포함) · m = 이 사용자의 보존 칸 원본(모든 커플 · 같은 원본 한 번). 읽기 전용(변환 · 보존 · 다시 쓰기 0).
+- **"다른 계정으로 로그인하면 이 폰에서 사라져요." 줄은 넣지 않았다** - 계정 전환이 대기열을 지우는 코드가 없다. 근거: `web/src/cache/deviceCache.ts` `purgeOtherUsers`는 `removeWhere`로 `ondolog.dc1:` 접두 키만 지운다(대기열은 Preferences `chat_queue:{커플}` · `chat_photo_queue:{커플}:{사용자}` - 접두 밖) · `logoutToStart`(`accountActions.ts`)도 대기열을 건드리지 않음 · 시험 `settingsFlow.vitest.tsx` (303~311줄: 로그아웃 뒤 `chat_queue:c1` · `chat_photo_queue:c1:me` 그대로) · 시험 `offlineBoot81b` "[로그아웃] 확인 -> ... 대기열 키는 남김".
+- **계정 전환 경로 판정: 로그아웃만이 길.** 로그인 화면(`auth` · `callback`)은 온보딩 구간에만 있고, 계정 구간에서 그리로 가는 길은 `nav.reset('intro')`뿐 - 부르는 곳: `logoutToStart`(로그아웃 · 탈퇴 유예 화면 ←) · `InviteScreen` · `StartDateScreen`(로그인이 없을 때만) · 온보딩 안 "처음으로". `enterAccount` 뒤에는 온보딩 화면 뒤로 가기가 앱 종료로 잠긴다(`navigation.tsx` `accountLocked`). 그러므로 "다른 계정으로 들어가는 길"도 로그아웃 확인 창을 거친다.
+- **탈퇴 요청 · 해제 요청(확인만)**: 탈퇴 요청 = `clearAllDeviceCache`(`WithdrawScreen.tsx` 76줄) - 대기열은 남고 보존 원본은 지워짐. 해제 요청 · 완료 = `clearCoupleCache` - 대기열 · 보존 원본 모두 남음. 두 확인 창에는 이번에 문구를 더하지 않았다(범위 밖).
+- **오프라인 첫 실행(R119-3) - 부팅 규칙**: ① 세션 확인이 "세션 null + 오류"이거나 기기가 오프라인이면, 저장소(Preferences, 클라이언트와 같은 키)의 세션 글자에서 **사용자 id만** 읽는다(`auth/storedSession.ts` - 토큰 값은 꺼내지도 남기지도 않음, 갱신 토큰 없는 저장분은 없음으로 봄). 있으면 계정으로 들어간다. ② 세션은 있는데 서버 읽기가 연결 때문에 실패 → 같은 길. ③ 들어갈 화면 = 서버가 마지막으로 정해 준 화면(새 기기 저장 `route:boot`, 81- 모양 검사 · 삭제 규칙 그대로 - 로그아웃 · 계정 전환 때 지워짐) → 없으면(81-b 첫 실행 · 버전 변경) **메인** · 메인이면 76-0-2 마지막 탭 복원 그대로. ④ 끊김 띠를 켠다(연결 상태 = 끊김). ⑤ 연결이 돌아오면(끊김 → 풀림) 서버로 다시 확인해 **다른 화면이어야 할 때만** 옮긴다(메인 ↔ 탭은 그대로 - 보던 탭을 빼앗지 않음) · 프로필 · 커플 · 해제 상태도 다시 읽는다. 연결 뒤 서버가 "세션 없음"이면 그때 첫 화면.
+- **시작 화면 · 로그인은 저장된 로그인이 정말 없을 때만**: 오류 없는 "세션 없음"(연결됨) · 저장분 없음. 부팅 4초 시간 제한도 저장된 로그인이 있으면 첫 화면 대신 계정 화면(저장값)으로 - 저장분은 시작 때 한 번 미리 읽어 둔다. 시간 제한은 첫 확인이 끝난 뒤에는 아무것도 하지 않는다.
+- **세션 없음 알림**: `onAuthStateChange`의 "세션 없음"은 `SIGNED_OUT`(로그아웃 · 갱신 토큰 무효)일 때만 받아들인다 - 시작 때 오프라인 갱신 실패로 오는 `INITIAL_SESSION`(null)이 저장된 로그인을 지우지 않게.
+- **[다시 시도]는 다시 시도만**: 안내 화면을 먼저 걷지 않는다 · 성공하면 부른 쪽(부팅)이 걷는다 · 실패가 이어지면 그대로(시험: 누른 순간 · 실패 뒤에도 안내 화면 그대로, 그 아래 첫 화면 노출 0). 연결 실패면 안내 화면 대신 위 오프라인 길(안내 화면은 연결은 되는데 서버가 오류일 때만).
+- **커플 상태**: 처음 읽기가 **연결 때문에** 실패하면 미연결로 두지 않고 자리 표시(`loading`)를 유지 · 연결이 돌아오면 다시 읽음. `hydrate`(저장 요약)는 `unknown`뿐 아니라 아직 아는 값이 없는 `loading`에서도 채운다. 연결은 되는데 서버 오류면 이전 규칙(RN과 같이 미연결) 그대로.
+- **채팅**: 사용자 · 커플 id가 정해지거나 바뀌면 그 저장분을 다시 읽어 바로 그린다(자리 표시 0).
+- **스모크 가짜 클라이언트**: 기기가 오프라인이라 하면(`navigator.onLine = false`) 모든 요청 · RPC가 연결 오류 값으로 끝나고, 세션 확인은 "갱신 실패(세션 null + 오류)" - 가장 나쁜 경우. 저장된 세션 키를 갖는다. 다른 스모크(온라인)는 그대로(28/28). Playwright의 `setOffline`은 스모크 서버(같은 컴퓨터)까지 끊어 첫 화면을 못 받으므로 기기 신호(`navigator.onLine`)로 오프라인을 만든다.
+- 로드맵 근거 번호: 보충 지시 R119-1~4는 시작 때 내가 찾지 못했다가(검색이 막힘) 작업 중 `docs/ONDOLOG_ROADMAP.md` 1500~1504줄에서 확인 - 처음 구현한 로그아웃 문구(위임서 문장 "로그아웃하면 이 폰에서 사라져요")를 **R119-2 확정안으로 바꿨다**(시험 · 스모크도). R119-5(근거를 파일:줄 · 시험 이름과 함께)를 이 결정 기록에 따랐다.
+- 원격 질의: 이번 허용 질의 없음 - 실행한 원격 질의 0.
+
+### 계정 상태표 (R79 "빈 화면 0" 상태표 + 81-b 두 줄)
+| 세션 | 연결 | 기기 저장값 | 가는 화면 | 시험 |
+|---|---|---|---|---|
+| 있음(확인됨) | 됨 | - | 서버 진행 단계 화면(74-h2 7조합 그대로) | `hotfix74h2` 상태표 |
+| 있음 | 됨 · 서버 오류 | - | 안내 화면([다시 시도] · [로그아웃]) · [다시 시도]는 다시 시도만 | `hotfix74h2` · `offlineBoot81b` "[다시 시도]는 다시 시도만" |
+| **있음(저장분 · 갱신 실패 포함)** | **끊김** | **있음** | **마지막 화면(메인)을 저장값으로 + 끊김 띠** · 온보딩 · 로그인 0 | `offlineBoot81b` "저장값 있음" |
+| **있음(저장분 · 갱신 실패 포함)** | **끊김** | **없음(버전 변경 · 첫 실행)** | **메인 자리 표시 + 끊김 띠** · 미연결 판정 0 · 온보딩 · 로그인 0 | `offlineBoot81b` "저장값 비었음" · 스모크 "오프라인 첫 실행(81-b)" |
+| 없음 | 상관없음 | - | 첫 화면 | `offlineBoot81b` "세션 정말 없음" |
+
+### 시험
+| 묶음 | 시험 | 결과 |
+|---|---|---|
+| 함수(가짜 FCM · `pushSend.test.ts` +7) | 10분 안 연타 3건 → 같은 태그 · collapse key · APNs collapse id 같음 · 다시 울림 표시 0 / 10분 1초 뒤 → 새 태그 · 그 뒤 10분 안은 그 태그 / 정확히 10분 = 같음 · 10분 + 1ms = 새 / 긴 대화 · 시각 순서 섞임 · 빈 목록 · 깨진 시각 / 메시지 ↔ 변경 안내 영향 0 · 변경 안내 매번 새 태그 / 시각 못 읽음 → 78- 태그 · 로그 `realert=err`만 / 태그 64바이트 안 · 받지 않는 요청에서 시각 읽기 0 | 18/18(78- 11건 그대로 통과 - 본문 규칙 · 원문 0 · 설정 끔 0 · 잘못된 토큰 정리 · 로그) |
+| Vitest(`offlineBoot81b` 11) | 저장값 있음 / 비었음 / 세션 확인 뒤 오프라인 → 연결 돌아오면 다시 읽음 / [다시 시도] / 세션 정말 없음(온라인 · 오프라인) / 채팅 커플 id 늦게 와도 저장 대화 · 오프라인 읽기 실패에도 그대로 / 로그아웃 문구: 수 세기 · n=0 · n=1 · n=3(글 2 + 사진 1) + [취소] 대기열 그대로 · [로그아웃] 확인 → 기존 삭제 규칙(보존 원본 · 기기 저장 지움, 대기열 남김) | 11/11 · 기존 시험 전부 통과(74-h2 상태표 포함) |
+| 스모크(WebKit · Chromium) | **로그아웃 확인(81-b)**: 대기열 글 2 + 사진 1 → "…3개가 있어요. 같은 계정으로 다시 로그인하면 이어서 보내요." · [취소] 뒤 대기열 그대로 / **오프라인 첫 실행(81-b)**: 저장된 로그인 + 기기 저장값 0 + 기기 오프라인 + 갱신 실패 → 메인 · 끊김 띠 · 안내 화면 0 · 시작 · 온보딩 · 로그인 화면 0 | 28/28(새 2 × 2 엔진) |
+
+### 함수 배포 명령 (사람 · 맨 위 폴더에서)
+```
+npx supabase functions deploy push-send --no-verify-jwt
+```
+비밀 · Vault 값 변경 0(기존 그대로). 배포 뒤 확인(대시보드 함수 로그, 숫자만): 메시지 한 건 보낸 뒤 `push-send status=200 sent=1 dropped=0 failed=0` 한 줄 · `realert=err`가 붙으면 그 줄만 PE에(함수 키의 `messages` 읽기가 막혔다는 뜻 - 이때도 알림은 78-처럼 감).
+
+### 커밋 명령 (맨 위 폴더에서)
+```
+git add supabase/functions/_shared/pushSend.ts supabase/functions/_shared/pushSend.test.ts supabase/functions/push-send/index.ts
+git commit -m "81-b push re-alert: new tag after a 10-minute gap, change notices always alert"
+git add web/src/auth/useBootSession.ts web/src/auth/storedSession.ts web/src/components/AccountProblem.tsx web/src/stores/coupleStore.ts web/src/app/useAccountData.ts web/src/features/chat/useChatMessages.ts web/src/cache/deviceCache.ts web/src/cache/cacheShapes.ts
+git add web/src/components/ConfirmDialog.tsx web/src/features/settings/ProfileScreen.tsx web/src/features/settings/unsentCount.ts web/src/offlineBoot81b.vitest.tsx web/smoke/fakeClient.ts web/smoke/screens.smoke.ts
+git add .claude/state/HANDOFF.md .claude/state/PROGRESS.md
+git commit -m "81-b offline first run keeps the account, retry never drops to start, logout confirm counts unsent messages"
+```
+(위임서 · `81-and-phone-check-3-pm-report.md`는 이미 추적됨.)
+
+### Proteur 다음 순서
+1. 커밋(위 두 묶음).
+2. **함수 배포**(위 명령 하나 · `--no-verify-jwt` 유지). db push 없음.
+3. **빌드 · 덮어 설치 필요**(앱 코드 변경): `cap sync android`는 메인 세션이 맨 끝에 한 번 돌림 → Android Studio 빌드 → 두 폰에 **앱 삭제 없이** 덮어 설치.
+4. 폰 확인(녹화 위생 R118-6: 두 폰 방해 금지 · 온도록만 예외 · 서랍 열기 전 다른 알림 지우기 · 폰 설정 첫 화면 지나지 않기 · 판독 뒤 삭제):
+   - **업데이트 · 오프라인 첫 실행**: 설치 **전** 비행기 모드로 글 1 · 사진 1 남김 → 덮어 설치 → **비행기 모드 그대로 열기 → 메인 + 끊김 띠 · 시작 화면 · 로그인 0 · 채팅에 저장된 대화 보임 · 보내는 중 말풍선 그대로** → 비행기 모드 끄기 → 상대 폰에 글 · 사진 **각 1번씩** 도착.
+   - **변경 안내 끔**: 설정 → 알림에서 변경 안내 끔 → 상대가 날짜를 바꿔도 알림 0 → 다시 켬.
+   - **다시 울림 두 경우**(함수 배포 뒤): ① 받는 폰 서랍에 읽지 않은 온도록 알림을 둔 채 **10분 넘게** 기다린 뒤 상대가 메시지 → 소리 · 팝업(서랍에 둘이 될 수 있음 - 설계대로) ② 10분 안 연타 3건 → 하나로 · 조용히.
+   - **로그아웃 문구**: 비행기 모드에서 글 하나 보내 두고 설정 → 프로필 → 로그아웃 → "아직 보내지 못한 메시지 1개가 있어요. 같은 계정으로 다시 로그인하면 이어서 보내요." 확인 → [취소].
+5. Mac 뒤 목록에 한 줄: iOS 다시 울림(collapse id 갈아 끼우기 · 새 collapse id 울림 · thread-id 묶음).
+
 ## `81-` 기기 저장값 모양 검사(실제 커플 조건) + `ensureDate` 시험 한 건 (메인 세션, 2026-11-17, 위임문 `phase-7/81-dispatch-device-cache-shape.md` · 근거 `80-pm-report.md` §5 · R117-2 · R117-3 · R113-1(→ 실제 R113-2) · R116-4) - 완료 (미커밋)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님

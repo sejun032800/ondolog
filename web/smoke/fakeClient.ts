@@ -58,6 +58,9 @@ export interface FakeWorld {
 export function makeFakeClient(world: FakeWorld): WebSupabase {
   const tables = world.tables
   let seq = 0
+  // 81-b: 기기가 오프라인이라 하면(시험이 navigator.onLine을 false로) 모든 요청이 연결 오류로 끝난다 - supabase-js처럼 던지지 않고 오류 값으로.
+  const down = () => typeof navigator !== 'undefined' && navigator.onLine === false
+  const NET_ERROR = { message: 'TypeError: Failed to fetch' }
 
   const from = (table: string) => {
     let mode: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select'
@@ -128,12 +131,14 @@ export function makeFakeClient(world: FakeWorld): WebSupabase {
       if (range) matched = matched.slice(range[0], range[1] + 1)
       return { rows: matched, count: total }
     }
-    b.maybeSingle = async () => ({ data: run().rows[0] ?? null, error: null })
+    b.maybeSingle = async () => (down() ? { data: null, error: NET_ERROR } : { data: run().rows[0] ?? null, error: null })
     b.single = async () => {
+      if (down()) return { data: null, error: NET_ERROR }
       const r = run().rows[0]
       return r ? { data: r, error: null } : { data: null, error: { code: 'PGRST116', message: 'no rows' } }
     }
     b.then = (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => {
+      if (down()) return Promise.resolve({ data: null, count: null, error: NET_ERROR }).then(ok, bad)
       const o = run()
       const out = head ? { data: null, count: o.count, error: null } : { data: o.rows, count: count ? o.count : null, error: null }
       return Promise.resolve(out).then(ok, bad)
@@ -169,12 +174,15 @@ export function makeFakeClient(world: FakeWorld): WebSupabase {
     removeChannel: async () => 'ok',
     removeAllChannels: async () => [],
     rpc: async (fn: string, args: Row = {}) => {
+      if (down()) return { data: null, error: NET_ERROR }
       world.onRpc?.(fn, args)
       return { data: world.rpc?.[fn] ? world.rpc[fn](args) : null, error: null }
     },
     functions: { invoke: async () => ({ data: null, error: null }) },
     auth: {
-      getSession: async () => ({ data: { session }, error: null }),
+      // 81-b: 저장된 세션 키(앱이 오프라인에서 저장분을 직접 읽는 자리). 오프라인이면 토큰 갱신이 실패한 모양(세션 null + 오류) - 가장 나쁜 경우.
+      storageKey: 'sb-smoke-auth-token',
+      getSession: async () => (down() && session ? { data: { session: null }, error: { name: 'AuthRetryableFetchError', message: 'Failed to fetch', status: 0 } } : { data: { session }, error: null }),
       getUser: async () => ({ data: { user: session?.user ?? null }, error: null }),
       refreshSession: async () => ({ data: { session }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),

@@ -7,6 +7,7 @@ import { useEffect } from 'react'
 import { useAuthStore } from '../auth/stores'
 import { purgeOtherUsers, sweepDeviceCache } from '../cache/deviceCache'
 import { claimThisDevice, clearDeliveredHere } from '../push/pushCore'
+import { useConnectionStore } from '../connection/connectionMonitor'
 import { useCoupleStore } from '../stores/coupleStore'
 import { useDissolutionStore } from '../stores/dissolutionStore'
 import { useProfileStore } from '../stores/profileStore'
@@ -37,5 +38,16 @@ export function useAccountData(route: ScreenName | null): void {
     void useProfileStore.getState().refresh(userId)
     void useCoupleStore.getState().refresh(userId)
     void useDissolutionStore.getState().refresh(userId)
+  }, [userId, inAccount])
+
+  // 81-b: 오프라인으로 시작해 못 읽은 계정 상태는 연결이 돌아오면(끊김 -> 풀림) 다시 읽는다 - 자리 표시가 그대로 남지 않게.
+  useEffect(() => {
+    if (!userId || !inAccount) return
+    return useConnectionStore.subscribe((s, prev) => {
+      if (!prev.offline || s.offline) return
+      void useProfileStore.getState().refresh(userId)
+      void useCoupleStore.getState().refresh(userId)
+      void useDissolutionStore.getState().refresh(userId)
+    })
   }, [userId, inAccount])
 }

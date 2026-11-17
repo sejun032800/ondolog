@@ -67,6 +67,18 @@ export function useChatMessages(coupleId: string | null, currentUserId: string |
   const [storiesLoading, setStoriesLoading] = useState(true)
   /** 메우기가 "마지막으로 받은 메시지"를 읽는 자리(구독 콜백이 낡은 상태를 보지 않게). */
   const messagesRef = useRef<ChatMessage[]>(initialRef.current)
+  // 81-b(76-A1 회귀): 처음 그릴 때 커플 id가 아직 없으면(앱 시작 직후 채팅 탭으로 돌아옴 · 저장 요약을 채우기 전) 그때 읽은 빈 목록이 굳어
+  // 오프라인에서는 회색 틀만 남았다. 사용자 · 커플이 정해지면(바뀌면) 그 저장분을 다시 읽어 바로 그린다.
+  const cacheKeyRef = useRef(`${currentUserId ?? ''}:${coupleId ?? ''}`)
+  const cacheKey = `${currentUserId ?? ''}:${coupleId ?? ''}`
+  if (cacheKeyRef.current !== cacheKey) {
+    cacheKeyRef.current = cacheKey
+    const saved = readChatCache(currentUserId, coupleId)
+    initialRef.current = saved
+    messagesRef.current = saved
+    setMessages(saved)
+    setLoading(saved.length === 0)
+  }
   const [hasTextQueued, setHasTextQueued] = useState(false)
   const [hasPhotoQueued, setHasPhotoQueued] = useState(false)
   const lostPhotoIdsRef = useRef<Set<string>>(new Set())
