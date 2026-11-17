@@ -6,7 +6,7 @@
 import fs from 'fs'
 import path from 'path'
 import { makeProjectGate } from './sweepOrphanFiles.ts'
-import { HIDDEN_TABLES, parsePurgeArgs, runPurge, type CoupleWithStatus, type PurgePort } from './purgeWithdrawn.ts'
+import { errorLogCutoffDay, HIDDEN_TABLES, parsePurgeArgs, runPurge, type CoupleWithStatus, type PurgePort } from './purgeWithdrawn.ts'
 
 const DEV_REF = 'fakedevref000000aaaa'
 const gate = makeProjectGate({ allowlistText: `project=${DEV_REF}\n`, url: `https://${DEV_REF}.supabase.co` })
@@ -41,11 +41,15 @@ interface World {
   /** 76-j: 고른 뒤(liveDateIds 두 번째 부름 = 지우기 직전) 일어나는 일 - 경쟁 상태 흉내. */
   beforeDayDelete?: (w: World) => void
   dayChecks: number
+  /** 80-: 오류 기록 행의 KST 날짜(YYYY-MM-DD). */
+  errorDays: string[]
+  /** 80-: 오류 기록 표가 없다(80-m1 전) · 지우기가 한 번 실패한다. */
+  errorTable?: 'missing' | 'failDeleteOnce'
 }
 interface Day { id: string; couple_id: string; deleted_at: string | null; title: string | null; narrative: string | null }
 
 function world(over: Partial<World>): World {
-  return { profiles: [], couples: [], files: {}, issues: [], recs: [], orphans: {}, log: [], stops: [], dates: [], dissolutions: [], calls: [], days: [], dayChecks: 0, ...over }
+  return { profiles: [], couples: [], files: {}, issues: [], recs: [], orphans: {}, log: [], stops: [], dates: [], dissolutions: [], calls: [], days: [], dayChecks: 0, errorDays: [], ...over }
 }
 
 function port(w: World): PurgePort {
@@ -139,6 +143,17 @@ function port(w: World): PurgePort {
       if (w.dayChecks === 2 && w.beforeDayDelete) w.beforeDayDelete(w)
       return dateIds.filter((d) =>
         w.stops.some((s) => s.date_id === d) || w.recs.some((r) => r.table === 'data_entries' && r.date_id === d && r.deleted_at === undefined))
+    },
+    async oldErrorRows(cutoffDay) {
+      if (w.errorTable === 'missing') throw new Error('app_error_daily 조회: relation does not exist')
+      return w.errorDays.filter((d) => d < cutoffDay).length
+    },
+    async deleteOldErrorRows(cutoffDay) {
+      if (w.errorTable === 'failDeleteOnce') { w.errorTable = undefined; throw new Error('삭제 실패') }
+      const n = w.errorDays.filter((d) => d < cutoffDay).length
+      w.errorDays = w.errorDays.filter((d) => d >= cutoffDay)
+      if (n > 0) w.log.push(`rows:app_error_daily:${n}`)
+      return n
     },
     async deleteUser(id) {
       w.log.push(`auth:${id}`)
@@ -574,5 +589,43 @@ describe('출력 · 가드 · 금지', () => {
     const src = fs.readFileSync(path.join(__dirname, 'purgeWithdrawn.ts'), 'utf8')
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').split(/\r?\n/).filter((l) => !l.trim().startsWith('//')).join('\n')
     expect(code).not.toMatch(/demo_responses|execute_dissolution|apply_retention_policy|run_due_dissolutions|\.rpc\(/)
+  })
+})
+
+describe('80- 오류 기록 90일 정리', () => {
+  // NOW = 2026-11-16T00:00Z = KST 11-16 09:00 -> 기준 날짜 2026-08-18(이 날짜보다 앞선 행을 지운다)
+  it('기준 날짜 = KST 오늘 - 90일', () => {
+    expect(errorLogCutoffDay(NOW)).toBe('2026-08-18')
+    expect(errorLogCutoffDay(new Date('2026-11-16T15:30:00Z'))).toBe('2026-08-19') // KST 11-17 00:30
+  })
+  it('미리 보기는 세기만 · 적용은 90일 지난 행만 지움 · 두 번째 실행 0(멱등)', async () => {
+    const w = world({ errorDays: ['2026-08-01', '2026-08-17', '2026-08-18', '2026-11-16'] })
+    const pre = await runPurge(async () => port(w), { apply: false }, gate, NOW)
+    expect(pre.lines).toContain('오류 기록 90일 정리: 2')
+    expect(w.errorDays).toHaveLength(4)
+    const first = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(first.lines).toContain('오류 기록 지움: 2')
+    expect(w.errorDays).toEqual(['2026-08-18', '2026-11-16'])
+    const second = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(second.lines).toContain('오류 기록 90일 정리: 0')
+    expect(second.lines).toContain('오류 기록 지움: 0')
+    expect(second.lines).toContain('완료')
+  })
+  it('표가 없으면(80-m1 전) 이 단계만 건너뛰고 다른 단계는 그대로', async () => {
+    const w = world({ profiles: [gone('u-a')], couples: [], errorTable: 'missing' })
+    const out = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(out.lines).toContain('오류 기록 90일 정리: 확인 못 함(80-m1 전이면 정상)')
+    expect(out.lines).toContain('오류 기록 지움: 0')
+    expect(out.lines).toContain('지운 사용자: 1')
+    expect(out.lines).toContain('완료')
+  })
+  it('지우기 실패 -> 실패 한 줄 · 다음 실행 때 지움', async () => {
+    const w = world({ errorDays: ['2026-01-01'], errorTable: 'failDeleteOnce' })
+    const first = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(first.lines).toContain('오류 기록 지움: 실패(다음 실행 때 다시)')
+    expect(first.lines).toContain('완료(실패한 것은 다음 실행 때 다시)')
+    const second = await runPurge(async () => port(w), { apply: true }, gate, NOW)
+    expect(second.lines).toContain('오류 기록 지움: 1')
+    expect(w.errorDays).toEqual([])
   })
 })

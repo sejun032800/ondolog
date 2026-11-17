@@ -3,11 +3,15 @@
  *  콘솔 오류 0 · 처리 안 된 Promise 거부 0 · 원격 요청 0 · 가로 스크롤 0 · 아래 탭 · 고정 버튼이 화면 안 · 주요 요소 1초 안 · 주요 제목이 넘치지 않음.
  * 스크린샷은 화면별 1장(저장소 밖). 끌기 · 밀기는 앱이 듣는 이벤트(B02 = touch, 하루 지우기 = pointer)를 그대로 보낸다.
  */
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-const SHOTS = path.join(process.env.ONDOLOG_SMOKE_ROOT ?? path.join(os.tmpdir(), 'ondolog-smoke'), 'shots')
+const ROOT = process.env.ONDOLOG_SMOKE_ROOT ?? path.join(os.tmpdir(), 'ondolog-smoke')
+const SHOTS = path.join(ROOT, 'shots')
+/** 80- (79-덧붙임 1): 이 회차의 실패 기록 폴더(회차마다 새 폴더 - 덮어쓰기 0). */
+const RUN_DIR = path.join(ROOT, 'runs', process.env.ONDOLOG_SMOKE_RUN ?? 'manual')
 const FIRST_FRAME_MS = 1000
 
 interface Watch { errors: string[]; external: string[] }
@@ -119,6 +123,26 @@ async function toQuiz(page: Page, w: Watch, shots: boolean): Promise<void> {
   await page.getByRole('button', { name: '다음' }).click()
   await seen(page.locator('button.choice').first())
 }
+
+/** 실패하면 회차 파일(failures.md)에 한 줄: 엔진 · 시험 · 화면 이름 · 걸린 요소(오류 첫 줄) · 스크린샷 경로. */
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return
+  try {
+    fs.mkdirSync(RUN_DIR, { recursive: true })
+    const slug = `${info.project.name}-${info.title.replace(/[^A-Za-z0-9가-힣]+/g, '-').slice(0, 60)}`
+    const shot = path.join(RUN_DIR, `${slug}.png`)
+    const screenName = await page.locator('[data-screen]').first().getAttribute('data-screen', { timeout: 1000 }).catch(() => null)
+    await page.screenshot({ path: shot }).catch(() => undefined)
+    // eslint-disable-next-line no-control-regex
+    const plain = (info.errors[0]?.message ?? '').replace(/\u001b\[[0-9;]*m/g, '')
+    const first = plain.split('\n').find((l) => l.trim().length > 0)?.trim() ?? ''
+    const element = plain.match(/(getByTestId|locator|getByRole|getByText|getByPlaceholder)\([^\n]*\)/)?.[0] ?? '-'
+    fs.appendFileSync(path.join(RUN_DIR, 'failures.md'),
+      `| ${new Date().toISOString()} | ${info.project.name} | ${info.title} | ${screenName ?? '-'} | ${element} | ${first.slice(0, 160)} | ${shot} |\n`)
+  } catch {
+    // 기록 실패가 시험 결과를 바꾸지 않는다.
+  }
+})
 
 test.describe('79- 화면 스모크', () => {
   test('온보딩: 첫 화면 · 이름 · 생년월일 · 성별 · 성격 검사 한 문항', async ({ page }) => {
@@ -329,6 +353,29 @@ test.describe('79- 화면 스모크', () => {
     await tab(page, 'feed')
     await seen(page.getByTestId('swipe-front').first())
     await check(page, w, 'storage-blocked')
+  })
+
+  test('오류 경계(80-): 깨진 기기 저장값으로 화면이 깨지면 대체 화면 + 오류 기록 RPC 1회 · 내용 0', async ({ page }) => {
+    // 앱에 시험 모드를 넣지 않는다: 피드가 첫 그림에 쓰는 기기 저장분(feed 범주)의 날짜 목록을 깨진 모양(배열 대신 글자)으로 둔다 - 피드 화면이 그대로 깨진다.
+    await page.addInitScript(() => {
+      try { localStorage.setItem('ondolog.dc1:smoke-user-a:feed', JSON.stringify({ chapters: [{ key: '2026-11', dates: 'broken' }], names: {} })) } catch { /* 없음 */ }
+    })
+    const w = await openAccount(page)
+    await tab(page, 'feed')
+    await expect(page.getByTestId('account-problem')).toBeVisible({ timeout: 3000 })
+    const logs = async () => page.evaluate(() =>
+      ((window as unknown as { __ONDOLOG_SMOKE_RPC__: { fn: string; args: Record<string, unknown> }[] }).__ONDOLOG_SMOKE_RPC__ ?? []).filter((c) => c.fn === 'log_app_error'))
+    await expect.poll(async () => (await logs()).length, { timeout: 8000 }).toBe(1)
+    await page.waitForTimeout(500)
+    const sent = await logs()
+    expect(sent).toHaveLength(1)
+    expect(Object.keys(sent[0].args).sort()).toEqual(['p_count', 'p_kind', 'p_platform', 'p_screen', 'p_version'])
+    expect(sent[0].args).toMatchObject({ p_screen: 'feed', p_kind: 'render_crash', p_count: 1, p_platform: 'web' })
+    const text = JSON.stringify(sent[0].args)
+    for (const bad of ['broken', 'object', 'Objects', 'react', 'smoke-user', 'smoke-couple', '가온', '나래', 'Error']) expect(text).not.toContain(bad)
+    // React 가 잡은 오류를 console.error 로 알리는 것은 이 시험의 의도 - 그 밖의 오류(처리 안 된 예외 · 거부)는 0.
+    w.errors = w.errors.filter((e) => !e.startsWith('console: '))
+    await check(page, w, 'error-boundary')
   })
 
   test('법무: 세 문서 전문 · 자리표시자 0', async ({ page }) => {

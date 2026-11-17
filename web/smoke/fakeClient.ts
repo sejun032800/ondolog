@@ -51,6 +51,8 @@ export interface FakeWorld {
   /** 서명 주소가 가리킬 자리 그림(스모크 서버 안). */
   mediaUrl: (bucket: string, path: string, index: number) => string
   rpc?: Record<string, (args: Row) => unknown>
+  /** 80-: RPC 호출을 시험이 볼 수 있게 알린다(이름 · 인자 그대로). */
+  onRpc?: (fn: string, args: Row) => void
 }
 
 export function makeFakeClient(world: FakeWorld): WebSupabase {
@@ -166,7 +168,10 @@ export function makeFakeClient(world: FakeWorld): WebSupabase {
     channel,
     removeChannel: async () => 'ok',
     removeAllChannels: async () => [],
-    rpc: async (fn: string, args: Row = {}) => ({ data: world.rpc?.[fn] ? world.rpc[fn](args) : null, error: null }),
+    rpc: async (fn: string, args: Row = {}) => {
+      world.onRpc?.(fn, args)
+      return { data: world.rpc?.[fn] ? world.rpc[fn](args) : null, error: null }
+    },
     functions: { invoke: async () => ({ data: null, error: null }) },
     auth: {
       getSession: async () => ({ data: { session }, error: null }),

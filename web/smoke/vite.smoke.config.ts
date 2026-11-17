@@ -3,7 +3,8 @@
  *  1. 진입: 같은 `index.html`에서 `./src/main.tsx` 한 줄만 `./smoke/entry.tsx`로(머리 · 뷰포트 · 글꼴 미리 읽기는 앱과 같다)
  *  2. 출력: 저장소 밖 임시 폴더(④) · 자리 그림 몇 장을 함께 낸다(만든 그림 - ③)
  *  3. 환경 변수 폴더: 비어 있는 이 폴더 - `web/.env`의 원격 값이 스모크 번들에 들어가지 않는다(원격 0)
- * build.target · 별칭 · console 제거 · base는 앱 설정 그대로다. mode는 `smoke`(운영과 같이 시험 빌드 표시 0 · 원격 값 검사는 운영 mode에서만).
+ * build.target · 별칭 · base는 앱 설정 그대로다. **console 제거만 스모크에서 끈다**(80- 79-덧붙임 3: 콘솔 오류 단언이 `console.error`도 잡게 -
+ * 운영 · 시험 빌드는 그대로 지운다(A-7), 번들 단언 유지). mode는 `smoke`(운영과 같이 시험 빌드 표시 0 · 원격 값 검사는 운영 mode에서만).
  */
 import os from 'node:os'
 import path from 'node:path'
@@ -41,9 +42,12 @@ function smokeEntry(): Plugin {
 
 export default defineConfig((env) => {
   const base = (typeof appConfig === 'function' ? appConfig(env) : appConfig) as UserConfig
-  return mergeConfig(base, {
+  const merged = mergeConfig(base, {
     envDir: smokeDir,
     plugins: [smokeEntry()],
     build: { outDir: SMOKE_OUT, emptyOutDir: true },
   } satisfies UserConfig)
+  // mergeConfig 는 배열을 이어 붙이므로 drop 은 합친 뒤에 바꾼다(console · debugger 모두 남김).
+  if (merged.esbuild) merged.esbuild = { ...merged.esbuild, drop: [] }
+  return merged
 })

@@ -31,6 +31,7 @@ import { ConnectionBanner } from './components/ConnectionBanner'
 import { ToastHost } from './components/ToastHost'
 import { useSheetStore } from './stores/sheetStore'
 import { TabBar } from './tabs/TabBar'
+import { setErrorScreen } from './errorLog/errorLog'
 
 /** 화면별 하늘(앱 SkyBackground의 view/veil 값). 하늘은 화면을 넘어 하나로 이어진다. */
 function skyFor(screen: ScreenName | null, introPhase: 'splash' | 'start', panned: boolean, prev: SkyState): SkyState {
@@ -188,6 +189,10 @@ function Shell({ bridge }: { bridge: NativeBridge }) {
     })
     return () => { if (IS_TRIAL_BUILD) useListenerCount.getState().dec(); off() }
   }, [bridge])
+
+  // 80-: 오류 기록의 화면 이름 = 지금 라우트 이름(메시지 · 내용 0). effect가 아니라 그리기 중에 바꾼다 - 새 화면이 그리다 깨지면(render_crash)
+  // effect는 아직 돌지 않아 이전 화면 이름이 남는다(스모크 "오류 경계"가 잡은 것). 모듈 값 하나를 같은 값으로 덮는 일이라 여러 번 그려져도 같다.
+  setErrorScreen(screen)
 
   // 폰 프레임 크기(PC) / 전체 화면(모바일)
   const [mobile, setMobile] = useState(false)

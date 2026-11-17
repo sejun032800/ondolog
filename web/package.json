@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build:trial": "vite build --mode trial",
-    "smoke:webkit": "node smoke/run.mjs"
+    "smoke:webkit": "node smoke/run.mjs",
+    "gate": "node smoke/gate.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.6.0",

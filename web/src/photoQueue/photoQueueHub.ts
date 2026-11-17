@@ -18,6 +18,8 @@ import { generateUuidV4 } from '@/utils/uuid'
 import { getSupabase } from '../auth/client'
 import { photoQueueStore, type PhotoQueueStore } from './photoQueueStore'
 import { webPhotoFs } from './webPhotoFs'
+import { reportAppError } from '../errorLog/errorLog'
+import { makeGiveUpTracker } from '../errorLog/errorLogRules'
 
 export interface PhotoQueueListener {
   /** 서버가 확정한 메시지 행(사진 메시지). */
@@ -94,6 +96,7 @@ export class PhotoQueueHub {
     this.detach()
     this.key = key
     const generation = ++this.generation
+    const giveUps = makeGiveUpTracker()
 
     const photo = new ChatPhotoQueue({
       attempt: async (item) => {
@@ -102,6 +105,7 @@ export class PhotoQueueHub {
         for (const l of this.listeners) l.onPhotoQueue?.(photo.getQueue())
         try {
           const result = await this.deps.attempt(item)
+          if (result.outcome !== 'done') reportAppError('upload_fail') // 80-: 건수만
           if (result.outcome === 'done') {
             if (result.message) for (const l of this.listeners) l.onMessage?.(result.message)
             if (result.story) for (const l of this.listeners) l.onStory?.(result.story)
@@ -112,6 +116,7 @@ export class PhotoQueueHub {
         }
       },
       onChange: (items) => {
+        if (giveUps.observe(items.map((i) => ({ id: i.clientId, failed: i.status === 'failed' }))) > 0) reportAppError('queue_giveup')
         void this.deps.store.save(coupleId, userId, items)
         for (const l of this.listeners) l.onPhotoQueue?.(items)
       },
@@ -124,6 +129,7 @@ export class PhotoQueueHub {
     })
     this.photo = photo
     void this.deps.store.load(coupleId, userId).then((items) => {
+      giveUps.prime(items.map((i) => ({ id: i.clientId, failed: i.status === 'failed' })))
       if (generation === this.generation) photo.hydrate(items)
     })
   }

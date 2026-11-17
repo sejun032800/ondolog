@@ -13,6 +13,8 @@ import { sendMessage, type ChatDb, type MessageRow, type SendInput, type SendMes
 import { chatQueueStorageKey, parseQueuedMessages, type OutgoingMessage, type QueuedMessage } from '@/utils/chatQueue'
 import { ChatRetryQueue, type AttemptOutcome } from '@/utils/chatRetryQueue'
 import { getSupabase } from '../../auth/client'
+import { reportAppError } from '../../errorLog/errorLog'
+import { makeGiveUpTracker } from '../../errorLog/errorLogRules'
 
 export interface TextQueueListener {
   /** 서버가 확정한 메시지 행. */
@@ -82,15 +84,18 @@ export class TextQueueHub {
     this.detach()
     this.key = key
     const generation = ++this.generation
+    const giveUps = makeGiveUpTracker()
     const text = new ChatRetryQueue({
       attemptSend: (item) => this.attemptText(item),
       onQueueChange: (queue) => {
+        if (giveUps.observe(queue.map((q) => ({ id: q.clientMsgId, failed: q.status === 'failed' }))) > 0) reportAppError('queue_giveup')
         void this.deps.store.save(coupleId, queue)
         for (const l of this.listeners) l.onTextQueue?.(queue)
       },
     })
     this.text = text
     void this.deps.store.load(coupleId).then((items) => {
+      giveUps.prime(items.map((q) => ({ id: q.clientMsgId, failed: q.status === 'failed' })))
       if (generation === this.generation) text.hydrate(items)
     })
   }

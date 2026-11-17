@@ -35,6 +35,9 @@
  *   하나라도 있으면 지우지 않고 "건너뜀"으로 센다(정상이면 0). 고를 때와 지울 때 두 번 본다. 같은 단계에서 `data_entries` · `messages` 다음에 돈다.
  *   앱(`ensureDate`)은 그대로 - 행이 없으면 새로 만든다.
  *
+ * 80- (R114-3 ② · 80-m1) 오류 기록 90일 정리: 앱 오류 하루 집계(`app_error_daily` - 사람 · 내용 칸 0)에서 KST 날짜가 90일보다 오래된 행을 지운다.
+ *   표가 아직 없으면(80-m1을 올리기 전) "확인 못 함" 한 줄로 넘어가고 다른 단계는 그대로 돈다. 다시 돌려도 같다(멱등).
+ *
  * 한 사용자 처리 중 실패하면 그 사용자는 다음 실행 때 다시(파일 · 행 지우기가 멱등) · 다른 사용자는 계속 · 실패 수를 출력.
  * 기본은 미리 보기(대상 사용자 수 · 지울 행 수 · 파일 수). `--apply`일 때만 지운다.
  * 개발 프로젝트 가드: `sweepOrphanFiles.makeProjectGate`(허용 목록의 project= 줄)와 같다 - 맞지 않으면 접속 전에 끝낸다.
@@ -103,6 +106,10 @@ export interface PurgePort extends Pick<ResetPort, 'count' | 'countFiles' | 'rem
   deleteHidden(table: HiddenTable, ids: readonly string[], cutoffIso: string): Promise<number>
   /** 76-j: 이 날짜 id 중 살아 있는 기록(숨기지 않은 data_entries · date_stops)이 가리키는 것. */
   liveDateIds(dateIds: readonly string[]): Promise<readonly string[]>
+  /** 80-: 오류 기록(`app_error_daily`)에서 day < cutoffDay 인 행 수. */
+  oldErrorRows(cutoffDay: string): Promise<number>
+  /** 80-: 위 행을 지운다. 지운 수. */
+  deleteOldErrorRows(cutoffDay: string): Promise<number>
 }
 
 /** 76-i · 76-j 숨긴 행 정리 대상 [표, 작성자 칸]. dates는 작성자 칸이 없다. date_stops · stories는 대상 밖(머리 주석). 순서 = 지우는 순서. */
@@ -120,6 +127,15 @@ export interface HiddenRow {
 /** 숨긴 지 이 시간이 지나야 지운다. */
 export const HIDDEN_GRACE_MS = 24 * 60 * 60 * 1000
 const HIDDEN_CHUNK = 100
+/** 80-: 오류 기록은 이 날수보다 오래된 KST 날짜의 행을 지운다. */
+export const ERROR_LOG_KEEP_DAYS = 90
+
+/** 80-: 지울 기준 날짜(이 날짜보다 앞선 행을 지운다) = KST 오늘 - 90일, YYYY-MM-DD. */
+export function errorLogCutoffDay(now: Date): string {
+  const kst = new Date(now.getTime() + 9 * 3_600_000)
+  kst.setUTCDate(kst.getUTCDate() - ERROR_LOG_KEEP_DAYS)
+  return kst.toISOString().slice(0, 10)
+}
 
 export type PurgeArgs = SweepArgs
 export const parsePurgeArgs = parseSweepArgs
@@ -267,6 +283,15 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
   lines.push(`숨긴 행 정리: ${hidden.reduce((n, [, ids]) => n + ids.length, 0)}`)
   for (const [table, ids] of hidden) lines.push(`숨긴 행 정리 ${table}: ${ids.length}`)
   lines.push(`건너뜀(살아 있는 기록): ${liveSkipped}`)
+  // 80-: 오류 기록 90일 정리 - 표가 없거나 못 읽으면 이 단계만 건너뛴다(다른 단계는 그대로).
+  const errorCutoff = errorLogCutoffDay(now)
+  let errorRows: number | null = null
+  try {
+    errorRows = await port.oldErrorRows(errorCutoff)
+  } catch {
+    errorRows = null
+  }
+  lines.push(errorRows === null ? '오류 기록 90일 정리: 확인 못 함(80-m1 전이면 정상)' : `오류 기록 90일 정리: ${errorRows}`)
   if (!args.apply) {
     lines.push('실제로 지우려면 --apply')
     return { kind: 'previewed', lines }
@@ -330,13 +355,24 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
       }
     }
   }
+  // 80-: 오류 기록 90일 정리 - 숨긴 행 정리 뒤. 실패하면 다음 실행 때 다시(멱등).
+  let errorDeleted = 0
+  let errorFailed = false
+  if (errorRows !== null && errorRows > 0) {
+    try {
+      errorDeleted = await port.deleteOldErrorRows(errorCutoff)
+    } catch {
+      errorFailed = true
+    }
+  }
   lines.push(`남길 커플의 남은 파일 지움: ${keptOrphans}`)
   lines.push(`숨긴 행 지움: ${hiddenDeleted}`)
   lines.push(`숨긴 행 실패(다음 실행 때 다시): ${hiddenFailed}`)
   lines.push(`건너뜀(지울 때 살아 있는 기록): ${lateSkipped}`)
+  lines.push(errorFailed ? '오류 기록 지움: 실패(다음 실행 때 다시)' : `오류 기록 지움: ${errorDeleted}`)
   lines.push(`지운 사용자: ${done}`)
   lines.push(`실패: ${failed}`)
-  lines.push(failed > 0 || hiddenFailed > 0 ? '완료(실패한 것은 다음 실행 때 다시)' : '완료')
+  lines.push(failed > 0 || hiddenFailed > 0 || errorFailed ? '완료(실패한 것은 다음 실행 때 다시)' : '완료')
   return { kind: 'applied', lines }
 }
 
@@ -531,6 +567,16 @@ export function makePurgePort(client: Db): PurgePort {
       const { data, error } = await client.from(table).delete().in('id', [...ids])
         .not('deleted_at', 'is', null).lte('deleted_at', cutoffIso).select('id')
       must(`${table} 숨긴 행 삭제`, error)
+      return Array.isArray(data) ? data.length : 0
+    },
+    async oldErrorRows(cutoffDay) {
+      const { count, error } = await client.from('app_error_daily').select('day', { count: 'exact', head: true }).lt('day', cutoffDay)
+      must('app_error_daily 조회', error)
+      return count ?? 0
+    },
+    async deleteOldErrorRows(cutoffDay) {
+      const { data, error } = await client.from('app_error_daily').delete().lt('day', cutoffDay).select('day')
+      must('app_error_daily 삭제', error)
       return Array.isArray(data) ? data.length : 0
     },
     async partnerGone(partnerId, nowIso) {

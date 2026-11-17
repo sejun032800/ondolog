@@ -7,6 +7,8 @@
  * - 지우는 때: 로그아웃 · 탈퇴 요청(`resetAccountMemory`) -> `clearAllDeviceCache`, 계정 전환(다른 id로 로그인) -> `purgeOtherUsers`, 해제 완료(커플이 더는 없음) -> `clearCoupleCache`.
  * - 사진 파일 · 서명 URL은 저장하지 않는다(메시지 행의 경로만). 얼굴 · 특징 벡터 같은 것은 이 저장소에 없다.
  */
+import { clearAppErrorCounts, reportAppError } from '../errorLog/errorLog'
+
 const PREFIX = 'ondolog.dc1:'
 
 /** 저장 종류. `route` · `push`(78- 권한 안내를 보였음)는 커플 자료가 아니다(해제 완료 때 남는다). */
@@ -41,7 +43,8 @@ export function writeCache(userId: string | null, kind: CacheKind, value: unknow
   try {
     store()?.setItem(keyOf(userId, kind, scope), JSON.stringify(value))
   } catch {
-    // 가득 참 · 막힘 - 저장 없이 계속한다.
+    // 가득 참 · 막힘 - 저장 없이 계속한다. 80-: 건수만 센다.
+    reportAppError('cache_fail')
   }
 }
 
@@ -65,13 +68,16 @@ function removeWhere(match: (key: string) => boolean): number {
 /** 로그아웃 · 탈퇴 요청: 이 기기의 모든 저장분. */
 export function clearAllDeviceCache(): void {
   removeWhere(() => true)
+  clearAppErrorCounts() // 80-: 오류 건수(사용자에 묶이지 않은 키)도 같은 규칙으로
 }
 
 /** 계정 전환: 지금 사용자 것이 아닌 저장분을 모두 지운다. */
 /** 지운 수를 돌려준다 - 0보다 크면 이 기기에 다른 사람의 저장분이 있었다(계정 전환, 76-i 서랍 알림 지우기의 신호). */
 export function purgeOtherUsers(userId: string): number {
   const mine = `${PREFIX}${userId}:`
-  return removeWhere((k) => !k.startsWith(mine))
+  const removed = removeWhere((k) => !k.startsWith(mine))
+  if (removed > 0) clearAppErrorCounts() // 80-: 계정 전환 때만(같은 사람의 앱 시작에서는 남김)
+  return removed
 }
 
 /** 해제 완료(커플이 더는 없음): 그 사용자의 커플 자료(채팅 · 메인 요약 · 피드 · 하늘)만. 이름 · 마지막 경로는 남는다. */

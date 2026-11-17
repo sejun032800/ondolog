@@ -11,6 +11,105 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `80-` 앱 오류 기록 - 우리 서버 · 개인정보 0 · 외부 서비스 0 (메인 세션, 2026-11-17, 위임문 `phase-7/80-dispatch-app-error-log.md` · 근거 `79-pm-report.md` §5 · R114-3 ② · R115-1~4 · R112-3) - 완료 (미커밋)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
+
+범위: `supabase/migrations/` 새 파일 1(`80-m1` = `20261117120000_m1_app_error_log.sql`) · `__tests__/db/appErrorLog80m1.test.ts` · `scripts/ops/purgeWithdrawn.ts` + 시험(90일 정리 단계) · `web/src/errorLog/`(새 3파일) · `web/src/` 연결 지점 9파일 · `web/smoke/`(79-덧붙임 3줄 + 오류 경계 시험 · `gate.mjs`) · `web/package.json`(script `gate` 한 줄) · HANDOFF · PROGRESS. **마이그레이션 1 · 원격 접속 0(이번 허용 질의 없음 - 실행한 원격 질의 0) · 새 패키지 0 · 외부 서비스 0 · 함수 0 · 네이티브 0 · 렌더 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 호출 0 · 커밋 0 · db push 0.**
+
+검증: web tsc 0 · 스모크 tsc 0 · Vitest 62/1000 → **63/1023** + 1 건너뜀 · `LEGAL_CHECK=1` 법무 8/8 · **`npm run smoke:webkit` 24/24(WebKit 12 · Chromium 12)** · `npm run gate`(순서대로) 102초 · 루트 tsc 0 · jest 115/1971 → **116/1986** · PGlite 9/118 → **10/129** · `deno check` `purgeWithdrawn.ts` · Python 324 OK · `build` · `build:trial` · `cap sync android`(맨 끝 한 번, `web/android` 변경 0). 두 빌드 결과물 스모크 표지 0. 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0 · 파일 이름 ASCII.
+
+### 결정 기록
+- **집계표 하나(`app_error_daily`)** - 행 = 묶음(KST 하루 · 화면 · 종류 · 앱 버전 · 플랫폼), 칸 = 건수뿐. 사용자 · 커플 · 기기 id · IP · 메시지 · 스택 · 자유 글 칸 0(PGlite 정적 단언: 칸 목록). 날짜는 **서버가 정한다**(보낸 때의 KST 날짜 - 앱은 날짜를 보내지 않음). 오프라인으로 모았다가 다음 날 보낸 건수는 보낸 날로 들어간다(내용 칸을 늘리지 않으려는 선택).
+- **넣기는 RPC 하나(`log_app_error`)** - anon · authenticated 실행 가능(로그인 전 온보딩 오류도 받음) · PUBLIC 0. 화면 · 종류는 허용 목록 밖이면 `other` · 버전은 `^[0-9]{1,4}(\.[0-9]{1,4}){0,3}$` · 20자 이하(밖이면 `other`) · 플랫폼은 android / ios / web(밖이면 `other`) · 기기가 모아 보낸 건수는 1~1000으로 자름 · 묶음 하루 상한 **10,000**(넘으면 더하지 않음). 표 직접 읽기 · 쓰기 · 고치기 · 지우기는 앱 역할 0(RLS 켬 · 정책 0 · 권한 0) · service_role은 select · delete만(기본 권한을 걷고 둘만 줌).
+- **90일 보존**: 월요일 `purgeWithdrawn`에 "오류 기록 90일 정리" 단계(76-i 숨긴 행 정리 뒤). 기준 = KST 오늘 - 90일보다 앞선 날짜. 표가 없으면(80-m1 전) "확인 못 함(80-m1 전이면 정상)" 한 줄로 넘어가고 다른 단계는 그대로(시험). 멱등(시험 · PGlite).
+- **앱 기기 규칙**(`web/src/errorLog/`): 기기 묶음 = (화면, 종류) · 같은 묶음은 **1시간에 1번** 보내고 사이 건수는 기기에서 세어 다음 전송에 합침 · 기기 전체 **1시간 30번** · 오프라인 · 연결 값 없음 · 실패면 모아 두었다가 다음 온라인(`online` 이벤트) · 시작 5초 뒤 · 오류 뒤 2초에 보냄. 보내는 인자는 `p_screen · p_kind · p_version · p_platform · p_count` 다섯뿐(시험이 키 목록 · 값 · 비밀 글자 0을 단언).
+- **화면 이름 = 라우트 이름**(`ALL_ROUTES` + `unknown`). 서버 허용 목록과 같은지 Vitest가 마이그레이션 파일을 읽어 비교한다. **그리기 중에** 갱신한다(effect로 하면 새 화면이 그리다 깨질 때 이전 화면 이름이 남는다 - 스모크 "오류 경계"가 처음에 `main`으로 잡은 것을 고침).
+- **기기 저장 키 `ondolog.err1`**(사용자에 묶이지 않음 - 로그인 전 오류도 셈, 건수뿐). 규칙을 맞춰 로그아웃 · 탈퇴 요청(`clearAllDeviceCache`) · 계정 전환(`purgeOtherUsers`가 다른 사람 것을 지웠을 때만) 때 지운다. `dc1:` 접두 밖에 둔 이유: `purgeOtherUsers`의 "지운 수 > 0 = 계정 전환" 신호(76-i 서랍 알림 지우기)를 바꾸지 않으려고. 저장이 막히면 메모리로만 셈.
+- **기록 실패 무해 · 반복 0**: 보내기 · 저장 실패는 모두 그 안에서 삼키고 세지 않는다(처리 안 된 거부도 만들지 않음 - 시험). `ResizeObserver loop` 경고는 세지 않는다(글자는 거르는 데만 읽고 남기지 않음).
+- **큐 재시도 한계(`queue_giveup`)**: 채팅 글 · 사진 큐에서 항목이 `failed`(자동 재시도 멈춤)가 될 때 한 번. 기기에서 읽어 온 이미 멈춘 항목은 빼고 센다(`prime`). 루트 `src/utils` 순수 큐는 변경 0(웹 허브의 변경 알림에서 봄).
+- **사진 올리기 실패(`upload_fail`)**: 채팅 사진 · 이야기 큐의 시도가 `done`이 아닐 때 · 피드 기록의 `storage.upload`가 오류를 돌려주거나 던질 때(이 감싸기는 원래 시험 빌드 전용이었는데 운영에서도 감싸도록 바꿈 - 시험 빌드 진단 글자는 그대로 `IS_TRIAL_BUILD` 안).
+- **79-덧붙임 3줄**(`79-pm-report.md` §5 = 위임서 3단계): ① 스모크 실패 때 `runs/<회차>/failures.md`에 엔진 · 시험 · 화면 이름(`data-screen`) · 걸린 요소(오류 줄의 선택자) · 스크린샷 경로 한 줄 + 그 스크린샷(회차 폴더 - 덮어쓰기 0, 저장소 밖) ② `npm run gate`(`smoke/gate.mjs`) = web tsc → Vitest → 법무 → `smoke:webkit` **순서대로** · 스모크 실행기는 잠금 파일로 겹쳐 돌지 않음 ③ **스모크 빌드만 console 호출을 남김**(앱 설정을 합친 뒤 `esbuild.drop = []` - mergeConfig가 배열을 이어 붙여서). 운영 · 시험 빌드는 그대로 지움(A-7). console을 남긴 뒤에도 기존 화면 22건 콘솔 오류 0.
+- **오류 경계 스모크**: 앱에 시험 모드를 넣지 않고 **데이터로** 일부러 깨뜨린다 - 피드가 첫 그림에 쓰는 기기 저장분(`feed` 범주)의 날짜 목록을 배열 대신 글자로 둔다 → 피드 화면이 그리다 깨짐 → 기존 오류 경계(`RenderGuard`)가 대체 화면 · 가짜 클라이언트에 `log_app_error` **1회** `{p_screen: 'feed', p_kind: 'render_crash', p_count: 1}` · 보낸 값에 내용 0. 메인 머리의 이름 저장분은 객체가 와도 글자로 이어 붙여 깨지지 않았다(좋은 쪽).
+- 관찰(고치지 않음 - 범위 밖): 피드 기기 저장분이 깨지면(위 모양) 대체 화면의 [다시 시도]도 같은 저장분을 다시 읽어 다시 깨진다 - [로그아웃]이 저장분을 지워 벗어난다. 실제로는 저장 손상 때만 생김. 고치려면 `initialFeedState`의 모양 검사 보강(작은 앱 수정) - PM 판단.
+- `79-pm-report.md`는 작업을 시작할 때 폴더에 없었다(다른 곳에서 찾지 않음). 위임서 3단계의 세 줄로 진행했고, 작업 중에 생긴 파일을 마지막에 읽어 §5와 대조함 - 같음.
+- 운영 번들의 `console.error(` 글자 1건은 Capacitor 코어 내부(`t.console.error`, 속성 호출이라 drop 대상 아님) - 이번 변경과 무관(원래 있음).
+
+### 허용 목록 · 상한
+| 구분 | 값 |
+|---|---|
+| 화면 이름(37) | intro · basic · mbti · quiz · brief · share-card · consent · underage · auth · callback · detail · invite · start-date · main · chat · feed · magazine · settings · couple-invite · start-date-recheck · date-detail · stop-edit · settings-profile · settings-couple · settings-unlink · settings-personality · settings-result · retest · settings-privacy · settings-about · settings-withdraw · withdraw-cancel · sky · push-permission · settings-notify · nickname-recheck · unknown (밖 → other) |
+| 오류 종류(8) | uncaught · unhandled_rejection · render_crash · upload_fail · queue_giveup · push_register_fail · cache_fail · auth_return_fail (밖 → other) |
+| 버전 · 플랫폼 | `^[0-9]{1,4}(\.[0-9]{1,4}){0,3}$` · 20자 / android · ios · web (밖 → other) |
+| 서버 상한 | 한 번 1~1000 · 묶음 하루 10,000 |
+| 기기 상한 | 같은 묶음 1시간 1번 · 전체 1시간 30번 · 기기에 모아 두는 묶음당 10,000 |
+| 보존 | 90일(월요일 정리) |
+
+### 항목별
+| 잡는 곳 | 고친 곳 | 시험 | 폰에서만 확인되는 것 |
+|---|---|---|---|
+| 처리 안 된 예외 · 거부 | `main.tsx`(+ 스모크 진입점 같은 순서) `installErrorCapture(window)` | Vitest uncaught · unhandled_rejection · ResizeObserver 0 | 웹뷰가 실제로 이벤트를 넘기는지(월요일 건수) |
+| 화면 그리기 오류 | `components/AccountProblem.tsx` `RenderGuard.componentDidCatch` · `App.tsx` 화면 이름 | Vitest · **스모크 오류 경계(WebKit · Chromium)** | 없음(스모크로 확인) |
+| 사진 올리기 실패 | `photoQueue/photoQueueHub.ts` · `features/feed/feedSave.ts` | Vitest(피드 upload 오류) | 실제 끊김 · 큰 사진에서의 건수 |
+| 큐 재시도 한계 | `features/chat/textQueueHub.ts` · `photoQueue/photoQueueHub.ts` | Vitest(읽어 온 멈춘 항목 0 · 새 멈춤 1) | 비행기 모드 재시도 소진 |
+| 알림 토큰 등록 실패 | `push/pushCore.ts` `registerToken` | Vitest | Android FCM · iOS APNs 실제 등록 |
+| 기기 저장 실패 | `cache/deviceCache.ts` `writeCache` | Vitest(가득 참) · 스모크 "저장소 막힘" | 실제 용량 부족 |
+| 로그인 복귀 실패 | `auth/callback.ts` `exchangeCodeOnce` | Vitest | 카카오 로그인 복귀 실패 |
+
+### 스모크 결과 (화면 × 엔진)
+| 화면 | WebKit(iPhone 14 Pro) | Chromium(Pixel 7) |
+|---|---|---|
+| 온보딩 · 동의 · 메인 · 하늘 2 · 채팅 · 피드 기록 · 서재 · 뷰어 · 설정 · 저장소 막힘 · 법무 | 11/11 통과 | 11/11 통과 |
+| **오류 경계(80-)** | 처음 실패(화면 이름 `main`) → 고친 뒤 통과 | 같음 |
+| 합계 · 소요 | **24/24** · Playwright 51초 · `smoke:webkit` 71초 · `npm run gate` 102초 | |
+
+이번 회차 실패 기록(덧붙임 ①이 남긴 것): 처음 오류 경계 시험 2건 - `runs/<회차>/failures.md`에 화면 `main` · 요소 `getByTestId('account-problem')` · 스크린샷 경로가 남음(메인 머리는 깨지지 않아 피드 저장분으로 바꿈).
+
+### 월요일 운영에 더한 줄
+76-f 월요일 운영 절 9번(아래 절에 넣음): 지난 7일 (화면 · 종류 · 플랫폼)별 건수 상위 10 - 대시보드 SQL Editor(읽기만, 건수만):
+
+```
+select screen, kind, platform, sum(count)::int as n
+from public.app_error_daily
+where day >= (now() at time zone 'Asia/Seoul')::date - 6
+group by screen, kind, platform
+order by n desc, screen, kind, platform
+limit 10;
+```
+
+0줄이 아니면 그 줄들(화면 · 종류 · 플랫폼 · 숫자)만 PE에. `purgeWithdrawn` 미리 보기에 "오류 기록 90일 정리: n" · 적용에 "오류 기록 지움: n" 줄이 더해짐(80-m1 전에는 "확인 못 함").
+
+### 커밋 명령 (맨 위 폴더에서)
+```
+git add supabase/migrations/20261117120000_m1_app_error_log.sql __tests__/db/appErrorLog80m1.test.ts
+git add scripts/ops/purgeWithdrawn.ts scripts/ops/purgeWithdrawn.test.ts
+git add web/src/errorLog/errorLog.ts web/src/errorLog/errorLogRules.ts web/src/errorLog/errorLog.vitest.tsx
+git add web/src/main.tsx web/src/App.tsx web/src/components/AccountProblem.tsx web/src/cache/deviceCache.ts web/src/auth/callback.ts web/src/push/pushCore.ts web/src/features/feed/feedSave.ts web/src/photoQueue/photoQueueHub.ts web/src/features/chat/textQueueHub.ts
+git add web/smoke/entry.tsx web/smoke/fakeClient.ts web/smoke/playwright.config.ts web/smoke/run.mjs web/smoke/screens.smoke.ts web/smoke/vite.smoke.config.ts web/smoke/gate.mjs web/package.json
+git add .claude/state/HANDOFF.md .claude/state/PROGRESS.md
+git commit -m "80- app error log: daily aggregate table, RPC, device rate limits, smoke error boundary"
+```
+(`.claude/state/prompts/phase-7/79-pm-report.md`는 PE가 넣은 파일 - 이 묶음에 넣을지는 Proteur 판단.)
+
+### db push 순서 (`80-m1` 한 파일)
+```
+npx supabase migration list
+npx supabase db push --dry-run
+npx supabase db push
+npx supabase migration list
+```
+dry-run에 `20261117120000_m1_app_error_log.sql` **하나만** 보여야 한다. 다른 것이 보이면 멈추고 보고. 그 뒤 대시보드 SQL(읽기만): `select count(*) from public.app_error_daily;` -> 0(새 표).
+
+### Proteur 다음 순서
+1. 커밋(위 명령) → db push(위 순서).
+2. 폰 덮어 설치: **필요**(앱 코드 변경 - 오류 기록). `npm run build:trial` → `npx cap sync android`(메인 세션이 맨 끝에 한 번 돌림) → Android Studio 빌드 → 두 폰에 덮어 설치(앱 삭제 불필요 - 기기 저장 · 로그인 그대로).
+3. 폰 확인: 평소처럼 앱을 쓰면 된다(오류를 일부러 낼 길은 앱에 넣지 않음). **월요일 9번 질의의 건수 0 확인**으로 대신 - 0이 아니면 숫자만 PE에. (db push 전에 설치해도 앱은 멈추지 않음 - RPC 실패는 기기에 모아 두었다가 push 뒤 보냄.)
+4. PM 확인 목록: 아래.
+
+### PM 확인 목록 (보고에 적기만)
+- 처리방침 1번 "서비스 운영 중 자동으로 생기는 기록: 로그인 · 접속 기록"에 이 기록(사람 · 기기를 가릴 수 없는 하루 화면 · 오류 종류 · 앱 버전 · 플랫폼별 건수, 90일 보존)이 들어가는지 · 문구 보강이 필요한지. `consent.ts` 변경 0.
+- (관찰) 피드 기기 저장분 손상 때 [다시 시도]가 다시 깨지는 점 - 모양 검사 보강을 할지.
+
 ## `79-` WebKit 공통 호환 - Mac 없이 iPhone 차이 미리 잡기 (메인 세션, 2026-11-17, 위임문 `phase-7/79-dispatch-webkit-compat.md` · R114-1~3 · R114-6 · R112-3) - 완료 (미커밋)
 
 범위: `web/smoke/`(새 폴더 9파일) · `web/src/app/smokeIsolation.vitest.ts` · `web/vite.config.ts`(build.target 한 줄) · `web/package.json`(devDependency 1 · script 1) · `web/package-lock.json` · HANDOFF · PROGRESS. **앱 화면 코드 변경 0 · 마이그레이션 0 · 원격 접속 0(Supabase 질의 0 - 이번 허용 질의 없음) · `cap add ios` 0 · 네이티브 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 호출 0 · 커밋 0.** 밖으로 나간 것은 허가된 npm 레지스트리(설치)와 Playwright 브라우저 내려받기뿐.
@@ -881,6 +980,19 @@ deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functi
    - 로그 보존 실측(2026-11-16, Free 플랜): 같은 로그 저장소에 11/9(7일 전) API 요청 로그 · 11/7(9일 전) DB 로그가 남아 있음 -> 7일은 볼 수 있다. `push-send` 기록은 11/16부터라 **11/23 첫 확인에서 11/16의 503 22건(78- 1차 폰 확인 - 함수 비밀 누락)이 보이면 7일 보존이 확인된 것**(그 22건은 이미 원인을 안다 - 알림 불필요). 보이지 않으면 PE에 "볼 수 있는 기간"을 알림 -> 대안은 날짜별 숫자만 남기는 작은 표(마이그레이션 · PM 결정).
    - (메인 세션이 대신 볼 때) 로그 질의 - 24시간 창으로 7번:
      `select toString(log_attributes['response.status_code']) as status, count(*) as n from logs where source = 'function_edge_logs' and toString(log_attributes['request.pathname']) like '%/push-send%' group by status order by status`
+
+9. (80- · R114-3 ②) **앱 오류 건수 - 지난 7일 (화면 · 종류 · 플랫폼)별 상위 10**(건수만 · 내용 0 - 표에 내용 칸이 없다). 대시보드 **SQL Editor**에서 읽기만:
+
+```
+select screen, kind, platform, sum(count)::int as n
+from public.app_error_daily
+where day >= (now() at time zone 'Asia/Seoul')::date - 6
+group by screen, kind, platform
+order by n desc, screen, kind, platform
+limit 10;
+```
+
+   **0줄이 아니면 그 줄들(화면 · 종류 · 플랫폼 · 숫자)만 PE에.** 90일 지난 행은 2 · 3번 `purgeWithdrawn`이 지운다(미리 보기 "오류 기록 90일 정리: n" · 적용 "오류 기록 지움: n", 80-m1 전에는 "확인 못 함").
 
 `--allow-net`은 프로젝트 호스트 하나, `--allow-env`는 위 이름만, `--allow-read`는 연결 정보 파일과 허용 목록 하나. 허용 목록의 `project=`가 접속 주소와 다르면 두 스크립트 모두 **접속 전에** "거부: …" 한 줄로 끝난다.
 

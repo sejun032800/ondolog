@@ -11,6 +11,7 @@ import type { Nav } from '../navigation'
 import { useAccountProblemStore } from '../stores/accountProblemStore'
 import { PrimaryButton } from '../ui'
 import { TrialDiag } from './TrialDiag'
+import { reportAppError } from '../errorLog/errorLog'
 
 export const ACCOUNT_PROBLEM_COPY = {
   title: '계정 정보를 불러오지 못했어요',
@@ -57,6 +58,7 @@ export class RenderGuard extends Component<{ nav: Nav; children: ReactNode }, { 
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
   componentDidCatch(error: Error, _info: ErrorInfo) {
+    reportAppError('render_crash') // 80-: 종류만(오류 내용 0)
     if (IS_TRIAL_BUILD) useTrialDiag.getState().record('state', `render_${safeKind(error)}`)
   }
   render() {

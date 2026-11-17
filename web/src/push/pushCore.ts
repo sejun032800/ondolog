@@ -12,6 +12,7 @@
  */
 import { create } from 'zustand'
 import { getSupabase } from '../auth/client'
+import { reportAppError } from '../errorLog/errorLog'
 import { getPushPort, type PushNotice, type PushPermission, type PushRoute } from './pushPort'
 
 const DEVICE_KEY = 'ondolog.push.device'
@@ -91,10 +92,11 @@ export async function registerToken(token: string, platform: 'android' | 'ios'):
   if (!db || !token) return false
   try {
     const { error } = await withTimeout(db.rpc('push_register', { p_device_id: deviceId(), p_token: token, p_platform: platform }))
-    if (error) return false
+    if (error) { reportAppError('push_register_fail'); return false }
     setRegisteredHere(true)
     return true
   } catch {
+    reportAppError('push_register_fail')
     return false
   }
 }

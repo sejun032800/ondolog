@@ -4,6 +4,7 @@
 import type { WebSupabase } from './client'
 import type { NativeBridge } from '../platform/bridge'
 import { IS_TRIAL_BUILD } from '../config/env'
+import { reportAppError } from '../errorLog/errorLog'
 import { safeKind } from '../platform/trialDiag'
 
 /** 앱 링크. Android 매니페스트의 `ondolog` scheme intent-filter와 짝이다. Supabase 대시보드의 Redirect URL에도 등록돼 있어야 한다. */
@@ -92,10 +93,11 @@ export function exchangeCodeOnce(client: WebSupabase, code: string): Promise<Exc
   const run = (async (): Promise<ExchangeOutcome> => {
     try {
       const { data, error } = await client.auth.exchangeCodeForSession(code)
-      if (error) return { ok: false, kind: IS_TRIAL_BUILD ? safeKind(error) : '' }
-      if (!data?.session) return { ok: false, kind: IS_TRIAL_BUILD ? 'no_session' : '' }
+      if (error) { reportAppError('auth_return_fail'); return { ok: false, kind: IS_TRIAL_BUILD ? safeKind(error) : '' } }
+      if (!data?.session) { reportAppError('auth_return_fail'); return { ok: false, kind: IS_TRIAL_BUILD ? 'no_session' : '' } }
       return { ok: true, userId: data.session.user.id }
     } catch (e) {
+      reportAppError('auth_return_fail')
       return { ok: false, kind: IS_TRIAL_BUILD ? safeKind(e) : '' }
     }
   })()

@@ -7,10 +7,14 @@ import { recordDate, type Db, type RecordDateInput, type RecordDateResult } from
 import { generateUuidV4 } from '@/utils/uuid'
 import { IS_TRIAL_BUILD } from '../../config/env'
 import { safeKind, useTrialDiag } from '../../platform/trialDiag'
+import { reportAppError } from '../../errorLog/errorLog'
 import { readStagedBytes, type StagedPhoto } from './feedPhotoStage'
 
-/** 시험 빌드 전용: `storage.from(...).upload`가 오류를 돌려주거나 던지면 `upload` 단계로 기록한다(결과는 그대로 돌려준다). */
-function withUploadDiag(db: Db): Db {
+/**
+ * `storage.from(...).upload`가 오류를 돌려주거나 던지면 80- 오류 건수(`upload_fail`)를 하나 센다(결과는 그대로 돌려준다).
+ * 시험 빌드에서는 `upload` 단계 진단도 남긴다(그 글자는 운영 번들에서 빠진다).
+ */
+export function withUploadDiag(db: Db): Db {
   const storage = {
     ...db.storage,
     from: (bucket: string) => {
@@ -20,10 +24,14 @@ function withUploadDiag(db: Db): Db {
         upload: async (...args: Parameters<typeof real.upload>) => {
           try {
             const r = await real.upload(...args)
-            if (r.error) useTrialDiag.getState().recordPhoto('upload', safeKind(r.error))
+            if (r.error) {
+              reportAppError('upload_fail')
+              if (IS_TRIAL_BUILD) useTrialDiag.getState().recordPhoto('upload', safeKind(r.error))
+            }
             return r
           } catch (e) {
-            useTrialDiag.getState().recordPhoto('upload', safeKind(e))
+            reportAppError('upload_fail')
+            if (IS_TRIAL_BUILD) useTrialDiag.getState().recordPhoto('upload', safeKind(e))
             throw e
           }
         },
@@ -40,7 +48,7 @@ export function savablePhotos(photos: readonly StagedPhoto[]): StagedPhoto[] {
 
 export async function saveFeedRecord(db: Db, input: RecordDateInput): Promise<RecordDateResult> {
   if (IS_TRIAL_BUILD) useTrialDiag.getState().clearPhoto()
-  const target = IS_TRIAL_BUILD ? withUploadDiag(db) : db
+  const target = withUploadDiag(db)
   const readBytes = IS_TRIAL_BUILD
     ? async (uri: string) => {
         try {

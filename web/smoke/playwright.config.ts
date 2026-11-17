@@ -12,6 +12,8 @@ import { defineConfig, devices } from '@playwright/test'
 const smokeDir = path.dirname(fileURLToPath(import.meta.url))
 const outRoot = process.env.ONDOLOG_SMOKE_ROOT ?? path.join(os.tmpdir(), 'ondolog-smoke')
 const PORT = 4179
+// 80- (79-덧붙임 1): 회차 이름 - 실패 기록 · 스크린샷을 회차별 폴더에 남긴다(덮어쓰기 0). 워커는 이 값을 물려받는다.
+process.env.ONDOLOG_SMOKE_RUN ??= new Date().toISOString().replace(/[:.]/g, '-')
 
 export default defineConfig({
   testDir: smokeDir,
