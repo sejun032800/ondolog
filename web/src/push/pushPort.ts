@@ -27,6 +27,10 @@ export interface PushPort {
   unregister(): Promise<void>
   /** 76-i: 이 기기 알림 서랍에 남은 이 앱의 알림을 모두 지운다(플러그인 기존 기능 `removeAllDeliveredNotifications`). */
   clearDelivered(): Promise<void>
+  /** 82-(R120-2): 서랍에 남은 이 앱의 알림 목록(플러그인 기존 기능 `getDeliveredNotifications`). 없는 다리는 지원 안 함. */
+  listDelivered?(): Promise<DeliveredNotice[]>
+  /** 82-(R120-2): 고른 알림만 서랍에서 지운다(플러그인 기존 기능 `removeDeliveredNotifications` - 목록에서 받은 그대로 돌려준다). */
+  removeDelivered?(list: DeliveredNotice[]): Promise<void>
   /** Android 알림 채널(메시지 · 변경 안내). 서버 `PUSH_CHANNEL`과 같은 id. */
   createChannels(): Promise<void>
   onRegistration(cb: (token: string) => void): () => void
@@ -34,6 +38,24 @@ export interface PushPort {
   onReceived(cb: (n: PushNotice) => void): () => void
   /** 알림을 눌러 앱이 열렸다(꺼져 있었어도 · 뒤에 있었어도). */
   onAction(cb: (route: PushRoute) => void): () => void
+}
+
+/** 서랍에 남은 알림 하나(플러그인이 준 그대로 - Android는 `tag` + `id`로 지운다, iOS는 `id` = 요청 식별자 = `apns-collapse-id`). */
+export interface DeliveredNotice {
+  id: string | number
+  tag?: string | null
+  [k: string]: unknown
+}
+
+/**
+ * 82-(R120-2): 이 커플의 **메시지** 알림인가 - 서버 `pushTag('message', 커플)`(`ondolog-m-{커플}`)과
+ * 81-b 다시 울림 태그 `burstTag`(`ondolog-m-{커플}-{시작 시각}`)가 모두 이 묶음 이름으로 시작한다. 변경 안내(`ondolog-c-…`) · 다른 커플 · 다른 앱은 아니다.
+ * Android는 `tag`, iOS는 요청 식별자(`id` = `apns-collapse-id` = 같은 태그)로 본다(iOS는 Mac 뒤 확인).
+ */
+export function isCoupleMessageNotice(n: Pick<DeliveredNotice, 'id' | 'tag'>, coupleId: string): boolean {
+  const base = `ondolog-m-${coupleId}`
+  const hit = (v: unknown) => typeof v === 'string' && (v === base || v.startsWith(`${base}-`))
+  return hit(n.tag) || hit(n.id)
 }
 
 /** 서버(`supabase/functions/_shared/pushSend.ts`)와 같은 값. */
@@ -79,6 +101,8 @@ export const capacitorPushPort: PushPort = {
   register: () => PushNotifications.register(),
   unregister: () => PushNotifications.unregister(),
   clearDelivered: () => PushNotifications.removeAllDeliveredNotifications(),
+  listDelivered: async () => (await PushNotifications.getDeliveredNotifications()).notifications as unknown as DeliveredNotice[],
+  removeDelivered: (list) => PushNotifications.removeDeliveredNotifications({ notifications: list as never }),
   createChannels: async () => {
     if (Capacitor.getPlatform() !== 'android') return
     for (const c of PUSH_CHANNELS) await PushNotifications.createChannel({ id: c.id, name: c.name, description: c.description, importance: c.importance, visibility: 0 })

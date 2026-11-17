@@ -388,7 +388,7 @@ test.describe('79- 화면 스모크', () => {
     await check(page, w, 'cache-broken')
   })
 
-  test('로그아웃 확인(81-b): 보내지 못한 메시지가 있으면 수와 한 줄 더(R119-2) · [취소]하면 그대로', async ({ page }) => {
+  test('로그아웃 확인(81-b · 82-): 보내지 못한 메시지가 있으면 수와 줄 더(R119-2 · 계정 전환 줄) · [취소]하면 그대로', async ({ page }) => {
     // 대기열(기기 Preferences) - 자동 재시도가 멈춘(failed) 글 2 · 사진 1. 앱 시작 이어 보내기가 바로 보내지 않는 상태(사람이 [다시 보내기]를 눌러야 감).
     await page.addInitScript(() => {
       const t = (id: string) => ({ clientMsgId: id, coupleId: 'smoke-couple', senderId: 'smoke-user-a', body: '글', sentAt: '2026-11-17T00:00:00Z', retryCount: 5, status: 'failed' })
@@ -404,7 +404,8 @@ test.describe('79- 화면 스모크', () => {
     await settle(page)
     await page.getByTestId('profile-logout').click()
     await seen(page.getByTestId('logout-confirm'))
-    await expect(page.getByTestId('confirm-note')).toHaveText('아직 보내지 못한 메시지 3개가 있어요. 같은 계정으로 다시 로그인하면 이어서 보내요.')
+    // 82-(R120-4 ③): 대기열 줄 바로 뒤에 계정 전환 줄(R119-2 순서)
+    await expect(page.getByTestId('confirm-note')).toHaveText(['아직 보내지 못한 메시지 3개가 있어요. 같은 계정으로 다시 로그인하면 이어서 보내요.', '다른 계정으로 로그인하면 이 폰에서 사라져요.'])
     await expect(page.getByText('다시 로그인하면 기록은 그대로 볼 수 있어요.')).toBeVisible()
     await check(page, w, 'logout-unsent')
     await page.getByTestId('confirm-no').click()

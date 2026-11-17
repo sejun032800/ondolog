@@ -11,6 +11,42 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `82-` 계정 전환 대기열 규칙 + 채팅 진입 때 서랍 알림 지우기 (메인 세션, 2026-11-17, 위임문 `phase-7/82-dispatch-account-switch-queue.md` · 근거 `81-b-pm-report.md` §5 · R120-2 · R120-4 · R118-2 · R119-2 · R39-5 b) - 완료 (미커밋 · build · cap sync 대기)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
+
+범위: 새 `web/src/cache/queueOwner.ts` · `web/src/cache/queueStorage.ts` · `web/src/features/chat/textQueueHub.ts` · `web/src/photoQueue/photoQueueStore.ts` · `web/src/photoQueue/photoQueueHub.ts` · `web/src/app/useAccountData.ts` · `web/src/features/settings/unsentCount.ts` · `web/src/push/pushPort.ts` · `web/src/push/pushCore.ts` · `web/src/tabs/ChatTab.tsx` · 새 `web/src/accountSwitch82.vitest.tsx` · `web/src/offlineBoot81b.vitest.tsx`(문구 기대값) · `web/smoke/screens.smoke.ts`(문구 기대값) · HANDOFF · PROGRESS. **멈춤 0 · 마이그레이션 0 · 원격 접속 0(허용 질의 없음 - 실행한 원격 질의 0) · 함수 0 · 새 패키지 0 · 네이티브 0 · `consent.ts` 0 · RN 0 · `demo_responses` 0 · R34-3 호출 0 · 커밋 0 · db push 0.**
+
+### 1단계 판정 - **경로 있음 → 실제 커플 조건(R120-4 ④)** · 이번에 고침
+- 글 대기열 저장 키가 **사용자로 나뉘지 않는다**: `chat_queue:{coupleId}`(`src/utils/chatQueue.ts:152-154`). 허브는 (커플, 지금 사용자)로 붙어 그 키를 통째로 읽고(`textQueueHub.ts` 82- 전 36줄 · 93-96줄) 항목을 그대로 보낸다.
+- 보낼 때 보낸 사람 = **항목에 저장된 `senderId`**(지금 세션 아님): `src/services/chatCore.ts:62-69`(`sender_id: input.senderId`).
+- 그래서 A가 대기열을 남기고 로그아웃 → **같은 커플의 B**가 이 폰에 로그인하면 B 세션으로 A 이름의 글 삽입을 시도한다. 서버 RLS(`supabase/migrations/012_rls_policies.sql:146-148` `sender_id = auth.uid()`)가 거부(42501 → 영구 실패 → B 채팅에 실패 말풍선)하지만 **판정은 앱이 보내려 하는지로** = 경로 있음.
+- 재현 시험: `accountSwitch82.vitest.tsx` "B 세션으로 붙은 허브가 A 항목을 보내려 하지 않는다" - **82- 수정 전 코드에서 실패(A 이름으로 1번 시도) 확인 후** 고침.
+- 경로 없음: 사진 대기열(키 `chat_photo_queue:{커플}:{사용자}` - `src/utils/chatPhotoQueue.ts:45-47`, B는 B 키만 읽음) · 81- 보존 원본(`qkeep` - 사용자 키 · 보내지 않음 `queueStorage.ts` 머리 · 로그아웃 `clearAllDeviceCache` · 전환 `purgeOtherUsers`가 지움) · 다른 커플(키가 다름 - 보내지 않지만 **기기에 남았음**).
+- `purgeOtherUsers`(`ondolog.dc1:` 키만)는 대기열(Preferences `chat_queue:` · `chat_photo_queue:`)을 건드리지 않았고, 로그아웃이 `dc1`을 이미 지우므로(`accountActions.ts` `resetAccountMemory`) 로그아웃 뒤 다른 계정 로그인에서는 전환 신호가 0이었다.
+
+### 82- 결정 기록 (출처: R120-4 · R120-2 · R118-2 · R119-2 · R39-5 b)
+- **① 주인 표시 = 이미 있는 칸**: 글 `senderId` · 사진 `userId`(새 칸 0 · `QUEUE_VERSION` 1 그대로 - 81- 저장 모양 변경 0). 사진 항목에 `userId`가 없으면 처음 읽을 때의 세션 주인으로 채움(81- `convertPhotoItem` 그대로) · 정리 때는 그 키의 사용자로 판정. 글 항목은 `senderId`가 없으면 81-부터 변환 불가(보존 원본 - 보내지 않음). 세션이 없으면 대기열을 읽지 않고(돌려주는 것 0 · 키 덮어쓰기 0) 다음 로그인 때 판정.
+- **② 보내기 막음 두 겹**(서버 거부에 기대지 않음): (가) 읽기(`loadQueue` `ownerOf`)가 주인 = 지금 세션 사용자인 항목만 큐에 넣는다 (나) 허브 시도 직전 항목 주인 ≠ `useAuthStore` 사용자면 서버를 부르지 않는다(글 = 일시 실패 · 사진 = `retry` - 주인의 항목을 영구 실패로 바꾸지 않음 · 오류 기록 0).
+- **③ 다른 계정 로그인 순간 지움**: `useAccountData`(로그인 확인 직후 · `purgeOtherUsers` 옆)에서 `startQueueOwnerPurge(userId)` - 이 기기의 모든 `chat_queue:*` · `chat_photo_queue:*`에서 주인 ≠ 지금 사용자 항목을 지우고 그 사진 파일도 지움. 비면 키 삭제. 읽을 수 없는 글자: 사진 키는 키 주인이 다르면 키 삭제(파일 경로는 모름 - 그 파일은 남을 수 있음) · 글 키는 주인을 몰라 그대로(보내지 않는 원본). 지운 건수는 반환값 숫자뿐(오류 기록 0 · 로그 줄 0). **로그아웃이 `dc1`을 지운 뒤에도 항목 주인으로 판정하므로 전환을 놓치지 않는다.** 대기열 읽기는 정리가 끝난 뒤(정리 · 저장이 겹쳐 새 항목을 잃지 않게 - 시험).
+- **④ 같은 계정 재로그인**: 지울 것 0 → 글 · 사진 이어서 각 1번(R39-5 b 유지 - 시험).
+- **⑤ 로그아웃 문구**: 대기열이 있을 때만 "다른 계정으로 로그인하면 이 폰에서 사라져요."를 대기열 줄 **바로 뒤** 별도 줄로(R119-2 순서: 대기열 → 전환 → 보존 원본). 대기열 수는 이 사용자가 주인인 항목만(같은 커플 글 키에 상대 항목이 있어도).
+- **R120-2 채팅 진입 서랍 지우기**: `ChatTab`이 연결된 커플 id로 `clearCoupleMessageNoticesHere` - 플러그인 기존 기능 `getDeliveredNotifications` → `isCoupleMessageNotice`로 고른 것만 `removeDeliveredNotifications`. 판정 = 태그(Android) 또는 요청 식별자(iOS = `apns-collapse-id`)가 `ondolog-m-{커플}`이거나 `ondolog-m-{커플}-`로 시작(78- 묶음 이름 + 81-b `burstTag` 모두 · 서버 `pushTag` · `burstTag`를 시험에서 직접 가져와 대조). 변경 안내(`ondolog-c-…`) · 다른 커플 · 다른 앱 남김. 다리가 목록 · 골라 지우기를 못 하면 아무것도 안 함("모두 지우기" 대체 0). 미연결로 들어오면 0.
+- 원격 질의: 이번 허용 질의 없음 - 실행한 원격 질의 0.
+
+### 항목별
+| 항목 | 고친 곳 | 시험 | 폰에서만 확인 |
+|---|---|---|---|
+| 1단계 경로(같은 커플 B가 A 글을 보냄) | `queueStorage.ts` `ownerOf` · `textQueueHub.ts` load · `attemptText` | `accountSwitch82` 판정 재현 · 보내기 막음 | 시험 계정 둘(같은 커플) - A 대기열 → 로그아웃 → B 로그인 → B 채팅에 A 글 · 실패 말풍선 0 |
+| ② 보내기 막음 | `textQueueHub.ts` · `photoQueueHub.ts` `sessionUserId` | 보내기 막음(글 · 사진) | - |
+| ③ 다른 계정 로그인 때 지움 | 새 `queueOwner.ts` · `useAccountData.ts` | B 로그인 정리 · 겹침 · 앱 경로(`useAccountData`) · 깨진 저장 · 막힌 저장소 | 사진 파일 삭제(실제 Filesystem) |
+| ④ 같은 계정 재로그인 | (변경 0 - 지울 것 0) | A 재로그인 각 1번 | 기존 R39-5 b 녹화 그대로 |
+| ① 표시 없는 항목 | (기존 `convertPhotoItem` + 정리의 키 주인) | 표시 없는 사진 → 지금 주인 → 정상 전송 / B 로그인 때 지움 | - |
+| ⑤ 로그아웃 문구 | `unsentCount.ts` | 4갈래 · 주인 것만 셈 · `offlineBoot81b` 3건 기대값 · 스모크 `logout-unsent` | 로그아웃 [취소] 화면 두 줄 |
+| R120-2 서랍 | `pushPort.ts` · `pushCore.ts` · `ChatTab.tsx` | 그 커플 것만 · 두 번 진입 · 서버 태그 대조 · iOS 모양 · 미지원 다리 · 채팅 탭 렌더 · 미연결 | 삼성: 알림 여럿 쌓인 채 채팅 탭 → 메시지 알림만 사라지고 변경 안내 남음 · iOS(Mac 뒤) |
+
+검증: **`npm run gate` 통과 124.2초**(web tsc 8.5초 → Vitest **66/1114** + 1 건너뜀 25.8초 → 법무 8/8 5.6초 → `smoke:webkit` **28/28** 84.3초) · 루트 tsc 0 · jest **116/1994** · PGlite **10/129** · Python **324 OK** · **`build` · `build:trial` · `cap sync` 아직 안 돌림**(Proteur가 81-b 빌드로 폰 녹화 중 - 녹화가 끝난 뒤 맨 끝 한 번). 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0 · 새 파일 이름 ASCII.
+
 ## `81-b` 알림 다시 울림 + 로그아웃 확인 문구 + 오프라인 첫 실행 (메인 세션, 2026-11-17, 위임문 `phase-7/81-b-dispatch-realert-logout-warning.md` + 보충 지시(R119-1~4) · 근거 `81-and-phone-check-3-pm-report.md` §B · R118-2~5 · R109-2 · R119-1~5) - 완료 (미커밋 · 함수 배포 전)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님

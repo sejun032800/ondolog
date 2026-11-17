@@ -13,8 +13,10 @@ import { sendMessage, type ChatDb, type MessageRow, type SendInput, type SendMes
 import { chatQueueStorageKey, type OutgoingMessage, type QueuedMessage } from '@/utils/chatQueue'
 import { loadQueue, saveQueue, type PrefsLike } from '../../cache/queueStorage'
 import { convertTextItem } from '../../cache/queueShapes'
+import { textOwnerOf } from '../../cache/queueOwner'
 import { ChatRetryQueue, type AttemptOutcome } from '@/utils/chatRetryQueue'
 import { getSupabase } from '../../auth/client'
+import { useAuthStore } from '../../auth/stores'
 import { reportAppError } from '../../errorLog/errorLog'
 import { makeGiveUpTracker } from '../../errorLog/errorLogRules'
 
@@ -30,10 +32,11 @@ export interface TextQueueStore {
   save: (coupleId: string, queue: QueuedMessage[]) => Promise<void>
 }
 
-/** 81-(R117-2): 저장 모양 버전 · 옛 모양 변환 · 변환 불가 원본 보존(`cache/queueStorage`). 버리지 않는다. */
+/** 81-(R117-2): 저장 모양 버전 · 옛 모양 변환 · 변환 불가 원본 보존(`cache/queueStorage`). 버리지 않는다.
+ * 82-(R120-4): 이 키(`chat_queue:{커플}`)는 사용자로 나뉘지 않는다 - 주인(`senderId`)이 `userId`인 항목만 읽는다. */
 export function createTextQueueStore(prefs: PrefsLike = Preferences, now: () => Date = () => new Date()): TextQueueStore {
   return {
-    load: (coupleId, userId) => loadQueue(prefs, chatQueueStorageKey(coupleId), 'text', { coupleId, userId: userId ?? null, now: now() }, convertTextItem),
+    load: (coupleId, userId) => loadQueue(prefs, chatQueueStorageKey(coupleId), 'text', { coupleId, userId: userId ?? null, now: now() }, convertTextItem, textOwnerOf),
     save: (coupleId, queue) => saveQueue(prefs, chatQueueStorageKey(coupleId), queue),
   }
 }
@@ -44,6 +47,8 @@ export interface TextQueueHubDeps {
   /** 한 번의 전송. 던지지 않는 것이 규칙이다(`sendMessage`가 던지지 않고 결과로 돌려준다). */
   send: (input: SendInput) => Promise<SendMessageResult>
   store: TextQueueStore
+  /** 82-(R120-4): 지금 로그인한 사용자. 주면 보낼 때 항목 주인(`senderId`)과 다르면 서버를 부르지 않는다. */
+  sessionUserId?: () => string | null
 }
 
 export class TextQueueHub {
@@ -113,6 +118,8 @@ export class TextQueueHub {
 
   /** 글 한 번 전송(최초 시도와 큐 재시도가 공유) - 확정 행은 화면에 알린다. */
   async attemptText(item: OutgoingMessage): Promise<AttemptOutcome> {
+    // 82-(R120-4): 항목 주인 ≠ 지금 세션 사용자면 절대 보내지 않는다(서버 거부에 기대지 않음). 일시 실패로 두어 주인의 항목 상태를 영구 실패로 바꾸지 않는다.
+    if (this.deps.sessionUserId && item.senderId !== this.deps.sessionUserId()) return { outcome: 'failed', errorClass: 'retryable' }
     const result = await this.deps.send(item)
     if (result.status === 'sent') {
       for (const l of this.listeners) l.onMessage?.(result.row)
@@ -136,4 +143,5 @@ export const textQueueHub = new TextQueueHub({
     return sendMessage(db as unknown as ChatDb, input)
   },
   store: textQueueStore,
+  sessionUserId: () => useAuthStore.getState().userId,
 })

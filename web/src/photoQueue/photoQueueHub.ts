@@ -16,6 +16,7 @@ import type { QueuedPhoto, QueuedPhotoKind } from '@/utils/chatPhotoQueue'
 import { ChatPhotoQueue } from '@/utils/chatPhotoQueueRunner'
 import { generateUuidV4 } from '@/utils/uuid'
 import { getSupabase } from '../auth/client'
+import { useAuthStore } from '../auth/stores'
 import { photoQueueStore, type PhotoQueueStore } from './photoQueueStore'
 import { webPhotoFs } from './webPhotoFs'
 import { reportAppError } from '../errorLog/errorLog'
@@ -37,6 +38,8 @@ export interface PhotoQueueHubDeps {
   store: PhotoQueueStore
   newId?: () => string
   now?: () => Date
+  /** 82-(R120-4): 지금 로그인한 사용자. 주면 시도 때 항목 주인(`userId`)과 다르면 서버를 부르지 않는다. */
+  sessionUserId?: () => string | null
 }
 
 /** 선택기가 준 사진 중 큐에 필요한 것만. */
@@ -100,6 +103,8 @@ export class PhotoQueueHub {
 
     const photo = new ChatPhotoQueue({
       attempt: async (item) => {
+        // 82-(R120-4): 항목 주인 ≠ 지금 세션 사용자면 절대 보내지 않는다(서버 거부에 기대지 않음). 일시 실패로 둔다(오류 기록 0).
+        if (this.deps.sessionUserId && item.userId !== this.deps.sessionUserId()) return { outcome: 'retry' }
         // 시도가 시작됐음을 화면에 다시 알린다(올리는 중 - 끊김 안내 0). 끝나면 러너가 결과를 `onChange`로 알린다.
         this.attempting.add(item.clientId)
         for (const l of this.listeners) l.onPhotoQueue?.(photo.getQueue())
@@ -189,4 +194,5 @@ export const photoQueueHub = new PhotoQueueHub({
   },
   fs: webPhotoFs,
   store: photoQueueStore,
+  sessionUserId: () => useAuthStore.getState().userId,
 })

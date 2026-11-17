@@ -13,7 +13,7 @@
 import { create } from 'zustand'
 import { getSupabase } from '../auth/client'
 import { reportAppError } from '../errorLog/errorLog'
-import { getPushPort, type PushNotice, type PushPermission, type PushRoute } from './pushPort'
+import { getPushPort, isCoupleMessageNotice, type PushNotice, type PushPermission, type PushRoute } from './pushPort'
 
 const DEVICE_KEY = 'ondolog.push.device'
 const REGISTERED_KEY = 'ondolog.push.registered'
@@ -118,6 +118,24 @@ export async function clearDeliveredHere(): Promise<void> {
     await getPushPort().clearDelivered()
   } catch {
     // 미지원 · 막힘 - 다음 단계는 그대로
+  }
+}
+
+/**
+ * 82-(R120-2): 채팅 탭(그 커플 채팅)에 들어오면 **그 커플의 메시지 알림만** 서랍에서 지운다 - 변경 안내 · 다른 앱 알림은 남는다.
+ * 81-b 다시 울림으로 태그가 달라진 같은 묶음 알림도 모두(`isCoupleMessageNotice`). 다리가 목록 · 골라 지우기를 못 하면 아무것도 하지 않는다
+ * ("모두 지우기"로 대체하지 않는다). 지운 개수(실패 · 미지원 0). 던지지 않는다.
+ */
+export async function clearCoupleMessageNoticesHere(coupleId: string): Promise<number> {
+  const port = getPushPort()
+  if (!port.listDelivered || !port.removeDelivered) return 0
+  try {
+    const mine = (await port.listDelivered()).filter((n) => isCoupleMessageNotice(n, coupleId))
+    if (mine.length === 0) return 0
+    await port.removeDelivered(mine)
+    return mine.length
+  } catch {
+    return 0 // 미지원 · 막힘 - 다음 진입 때 다시
   }
 }
 

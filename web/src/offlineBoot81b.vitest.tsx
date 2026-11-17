@@ -14,7 +14,7 @@ import { useConnectionStore } from './connection/connectionMonitor'
 import { ACTIVE, ASSESSMENT, ME, PARTNER, PERSONALITY } from './features/settings/settingsTestSupport'
 import { writeChatCache } from './features/chat/chatCache'
 import { useChatMessages, type ChatHubs } from './features/chat/useChatMessages'
-import { countUnsentMessages, LOGOUT_KEPT_NOTE, LOGOUT_QUEUED_NOTE } from './features/settings/unsentCount'
+import { countUnsentMessages, LOGOUT_KEPT_NOTE, LOGOUT_QUEUED_NOTE, LOGOUT_SWITCH_NOTE } from './features/settings/unsentCount'
 import { ProfileScreen } from './features/settings/ProfileScreen'
 import { forgetLibrary } from './features/magazine/libraryData'
 import { resetSettingsSummaryCache } from './features/settings/useSettingsSummary'
@@ -212,7 +212,7 @@ describe('81-b 채팅 저장분(76-A1 회귀) - 처음 그릴 때 커플이 아�
   })
 })
 
-describe('81-b 로그아웃 확인 - 보내지 못한 메시지 수(R119-2 문구 그대로 · 동작은 R39-5 b 그대로 · 계정 전환 줄 0)', () => {
+describe('81-b 로그아웃 확인 - 보내지 못한 메시지 수(R119-2 문구 그대로 · 동작은 R39-5 b 그대로 · 82-부터 계정 전환 줄 있음)', () => {
   const text = (id: string) => ({ clientMsgId: id, coupleId: 'c1', senderId: 'me', body: '글', sentAt: '2025-10-20T00:00:00Z', retryCount: 0, status: 'pending' })
   const photo = (id: string) => ({ clientId: id, kind: 'message', coupleId: 'c1', userId: 'me', localUri: `chat-photo-queue/${id}.jpg`, ext: 'jpg', contentType: 'image/jpeg', sentAt: '2025-10-20T00:00:00Z', retryCount: 0, status: 'pending' })
 
@@ -249,15 +249,17 @@ describe('81-b 로그아웃 확인 - 보내지 못한 메시지 수(R119-2 문�
   it('n = 1 -> 문구와 숫자', async () => {
     await Preferences.set({ key: 'chat_queue:c1', value: JSON.stringify({ __v: 1, items: [text('a')] }) })
     openConfirm()
-    expect((await screen.findByTestId('confirm-note')).textContent).toBe('아직 보내지 못한 메시지 1개가 있어요. 같은 계정으로 다시 로그인하면 이어서 보내요.')
-    expect(screen.getAllByTestId('confirm-note')).toHaveLength(1) // 계정 전환 줄 0(코드 근거 없음)
+    await vi.waitFor(() => expect(screen.getAllByTestId('confirm-note').map((n) => n.textContent)).toEqual([
+      '아직 보내지 못한 메시지 1개가 있어요. 같은 계정으로 다시 로그인하면 이어서 보내요.',
+      '다른 계정으로 로그인하면 이 폰에서 사라져요.', // 82-(R120-4 ③): 다른 계정 로그인 때 지움이 코드로 생겼다
+    ]))
   })
 
   it('n = 3(글 2 + 사진 1) -> 문구와 숫자 · [취소]하면 대기열 그대로', async () => {
     await Preferences.set({ key: 'chat_queue:c1', value: JSON.stringify({ __v: 1, items: [text('a'), text('b')] }) })
     await Preferences.set({ key: 'chat_photo_queue:c1:me', value: JSON.stringify({ __v: 1, items: [photo('p')] }) })
     openConfirm()
-    expect((await screen.findByTestId('confirm-note')).textContent).toBe(LOGOUT_QUEUED_NOTE(3))
+    await vi.waitFor(() => expect(screen.getAllByTestId('confirm-note').map((n) => n.textContent)).toEqual([LOGOUT_QUEUED_NOTE(3), LOGOUT_SWITCH_NOTE]))
     fireEvent.click(screen.getByTestId('confirm-no'))
     expect(screen.queryByTestId('logout-confirm')).toBeNull()
     expect(JSON.parse((await Preferences.get({ key: 'chat_queue:c1' })).value!).items).toHaveLength(2)
@@ -269,7 +271,7 @@ describe('81-b 로그아웃 확인 - 보내지 못한 메시지 수(R119-2 문�
     localStorage.setItem('ondolog.dc1:me:qkeep:text:c1', JSON.stringify({ __v: 1, d: { entries: [{ at: 'x', raw: '{"q":1}' }] } }))
     writeCache('me', 'feed', { chapters: [], names: {} })
     const nav = openConfirm()
-    await vi.waitFor(() => expect(screen.getAllByTestId('confirm-note').map((n) => n.textContent)).toEqual([LOGOUT_QUEUED_NOTE(1), LOGOUT_KEPT_NOTE(1)]))
+    await vi.waitFor(() => expect(screen.getAllByTestId('confirm-note').map((n) => n.textContent)).toEqual([LOGOUT_QUEUED_NOTE(1), LOGOUT_SWITCH_NOTE, LOGOUT_KEPT_NOTE(1)]))
     expect(LOGOUT_KEPT_NOTE(1)).toBe('보내지 못한 메시지 1개는 로그아웃하면 이 폰에서 사라져요.')
     await act(async () => { fireEvent.click(screen.getByTestId('confirm-yes')) })
     await vi.waitFor(() => expect(nav.reset).toHaveBeenCalledWith('intro'))
