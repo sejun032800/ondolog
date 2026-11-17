@@ -28,7 +28,8 @@ export default defineConfig(({ command }) => ({
     // 정본(../src)이 루트 node_modules의 react · zustand를 따로 끌어오지 않게, 한 벌만 쓴다.
     dedupe: ['react', 'react-dom', 'zustand'],
   },
-  build: { assetsInlineLimit: 0 },
+  // 79- R114: 빌드 대상 = iOS 16.4 이상(iPhone 14 Pro · 15 Pro 기본 지원 범위 안). 나머지는 Vite 7 기본값(baseline-widely-available)과 같다 - Android 웹뷰 기준 그대로.
+  build: { assetsInlineLimit: 0, target: ['chrome107', 'edge107', 'firefox104', 'safari16.4'] },
   // A-7: 빌드 결과(운영 · 시험 공통)에서 console 호출을 뺀다 - 우리 코드는 부르지 않지만 라이브러리가 세션 · 주소를 찍는 일을 원천 차단한다.
   // (개발 서버 · 시험에서는 빼지 않는다 - 시험이 console 감시를 실제로 하도록)
   esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,

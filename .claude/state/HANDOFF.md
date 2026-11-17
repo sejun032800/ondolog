@@ -11,6 +11,79 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `79-` WebKit 공통 호환 - Mac 없이 iPhone 차이 미리 잡기 (메인 세션, 2026-11-17, 위임문 `phase-7/79-dispatch-webkit-compat.md` · R114-1~3 · R114-6 · R112-3) - 완료 (미커밋)
+
+범위: `web/smoke/`(새 폴더 9파일) · `web/src/app/smokeIsolation.vitest.ts` · `web/vite.config.ts`(build.target 한 줄) · `web/package.json`(devDependency 1 · script 1) · `web/package-lock.json` · HANDOFF · PROGRESS. **앱 화면 코드 변경 0 · 마이그레이션 0 · 원격 접속 0(Supabase 질의 0 - 이번 허용 질의 없음) · `cap add ios` 0 · 네이티브 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 호출 0 · 커밋 0.** 밖으로 나간 것은 허가된 npm 레지스트리(설치)와 Playwright 브라우저 내려받기뿐.
+
+검증: web tsc 0 · 스모크 tsc 0 · Vitest 61/997 → **62/1000** + 1 건너뜀 · `LEGAL_CHECK=1` 법무 8/8 · **`npm run smoke:webkit` 22/22(WebKit 11 · Chromium 11)** · 루트 tsc 0 · jest 115/1971 · PGlite 9/118 · Python 324 OK · `build` · `build:trial` · `cap sync android`(맨 끝 한 번, `web/android` 변경 0). 두 빌드 결과물 스모크 표지 0. 키 · 주소 · ref · id · 이메일 · 실제 이름 0 · 파일 이름 ASCII.
+
+### 결정 기록
+- **Playwright WebKit은 실기기 대체가 아니다**(R114-6). iOS Safari · WKWebView와 같은 엔진 계열이지만 Windows 빌드(WebKit 27.2, playwright webkit 2370)는 같은 것이 아니다. 키보드 · 안전 영역 실제 값(여기서는 0) · 사진 선택기 · 카메라 · 푸시 · 앱 링크 · 스크롤 관성 · 프레임 성능은 못 본다 → Mac 도착 뒤 실기기 한 바퀴가 대체 불가(아래 "Mac 뒤").
+- 설치(Proteur 허가 범위 그대로): `@playwright/test` **1.64.1**(1.64.x 최신 패치, `--save-exact`) devDependency 한 줄 · WebKit 브라우저 한 번(`%LOCALAPPDATA%\ms-playwright\webkit-2370`, 171MB, 저장소 밖). Chromium 1248은 이미 있던 것을 같이 씀(새로 받지 않음). lock 추가는 `@playwright/test` · `playwright` · `playwright-core`(+ 선택 fsevents)뿐. render/.venv Python 길 미사용.
+- **"빌드 산출물 위에서" = "같은 코드 · 같은 설정으로 따로 빌드"**(Proteur 결정 2-①). `smoke/vite.smoke.config.ts`가 앱 `vite.config.ts`를 그대로 불러 세 가지만 바꾼다: ① 같은 `index.html`에서 진입 줄(`./src/main.tsx` → `./smoke/entry.tsx`)만 ② 출력 = 저장소 밖(`%TEMP%\ondolog-smoke\dist`) ③ envDir = 비어 있는 `smoke/`(원격 값이 스모크 번들에 안 들어감 - 스모크 번들의 `supabase.co`는 라이브러리 기본 문자열 1건뿐). build.target · 별칭 · console 제거 · base는 앱과 같음. mode는 `smoke`(운영처럼 시험 빌드 표시 0).
+- 스모크 진입점(`smoke/entry.tsx`)은 앱 `main.tsx`와 같은 세 줄(installWebFeel · installKeyboardFocus · `<App/>`)을 같은 순서로 하고, 다른 것은 데이터 연결부(`setSupabaseForTest(가짜 클라이언트)`)와 `?world=` · `?path=`(App이 원래 받는 `initialPath`)뿐. 화면 · 라우트 · 스타일 복사본 0.
+- 가짜 클라이언트(`smoke/fakeClient.ts`)는 vi 0인 메모리 표 하나(select · eq · in · is · lt · gte · or · not · order · range · count · single · rpc · Storage 서명 · Realtime · auth). 만든 데이터(`smoke/seed.ts`)는 지어낸 이름(가온 · 나래 · 솜사탕) · 문장 · 그림(SVG 그라데이션) · 손으로 쓴 빈 PDF뿐. **서버 시각은 PostgREST 모양(UTC · 소수 6자리 · `+00:00`)**으로 넣어 WebKit `Date.parse`를 실제 모양으로 시험.
+- ② 새지 않음: 표지 목록 한 벌(`smoke/markers.mjs`). `smoke:webkit`이 앱 시험 빌드를 임시 폴더에 따로 내 표지 0을 확인하고(확인 뒤 그 사본은 지움 - 원격 값이 들어 있을 수 있어서), 스모크 결과물에는 표지가 있는지(검사가 살아 있는지)도 본다. Vitest `smokeIsolation`이 정적으로: 앱 입구 = `index.html` → `./src/main.tsx` 하나 · `src/` 앱 파일의 smoke import 0 · `vite.config.ts`에 smoke 0 · `web/dist`(있으면) 표지 0. 이번 마지막 `build` · `build:trial` 결과물 각각 표지 0.
+- 시험 파일 이름 `*.smoke.ts`(루트 jest 기본 `*.spec|*.test`에 안 걸리게 · `web/tsconfig` include가 `src`라 web tsc에도 안 걸림 - 스모크 타입은 `smoke/tsconfig.json`으로 `smoke:webkit` 첫 단계에서 검사).
+- **build.target = `['chrome107', 'edge107', 'firefox104', 'safari16.4']`**(Proteur 결정 3). Vite 7 기본(baseline-widely-available)에서 safari16 → 16.4만 올림 - Android 웹뷰 기준(chrome107) 그대로. 시험 빌드 메인 번들 크기 전 900,368바이트 → 뒤 900.37kB(같음 - 내려 쓰던 문법이 없었음).
+- 스모크 대기 규칙: 앱은 이동 직후 `NAV_COOLDOWN_MS`(350ms, `src/navigation.tsx` 연타 방지) 동안 다음 이동을 받지 않는다 → 시험은 이동마다 400ms 쉰다. 모양 단언은 유한한 연출(시트 380ms 등)이 끝난 뒤 잰다(반짝임 같은 무한 반복은 기다리지 않음).
+- console 오류 단언의 한계: 빌드가 console 호출을 지우므로(A-7) 앱 · 라이브러리의 console.error는 스모크에서 안 보인다. 잡는 것 = 처리 안 된 예외(pageerror) · 처리 안 된 Promise 거부(시험이 심은 리스너) · 브라우저 자체 오류(자원 실패 등).
+- 상시 게이트 소요: `npm run smoke:webkit` 69~103초(타입 7~11 · 스모크 빌드 5~8 · 시험 빌드 5~6 · Playwright 51~78). **다른 시험(jest · Vitest)과 동시에 돌리지 않는다** - 동시에 돌린 1회에서 WebKit 2건(온보딩 · 동의)이 1초 안 보임 단언에 걸렸고(그 실패 기록은 다음 실행이 덮어써 어느 요소인지 못 남김), 부하 없이 같은 2건 4회 반복 8/8 · 전체 3회 22/22.
+
+### 스모크 결과 (화면 × 엔진)
+| 화면 | WebKit(iPhone 14 Pro) 처음 → 고친 뒤 | Chromium(Pixel 7) 처음 → 고친 뒤 | 처음 실패 원인 |
+|---|---|---|---|
+| 온보딩(첫 화면 · 이름 · 생년월일 · 성별 · 검사 한 문항) | 통과 → 통과 | 통과 → 통과 | - |
+| 동의(5개 · [보기] 처리방침 전문 스크롤) | 실패 → 통과 | 실패 → 통과 | 시험 틀: 동의 화면은 생년월일이 있어야 열림(온보딩을 거치게) · 시트 연출 중에 잼 |
+| 메인(온도 · 문구 · D+ · 매거진 % · 탭 · KST 날짜) | 통과 → 통과 | 실패 → 통과 | 시험 틀: 선택자 · 초안 진행 행(`fn_issue_progress`) seed 없음 |
+| 하늘(B02 끌기 · C01 · 별 · C02 · 줄인 모션) | 통과 → 통과 | 실패 → 통과 | 시험 틀: 끌 대상(`.mainScroll`) · 이동 350ms 쿨다운 |
+| 채팅(목록 · 입력창 · 사진 칸 비율 · 맨 아래 · 서버 시각 표시) | 통과 → 통과 | 통과 → 통과 | - |
+| 피드 기록(카드 · 하루 지우기 밀기 · 장소 · 메모 · 사진 선택기 열림) | 통과 → 통과 | 실패 → 통과 | 시험 틀: 사진 + 뒤 [앨범] 시트 한 단계 |
+| 서재 · 뷰어(목록 · 앞장 · 쪽 보기) | 통과 → 통과 | 통과 → 통과 | - |
+| 설정(알림 H10 · 개인정보 & 약관 · 해제 · 탈퇴 진입) | 통과 → 통과 | 실패 → 통과 | 시험 틀: 이동 350ms 쿨다운 |
+| 법무(세 문서 전문 · 자리표시자 0) | 실패 → 통과 | 실패 → 통과 | 시험 틀: 쿨다운 · 시트 연출 중에 [확인] 위치를 잼 |
+| 저장소 막힘(localStorage · IndexedDB 예외) - 추가 | 통과 | 통과 | - |
+| 공통: 원격 요청 0 · 가로 스크롤 0 · 고정 버튼 화면 안 · 1초 첫 프레임 · 제목 넘침 0 | 전 화면 통과 | 전 화면 통과 | - |
+
+**WebKit에서만 실패한 것: 0.** 처음 실패는 모두 시험 틀(선택자 · 대기 · 경로) - 앱 결함 0. 화면별 스크린샷은 저장소 밖(`%TEMP%\ondolog-smoke\shots\{webkit,chromium}`) - 커밋 0.
+
+### 고친 곳
+| 원인 | 고친 곳 | Android 영향 | 폰에서 다시 볼 것 |
+|---|---|---|---|
+| 빌드 대상이 iOS 16.0(Vite 기본) - 기준 iOS 16.4로 | `web/vite.config.ts` build.target | 0(chrome107 그대로 · 번들 크기 같음) | 없음(화면 변화 0). 다음 설치 때 평소 확인만 |
+
+정적 검색(2단계 후보): iOS 16.4 밖 API · 문법 0(`Object.groupBy` · `Promise.withResolvers` · `requestIdleCallback` · `AbortSignal.any` · `checkVisibility` · 정규식 lookbehind · `text-wrap` · `@container` 등 0 · `:has()`는 15.4+). `100vh` 0 · `type="date"` 0(날짜는 글자 입력 YYYY.MM.DD) · `backdrop-filter` 0 · `viewport-fit=cover` + `env(safe-area-inset-*)` 있음 · 파일 입력 `accept="image/*"` · `multiple`(스모크가 선택기 열림까지 확인). `-webkit-overflow-scrolling: touch` 1곳(`styles.css` `.skyScroll`) - iOS 13부터 효과 없는 잔재, 걸린 것이 아니라 그대로 둠.
+
+### Mac 뒤 (실기기 · Xcode가 있어야 보는 것)
+| 항목 | 왜 Mac 뒤 | 무엇을 볼지 |
+|---|---|---|
+| 키보드 | WKWebView 키보드 · 화면 줄어듦은 데스크톱 WebKit에 없음 | 채팅 입력창이 키보드 위에 붙는지 · 탭 바 숨김 · 기록 시트 메모 칸 가림 |
+| 안전 영역 실제 값 | Playwright는 inset 0 | 노치 · Dynamic Island 아래 머리 · 홈 표시줄 위 탭 바 · 시트 [확인] 여백 |
+| 사진 선택(HEIC · GPS) | 시스템 선택기 · HEIC 변환은 iOS 전용 | HEIC 고르기 · 촬영 시각 · 위치 칸 0(stripLocation) · 여러 장 |
+| 카메라 | 권한 · 촬영 화면 | 채팅 · 기록 [카메라] → 찍고 돌아오기 |
+| 앱 링크 · 카카오 로그인 복귀 | 유니버설 링크 · URL 스킴은 iOS 앱 설정 | 로그인 뒤 앱으로 돌아와 세션이 잡히는지 |
+| 푸시(APNs) | iOS 인증서 · 권한 · 앱 설정 | 권한 묻기(I08) · 받기 · 눌러 열기 · 서랍 지우기 |
+| 스크롤 관성 · 끌기 | 터치 관성 · 고무줄 효과는 실기기만 | 하늘 B02 끌어내리기 · C02 위로 · 피드 하루 지우기 밀기 · 76- R99-3 기기 기본 스크롤 |
+| 하늘 성능(프레임) | GPU · 프레임은 실기기만 | 별 반짝임 · 줄인 모션 설정 반영 |
+| 오프라인 저장 실제 | WKWebView 저장소 정책(용량 · 지움) | 비행기 모드 채팅 큐 · 다시 켜면 보내짐 · 앱 다시 열기 |
+| Info.plist 권한 문구 | iOS 앱 프로젝트 필요(`cap add ios` = Mac 뒤) | 사진 · 카메라 · 알림 문구 |
+| 앱 ID `com.ondolog.app`(R114-2) | Apple 개발자 계정 · 서명 | 번들 ID · 푸시 · 앱 링크와 같은 ID |
+
+### 커밋 명령 (맨 위 폴더에서)
+```
+git add web/package.json web/package-lock.json web/vite.config.ts
+git add web/smoke/entry.tsx web/smoke/fakeClient.ts web/smoke/markers.mjs web/smoke/playwright.config.ts web/smoke/run.mjs web/smoke/screens.smoke.ts web/smoke/seed.ts web/smoke/tsconfig.json web/smoke/vite.smoke.config.ts
+git add web/src/app/smokeIsolation.vitest.ts
+git add .claude/state/HANDOFF.md .claude/state/PROGRESS.md
+git commit -m "79- WebKit smoke on iPhone 14 Pro profile, build target safari16.4"
+```
+
+### Proteur 다음 순서
+1. 커밋(위 명령).
+2. 폰 다시 설치: **필요 없음**(앱 화면 코드 변경 0 · build.target만, 번들 크기 같음). 다음 정기 설치 때 함께 들어감. `cap sync android`는 맨 끝에 돌렸고 `web/android` 변경 0.
+3. 새 컴퓨터 · 새로 받은 저장소에서는 `cd web` → `npm ci` → `npx playwright install webkit`(한 번) → `npm run smoke:webkit`.
+4. 다음: `80-` 앱 오류 기록(R114-3 ②).
+
 ## `76-j` 흔들리는 시험 잡기 + 숨긴 "하루" 행 실제 삭제 (메인 세션, 2026-11-16, 위임문 `76-j-dispatch-dates-and-flaky.md` · 근거 `76-i-pm-report.md` · R112-2 · R112-3 · R112-5 · R112-6) - 완료 (미커밋)
 
 범위: `scripts/ops/purgeWithdrawn.ts` + 시험 · `__tests__/db/hiddenRows76i.test.ts` · 흔들리는 시험 1파일(`web/src/features/chat/chatHead76r.vitest.tsx`, 시험만) · HANDOFF · PROGRESS. **마이그레이션 0 · 원격 접속 0(R112-3 - 이번 허용 질의 없음, 실행한 원격 질의 0) · 새 패키지 0 · 네이티브 0 · `consent.ts` 0 · 030 0 · 렌더 0 · 함수 0 · `demo_responses` 0 · R34-3 호출 0** · 스크립트 실행 0 · 커밋 0 · db push 0. **web 앱 코드 변경 0 -> build · cap sync 안 돌림**(위임서: web 코드를 고쳤을 때만). `ensureDate`(앱) 변경 0.
