@@ -36,7 +36,19 @@ function load(): ErrorLogState {
   if (memory) return memory
   try {
     const raw = storage()?.getItem(ERROR_LOG_KEY)
-    memory = raw ? sanitizeState(JSON.parse(raw)) : { ...EMPTY_STATE, buckets: {}, sends: [] }
+    if (!raw) {
+      memory = { ...EMPTY_STATE, buckets: {}, sends: [] }
+      return memory
+    }
+    let parsed: unknown = null
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      parsed = null
+    }
+    memory = sanitizeState(parsed)
+    // 81-: 버전이 다르거나 깨진 저장분 -> 빈 값으로 다시 시작하고 `cache_fail` 1건(이 실행에서 1번 - 이후 읽기는 메모리).
+    if ((parsed as { v?: unknown } | null)?.v !== 1) memory = addError(memory, currentScreen, 'cache_fail')
   } catch {
     memory = { ...EMPTY_STATE, buckets: {}, sends: [] }
   }
@@ -55,6 +67,11 @@ function save(state: ErrorLogState): void {
 /** 지금 화면(라우트 이름). App 이 화면이 바뀔 때마다 알린다. */
 export function setErrorScreen(name: string | null): void {
   currentScreen = name
+}
+
+/** 지금 화면 이름(81-: RenderGuard [다시 시도]가 그 화면의 기기 저장 범주를 비울 때). */
+export function getErrorScreen(): string | null {
+  return currentScreen
 }
 
 /** 오류 한 건. 어떤 경우에도 던지지 않는다. */

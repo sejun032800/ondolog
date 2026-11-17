@@ -355,27 +355,37 @@ test.describe('79- 화면 스모크', () => {
     await check(page, w, 'storage-blocked')
   })
 
-  test('오류 경계(80-): 깨진 기기 저장값으로 화면이 깨지면 대체 화면 + 오류 기록 RPC 1회 · 내용 0', async ({ page }) => {
-    // 앱에 시험 모드를 넣지 않는다: 피드가 첫 그림에 쓰는 기기 저장분(feed 범주)의 날짜 목록을 깨진 모양(배열 대신 글자)으로 둔다 - 피드 화면이 그대로 깨진다.
+  test('깨진 기기 저장값(81-): 메인 · 피드 - 대체 화면 없이 바로 정상 · cache_fail만 기록 · 내용 0', async ({ page }) => {
+    // 앱에 시험 모드를 넣지 않는다: 첫 그림에 쓰는 기기 저장분을 깨진 모양으로 둔다.
+    //  - 피드: 80- 오류 경계 시험이 쓴 모양 그대로(날짜 목록이 배열 대신 글자) - 80-에서는 대체 화면 + [다시 시도]도 다시 깨짐이었다.
+    //  - 메인: 요약의 온도 칸이 숫자 대신 글자 · 서재 목록이 배열 대신 숫자.
     await page.addInitScript(() => {
-      try { localStorage.setItem('ondolog.dc1:smoke-user-a:feed', JSON.stringify({ chapters: [{ key: '2026-11', dates: 'broken' }], names: {} })) } catch { /* 없음 */ }
+      try {
+        localStorage.setItem('ondolog.dc1:smoke-user-a:feed', JSON.stringify({ chapters: [{ key: '2026-11', dates: 'broken' }], names: {} }))
+        localStorage.setItem('ondolog.dc1:smoke-user-a:main', JSON.stringify({ coupleId: 'smoke-couple', partnerId: 'smoke-user-b', temperature: 'broken' }))
+        localStorage.setItem('ondolog.dc1:smoke-user-a:main:library', JSON.stringify({ __v: 1, d: { coupleId: 'smoke-couple', issues: 3, next: null } }))
+      } catch { /* 없음 */ }
     })
     const w = await openAccount(page)
+    await seen(page.getByTestId('main-days'))
+    await expect(page.getByTestId('account-problem')).toHaveCount(0)
     await tab(page, 'feed')
-    await expect(page.getByTestId('account-problem')).toBeVisible({ timeout: 3000 })
+    await seen(page.getByTestId('swipe-front').first())
+    await expect(page.getByTestId('account-problem')).toHaveCount(0)
     const logs = async () => page.evaluate(() =>
       ((window as unknown as { __ONDOLOG_SMOKE_RPC__: { fn: string; args: Record<string, unknown> }[] }).__ONDOLOG_SMOKE_RPC__ ?? []).filter((c) => c.fn === 'log_app_error'))
-    await expect.poll(async () => (await logs()).length, { timeout: 8000 }).toBe(1)
+    await expect.poll(async () => (await logs()).reduce((n, c) => n + Number(c.args.p_count), 0), { timeout: 8000 }).toBe(3)
     await page.waitForTimeout(500)
     const sent = await logs()
-    expect(sent).toHaveLength(1)
-    expect(Object.keys(sent[0].args).sort()).toEqual(['p_count', 'p_kind', 'p_platform', 'p_screen', 'p_version'])
-    expect(sent[0].args).toMatchObject({ p_screen: 'feed', p_kind: 'render_crash', p_count: 1, p_platform: 'web' })
-    const text = JSON.stringify(sent[0].args)
+    expect(sent.every((c) => c.args.p_kind === 'cache_fail')).toBe(true)
+    expect(sent.reduce((n, c) => n + Number(c.args.p_count), 0)).toBe(3) // 깨진 키 셋 - 키마다 1번(반복 0)
+    for (const c of sent) expect(Object.keys(c.args).sort()).toEqual(['p_count', 'p_kind', 'p_platform', 'p_screen', 'p_version'])
+    const text = JSON.stringify(sent.map((c) => c.args))
     for (const bad of ['broken', 'object', 'Objects', 'react', 'smoke-user', 'smoke-couple', '가온', '나래', 'Error']) expect(text).not.toContain(bad)
-    // React 가 잡은 오류를 console.error 로 알리는 것은 이 시험의 의도 - 그 밖의 오류(처리 안 된 예외 · 거부)는 0.
-    w.errors = w.errors.filter((e) => !e.startsWith('console: '))
-    await check(page, w, 'error-boundary')
+    // 새 모양(버전 감싸기)으로 다시 채워졌다(서버 읽기).
+    const feedSaved = await page.evaluate(() => localStorage.getItem('ondolog.dc1:smoke-user-a:feed'))
+    expect(JSON.parse(feedSaved ?? '{}').__v).toBe(1)
+    await check(page, w, 'cache-broken')
   })
 
   test('법무: 세 문서 전문 · 자리표시자 0', async ({ page }) => {

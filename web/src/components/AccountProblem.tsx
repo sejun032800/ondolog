@@ -11,7 +11,9 @@ import type { Nav } from '../navigation'
 import { useAccountProblemStore } from '../stores/accountProblemStore'
 import { PrimaryButton } from '../ui'
 import { TrialDiag } from './TrialDiag'
-import { reportAppError } from '../errorLog/errorLog'
+import { getErrorScreen, reportAppError } from '../errorLog/errorLog'
+import { clearScreenCache } from '../cache/deviceCache'
+import { useAuthStore } from '../auth/stores'
 
 export const ACCOUNT_PROBLEM_COPY = {
   title: '계정 정보를 불러오지 못했어요',
@@ -52,7 +54,7 @@ export function AccountProblemHost({ nav }: { nav: Nav }) {
 
 /**
  * 화면 그리기 중에 예상 못 한 오류가 나도 바탕만 남지 않게 한다(빈 화면 0 원칙의 마지막 그물). 오류 내용은 남기지 않는다(시험 빌드는 분류만).
- * [다시 시도]는 같은 화면을 다시 그리고, [로그아웃]은 로그아웃한다.
+ * [다시 시도]는 그 화면이 쓰는 기기 저장 범주를 먼저 비운 뒤(81- · R117-2 - 깨진 저장값이 다시 깨뜨리는 반복 0, 대기열은 비우지 않음) 같은 화면을 다시 그리고, [로그아웃]은 로그아웃한다.
  */
 export class RenderGuard extends Component<{ nav: Nav; children: ReactNode }, { failed: boolean }> {
   state = { failed: false }
@@ -65,7 +67,10 @@ export class RenderGuard extends Component<{ nav: Nav; children: ReactNode }, { 
     if (!this.state.failed) return this.props.children
     return (
       <AccountProblemView
-        onRetry={() => this.setState({ failed: false })}
+        onRetry={() => {
+          try { clearScreenCache(useAuthStore.getState().userId, getErrorScreen()) } catch { /* 비우기 실패여도 다시 그린다 */ }
+          this.setState({ failed: false })
+        }}
         onLogout={() => { this.setState({ failed: false }); void logoutToStart(this.props.nav) }}
       />
     )

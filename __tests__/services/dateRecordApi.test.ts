@@ -360,6 +360,34 @@ describe('규칙 1·3·4·5·7 - 데이트 하나 기록', () => {
     expect(added?.author_id).toBe(PARTNER)
   })
 
+  it('R113-2(81-) 지운 뒤 새 행 - 숨긴 하루 행이 정리(실제 삭제)로 없어진 뒤 같은 날 기록하면 새 행을 만들고 AI 칸은 비어 있다', async () => {
+    const { store, db } = await recordSample()
+    const old = store.tables.dates[0]
+    // 숨긴 뒤 AI가 채운 칸이 있던 행 -> 월요일 정리(76-j)가 행 자체를 지운다(딸린 stop · 기록도 cascade).
+    Object.assign(old, { deleted_at: '2026-10-10T00:00:00Z', title: 'AI 제목', narrative: 'AI 서술', region: '마포구', is_new_region: true })
+    store.tables.dates = []
+    store.tables.date_stops = []
+    store.tables.data_entries = []
+    store.writtenColumns = {}
+
+    const again = await recordDate(db, deps(store), {
+      coupleId: COUPLE,
+      userId: ME,
+      dateOn: '2026-10-03',
+      places: [],
+      photos: [],
+      memo: '다시 쓴 메모',
+    })
+
+    expect(again.createdDate).toBe(true)
+    expect(store.tables.dates).toHaveLength(1)
+    const row = store.tables.dates[0]
+    expect(row.id).not.toBe(old.id)
+    expect(again.dateId).toBe(row.id)
+    expect(row).toMatchObject({ couple_id: COUPLE, date_on: '2026-10-03', source: 'manual', user_confirmed: true, deleted_at: null, title: null, narrative: null, region: null, is_new_region: false })
+    for (const col of ['title', 'narrative', 'region', 'is_new_region']) expect(store.writtenColumns.dates.has(col)).toBe(false)
+  })
+
   it('장소를 하나도 안 넣으면 이름 없는 stop 하나이고 사진은 모두 거기에 붙는다', async () => {
     const store = new FakeStore()
     const db = makeDb(store)

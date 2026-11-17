@@ -11,6 +11,110 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `81-` 기기 저장값 모양 검사(실제 커플 조건) + `ensureDate` 시험 한 건 (메인 세션, 2026-11-17, 위임문 `phase-7/81-dispatch-device-cache-shape.md` · 근거 `80-pm-report.md` §5 · R117-2 · R117-3 · R113-1(→ 실제 R113-2) · R116-4) - 완료 (미커밋)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
+
+범위: `web/src/cache/`(새 3파일 `cacheShapes.ts` · `queueShapes.ts` · `queueStorage.ts` + `deviceCache.ts`) · `web/src/features/chat/textQueueHub.ts` · `web/src/photoQueue/photoQueueStore.ts` · `web/src/components/AccountProblem.tsx`(RenderGuard) · `web/src/app/useAccountData.ts`(시작 훑기) · `web/src/errorLog/errorLog.ts`(깨진 저장분 1건 · 화면 이름 읽기) · 시험(새 `web/src/cache/cacheShape81.vitest.tsx` + 기존 3파일 고정값) · `web/smoke/screens.smoke.ts` · `__tests__/services/dateRecordApi.test.ts`(한 건) · HANDOFF · PROGRESS. **멈춤 0 · 마이그레이션 0 · 원격 접속 0 · 새 패키지 0 · 함수 0 · 렌더 0 · 네이티브 0 · `consent.ts` 0 · RN 0 · `demo_responses` 0 · R34-3 호출 0 · 커밋 0 · db push 0 · package.json · app.json · eas.json · tsconfig 변경 0.** 루트 `src/utils`의 대기열 순수 규칙은 그대로(웹 저장소가 감쌈).
+
+검증: **`npm run gate` 통과 153초**(web tsc 8.6초 → Vitest **64/1085** + 1 건너뜀 21.6초 → 법무 8/8 5.2초 → `smoke:webkit` **24/24** 117.6초) · 루트 tsc 0 · jest **116/1987**(+1) · PGlite 10/129 · Python 324 OK · `build` · `build:trial` · `cap sync android`(맨 끝 한 번). 빌드 결과물 스모크 표지 0. 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0 · 새 파일 이름 ASCII.
+
+### 범주별 시험 (`web/src/cache/cacheShape81.vitest.tsx` 62건)
+| 범주 | 올바른 값(버전 붙여 저장 · 그대로 읽음) | 81- 이전 버전 없는 값 | 깨짐(JSON 아님 · 칸 빠짐 · 타입 다름 · 버전 없는 깨진 값) | 옛 버전 · 모르는 새 버전 | 화면 · 서버 다시 채움 |
+|---|---|---|---|---|---|
+| main 요약 · library · facts · start | 통과 | 받아들임 · 기록 0 | 그 키만 지움 · 옆 범주 그대로 · `cache_fail` 1(다시 읽어도 1) | 같음 | 메인 요약 깨짐 -> 스토어 unknown(서버 읽기 대기) · 스모크 메인 정상 |
+| 안내 표시(nickNotice · dateNotice) · push:asked | 통과 | 받아들임 | 같음 | 같음 | - |
+| name | 통과 | 받아들임 | 같음 | 같음 | - |
+| chat · chat:head | 통과 | 받아들임 | 같음 | 같음 | 깨짐 -> 빈 목록(서버 읽기가 채움) |
+| feed · feed:trash | 통과 | 받아들임 | 같음 | 같음 | **80- 모양(`dates` 글자) -> 대체 화면 0 · 서버 카드 · 새 모양으로 다시 씀**(Vitest · 스모크 둘 다) |
+| sky | 통과 | 받아들임 | 같음 | 같음 | 깨짐 -> 자리 표시로 시작 |
+| route | 통과 | 받아들임 | 같음 | 같음 | - |
+| 오류 건수 `err1` | - | - | 빈 값으로 다시 시작 · `cache_fail` 1 | - | - |
+| **글 대기열** | 새 모양 `{__v:1,items}` | **옛 배열 -> 변환 · 다시 씀 · 정상 전송**(빠진 칸만: 횟수 0 · 대기 · 시각 · 커플) | **변환 불가 항목 -> 원본 보존 · 보내기에서 빠짐 · 나머지 정상 · 기록 1** / 전체 깨짐 · 모르는 버전 -> 원본 글자 보존 · 같은 원본 두 번 넣지 않음 | 보존 칸에 못 쓰면 원래 키를 덮어쓰지 않음 · 읽기 전 저장은 읽기 뒤로 | - |
+| **사진 대기열** | 새 모양 | **옛 모양 -> 변환(확장자 · 형식 · 커플 · 사용자 · 시각 · 횟수 · 상태) · 정상 전송** | **변환 불가 -> 원본 보존 · 보내기에서 빠짐 · 사진 파일 남음(지운 것 0)** | 같음 | - |
+| 시작 훑기 | 깨진 · 옛 버전 키 3개만 버림 · 올바른 값 · 보존 칸 · 모르는 scope · 다른 사람 키 그대로 · 두 번째 0 · 저장소 막혀도 던지지 않음 | | | | |
+| [다시 시도] | 대체 화면 -> 한 번에 정상 · 지우기 대기열 · 보존 칸 · 대기열 · 안내 표시 남음 · 모르는 화면 0 | | | | |
+| 삭제 규칙 | 로그아웃 · 탈퇴 요청 -> 보존 원본까지 지움 · 계정 전환 -> 다른 사람 보존 원본 지움(내 것 남음) · 해제 완료 -> 커플 자료 지우고 보존 원본은 대기열처럼 남김 · 기존 76-/78-/76-i/80- 삭제 시험 그대로 통과 | | | | |
+
+기존 시험 고친 것(시험 쪽 고정값만): `dayDelete76d`(하늘 저장 고정값을 온전한 하루 기록으로) · `skyScreen`(`{x:1}` -> 빈 하늘 값) · `photoQueue`(저장 글자가 버전 감싸기). 제품 동작 기대는 그대로.
+
+`ensureDate`(R113-2): `__tests__/services/dateRecordApi.test.ts` "지운 뒤 새 행" - 숨긴 하루 행(AI 칸 채워짐)이 정리로 없어진 뒤 같은 날 기록 -> 새 행(`createdDate` true · 다른 id) · title · narrative · region 비어 있음 · is_new_region false · 그 칸들을 쓰지 않음. 통과.
+
+### 스모크
+| 시험 | WebKit(iPhone 14 Pro) | Chromium(Pixel 7) |
+|---|---|---|
+| 기존 화면 11 | 11/11 | 11/11 |
+| **깨진 기기 저장값(81-)**: 피드(80- 모양) + 메인 요약 · 서재 깨짐 -> 대체 화면 없이 바로 메인 · 피드 정상 · `log_app_error`는 `cache_fail`만 합계 3(키마다 1) · 보낸 값 내용 0 · 피드 저장분 새 모양으로 다시 채움 | 통과(7.3초) | 통과(11.8초) |
+| 합계 | **24/24** · `smoke:webkit` 117.6초 · `npm run gate` 153초 | |
+
+(80-의 "오류 경계" 스모크는 이 시험으로 바뀜 - 결정 기록 참조.)
+
+### 커밋 명령 (맨 위 폴더에서)
+```
+git add web/src/cache/cacheShapes.ts web/src/cache/queueShapes.ts web/src/cache/queueStorage.ts web/src/cache/deviceCache.ts web/src/cache/cacheShape81.vitest.tsx
+git add web/src/features/chat/textQueueHub.ts web/src/photoQueue/photoQueueStore.ts web/src/components/AccountProblem.tsx web/src/app/useAccountData.ts web/src/errorLog/errorLog.ts
+git add web/src/features/feed/dayDelete76d.vitest.tsx web/src/features/sky/skyScreen.vitest.tsx web/src/photoQueue/photoQueue.vitest.tsx web/smoke/screens.smoke.ts
+git add __tests__/services/dateRecordApi.test.ts
+git add .claude/state/HANDOFF.md .claude/state/PROGRESS.md
+git commit -m "81- device cache shape versions: per-category checks, queue conversion and preservation, RenderGuard retry clears cache"
+```
+(위임서 `81-dispatch-device-cache-shape.md` · `80-pm-report.md`는 이미 추적됨 - 따로 넣을 것 없음.)
+
+### Proteur 다음 순서
+1. 커밋(위 명령). db push 없음(마이그레이션 0).
+2. 폰 덮어 설치: **필요**(앱 코드 변경). `npx cap sync android`는 메인 세션이 맨 끝에 한 번 돌림 -> Android Studio 빌드 -> 두 폰에 **앱 삭제 없이** 덮어 설치.
+3. 폰에서만 확인되는 것: **업데이트 덮어 설치 뒤 기존 대화가 그대로 보이는지 · 보내지 못한 메시지(비행기 모드에서 보낸 글 · 사진)가 남아 있다가 연결 뒤 한 번만 가는지**. 순서: 설치 전에 비행기 모드로 글 1 · 사진 1 보내기(보내는 중으로 남김) -> 덮어 설치 -> 앱 열기(아직 비행기 모드) -> 대화 · 보내는 중 말풍선 그대로 -> 비행기 모드 끄기 -> 둘 다 한 번씩 감(상대 폰에서도 한 번).
+4. 월요일 9번 질의에서 `cache_fail` 건수: 이번 업데이트 첫 실행은 0이 정상(81- 이전 값은 받아들임). 0이 아니면 숫자만 PE에.
+
+### 81- 결정 기록 (출처: R117-2 · R117-3 · R113-1 · R116-4)
+- **80- 4단계 닫힘(R116-4)**: 오류 기록 표(`app_error_daily`)는 처리방침 변경 0으로 닫혔다 - 사람 · 기기 · 내용을 알아볼 칸 0이라 개인정보 아님. **칸이 하나라도 늘면 멈추고 PM에게.** (이번 81-은 그 표 · RPC를 건드리지 않는다 - 칸 변경 0.)
+- **업데이트 규칙(R117-2)**: 범주 모양을 바꾸면 버전을 올리고, 대기열은 변환 함수를 함께 둔다. (일반 범주 = `web/src/cache/cacheShapes.ts`의 `CACHE_VERSION` + 검사 · 대기열 = `web/src/cache/queueShapes.ts`의 `QUEUE_VERSION` + `convertTextItem` · `convertPhotoItem`.)
+- **저장 모양**: 일반 범주(`ondolog.dc1:` 키) = `{"__v": 버전, "d": 값}` · 대기열(Preferences `chat_queue:` · `chat_photo_queue:`) = `{"__v": 1, "items": [...]}`. 지금 버전은 모두 1.
+- **버전 없는 값(81- 이전 앱이 쓴 것)**: 일반 범주는 지금 버전이 1이고 검사를 지나면 **그대로 받는다**(`cache_fail` 0). 이유: 81- 직전 모양 = 지금 모양이라, 버리면 이번 업데이트 첫 실행에 모든 사용자의 화면이 오프라인에서 비고 `cache_fail`이 한꺼번에 튄다. 버전이 2가 되면 버전 없는 값도 옛 버전으로 버린다. 대기열의 버전 없는 배열은 옛 모양으로 보고 항목마다 변환해 새 모양으로 다시 쓴다.
+- **읽을 때 검사**(손 검사, 새 패키지 0): 화면이 그 값으로 바로 그리는 칸의 타입까지(배열 원소 포함). 깨짐 · 칸 빠짐 · 타입 다름 · 옛 버전 · 모르는 새 버전 -> **그 키만** 지우고 null(읽는 곳은 원래대로 자리 표시 -> 서버 읽기 -> 새 모양으로 다시 씀). 선택 칸(피드 `region` · `title`, 채팅 `pending` 등)은 없어도 통과(없음 = null과 같이 그려짐).
+- **`cache_fail` 1회**: 키마다 이 실행에서 1번(메모리 집합). 지운 뒤에는 다시 읽어도 값이 없으므로 다음 실행에도 반복 0. 대기열 키 · 오류 건수 저장분도 같은 규칙.
+- **대기열은 버리지 않는다**: 변환 = 빠진 칸 중 **기본값(재시도 0 · 대기) · 저장 키에서 아는 값(커플 · 사용자) · 파일 이름에서 아는 값(확장자 · 형식) · 시각(없으면 읽은 때)**만 채운다. 본문 · 메시지 id · 보낸 사람 · 사진 종류 · 파일 경로처럼 지어낼 수 없는 칸이 없으면 **변환 불가** -> 원본 글자 그대로 보존 칸(`ondolog.dc1:{u}:qkeep:{text|photo}:{커플}`)에 넣고, 보내기에서만 빠진다. 사진 파일은 이 경로에서 지우지 않는다(지우는 곳은 기존 러너의 성공 · 취소 · 사라짐뿐). 같은 원본은 한 번만 넣는다.
+- **보존 칸 자체는 버리지 않는다**: 시작 훑기 · [다시 시도] 대상에서 뺌. 보존 칸이 깨져 있으면 그 글자도 원본 한 건으로 함께 남긴다.
+- **보존 칸에 쓰지 못하면**(저장 막힘 · 로그인 전 userId 없음) 이 실행 동안 원래 대기열 키를 **덮어쓰지 않는다** - 원본이 원래 자리에 남는다(이번 실행의 새 항목은 메모리 큐로는 전송된다 - 앱을 끄기 전에 못 보낸 새 항목은 다음 실행에 없을 수 있음: 저장이 막힌 기기의 기존 한계와 같음). Preferences 읽기 자체가 실패해도 같은 규칙.
+- **읽기 전 저장 금지**: 대기열 저장은 같은 키의 읽기가 끝난 뒤에 쓴다(앱을 켜자마자 보낸 글이 아직 읽지 않은 원본을 덮어쓰던 틈을 막음 - 기존 틈, 이번에 함께 막음).
+- **삭제 규칙**: 76- · 78- · 76-i · 80- 규칙 그대로(시험). 보존 칸은 `dc1:` 사용자 키라 로그아웃 · 탈퇴 요청(`clearAllDeviceCache`) · 계정 전환(`purgeOtherUsers`)에서 같이 지워진다. 해제(유예 · 완료)의 `clearCoupleCache`에는 넣지 않았다 - 기존 규칙상 대기열 자체가 해제로 지워지지 않으므로(R39-5 b) 그 원본도 대기열처럼 남긴다. 계정 전환 신호(`purgeOtherUsers` > 0)는 다른 사람의 보존 칸이 있을 때도 1 이상 - 뜻이 같다(다른 사람 것이 있었음).
+- **보내지 못한 메시지 · 사진 자체는 어떤 경로에서도 지우지 않는다**(Proteur 지시). 위 삭제 규칙이 지우는 것은 "변환하지 못해 이미 보내기에서 빠진 원본 글자"뿐이고, 위임서 1단계 · 2단계가 로그아웃 · 계정 전환 때 지우라고 정한 것이다. 다르게 하려면 PM 판단.
+- **[다시 시도](RenderGuard)**: 지금 화면 이름(80- 오류 기록의 그리기 중 화면 이름)으로 그 화면의 일반 범주를 비운 뒤 다시 그린다. 화면 -> 범주: main(main · name) · chat(chat · name) · feed(feed · name) · date-detail(feed · sky) · sky(sky · name) · magazine(main) · push-permission · nickname-recheck · start-date-recheck(name). 비우지 않음: 대기열 · 보존 칸 · `feed:trash`(지우기 대기열) · 안내 표시(nickNotice · dateNotice · asked). 모르는 화면이면 아무것도 지우지 않고 다시 그림.
+- **앱 시작 훑기**: `useAccountData`에서 계정 전환 정리(`purgeOtherUsers`) 바로 뒤 `sweepDeviceCache(userId)` - 이 사용자의 키를 훑어 깨진 · 옛 버전을 버림. 모르는 scope · 보존 칸 · 다른 사람 키는 건드리지 않음. 던지지 않음(시험: 저장소 막힘).
+- **오류 건수 저장분(`ondolog.err1`)**: 원래 버전(`v:1`) + 칸 정리가 있었다. 81-: 버전이 다르거나 깨졌으면 빈 값으로 다시 시작하고 `cache_fail` 1건을 센다(이 실행에서 1번 - 이후는 메모리).
+- **버전 칸을 붙이지 않은 범주(예외)**: 기기 id `ondolog.push.device` · 푸시 등록 표시 `ondolog.push.registered` · 호 열어 봄 `ondolog.issueOpened.*` - 날 글자 하나(JSON 아님)이고 지금 검사(8자 이상 · `=== '1'` · 값 있음)로 깨져도 그리기가 깨지지 않는다. 기기 id 저장 모양을 바꾸면 모든 폰이 새 id로 다시 등록되므로 손대지 않았다. 로그인 세션(supabase-js 소관)도 범위 밖.
+- **스모크 "오류 경계(80-)" 시험을 "깨진 기기 저장값(81-)"으로 바꿈**: 80-에서 대체 화면을 일부러 내던 깨진 피드 저장값이 이제는 검사에서 버려져 화면이 바로 정상이므로, 같은 값 + 메인 깨진 값 둘로 "대체 화면 0 · `cache_fail`만 · 내용 0 · 새 모양으로 다시 채움"을 본다. RenderGuard 대체 화면 · `render_crash` 기록 · [다시 시도]는 Vitest(`cacheShape81` · `errorLog`)가 맡는다(앱에 시험 모드를 넣지 않는 80- 원칙 그대로).
+- **근거 번호**: 위임서는 `ensureDate` 시험 근거를 R113-1로 적었으나 ROADMAP상 그 한 건을 정한 줄은 **R113-2**("`ensureDate` 가짜 저장소 시험 '지운 뒤 새 행' 한 건은 그 폴더를 여는 다음 위임에서")다. 시험 이름에 R113-2로 적었다. R117-3도 R113-2를 가리킨다.
+- **원격 질의**: 이번 허용 질의 없음 - 실행한 원격 질의 0.
+
+### 0단계 표 - 손대기 전(81- 시작 시점 코드 그대로)
+| 범주 | 저장 위치 | 담는 것 | 지금 모양 검사 | 깨지면 지금 어떻게 되나 | 사용자가 쓴 것인가(대기열) |
+|---|---|---|---|---|---|
+| main(요약) `dc1:{u}:main` | localStorage | 커플 id · 상대 id · 이름 · 온도 · 사귄 날 · 대표 사진 경로 | `coupleId` · `partnerId` 있음만 | 칸 타입이 틀려도 그대로 스토어에 들어감 → 메인 그리기에서 깨질 수 있음 · [다시 시도]도 같은 값 | 아님 |
+| main:library | localStorage | 발행 호 목록 · 다음 호(월 · % · 건수) | 커플 id 같음 · `issues` 배열만(원소 검사 0) | 원소가 틀리면 메인 서재 카드에서 깨질 수 있음 | 아님 |
+| main:facts | localStorage | 활동 유무 · 프로필 완성 · 열어 본 호 id | 커플 id · `openedFor` 글자만 | 불리언 자리에 다른 값 → 잘못된 표시 | 아님 |
+| main:start | localStorage | 시작 온도 표시값 · 활동 유무 | 커플 id · `value` 숫자 | 대체로 안전 | 아님 |
+| main:nickNotice · main:dateNotice (F1 · 닉네임 안내 표시) | localStorage | 이미 보인 안내의 키 | `.key ===` 비교 | 다시 한 번 보임(깨지지 않음) | 아님 |
+| name:{상대 id} | localStorage | 상대 표시 이름 | 없음(`?.name`) | 이름 자리에 객체가 오면 글자로 이어 붙음 · 일부 화면에서 그리기 오류 가능 | 아님 |
+| chat:{커플 id} | localStorage | 확정 메시지 100건 | 커플 id · `messages` 배열 · 원소의 커플 id · `sentAt`만 | 다른 칸이 틀린 원소가 채팅에 그려져 깨질 수 있음 | 아님(서버에 이미 있는 것) |
+| chat:{커플 id}:head | localStorage | 채팅 머리 상대 이름 | 칸 셋 모두 | 안전(무시) | 아님 |
+| feed | localStorage | 월 묶음 · 날짜 카드 · 작성자 이름 | `chapters` 배열만 | **80- 관찰**: `dates`가 글자면 피드 그리기 깨짐 → [다시 시도]도 다시 깨짐 · [로그아웃]만 탈출 | 아님 |
+| feed:trash | localStorage | 지우지 못한 내 파일 경로 대기열(76-g) | 배열 · 글자 원소 거름 | 안전(빈 대기열 → 남은 파일은 월요일 정리) | 아님(삭제 대기) |
+| sky:{커플 id} | localStorage | 하루 기록 · 온도 · 달 · 다음 호 기간 | 커플 id · `records` 배열만 | 기록 원소가 틀리면 하늘 그리기 깨질 수 있음 | 아님 |
+| route(마지막 탭) | localStorage | 탭 이름 · 시각 | 칸 둘 타입 · 탭 이름 목록 | 안전(메인으로) | 아님 |
+| push:asked (78- 권한 안내 보임) | localStorage | `{asked:true}` | `=== true` | 안내가 다시 한 번 | 아님 |
+| 오류 건수 `ondolog.err1`(80-) | localStorage | (화면 · 종류)별 건수 · 보낸 시각 | **버전(`v:1`) + 칸 정리(`sanitizeState`)** 있음 | 조용히 빈 값으로 다시 시작(기록 0) | 아님 |
+| 기기 id `ondolog.push.device` | localStorage | 이 기기 무작위 id(사람 0) | 8자 이상 | 새 id를 만듦(서버 토큰 행은 기존 규칙대로) | 아님 |
+| 푸시 등록 표시 `ondolog.push.registered` | localStorage | `'1'` | `=== '1'` | 등록 안 됨으로 보고 다시 등록 | 아님 |
+| 호 열어 봄 `ondolog.issueOpened.{u}.{호}` | Preferences | `'1'` | 값 있음이면 열어 봄 | 안전 | 아님 |
+| **글 대기열** `chat_queue:{커플}`(`textQueueHub`) | Preferences(Android SharedPreferences · 웹 localStorage) | 보내지 못한 메시지(본문 · client_msg_id · 횟수 · 상태) | 원소별 칸 검사(`parseQueuedMessages`) | **JSON이 깨지거나 배열이 아니면 빈 큐 · 칸이 틀린 원소는 빠짐 → 다음 저장이 덮어써 원본을 잃음** | **예** |
+| **사진 대기열** `chat_photo_queue:{커플}:{u}`(`photoQueueHub`) + 파일 `Data/chat-photo-queue/` | Preferences + Filesystem | 보내지 못한 사진 메시지 · 이야기(파일 경로 · 형식 · 횟수) | 원소별 칸 검사(`parseQueuedPhotos`) | **글 대기열과 같음(항목 유실)** · 파일은 지우는 곳이 없어 남음(고아 파일) | **예**(파일 포함) |
+| 로그인 세션 `sb-…-auth-token` | Preferences | Supabase 세션 | supabase-js가 검사 | 로그인 안 됨으로 보고 첫 화면 | 아님 - 라이브러리 소관(이번 범위 밖) |
+| 사진 고르기 · 피드 기록 임시 파일 | Filesystem `Cache` | 고른 사진 복사본 | 목록 저장 0(한 번 쓰고 지움) | 해당 없음 | 기록 시트 진행 중 것뿐(저장 목록 없음) |
+| 서명 URL | 메모리만 | 사진 주소(45분) | - | 해당 없음(기기 저장 0) | 아님 |
+| 서랍 알림(76-i) | OS 알림 서랍 | 받은 푸시 | - | 기기 저장 0(앱 저장소 아님) | 아님 |
+| 온보딩 답(로그인 전) | 메모리만(영속 저장 금지) | - | - | 해당 없음 | - |
+
 ## `80-` 앱 오류 기록 - 우리 서버 · 개인정보 0 · 외부 서비스 0 (메인 세션, 2026-11-17, 위임문 `phase-7/80-dispatch-app-error-log.md` · 근거 `79-pm-report.md` §5 · R114-3 ② · R115-1~4 · R112-3) - 완료 (미커밋)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님

@@ -455,9 +455,9 @@ describe('큐 재개 시점 - 채팅 탭을 열지 않는다(R39-5, 65-)', () =>
 
 // ---------------------------------------------------------------------------
 describe('기기 저장 · 파일(웹판)', () => {
-  it('Preferences에 RN과 같은 키로 저장하고 읽는다 · 깨진 저장은 빈 큐', async () => {
+  it('Preferences에 RN과 같은 키로 저장하고 읽는다(81-: 모양 버전 감싸기) · 깨진 저장은 빈 큐(원본은 보존 칸 - queueShape81 시험)', async () => {
     await photoQueueStore.save(COUPLE, USER, [ITEM])
-    expect(Preferences.set).toHaveBeenCalledWith({ key: `chat_photo_queue:${COUPLE}:${USER}`, value: JSON.stringify([ITEM]) })
+    expect(Preferences.set).toHaveBeenCalledWith({ key: `chat_photo_queue:${COUPLE}:${USER}`, value: JSON.stringify({ __v: 1, items: [ITEM] }) })
     expect(await photoQueueStore.load(COUPLE, USER)).toEqual([ITEM])
     await Preferences.set({ key: chatPhotoQueueKey(COUPLE, USER), value: '{깨짐' })
     expect(await photoQueueStore.load(COUPLE, USER)).toEqual([])

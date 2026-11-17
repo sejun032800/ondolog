@@ -376,7 +376,9 @@ describe("기기 저장 'sky' - 커플 자료 종류", () => {
   it("COUPLE_KINDS에 'sky'가 들어 있다", () => { expect(COUPLE_KINDS).toContain('sky') })
 
   it('로그아웃 · 탈퇴 요청(clearAllDeviceCache) · 해제(유예 진입 · 완료, clearCoupleCache) · 계정 전환(purgeOtherUsers)에서 지워진다', () => {
-    const put = () => { writeCache('me', 'sky', { x: 1 }, 'c1'); writeCache('me', 'name', { name: 'a' }, 'p'); writeCache('other', 'sky', { x: 2 }, 'c2') }
+    // 81-: 저장 모양 검사를 지나는 값(빈 하늘)
+    const sky = (coupleId: string) => ({ coupleId, records: [], allLoaded: true, temps: {}, tempStatus: {}, moons: [], draftPeriodStart: null })
+    const put = () => { writeCache('me', 'sky', sky('c1'), 'c1'); writeCache('me', 'name', { name: 'a' }, 'p'); writeCache('other', 'sky', sky('c2'), 'c2') }
     put(); clearAllDeviceCache()
     expect(readCache('me', 'sky', 'c1')).toBeNull()
     put(); clearCoupleCache('me')

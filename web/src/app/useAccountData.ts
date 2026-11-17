@@ -5,7 +5,7 @@
  */
 import { useEffect } from 'react'
 import { useAuthStore } from '../auth/stores'
-import { purgeOtherUsers } from '../cache/deviceCache'
+import { purgeOtherUsers, sweepDeviceCache } from '../cache/deviceCache'
 import { claimThisDevice, clearDeliveredHere } from '../push/pushCore'
 import { useCoupleStore } from '../stores/coupleStore'
 import { useDissolutionStore } from '../stores/dissolutionStore'
@@ -24,6 +24,8 @@ export function useAccountData(route: ScreenName | null): void {
     }
     // 76-A1: 다른 계정으로 로그인했으면 이전 계정의 기기 저장분을 지우고, 이 계정의 저장 요약이 있으면 서버 읽기 전에 먼저 채운다.
     const switched = purgeOtherUsers(userId) > 0
+    // 81-(R117-2): 이 계정의 기기 저장 범주를 한 번 훑어 깨진 · 옛 버전 값을 미리 버린다(실패해도 시작은 그대로 - 던지지 않음).
+    sweepDeviceCache(userId)
     // 78-: 같은 자리 - 이 기기에 남은 다른 사람의 알림 토큰 행을 지운다(계정 전환).
     // 76-i: 다른 사람의 저장분이 있었으면(계정 전환) 그 사람의 알림이 남은 서랍을 먼저 지운다. 같은 사람의 앱 시작 · 재로그인에는 0.
     void (async () => {

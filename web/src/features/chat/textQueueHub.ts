@@ -10,7 +10,9 @@
  */
 import { Preferences } from '@capacitor/preferences'
 import { sendMessage, type ChatDb, type MessageRow, type SendInput, type SendMessageResult } from '@/services/chatCore'
-import { chatQueueStorageKey, parseQueuedMessages, type OutgoingMessage, type QueuedMessage } from '@/utils/chatQueue'
+import { chatQueueStorageKey, type OutgoingMessage, type QueuedMessage } from '@/utils/chatQueue'
+import { loadQueue, saveQueue, type PrefsLike } from '../../cache/queueStorage'
+import { convertTextItem } from '../../cache/queueShapes'
 import { ChatRetryQueue, type AttemptOutcome } from '@/utils/chatRetryQueue'
 import { getSupabase } from '../../auth/client'
 import { reportAppError } from '../../errorLog/errorLog'
@@ -23,26 +25,20 @@ export interface TextQueueListener {
 }
 
 export interface TextQueueStore {
-  load: (coupleId: string) => Promise<QueuedMessage[]>
+  /** `userId`(81-): 변환하지 못한 원본을 보존할 칸의 주인. */
+  load: (coupleId: string, userId?: string) => Promise<QueuedMessage[]>
   save: (coupleId: string, queue: QueuedMessage[]) => Promise<void>
 }
 
-export const textQueueStore: TextQueueStore = {
-  async load(coupleId) {
-    try {
-      return parseQueuedMessages((await Preferences.get({ key: chatQueueStorageKey(coupleId) })).value)
-    } catch {
-      return []
-    }
-  },
-  async save(coupleId, queue) {
-    try {
-      await Preferences.set({ key: chatQueueStorageKey(coupleId), value: JSON.stringify(queue) })
-    } catch {
-      // 저장이 안 돼도 이번 세션 메모리 큐는 계속 동작한다 - 다음 변경 때 다시 저장한다.
-    }
-  },
+/** 81-(R117-2): 저장 모양 버전 · 옛 모양 변환 · 변환 불가 원본 보존(`cache/queueStorage`). 버리지 않는다. */
+export function createTextQueueStore(prefs: PrefsLike = Preferences, now: () => Date = () => new Date()): TextQueueStore {
+  return {
+    load: (coupleId, userId) => loadQueue(prefs, chatQueueStorageKey(coupleId), 'text', { coupleId, userId: userId ?? null, now: now() }, convertTextItem),
+    save: (coupleId, queue) => saveQueue(prefs, chatQueueStorageKey(coupleId), queue),
+  }
 }
+
+export const textQueueStore: TextQueueStore = createTextQueueStore()
 
 export interface TextQueueHubDeps {
   /** 한 번의 전송. 던지지 않는 것이 규칙이다(`sendMessage`가 던지지 않고 결과로 돌려준다). */
@@ -94,7 +90,7 @@ export class TextQueueHub {
       },
     })
     this.text = text
-    void this.deps.store.load(coupleId).then((items) => {
+    void this.deps.store.load(coupleId, userId).then((items) => {
       giveUps.prime(items.map((q) => ({ id: q.clientMsgId, failed: q.status === 'failed' })))
       if (generation === this.generation) text.hydrate(items)
     })

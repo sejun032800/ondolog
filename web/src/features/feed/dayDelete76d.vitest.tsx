@@ -182,7 +182,8 @@ describe('하늘 기기 저장분', () => {
     useDb(ONLY_MINE)
     writeCache('me', 'sky', {
       coupleId: 'c1', allLoaded: true, moons: [], draftPeriodStart: null,
-      records: [{ id: 'd0', date: '2026-09-20' }, { id: 'd1', date: '2026-10-03' }],
+      // 81-: 저장 모양 검사를 지나는 온전한 하루 기록
+      records: [{ id: 'd0', date: '2026-09-20' }, { id: 'd1', date: '2026-10-03' }].map((r) => ({ ...r, stops: [], photos: [], memos: [], counts: { stops: 0, photos: 0, memos: 0 } })),
       temps: { '2026-09-20': 40, '2026-10-03': 41 }, tempStatus: { '2026-09': 'ok', '2026-10': 'ok' },
     }, 'c1')
     render(<FeedTab nav={makeFakeNav()} />)
