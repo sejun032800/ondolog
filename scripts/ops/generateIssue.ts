@@ -1,5 +1,14 @@
 /**
- * 운영자 경로 - 생성 (M2-b, 샘플 출력 모드). 위임: .claude/state/prompts/phase-7/54-corner-pipeline-operator-path.md
+ * 운영자 경로 - 생성 (M2-b 샘플 출력 모드 · 84-a 실제 모드). 위임: .claude/state/prompts/phase-7/54-corner-pipeline-operator-path.md
+ * + .claude/state/prompts/phase-7/84-a-dispatch-llm-safety.md (ROADMAP r124 R124-2~4)
+ *
+ * ── 84-a 실제 모드 (`mode: 'live'`) ─────────────────────────────────────
+ * - **기본은 샘플 모드**다. 실제 모드는 호출부(CLI `--mode live`)가 명시하고 `live` 의존성(클라이언트 만들기 · 시계)을 넘길 때만.
+ * - 가드는 그대로 먼저 돈다: 시험 커플(`assertTestCouple`) · P0 대상 조건. 가드 밖이면 LLM 0으로 멈춘다(실제 사용자 0).
+ * - 모델 fail-closed(R21-1): `app_config.llm_provider`가 허용 목록 안일 때만(`resolveLlmModel`). 아니면 **호 행을 만들기 전에**
+ *   거부(코드 숫자) - LLM 0 · DB 쓰기 0.
+ * - 시간: 코너 8분 · 1호 20분(주입 시계) - 호출 1번 120초는 `llmClient`. 1호 비용 $2(실제 사용량 누적 + 다음 호출 최악).
+ * - 사용량은 `corners.llm_usage`(숫자 · 코드만).
  *
  * 흐름(MASTER §17-0-10-B): P0 초안 행 -> P1 입력 조립(기존) -> 코너 3종(기존 골격 그대로, 응답 자리만 샘플) ->
  * 검증·원문 채우기(기존) -> 저장(기존 `saveCornerResult.ts`) -> P7 미디어 복제.
@@ -32,7 +41,25 @@ import { sweetWordsModule } from '../../supabase/functions/_shared/corners/sweet
 import { thisMonthModule } from '../../supabase/functions/_shared/corners/thisMonth.ts'
 import { copyIssueMedia, type MediaCopyReport } from './mediaCopy.ts'
 import { OpsStopError, assertTestCouple } from './opsGuards.ts'
-import type { CornerRow, IssueRow, IssueType, MediaStore, OpsStore } from './opsStore.ts'
+import type { CornerLlmUsage, CornerRow, IssueRow, IssueType, MediaStore, OpsStore } from './opsStore.ts'
+import type { BeforeAttemptResult, LlmClient, LlmResponseInfo } from '../../supabase/functions/_shared/llmClient.ts'
+import type { LlmRequest } from '../../supabase/functions/_shared/llmRequest.ts'
+import {
+  CORNER_TIME_LIMIT_MS,
+  CostMeter,
+  ISSUE_BUDGET_USD,
+  ISSUE_TIME_LIMIT_MS,
+  SAFETY_STOP,
+  ZERO_USAGE,
+  addUsage,
+  callBudgetMs,
+  resolveLlmModel,
+  usageCostUsd,
+  worstCallCostUsd,
+  type AllowedLlmModel,
+  type Deadline,
+  type LlmUsage,
+} from '../../src/engine/corners/llmSafety.ts'
 import {
   SAMPLE_ENGINE_VERSION,
   createSampleLlmClient,
@@ -74,7 +101,25 @@ export interface GenerateParams {
   /** `YYYY-MM-DD`, KST 00:00 끝 **미포함**(`CornerPeriod`의 반열린 구간). */
   readonly periodEndExclusive: string
   readonly cadence: 'monthly' | 'daily'
+  /** 84-a: 없으면 샘플. `live`는 `deps.live`가 있어야 한다. */
+  readonly mode?: 'sample' | 'live'
 }
+
+/** 84-a: 실제 모드 코너 클라이언트에 넘기는 것(키는 호출부가 더한다 - 이 파일은 키를 모른다). */
+export interface LiveClientConfig {
+  readonly model: AllowedLlmModel
+  readonly beforeAttempt: (request: LlmRequest) => BeforeAttemptResult
+  readonly onResponse: (info: LlmResponseInfo) => void
+}
+
+/** 84-a: 실제 모드 의존성 - CLI는 `createLlmClient`, 시험은 가짜. 시계는 주입(시험은 실제 시계 0). */
+export interface LiveDeps {
+  readonly createClient: (config: LiveClientConfig) => LlmClient
+  readonly now: () => number
+}
+
+/** 실제 모드로 저장한 코너 행의 `engine_version` 앞머리(뒤에 모델 id). 샘플(`SAMPLE_ENGINE_VERSION`)과 구별한다. */
+export const LIVE_ENGINE_VERSION_PREFIX = 'llm-live-v1:'
 
 export type CornerOutcomeLabel =
   | 'ready'
@@ -91,14 +136,20 @@ export interface CornerReport {
   readonly skipReason: string | null
   /** 추정 입력 토큰(중간값, 측정값이 아니다). 재료가 없어 요청을 만들지 못한 코너는 null. */
   readonly estimatedInputTokens: number | null
-  /** 이번 실행에서 샘플 클라이언트가 응답한 횟수. 실제 LLM 요청 수가 아니다(항상 실제 0). */
+  /** 이번 실행에서 샘플 클라이언트가 응답한 횟수. 실제 LLM 요청 수가 아니다. */
   readonly sampleResponses: number
+  /** 84-a: 실제 모드의 HTTP 시도 수(샘플은 0). */
+  readonly realApiCalls: number
   readonly detail: string | null
 }
 
 export interface GenerateReport {
-  readonly mode: 'sample'
-  readonly realApiCalls: 0
+  readonly mode: 'sample' | 'live'
+  /** 실제 LLM HTTP 시도 합(샘플 모드는 항상 0). */
+  readonly realApiCalls: number
+  /** 84-a: 실제 모드의 모델(샘플은 null) · 누적 비용(USD). */
+  readonly model: string | null
+  readonly costUsd: number
   readonly coupleId: string
   readonly issueId: string
   readonly issueCreated: boolean
@@ -136,11 +187,21 @@ function assertDateString(value: string, name: string): void {
   }
 }
 
-export async function generateSampleIssue(
+/** 샘플 모드(기존 이름 그대로 - 실제 모드는 `generateIssue`에 `mode: 'live'`). */
+export function generateSampleIssue(
   deps: { readonly store: OpsStore; readonly media: MediaStore },
   params: GenerateParams,
 ): Promise<GenerateReport> {
+  return generateIssue(deps, { ...params, mode: 'sample' })
+}
+
+export async function generateIssue(
+  deps: { readonly store: OpsStore; readonly media: MediaStore; readonly live?: LiveDeps },
+  params: GenerateParams,
+): Promise<GenerateReport> {
   const { store, media } = deps
+  const mode = params.mode ?? 'sample'
+  if (mode === 'live' && deps.live === undefined) throw new OpsStopError('실제 모드에는 실제 클라이언트 의존성이 필요하다')
   assertDateString(params.periodStart, '기간 시작')
   assertDateString(params.periodEndExclusive, '기간 끝')
   const context = toPeriod(params)
@@ -158,6 +219,20 @@ export async function generateSampleIssue(
   if (couple.members.length !== 2 || couple.members.some((m) => m.ai_usage_agreed_at === null)) {
     throw new OpsStopError('P0 대상이 아니다 - 두 구성원 모두 ai_usage_agreed_at이 있어야 한다')
   }
+
+  // ── 84-a 모델 fail-closed(R21-1): 호 행을 만들기 전에 - 거부면 LLM 0 · DB 쓰기 0 ─────────
+  let model: AllowedLlmModel | null = null
+  if (mode === 'live') {
+    const resolution = resolveLlmModel(await store.llmProviderConfig())
+    if (!resolution.ok) {
+      throw new OpsStopError(`모델 설정이 생성을 허용하지 않는다 (거부 코드 ${resolution.code}) - app_config.llm_provider 확인`)
+    }
+    model = resolution.model
+  }
+  const live = mode === 'live' ? (deps.live as LiveDeps) : null
+  const issueDeadline: Deadline | null = live ? { startedAtMs: live.now(), limitMs: ISSUE_TIME_LIMIT_MS, stop: SAFETY_STOP.issueTime } : null
+  const meter = model !== null ? new CostMeter(model, ISSUE_BUDGET_USD) : null
+  let realApiCalls = 0
 
   // ── P0 호 준비: 기간당 한 행(유일 제약). 다시 돌려도 같다 ────────────────
   const issueType: IssueType = params.cadence
@@ -241,14 +316,87 @@ export async function generateSampleIssue(
         skipReason: row.skip_reason,
         estimatedInputTokens: estimate,
         sampleResponses: 0,
+        realApiCalls: 0,
         detail: null,
       })
       continue
     }
 
+    // 84-a: 1호 20분 - 마감이 지났으면 남은 코너를 시작하지 않는다(pending 그대로 · 경보).
+    if (live !== null && issueDeadline !== null && live.now() - issueDeadline.startedAtMs >= issueDeadline.limitMs) {
+      const alert = await store.insertAlert({
+        kind: 'usage_over',
+        couple_id: params.coupleId,
+        issue_id: issue.id,
+        detail: { stage: SAFETY_STOP.issueTime, cornerType: entry.kind },
+      })
+      alertIds.push(alert.id)
+      reports.push({
+        cornerType: entry.kind,
+        cornerId: row.id,
+        outcome: 'halted_pending',
+        status: row.status,
+        skipReason: null,
+        estimatedInputTokens: estimate,
+        sampleResponses: 0,
+        realApiCalls: 0,
+        detail: SAFETY_STOP.issueTime,
+      })
+      continue
+    }
+
     // 샘플 응답은 이 실행의 입력에서 만든다. 재료가 없으면 골격의 선행 검사(`hasMaterial`)가 호출 전에 멈춘다.
-    const client = createSampleLlmClient(JSON.stringify(entry.sampleOf(input)))
+    const sample = live === null ? createSampleLlmClient(JSON.stringify(entry.sampleOf(input))) : null
+    // 84-a 실제 모드: 코너 8분 · 1호 20분 · 1호 $2를 시도 직전마다 본다. 사용량은 응답마다 더한다.
+    let cornerUsage: LlmUsage = ZERO_USAGE
+    let cornerAttempts = 0
+    let cornerLatencyMs = 0
+    let client: LlmClient
+    if (live !== null && model !== null && meter !== null && issueDeadline !== null) {
+      const activeModel = model
+      const activeMeter = meter
+      const activeIssueDeadline = issueDeadline
+      const cornerDeadline: Deadline = { startedAtMs: live.now(), limitMs: CORNER_TIME_LIMIT_MS, stop: SAFETY_STOP.cornerTime }
+      client = live.createClient({
+        model: activeModel,
+        beforeAttempt: (request) => {
+          const worst = worstCallCostUsd(activeModel, estimateRequestTokens(request, 'high'))
+          if (!activeMeter.canAfford(worst)) return { ok: false, stop: SAFETY_STOP.cost }
+          const budget = callBudgetMs([cornerDeadline, activeIssueDeadline], live.now())
+          if (!budget.ok) return { ok: false, stop: budget.stop }
+          cornerAttempts += 1
+          realApiCalls += 1
+          return { ok: true, timeoutMs: budget.timeoutMs }
+        },
+        onResponse: (info) => {
+          cornerLatencyMs += info.latencyMs
+          if (info.usage !== null) {
+            activeMeter.record(info.usage)
+            cornerUsage = addUsage(cornerUsage, info.usage)
+          }
+        },
+      })
+    } else {
+      client = sample as LlmClient
+    }
     const result = await runCornerModule(entry.module, { input, context, llmClient: client })
+    const engineVersion = model !== null ? `${LIVE_ENGINE_VERSION_PREFIX}${model}` : SAMPLE_ENGINE_VERSION
+    const usedModel = model
+    const usageRecord = (failure: string | null): CornerLlmUsage | null =>
+      usedModel === null
+        ? null
+        : {
+            model: usedModel,
+            input: cornerUsage.input,
+            output: cornerUsage.output,
+            cacheWrite: cornerUsage.cacheWrite,
+            cacheRead: cornerUsage.cacheRead,
+            costUsd: usageCostUsd(usedModel, cornerUsage),
+            attempts: cornerAttempts,
+            latencyMs: cornerLatencyMs,
+            failure,
+          }
+    const sampleResponses = sample?.calls() ?? 0
 
     if (result.outcome === 'success') {
       regenerated = true
@@ -256,10 +404,12 @@ export async function generateSampleIssue(
         cornerId: row.id,
         content: result.content as never,
         coeffBundle: result.coeffBundle,
-        // 샘플 모드는 LLM에 요청을 보내지 않는다 - 요청 수(`generation_attempts`)는 0으로 둔다.
-        generationAttempts: 0,
-        engineVersion: SAMPLE_ENGINE_VERSION,
+        // 샘플 모드는 LLM에 요청을 보내지 않는다 - 요청 수(`generation_attempts`)는 0. 실제 모드는 HTTP 시도 수.
+        generationAttempts: cornerAttempts,
+        engineVersion,
       })
+      const used = usageRecord(null)
+      if (used !== null) await store.setCornerUsage(row.id, used)
       if (entry.kind === 'date_archive') {
         await store.setCornerSourceDates(row.id, dateIdsOf(result.content))
       }
@@ -270,7 +420,8 @@ export async function generateSampleIssue(
         status: 'ready',
         skipReason: null,
         estimatedInputTokens: estimate,
-        sampleResponses: client.calls(),
+        sampleResponses,
+        realApiCalls: cornerAttempts,
         detail: null,
       })
     } else if (result.outcome === 'failure') {
@@ -279,9 +430,11 @@ export async function generateSampleIssue(
         cornerId: row.id,
         reason: result.reason,
         detail: result.detail,
-        generationAttempts: 0,
-        engineVersion: SAMPLE_ENGINE_VERSION,
+        generationAttempts: cornerAttempts,
+        engineVersion,
       })
+      const used = usageRecord(result.reason)
+      if (used !== null) await store.setCornerUsage(row.id, used)
       reports.push({
         cornerType: entry.kind,
         cornerId: row.id,
@@ -289,31 +442,29 @@ export async function generateSampleIssue(
         status: result.reason === 'insufficient_input' ? 'skipped' : 'failed',
         skipReason: result.reason,
         estimatedInputTokens: estimate,
-        sampleResponses: client.calls(),
+        sampleResponses,
+        realApiCalls: cornerAttempts,
         detail: result.detail,
       })
     } else {
-      // 안전 정지(R20-2): 코너는 pending 그대로(쓰지 않는다), 운영 경보 usage_over. ID·숫자·종류뿐.
-      const alert = await store.insertAlert({
-        kind: 'usage_over',
-        couple_id: params.coupleId,
-        issue_id: issue.id,
-        detail: {
-          stage: 'input_halt',
-          cornerType: entry.kind,
-          estimatedInputTokens: result.estimatedInputTokens,
-          limit: result.limit,
-        },
-      })
+      // 안전 정지(R20-2 · 84-a): 코너는 pending 그대로(content · 사유를 쓰지 않는다), 운영 경보 usage_over. ID·숫자·종류뿐.
+      const detail: Record<string, unknown> =
+        result.haltedFor === 'input_token_limit'
+          ? { stage: 'input_halt', cornerType: entry.kind, estimatedInputTokens: result.estimatedInputTokens, limit: result.limit }
+          : { stage: result.haltedFor, cornerType: entry.kind, attempts: cornerAttempts }
+      const alert = await store.insertAlert({ kind: 'usage_over', couple_id: params.coupleId, issue_id: issue.id, detail })
       alertIds.push(alert.id)
+      const used = usageRecord(result.haltedFor)
+      if (used !== null && cornerAttempts > 0) await store.setCornerUsage(row.id, used)
       reports.push({
         cornerType: entry.kind,
         cornerId: row.id,
         outcome: 'halted_pending',
         status: row.status,
         skipReason: null,
-        estimatedInputTokens: result.estimatedInputTokens,
-        sampleResponses: client.calls(),
+        estimatedInputTokens: result.haltedFor === 'input_token_limit' ? result.estimatedInputTokens : estimate,
+        sampleResponses,
+        realApiCalls: cornerAttempts,
         detail: result.detail,
       })
     }
@@ -339,8 +490,10 @@ export async function generateSampleIssue(
   )
 
   return {
-    mode: 'sample',
-    realApiCalls: 0,
+    mode,
+    realApiCalls,
+    model,
+    costUsd: meter?.spentUsd() ?? 0,
     coupleId: params.coupleId,
     issueId: issue.id,
     issueCreated,

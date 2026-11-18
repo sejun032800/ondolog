@@ -54,6 +54,7 @@ import {
   type DateRecord,
   type PhotoRecord,
 } from './cornerCommon.ts'
+import { THIS_MONTH_VALUE_RULES } from '../../../../src/engine/corners/valueChecks.ts'
 
 export interface ThisMonthInput {
   readonly messages: readonly ChatMessageRecord[]
@@ -307,6 +308,8 @@ function responseSpec(
     references: THIS_MONTH_REFERENCES,
     derive: deriveFor(context),
     storedSchema: ThisMonthStoredSchema,
+    // 84-a(R124-4): AI 문장 칸의 길이 상한 · 금지 표현(`valueChecks.ts`).
+    valueRules: THIS_MONTH_VALUE_RULES,
   }
 }
 

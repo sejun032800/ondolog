@@ -476,21 +476,31 @@ describe('개발 프로젝트 확인 (service_role 접속 전)', () => {
   })
 })
 
-describe('샘플 모드는 네트워크·모델·키를 모른다', () => {
+describe('샘플 · 실제 모드 경계 (84-a R124-4 - 인수 없으면 샘플 · 가드 밖이면 거부)', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const fs = require('fs') as typeof import('fs')
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const path = require('path') as typeof import('path')
   const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8')
+  const codeOf = (file: string) =>
+    read(file)
+      .split('\n')
+      .filter((line) => !/^\s*(\/\*\*|\*|\/\/)/.test(line))
+      .join('\n')
 
-  it('샘플·생성·발행 모듈에 fetch·엔드포인트·LLM 키·모델 설정 읽기가 없다', () => {
+  // 84-a 결정 기록: 옛 단언("모델 설정 읽기가 없다")은 실제 모드가 생기며 바뀐다 - 실제 클라이언트 · 키 · 엔드포인트는 여전히
+  // 생성 모듈 밖(CLI 주입)이고, 모델 설정은 저장소의 `llmProviderConfig`(-> coeffLookup)로만 읽는다. 동작 시험은 `liveMode84a.test.ts`.
+  it('생성 · 샘플 · 발행 · 복제 모듈에 fetch · 엔드포인트 · LLM 키 · 실제 클라이언트 만들기가 없다(실제 클라이언트는 CLI가 주입)', () => {
     for (const file of ['sampleOutputs.ts', 'generateIssue.ts', 'publishIssue.ts', 'mediaCopy.ts']) {
-      const code = read(file)
-        .split('\n')
-        .filter((line) => !/^\s*(\/\*\*|\*|\/\/)/.test(line))
-        .join('\n')
-      expect(code).not.toMatch(/\bfetch\b|api\.anthropic|ONDOLOG_LLM_API_KEY|createLlmClient|corner_llm_model|llm_provider|app_config/)
+      expect(codeOf(file)).not.toMatch(/\bfetch\b|api\.anthropic|ONDOLOG_LLM_API_KEY|createLlmClient|corner_llm_model/)
     }
+  })
+
+  it('모델 설정 읽기는 생성 모듈이 저장소로만 - 샘플 · 발행 · 복제 모듈은 모르고, 생성 모듈도 app_config를 직접 읽지 않는다', () => {
+    for (const file of ['sampleOutputs.ts', 'publishIssue.ts', 'mediaCopy.ts']) {
+      expect(codeOf(file)).not.toMatch(/llm_provider|app_config|llmProviderConfig/)
+    }
+    expect(codeOf('generateIssue.ts')).not.toMatch(/\.from\(\s*['"]app_config['"]/)
   })
 
   it('코너 모듈 3종은 CORNER_TABLE 순서대로다', () => {

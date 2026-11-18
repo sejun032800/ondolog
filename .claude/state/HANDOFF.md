@@ -11,6 +11,88 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `84-a` 매거진 AI 안전장치 (메인 세션, 2026-11-18, 위임문 `phase-7/84-a-dispatch-llm-safety.md` · 함께 `84-status-check-for-pm.md` · ROADMAP r124 R124-2~6 · R21-1) - 완료 (미커밋 · db push 전)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
+
+LLM 호출 0(하네스는 인자 검사 단계까지만) · 원격 0 · `demo_responses` 0 · 새 패키지 0 · `web/` 0 · 마이그레이션 1개(`84-a-m1` = `supabase/migrations/20261118120000_m1_llm_provider.sql`).
+
+### 고친 곳
+| 항목 | 위치 | 내용 |
+|---|---|---|
+| 상수 · 순수 계산 | `src/engine/corners/llmSafety.ts`(신규) | 허용 모델 2개 · 거부 코드(1 값 없음 · 2 tbd · 3 모르는 모델 · 4 형식 오류 · 5 모르는 공급자) · temperature 0.5 · 120초 / 8분 / 20분 · 가격표 · `CostMeter` · `callBudgetMs` |
+| 값 검사 | `src/engine/corners/valueChecks.ts`(신규) | AI 문장 칸만 길이 상한 · 금지 표현(아래 표) |
+| llmClient | `supabase/functions/_shared/llmClient.ts` | 본문에 `temperature` · 호출별 중단 신호(넘으면 전송 실패 → 기존 재시도) · `beforeAttempt`(막히면 요청 0 · 예산 그대로 · `stop`) · `onResponse`(상태 · 사용량 · stop_reason · 지연) · 시계/타이머 주입 |
+| 골격 | `cornerPipeline.ts` | `valueRules`를 Zod 직후 검사(`schema_invalid`) · `stop`이면 `halted`(`CornerSafetyLimitHalt`) |
+| 코너 3개 | `corners/dateArchive.ts` · `sweetWords.ts` · `thisMonth.ts` | `responseSpec`에 `valueRules` 한 줄씩(프롬프트 · 스키마 무변경) |
+| 설정 읽기 | `coeffLookup.ts` `lookupLlmProviderValue` | 규칙 D · MASTER H Q15 - app_config 읽기는 여기만 |
+| 생성 경로 | `scripts/ops/generateIssue.ts` · `generateIssueCli.ts` · `opsStore.ts` · `supabaseOps.ts` · `opsMemoryStore.ts` | `--mode live`(없으면 샘플) · 가드(시험 커플 · P0) 먼저 · fail-closed는 **호 행 만들기 전** · 코너 8분 · 1호 20분 · 1호 $2 · `corners.llm_usage`(숫자 · 코드만) · 경보 `usage_over`(stage = 정지 코드) |
+| 하네스 | `scripts/ops/m1QualityRun.ts` | `--model` 허용 목록(키 읽기 전에 멈춤) · 실행 전체 $10 · 코너 8분 · R19-2 위반 칸 · 실행별 · 합계 비용(소수 넷째) · review.md R124-6 판정 칸 |
+| 마이그레이션 | `20261118120000_m1_llm_provider.sql` | `app_config.llm_provider` = `{"provider":"anthropic","model":"claude-sonnet-5-5"}`만. `corners.llm_usage`는 이미 있음(`022_publish_path.sql:39`) - 추가 0 |
+| CLAUDE.md | 환경 · LLM 한 줄 | Proteur 1회 허가로 정정(Sonnet 5.5 기본 · Opus 5.5 비교 · 채팅 태깅 코드 0) |
+
+### 결정 기록 (출처 R124-2~6 · R21-1)
+1. 위임서 편집 범위의 `src/engine/(llmClient · cornerPipeline · 코너)`는 실제로 `supabase/functions/_shared/`에 있다 - 그 파일을 고쳤다. 새 순수 모듈 둘만 `src/engine/corners/`.
+2. 코너 8분 · 비용 정지는 "실패"가 아니라 **안전 정지**(`halted` · 코너 pending · 경보 `usage_over`)로 했다 - 기존 입력 토큰 정지(R20-2)와 같은 층, 실패 사유 4값을 늘리지 않음. 1호 20분은 남은 코너를 시작하지 않고 같은 경보.
+3. 비용 "이번 호출 최악" = 입력 추정 **상한**(`estimateRequestTokens(…, 'high')`) × max(입력, 캐시 쓰기) 단가 + 출력 4096 × 출력 단가. 같으면 허용.
+4. 하네스 비용 상한은 **명령 1회(`run`)** 단위 $10 - Sonnet · Opus를 따로 돌리면 각자 $10. 84- 전체 $30은 PE가 `summary.md` 합계로 본다(코드 0).
+5. 하네스는 1호 20분을 두지 않았다(코너 회차마다 8분 · 호출 120초) - 위임서 표의 1호 상한은 생성 경로 것.
+6. `operatorPath.test.ts`의 옛 단언(생성 모듈에 모델 설정 읽기 0)은 **"fetch · 엔드포인트 · 키 · 실제 클라이언트 만들기는 여전히 0 / 모델 설정은 저장소(`llmProviderConfig`)로만, `app_config` 직접 읽기 0"**으로 바꿨다. 동작 시험은 `liveMode84a.test.ts`.
+7. 값 검사 대상은 LLM 출력의 AI 칸뿐(유저 원문 · 고정 문구 제외). 말투 검사는 84-c.
+8. 84-0 보고 정정: "문자열 최대 길이 없음"은 틀렸다 - 제목 20 · 헤드라인 16은 이미 `stringMaxCodePoints`로 있었다(`dateArchive.ts:73` · `thisMonth.ts:81` · `:101`). 이번 표는 그 둘에 나머지 AI 칸을 더한 것.
+9. CLI 실제 모드 인수는 `--mode live`(기존 인자 해석기가 값 쌍만 받음 - `opsCli.ts:16-26`).
+10. 실행한 원격 질의: 없음.
+
+### 길이 상한 (코드포인트)
+| 코너 · 칸 | 상한 | 근거 |
+|---|---|---|
+| 데이트 `articles[].title` | 20 | MASTER §9-7-2(확정) |
+| 데이트 `stopCaptions[].caption` | 50 | AI 캡션은 메모 자리에 대신 그려짐(README §3-1) · 그 칸 높이표 = 메모 50자 기준(README §5 · §12, `compose.py:51`) |
+| 데이트 `tailoredQuestion.text` | 60 | **임시**(문서 근거 없음 - 84-b 뒤 PM 확정) |
+| 데이트 `tailoredQuestion.basis` | 100 | **임시** |
+| 다정한 말들 `main[].context` | 70 | 인용 한 줄 35자(README §12 457줄) × 2줄 |
+| 이달의 우리 `theme.headline` | 16 | MASTER §9-7-2(확정) |
+| 이달의 우리 `theme.lead` | 126 | 본문 한 줄 38~42자(CORNER_LAYOUT 47줄) × 리드 3줄(같은 문서 161줄) |
+| 이달의 우리 `theme.signals[].value` | 20 | 숫자 칸 라벨은 렌더가 다시 만듦(`compose.py:654-667`) - 제목과 같게 |
+| 이달의 우리 `articles[].title` | 20 | MASTER §9-7-2(확정) |
+| 이달의 우리 `articles[].body` | 240 | **임시** |
+| 이달의 우리 `closing` | 42 | 마무리 한 줄 = 한 줄 42자(CORNER_LAYOUT 47줄) |
+
+### 금지 표현 (값 안 · 부분 문자열)
+| 표현 | 근거 |
+|---|---|
+| 불안형 · 회피형 · 혼란형 | MASTER §10-5-3 2992줄 "애착 유형명(불안형·회피형·혼란형)을 그대로 쓰면 … 이름은 전부 재프레이밍" |
+| 잘잘못 · 편들기 · 진단 · 훈수 | MASTER §3-7 418~420줄 금지 칸 |
+| 판정 · 평가 · 점수 · 등급 · 순위 | MASTER §17-0-4 금지 키 표의 한국어 항목(`forbiddenKeys.ts:35-36`) - 원칙 ① "AI가 판정하지 않는다"를 값에도 |
+
+### 시험
+- `__tests__/engine/corners/llmSafety84a.test.ts` · `supabase/functions/_shared/safety84a.test.ts`(합 37): 허용 두 모델 · tbd · 빈 값 · 모르는 id · 형식 오류 · 하네스 인자 · 가격(캐시 포함) · 상한 직전 허용/넘으면 거부 · 마감 직전/순간/직후 · temperature 0.5 본문 · 120초 중단 → 재시도 · 판정 시간 · 막히면 fetch 0 · 사용량 알림 · 길이 경계 · 금지 표현 → 재요청 1 → 실패 · 정상 통과 · 정지는 halted
+- `scripts/ops/liveMode84a.test.ts`(14): 인수 없음 → 샘플 · 가드 밖 → 거부(호출 0 · 호 행 0) · fail-closed 4종 + 조회 오류 → 호 행 전에 거부 · 가드 안 → 실제 클라이언트(진짜 `createLlmClient` + 가짜 fetch) · 1호 $2 · 코너 8분 직전/넘음 · 1호 20분
+
+### 84-b 실행 명령 (Proteur · 맨 위 폴더 · PowerShell 한 줄씩)
+```
+$s = Read-Host -AsSecureString "LLM 키"
+$env:ONDOLOG_LLM_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); Remove-Variable s
+$env:ONDOLOG_LLM_API_KEY.StartsWith('sk-ant-')
+```
+→ `True`이면 계속(아니면 창을 닫고 처음부터).
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_LLM_API_KEY --allow-net=api.anthropic.com --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts run --model claude-sonnet-5-5 --runs 3 --tag 84b
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_LLM_API_KEY --allow-net=api.anthropic.com --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts run --model claude-opus-5-5 --runs 3 --tag 84b
+deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts review
+```
+- 출력: `scripts/ops/out/runs/*.json` · `scripts/ops/out/review.md` · `scripts/ops/out/summary.md`(추적 안 함 · 키 지운 뒤 저장). PE에는 `summary.md` 숫자와 review 판정만(생성 문장 전문은 붙이지 않음).
+- 끝나면 **창을 닫고** 새 창에서 `[bool]$env:ONDOLOG_LLM_API_KEY` → `False`.
+- 하네스는 앱 설정(`app_config`)을 읽지 않는다 - 모델은 인자. db push와 무관하게 돈다.
+- Deno 확인(84-0 확인 필요 6번): 이 PC Deno 2.9.7에서 인자 검사 단계까지 실행함 - 모델 인자 없음 → "멈춤 … 거부 코드 1 - 호출 0" · 모르는 모델 → 코드 3 · 허용 모델 + 키 권한 없음 → 키 읽기에서 멈춤(네트워크 0).
+
+### db push 순서 (사람)
+1. `supabase db push --dry-run` → 목록에 **`20261118120000_m1_llm_provider.sql` 한 파일만**인지 확인(다른 것이 보이면 멈추고 PE에).
+2. `supabase db push`
+3. 생성 경로 실제 모드(`--mode live`)는 이 뒤에만 모델을 찾는다(전에는 `tbd` → 거부 코드 2로 멈춤 - 정상).
+
+검증: 루트 tsc 0 · jest **119/2060**(이전 기록 116/1994 · 새 시험 파일 3개 51건 + 바뀐 시험 1건) · PGlite **10/129** · deno check(`m1QualityRun.ts` · `generateIssueCli.ts` · `publishIssueCli.ts` · `push-send/index.ts`) 통과 · Python 324 OK · `npm run gate` 통과 112.5초(smoke 28/28 · `web/` 변경 0). 첫 게이트 1회는 Python과 동시 실행 중 `feedPhotoStage.vitest.tsx` "사진 행 저장이 실패하면 행 저장" 1건 실패(단독 3회 중 2회 통과 · web 변경 0 → 부하 때 흔들리는 시험으로 보임, 작은 결함 목록 후보). 키 · 주소 · ref · id · 이메일 · 생성 문장 0 · 새 파일 이름 ASCII.
+
 - 2026-11-18, 메인 세션, `84-0` 조사 완료(읽기 전용 · 코드 변경 0 · LLM 호출 0 · 렌더 0 · 원격 0 · 커밋 0) - 결과는 대화 보고로만.
 
 ## `83-` 계정 전환 때 이전 주인 사진 폴더째 삭제 + 로그아웃 창 "보내는 중" 수 (메인 세션, 2026-11-18, 위임문 `phase-7/83-dispatch-photo-folder-purge.md` · 근거 `82-pm-report.md` §4-2 · R121-3 · R121-5 · R120-4 · 덧붙임 = 81-b 폰 확인 11번) - 완료 (미커밋)

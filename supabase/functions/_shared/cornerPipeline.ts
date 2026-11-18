@@ -67,6 +67,8 @@ import type { ValidatedContent, CoeffBundle } from '../../../src/engine/corners/
 import { findForbiddenKeys } from '../../../src/engine/corners/forbiddenKeys.ts'
 import type { SkipReason } from '../../../src/engine/corners/pipelineContracts.ts'
 import { SKIP_REASON_RETRY_POLICY } from '../../../src/engine/corners/pipelineContracts.ts'
+import { findValueViolations, type ValueRule } from '../../../src/engine/corners/valueChecks.ts'
+import type { SafetyStop } from '../../../src/engine/corners/llmSafety.ts'
 import type { LlmClient } from './llmClient.ts'
 import type { LlmRequest } from './llmRequest.ts'
 import {
@@ -309,6 +311,11 @@ export interface CornerResponseSpec<TLlm, TStored> {
   readonly derive: (filled: unknown) => DerivedValues
   /** 6단계 — 저장 스키마(**모양만** 본다). 실패 시 `schema_invalid`. 통과해야 브랜드가 붙는다. */
   readonly storedSchema: ZodType<TStored>
+  /**
+   * 84-a(R124-4) 값 검사 최소판 - AI 문장 칸(LLM 출력 경로)의 길이 상한 · 금지 표현. 3단계(Zod) 직후에 본다.
+   * 걸리면 `schema_invalid`(기존 1회 재요청 정책). 없으면 검사 0(코너 3종은 `valueChecks.ts`의 표를 넘긴다).
+   */
+  readonly valueRules?: readonly ValueRule[]
 }
 
 interface FoundReference {
@@ -540,6 +547,14 @@ export function validateCornerResponse<TLlm, TStored>(
   }
   const llm = parsed.data
 
+  // 3-b. 84-a(R124-4) 값 검사 - AI 문장 칸의 길이 상한 · 금지 표현(유저 원문은 대상 아님). 상세에는 칸 · 길이 · 표현만(문장 0).
+  if (spec.valueRules !== undefined) {
+    const valueViolations = findValueViolations(llm, spec.valueRules)
+    if (valueViolations.length > 0) {
+      return { ok: false, reason: 'schema_invalid', detail: `값 검사: ${valueViolations.join(', ')}` }
+    }
+  }
+
   // 4. 명시적 빈 결과 — Zod 파싱이 성공한 뒤에만 도달한다(파싱 실패와 섞이지 않는다).
   if (spec.isExplicitEmpty(llm)) {
     return { ok: false, reason: 'insufficient_input', detail: 'LLM이 명시적으로 빈 결과를 반환함' }
@@ -582,6 +597,8 @@ export interface CornerResponseHooks<TLlm, TStored = TLlm> {
   /** 파생값 채우기 - 필수, 기본값 없음(17-0-8). 파생값이 없는 코너도 "채울 것이 없다"고 답하는 함수를 넘긴다. */
   readonly derive: CornerResponseSpec<TLlm, TStored>['derive']
   readonly storedSchema: ZodType<TStored>
+  /** 84-a 값 검사(선택). */
+  readonly valueRules?: readonly ValueRule[]
 }
 
 export interface CornerPipelineParams<TInput, TLlm, TStored = TLlm> {
@@ -636,9 +653,11 @@ export interface CornerPipelineFailure {
  * 호출 전 소속 단언("그 코너: 실패 사유를 기록하지 않는다")과 같은 층이다. 호출자는 `outcome === 'halted'`를 보고
  * 운영자에게 알린다(`ops_alerts` 쓰기는 발행 경로의 일이다). 코너 행에 사유를 쓰지 않는다.
  */
-export interface CornerPipelineHalt {
+export type CornerPipelineHalt = CornerInputTokenHalt | CornerSafetyLimitHalt
+
+export interface CornerInputTokenHalt {
   readonly outcome: 'halted'
-  /** 정지 종류. 지금은 하나뿐이다. */
+  /** 정지 종류 - 추정 입력 토큰 상한. */
   readonly haltedFor: 'input_token_limit'
   /** 어느 코너인가. `runCornerModule`이 채운다 - `runCornerPipeline`은 코너를 모르므로 직접 부르면 없다. */
   readonly cornerName?: string
@@ -649,6 +668,19 @@ export interface CornerPipelineHalt {
   readonly detail: string
   /** 항상 0 - 호출 전에 멈춘다. 성공·실패 결과와 같은 이름으로 읽을 수 있게 둔다. */
   readonly llmCallAttempts: 0
+}
+
+/**
+ * 84-a(R124-3) 시간 · 비용 상한 정지 - `llmClient`의 시도 직전 판정(`beforeAttempt`)이 막았다. 코너 8분 · 1호 20분 ·
+ * 비용(누적 + 이번 최악). 입력 토큰 정지와 같은 층이다 - 실패 사유 4값이 아니고, 코너 행에 사유를 쓰지 않는다(호출자가 경보).
+ * 앞선 시도(재요청 전 등)가 있었으면 `llmCallAttempts`가 0보다 클 수 있다.
+ */
+export interface CornerSafetyLimitHalt {
+  readonly outcome: 'halted'
+  readonly haltedFor: SafetyStop
+  readonly cornerName?: string
+  readonly detail: string
+  readonly llmCallAttempts: number
 }
 
 export type CornerPipelineResult<TStored> = CornerPipelineSuccess<TStored> | CornerPipelineFailure | CornerPipelineHalt
@@ -703,6 +735,7 @@ export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
     references: hooks.references,
     derive: hooks.derive,
     storedSchema: hooks.storedSchema,
+    valueRules: hooks.valueRules,
   }
 
   let llmCallAttempts = 0
@@ -713,6 +746,10 @@ export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
 
     // ③ LLM 호출 — 전송 재시도는 llmClient 내부 책임(위 docblock).
     const callResult = await llmClient.call(request)
+    if (!callResult.ok && callResult.stop !== undefined) {
+      // 84-a: 시간 · 비용 상한으로 시도 전에 멈췄다 - 생성 실패가 아니라 안전 정지.
+      return { outcome: 'halted', haltedFor: callResult.stop, detail: callResult.detail, llmCallAttempts: llmCallAttempts - 1 }
+    }
     if (!callResult.ok) {
       // generation_failed — 파이프라인은 이 사유로 추가 재호출을 결정하지 않는다.
       return { outcome: 'failure', reason: 'generation_failed', detail: callResult.detail, llmCallAttempts }
@@ -802,6 +839,7 @@ export function runCornerModule<TInput, TLlm, TStored>(
       references: spec.references,
       derive: spec.derive,
       storedSchema: spec.storedSchema,
+      valueRules: spec.valueRules,
     },
     llmClient: params.llmClient,
     lookupCoeffBundle: params.lookupCoeffBundle,

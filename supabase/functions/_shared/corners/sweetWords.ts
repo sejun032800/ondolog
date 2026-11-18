@@ -43,6 +43,7 @@ import {
   type SweetWordsStored,
 } from '../../../../src/types/corners/storedContent.ts'
 import { COMMON_PRINCIPLES_BLOCK, inChronologicalOrder, messageLine, type ChatMessageRecord } from './cornerCommon.ts'
+import { SWEET_WORDS_VALUE_RULES } from '../../../../src/engine/corners/valueChecks.ts'
 
 export interface SweetWordsInput {
   /** 지면에 곁들이는 다정 지수(0~100) 또는 null. 산출식이 미결정이라 지금은 null이다(17-0-7). 그대로 주입한다. */
@@ -220,6 +221,8 @@ function responseSpec(
     references: SWEET_WORDS_REFERENCES,
     derive: deriveFor(input, context),
     storedSchema: sweetWordsStoredSchema(context.cadence),
+    // 84-a(R124-4): AI 문장 칸의 길이 상한 · 금지 표현(`valueChecks.ts`).
+    valueRules: SWEET_WORDS_VALUE_RULES,
   }
 }
 

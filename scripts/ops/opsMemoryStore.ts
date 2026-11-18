@@ -53,6 +53,8 @@ export function memoryMedia(initial: readonly string[] = []): MemoryMedia {
 export function memoryStore(options: {
   readonly tables: Readonly<Record<string, readonly AssemblyRow[]>>
   readonly couple: CoupleInfo | null
+  /** 84-a: `app_config.llm_provider` 값(없으면 null = 행 없음). 함수면 부를 때마다 계산(던지면 조회 오류). */
+  readonly llmProvider?: unknown
 }): MemoryStore {
   let seq = 0
   const nextId = (prefix: string) => `${prefix}-${(seq += 1)}`
@@ -164,6 +166,14 @@ export function memoryStore(options: {
     },
     async callPublish() {
       store.publishCalls += 1
+    },
+    async llmProviderConfig() {
+      const v = options.llmProvider
+      return typeof v === 'function' ? (v as () => unknown)() : (v ?? null)
+    },
+    async setCornerUsage(cornerId, usage) {
+      const index = corners.findIndex((c) => c.id === cornerId)
+      if (index >= 0) corners[index] = { ...corners[index], llm_usage: usage }
     },
   }
   return store

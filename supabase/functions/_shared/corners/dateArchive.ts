@@ -47,6 +47,7 @@ import {
   type DateArchiveStored,
 } from '../../../../src/types/corners/storedContent.ts'
 import { COMMON_PRINCIPLES_BLOCK, dateLine, inChronologicalOrder, type DateRecord } from './cornerCommon.ts'
+import { DATE_ARCHIVE_VALUE_RULES } from '../../../../src/engine/corners/valueChecks.ts'
 
 export interface DateArchiveInput {
   /**
@@ -320,6 +321,8 @@ function responseSpec(
     references: DATE_ARCHIVE_REFERENCES,
     derive: deriveFor(input, context),
     storedSchema: DateArchiveStoredSchema,
+    // 84-a(R124-4): AI 문장 칸의 길이 상한 · 금지 표현(`valueChecks.ts`).
+    valueRules: DATE_ARCHIVE_VALUE_RULES,
   }
 }
 

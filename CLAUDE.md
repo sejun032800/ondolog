@@ -38,7 +38,7 @@
 - Expo SDK 57 (Managed) + TypeScript + Expo Router + Zustand + Supabase
 - **EAS Dev Build 사용** (얼굴 인식 네이티브 모듈 → Expo Go 불가)
 - 지도: 카카오맵 API (구글맵 교체 가능하도록 추상화)
-- LLM: Sonnet 5 (코너 생성) / Haiku 4.5 (채팅 태깅). 배치 API + 프롬프트 캐싱 필수
+- LLM: 코너 생성 Sonnet 5.5(`claude-sonnet-5-5`, 기본) · Opus 5.5(`claude-opus-5-5`, 84-b 비교용) — `app_config.llm_provider`가 코드 허용 목록 안일 때만 생성(fail-closed, `src/engine/corners/llmSafety.ts`). 채팅 태깅 LLM은 코드 0(R124-2 — 84-c에서 PM이 정함). 배치 API + 프롬프트 캐싱 필수
 
 ## 알려진 이슈 (반복 금지)
 - `create-expo-app`에 SDK별 dist-tag 없음 → latest 스캐폴딩 후 expo만 sdk-57 태그로 재조정

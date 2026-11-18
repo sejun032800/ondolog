@@ -43,6 +43,24 @@ export interface CornerRow {
   readonly engine_version: string | null
   readonly content: unknown
   readonly source_date_ids: readonly string[]
+  /** 84-a: 실제 모드 생성의 사용량(숫자 · 코드만). 샘플 모드는 쓰지 않는다. */
+  readonly llm_usage?: unknown
+}
+
+/** 84-a(R124-4 §5): `corners.llm_usage`에 쓰는 값 - 숫자와 코드만(문장 0). */
+export interface CornerLlmUsage {
+  readonly model: string
+  readonly input: number
+  readonly output: number
+  readonly cacheWrite: number
+  readonly cacheRead: number
+  /** USD(동기 가격, `llmSafety.ts` 가격표). */
+  readonly costUsd: number
+  /** HTTP 시도 수(재시도 포함). */
+  readonly attempts: number
+  readonly latencyMs: number
+  /** 실패 · 정지 사유 코드(`schema_invalid` · `corner_time_limit` 등). 성공이면 null. */
+  readonly failure: string | null
 }
 
 export interface AlertRow {
@@ -113,6 +131,10 @@ export interface OpsStore {
   entrySourcePaths(coupleId: string, entryIds: readonly string[]): Promise<ReadonlyMap<string, string>>
   /** `fn_publish_issue` 한 번(17-0-10-E). 예외는 그대로 던진다. */
   callPublish(issueId: string): Promise<void>
+  /** 84-a: `app_config.llm_provider` 값 그대로(행 없으면 null). 판정은 `resolveLlmModel`. 조회 오류는 던진다. */
+  llmProviderConfig(): Promise<unknown>
+  /** 84-a: 실제 모드 코너의 `corners.llm_usage`. */
+  setCornerUsage(cornerId: string, usage: CornerLlmUsage): Promise<void>
 }
 
 export interface MediaStore {

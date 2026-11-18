@@ -133,3 +133,18 @@ export async function lookupCoeffBundle(client: AppConfigQueryClient, configKey:
 
   return buildCoeffBundle(data.value as Record<string, unknown>)
 }
+
+/** 84-a(R124-2 · R21-1): 모델 설정 키. 값 모양은 `src/engine/corners/llmSafety.ts` `resolveLlmModel`이 판정한다. */
+export const LLM_PROVIDER_CONFIG_KEY = 'llm_provider'
+
+/**
+ * 84-a: `app_config.llm_provider` 값을 **그대로** 읽는다(판정은 `resolveLlmModel` - fail-closed). 행이 없으면 null(= 거부 코드 1).
+ * 조회 오류는 던진다 - 생성 경로는 호출 전에 멈춘다(LLM 0). MASTER §17-0-10-H Q15 "모델·캐시 설정 읽기는 `coeffLookup.ts`를 거친다".
+ */
+export async function lookupLlmProviderValue(client: AppConfigQueryClient): Promise<unknown> {
+  const { data, error } = await client.from('app_config').select('value').eq('key', LLM_PROVIDER_CONFIG_KEY).maybeSingle()
+  if (error) {
+    throw new Error(`coeffLookup: app_config 조회 실패 (key=${LLM_PROVIDER_CONFIG_KEY}): ${error.message}`)
+  }
+  return data === null ? null : data.value
+}

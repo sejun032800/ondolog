@@ -8,6 +8,12 @@
  * API 키: 환경변수 `ONDOLOG_LLM_API_KEY`에서만 읽는다(MASTER r58 §17-0-10-H). 파일·로그·산출물 어디에도
  * 쓰지 않는다 - 저장하는 모든 텍스트에서 키 값을 지우고(redact) 저장한다. 요청 헤더는 저장하지 않는다.
  *
+ * 84-a 안전장치(ROADMAP r124 R124-2 · R124-3 · R124-6, 위임 `84-a-dispatch-llm-safety.md`):
+ * - `--model`은 허용 목록(`llmSafety.ts` `ALLOWED_LLM_MODELS`)만 - 밖이면 **키를 읽기 전에** 멈춘다(호출 0).
+ * - temperature 0.5 · 호출 1번 120초는 `llmClient` 기본값. 코너 1회 실행 8분.
+ * - 비용: 실행 전체 **$10** - 다음 호출 전에 "지금까지 + 이번 최악(입력 추정 상한 + 출력 max_tokens)"이 넘으면 부르지 않는다.
+ * - review.md: R124-6 판정 칸(반드시 0 · 허용 · 집계) - 하네스는 셀 수 있는 것(코너 빠짐 · R19-2 위반 · 비용)만 채운다.
+ *
  * 사용 (저장소 루트에서):
  *   deno run --no-lock --config supabase/functions/deno.json \
  *     --allow-env=ONDOLOG_LLM_API_KEY --allow-net=api.anthropic.com \
@@ -30,6 +36,19 @@ import {
 } from '../../supabase/functions/_shared/cornerPipeline.ts'
 import { INPUT_TOKEN_STOP_BAND, INPUT_TOKEN_STOP_LIMIT, estimateRequestTokens } from '../../supabase/functions/_shared/tokenEstimate.ts'
 import { createLlmClient, type LlmClient } from '../../supabase/functions/_shared/llmClient.ts'
+import {
+  CORNER_TIME_LIMIT_MS,
+  CostMeter,
+  HARNESS_BUDGET_USD,
+  SAFETY_STOP,
+  callBudgetMs,
+  formatUsd,
+  isAllowedModel,
+  resolveHarnessModel,
+  usageCostUsd,
+  worstCallCostUsd,
+  type Deadline,
+} from '../../src/engine/corners/llmSafety.ts'
 import type { LlmRequest } from '../../supabase/functions/_shared/llmRequest.ts'
 import { dateArchiveModule } from '../../supabase/functions/_shared/corners/dateArchive.ts'
 import { sweetWordsModule } from '../../supabase/functions/_shared/corners/sweetWords.ts'
@@ -58,14 +77,8 @@ const CONTEXT: CornerContext = { coupleId: COUPLE_ID, period: PERIOD, cadence: '
 /** 다툰 날 - 지면에 이 날의 원문이 실렸는지 기계적으로 표시한다(판정은 사람이 한다). */
 const ARGUMENT_DAYS = ['2026-09-16', '2026-09-17']
 
-/**
- * 공급자 공식 가격표(USD/MTok) - 확인일 2026-10-19, https://platform.claude.com/docs/en/about-claude/pricing
- * 하네스의 비용 추정 전용이다. 제품 설정이 아니다.
- */
-const PRICES: Record<string, { input: number; cacheWrite5m: number; cacheRead: number; output: number }> = {
-  'claude-sonnet-5-5': { input: 2, cacheWrite5m: 2.5, cacheRead: 0.1, output: 10 },
-  'claude-opus-5-5': { input: 4, cacheWrite5m: 5, cacheRead: 0.2, output: 20 },
-}
+/** R19-2: 재소환 데이트를 대표 화보로 고른 시도 - `dateArchive.ts` 파생값 단계의 실패 문구(이 문구로 센다). */
+const R19_2_MARK = '재소환 데이트가 대표 화보로 선택됐다'
 
 // ---------------------------------------------------------------------------
 // 저장 형식
@@ -117,6 +130,12 @@ interface RunRecord {
   /** 저장 content(성공 시). */
   readonly content: unknown
   readonly usageTotal: Usage
+  /** 84-a: 안전 정지 종류(`input_token_limit` · `corner_time_limit` · `cost_limit`). 아니면 null. */
+  readonly haltedFor?: string | null
+  /** 84-a(R19-2): 재소환 데이트를 대표 화보로 고른 시도 수. */
+  readonly r19_2Violations?: number
+  /** 84-a: 이 회차 비용(USD, 동기 가격). */
+  readonly costUsd?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -282,8 +301,12 @@ async function dryCandidates(flags: Map<string, string>): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function run(flags: Map<string, string>): Promise<void> {
-  const model = flags.get('model')
-  if (model === undefined) throw new Error('--model 이 필요하다')
+  // 84-a(R124-2): 허용 목록 밖이면 키를 읽기 전에 멈춘다(호출 0).
+  const resolution = resolveHarnessModel(flags.get('model'))
+  if (!resolution.ok) {
+    throw new Error(`멈춤: --model이 허용 목록(claude-sonnet-5-5 · claude-opus-5-5) 밖이다 (거부 코드 ${resolution.code}) - 호출 0`)
+  }
+  const model = resolution.model
   const runs = Number(flags.get('runs') ?? '3')
   const maxTokens = Number(flags.get('max-tokens') ?? '4096')
   const tag = safeName(flags.get('tag') ?? 'default')
@@ -296,6 +319,8 @@ async function run(flags: Map<string, string>): Promise<void> {
   const assembled = await assemble()
   const table = corners()
   await Deno.mkdir(RUNS_DIR, { recursive: true })
+  // 84-a(R124-3): 이번 실행 전체 $10.
+  const meter = new CostMeter(model, HARNESS_BUDGET_USD)
 
   for (const cornerKey of selected) {
     const { module, input } = table[cornerKey]
@@ -337,7 +362,22 @@ async function run(flags: Map<string, string>): Promise<void> {
         return response
       }
 
-      const base: LlmClient = createLlmClient({ apiKey: key, model, maxTokens, fetchImpl: instrumentedFetch })
+      // 84-a: 시도 직전마다 비용(실행 전체 $10)과 코너 8분을 본다. 사용량은 응답마다 계량기에 더한다.
+      const cornerDeadline: Deadline = { startedAtMs: Date.now(), limitMs: CORNER_TIME_LIMIT_MS, stop: SAFETY_STOP.cornerTime }
+      const base: LlmClient = createLlmClient({
+        apiKey: key,
+        model,
+        maxTokens,
+        fetchImpl: instrumentedFetch,
+        beforeAttempt: (request) => {
+          if (!meter.canAfford(worstCallCostUsd(model, estimateRequestTokens(request, 'high'), maxTokens))) return { ok: false, stop: SAFETY_STOP.cost }
+          const budget = callBudgetMs([cornerDeadline], Date.now())
+          return budget.ok ? { ok: true, timeoutMs: budget.timeoutMs } : { ok: false, stop: budget.stop }
+        },
+        onResponse: (info) => {
+          if (info.usage !== null) meter.record(info.usage)
+        },
+      })
       // 호출마다 같은 검증 함수(`processCornerResponse`)를 한 번 더 돌려 시도별 검증 결과를 남긴다(순수 함수).
       // 잘린 응답(`stop_reason=max_tokens`)은 재시도하지 않고 판정 자료로 남긴다(R16-4) - 골격의 `schema_invalid`
       // 재호출은 이 주입점에서 네트워크 없이 거부한다(골격은 그대로).
@@ -398,12 +438,16 @@ async function run(flags: Map<string, string>): Promise<void> {
         truncated,
         content:pipeline.outcome === 'success' ? pipeline.content : null,
         usageTotal,
+        haltedFor: pipeline.outcome === 'halted' ? pipeline.haltedFor : null,
+        r19_2Violations: attempts.filter((a) => !a.validation.ok && a.validation.detail.includes(R19_2_MARK)).length,
+        costUsd: usageCostUsd(model, usageTotal),
       }
       const file = `${RUNS_DIR}/${safeName(model)}__${cornerKey}__${tag}__r${r}.json`
       await Deno.writeTextFile(file, redact(JSON.stringify(record, null, 2)))
       console.log(
         `[${model}] ${cornerKey} #${r}: ${record.outcome}${record.failureReason ? ' (' + record.failureReason + ')' : ''}${record.outcome === 'halted' ? ' (' + record.failureDetail + ')' : ''}${truncated ? ' [max_tokens 잘림]' : ''} ` +
-          `calls=${httpCalls.length} in=${usageTotal.input} cw=${usageTotal.cacheWrite} cr=${usageTotal.cacheRead} out=${usageTotal.output} ${totalLatencyMs}ms`,
+          `calls=${httpCalls.length} in=${usageTotal.input} cw=${usageTotal.cacheWrite} cr=${usageTotal.cacheRead} out=${usageTotal.output} ${totalLatencyMs}ms ` +
+          `$${formatUsd(record.costUsd ?? 0)} (누적 $${formatUsd(meter.spentUsd())} / 상한 $${HARNESS_BUDGET_USD})`,
       )
     }
   }
@@ -474,11 +518,14 @@ function sideBySide(corner: CornerKey, content: any): { left: string; right: str
   return rows
 }
 
-function cost(model: string, u: Usage): { sync: number; batch: number } | null {
-  const pr = PRICES[model]
-  if (pr === undefined) return null
-  const sync = (u.input * pr.input + u.cacheWrite * pr.cacheWrite5m + u.cacheRead * pr.cacheRead + u.output * pr.output) / 1e6
-  return { sync, batch: sync / 2 }
+/** 동기 가격 비용(USD) - 가격표는 `llmSafety.ts` 한 곳. 모르는 모델이면 null. */
+function cost(model: string, u: Usage): number | null {
+  return isAllowedModel(model) ? usageCostUsd(model, u) : null
+}
+
+/** 코너 빠짐(R124-6) = 성공이 아닌 회차(안전 정지 · 형식 실패 · 생성 실패 · 재료 없음). */
+function isDropped(r: RunRecord): boolean {
+  return r.outcome !== 'success'
 }
 
 async function review(): Promise<void> {
@@ -518,9 +565,27 @@ async function review(): Promise<void> {
         for (const r of rows) out.push(`| ${cell(r.left)} | ${cell(r.right)} |`)
         out.push('')
       }
+      out.push(
+        `- 자동 집계: 코너 빠짐 ${isDropped(rec) ? 1 : 0} · R19-2 위반 ${rec.r19_2Violations ?? 0} · 비용 $${formatUsd(cost(rec.model, rec.usageTotal) ?? 0)}`,
+        '',
+      )
+      out.push('| 반드시 0 (사람) | 건수 |', '|---|---|')
+      for (const item of ['사실 오류(입력에 없는 장소 · 날짜 · 숫자 · 사람)', '원문 노출 규칙 위반', '금지 표현', '말투 위반(해요체 밖)']) out.push(`| ${item} |  |`)
+      out.push('', '| 허용 (사람) | 건수 |', '|---|---|', '| 다시 쓰고 싶은 문장(이 회차 1개 이하) |  |', '')
       out.push('판정: [ ] 통과 [ ] 불통과 / 메모: ', '')
     }
   }
+
+  // 84-a(R124-6): 모델별 집계 - 하네스는 셀 수 있는 것만, 통과/실패 칸은 사람이 채운다.
+  out.push('---', '', '## 모델별 집계 (R124-6)', '')
+  out.push('기준: 모델마다 3회 × 3코너 = 9코너-실행. **반드시 0**: 사실 오류 · 원문 노출 규칙 위반 · 금지 표현 · 해요체 밖 말투. **허용**: 다시 쓰고 싶은 문장 코너당 실행마다 1개 이하 · 코너 빠짐 9 중 1 이하.', '')
+  out.push('| 모델 | 코너-실행 | 코너 빠짐 (자동) | R19-2 위반 (자동) | 비용 $ (자동) | 반드시 0 합 (사람) | 다시 쓰고 싶은 문장 초과 (사람) | 통과 / 실패 (사람) |', '|---|---|---|---|---|---|---|---|')
+  for (const m of [...new Set(records.map((r) => r.model))].sort()) {
+    const rs = records.filter((r) => r.model === m)
+    const total = rs.reduce((n, r) => n + (cost(r.model, r.usageTotal) ?? 0), 0)
+    out.push(`| ${m} | ${rs.length} | ${rs.filter(isDropped).length} | ${rs.reduce((n, r) => n + (r.r19_2Violations ?? 0), 0)} | ${formatUsd(total)} |  |  |  |`)
+  }
+  out.push('')
 
   out.push('---', '', '## 판단 기준 (MASTER 3-7)', '')
   out.push('> 이 문장을 두 사람이 **각자** 읽었을 때, 한쪽이라도 불편해질 여지가 있는가. 있으면 쓰지 않는다.', '')
@@ -556,13 +621,16 @@ async function review(): Promise<void> {
 
   // 요약: 실행 표·토큰·비용
   const sum: string[] = ['# 실행 요약 (자동 생성)', '']
-  sum.push('| 모델 | 코너 | 회차 | 결과 | 호출 | 입력 | 출력 | 캐시읽기 | 캐시쓰기 | 지연(ms) | 비용(동기, $) |', '|---|---|---|---|---|---|---|---|---|---|---|')
+  sum.push('| 모델 | 코너 | 회차 | 결과 | 호출 | 입력 | 출력 | 캐시읽기 | 캐시쓰기 | 지연(ms) | R19-2 위반 | 비용(동기, $) |', '|---|---|---|---|---|---|---|---|---|---|---|---|')
+  let grand = 0
   for (const r of records) {
     const c = cost(r.model, r.usageTotal)
+    grand += c ?? 0
     sum.push(
-      `| ${r.model} | ${r.corner} | ${r.run} | ${r.outcome === 'success' ? '성공' : r.outcome === 'halted' ? '안전 정지' : '실패: ' + r.failureReason}${r.truncated ? ' (max_tokens 잘림)' : ''} | ${r.llmCallAttempts} | ${r.usageTotal.input} | ${r.usageTotal.output} | ${r.usageTotal.cacheRead} | ${r.usageTotal.cacheWrite} | ${r.totalLatencyMs} | ${c ? c.sync.toFixed(4) : '-'} |`,
+      `| ${r.model} | ${r.corner} | ${r.run} | ${r.outcome === 'success' ? '성공' : r.outcome === 'halted' ? `안전 정지(${r.haltedFor ?? 'input_token_limit'})` : '실패: ' + r.failureReason}${r.truncated ? ' (max_tokens 잘림)' : ''} | ${r.llmCallAttempts} | ${r.usageTotal.input} | ${r.usageTotal.output} | ${r.usageTotal.cacheRead} | ${r.usageTotal.cacheWrite} | ${r.totalLatencyMs} | ${r.r19_2Violations ?? 0} | ${c !== null ? formatUsd(c) : '-'} |`,
     )
   }
+  sum.push('', `합계 비용(동기, $): ${formatUsd(grand)} · 하네스 1회 상한 $${HARNESS_BUDGET_USD} · 84- 전체 상한 $30은 PE가 이 표로 집계`)
   await Deno.writeTextFile(`${OUT_DIR}/summary.md`, sum.join('\n'))
   console.log(`review.md, summary.md 작성 (${records.length}건)`)
 }

@@ -17,6 +17,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
 import type { InputAssemblyClient } from '../../supabase/functions/_shared/inputAssembly.ts'
 import type { CornersTableClient } from '../../supabase/functions/_shared/saveCornerResult.ts'
+import { lookupLlmProviderValue, type AppConfigQueryClient } from '../../supabase/functions/_shared/coeffLookup.ts'
 import { assertDevelopmentProject, parseLinkedProject, type LinkedProject } from './opsGuards.ts'
 import type {
   AlertRow,
@@ -178,6 +179,16 @@ export async function connectOps(): Promise<OpsConnection> {
         for (const row of data ?? []) if (typeof row.storage_path === 'string') map.set(row.id, row.storage_path)
       }
       return map
+    },
+
+    async llmProviderConfig() {
+      // 규칙 D · MASTER H Q15: app_config 읽기는 `coeffLookup.ts`를 거친다.
+      return await lookupLlmProviderValue(client as unknown as AppConfigQueryClient)
+    },
+
+    async setCornerUsage(cornerId, usage) {
+      const { error } = await client.from('corners').update({ llm_usage: usage }).eq('id', cornerId)
+      if (error) fail('corners.llm_usage 갱신 실패', error)
     },
 
     async callPublish(issueId) {
