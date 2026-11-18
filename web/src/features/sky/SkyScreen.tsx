@@ -4,7 +4,8 @@
  *    위로 끌면 지난 달이 이어지고(머리가 "지난 하늘"로 바뀐다), 이번 달 근처에서 놓으면 이번 달로 돌아온다(그 밖에서는 머문다 - 지난 별을 누를 수 있게).
  *  - C04 그날(별 누르기) / C05 그날의 사진 / C07 기념일 별 / C06 빈 하늘.
  *  - 모션: 줄인 모션이면 켜짐 · 흐름 · 반짝임 0. 앱이 가려지면(`visibilitychange`) 애니메이션을 멈춘다. 별 애니메이션은 transform · opacity만.
- * 배경 별 반짝임 토글(9-7 결정 4)은 앱에 아직 없어 기본 켬이다(새 설정 화면을 만들지 않는다).
+ * 85-(MASTER 9-8-4 · 보드 patch9b): C01 ✕ 왼쪽 [둘러보기] 칩(폭 380pt 미만이면 40pt 원 아이콘 · 읽기 이름 "하늘 둘러보기") -> (iOS만 C09) ->
+ *   C08 센서 / C08-alt 끌기(`SkyTour`). 둘러보기 중 ✕ · 뒤로 = C01로. 별 반짝임(H01 OUR SKY, 기기에만)을 끄면 배경 별 + 데이트 별 반짝임이 멈춘다.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { togetherDates } from '@/engine/togetherDay'
@@ -21,6 +22,10 @@ import { SkyLayer, viewOffsetPt } from '../../ui'
 import type { DayRecord } from '../records/dayRecordRead'
 import { toDayCounts } from '../records/dayRecordRead'
 import { useSky, useSkyNames, useSkyPhotoUrls } from './skyData'
+import { SkyTour, type TourStar } from './SkyTour'
+import { useSkyPrefStore, useSkyPrefs } from './skyPrefs'
+import { MOTION_MS, decideTourStart } from './tourMath'
+import { hasOrientationApi, orientationPermissionNeeded, requestOrientationPermission } from './useSkyOrientation'
 import {
   anniversariesUntil, assignStarSizes, dayNumberOf, monthNumber, monthOf, monthsBetween, moonOfMonth, skyOpenable, starPosition,
   twinkleDelaySeconds, twinklePeriodSeconds, warmestDate, weekdayKo, type Anniversary, type Moon,
@@ -45,6 +50,14 @@ export const SKY_COPY = {
   openDay: '그날 기록 →',
   openDayAnniv: '데이트 기록 →',
   locked: '잠긴 사진',
+  // 85- C01 칩 · C09(문구 = 보드 patch9b C09 그대로)
+  tour: '둘러보기',
+  tourA11y: '하늘 둘러보기',
+  askTitle: '폰을 들고 하늘을 둘러볼까요?',
+  askBody: '폰을 움직이는 방향으로 하늘이 따라 돌아요. 이를 위해 기기의 움직임 정보를 써요.',
+  askNotice: '움직임 정보는 이 폰 안에서만 쓰고, 저장하거나 보내지 않아요.',
+  askAllow: '움직임 사용하기',
+  askDrag: '손가락으로 둘러볼게요',
 } as const
 
 /** 별이 날짜 순서대로 켜지는 간격(초). */
@@ -111,6 +124,7 @@ export function SkyScreen({ nav }: { nav: Nav }) {
   const thisMonth = monthOf(today)
   const reduced = prefersReducedMotion()
   const pageVisible = usePageVisible()
+  const prefs = useSkyPrefs(userId)
 
   // 연결 전(혼자)에는 하늘이 없다 - 어떻게든 이 경로에 와도 메인으로 돌려보낸다.
   useEffect(() => {
@@ -170,7 +184,35 @@ export function SkyScreen({ nav }: { nav: Nav }) {
   // ── 선택(C04 · C07) · 사진(C05) ──
   const [sel, setSel] = useState<Selection | null>(null)
   const [photoView, setPhotoView] = useState<{ date: string; index: number } | null>(null)
-  useBackHandler(photoView ? () => setPhotoView(null) : sel ? () => setSel(null) : undefined)
+
+  // ── 85- 둘러보기: C01 칩 -> (iOS C09) -> C08 / C08-alt. ✕ · 뒤로 = C01로 ──
+  const [tour, setTour] = useState<{ mode: 'sensor' | 'drag'; leaving: boolean } | null>(null)
+  const [asking, setAsking] = useState(false)
+  const leaveTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), [])
+  const startTour = () => {
+    const how = decideTourStart({ reduced, hasApi: hasOrientationApi(), needsPermission: orientationPermissionNeeded(), denied: prefs.motionDenied })
+    if (how === 'ask') setAsking(true)
+    else setTour({ mode: how, leaving: false })
+  }
+  const allowMotion = async () => {
+    setAsking(false)
+    const granted = await requestOrientationPermission()
+    if (!granted) useSkyPrefStore.getState().markMotionDenied() // 한 번 거부한 뒤에는 C09 없이 C08-alt
+    setTour({ mode: granted ? 'sensor' : 'drag', leaving: false })
+  }
+  const exitTour = useCallback(() => {
+    setTour((t) => (t ? { ...t, leaving: true } : t))
+    window.clearTimeout(leaveTimer.current)
+    leaveTimer.current = window.setTimeout(() => setTour(null), reduced ? MOTION_MS.exitReduced : MOTION_MS.exit)
+  }, [reduced])
+  const toDrag = useCallback(() => setTour((t) => (t ? { ...t, mode: 'drag' } : t)), [])
+  const markGuideSeen = useCallback(() => useSkyPrefStore.getState().markGuideSeen(), [])
+  const markDragHintSeen = useCallback(() => useSkyPrefStore.getState().markDragHintSeen(), [])
+
+  useBackHandler(
+    photoView ? () => setPhotoView(null) : sel ? () => setSel(null) : asking ? () => setAsking(false) : tour && !tour.leaving ? exitTour : undefined,
+  )
 
   const days = (month: string) => (starsByMonth.get(month) ?? []).map((date) => ({ date, temperature: sky.tempStatus[month] === 'ok' ? (sky.temps[date] ?? null) : null }))
   const selDate = sel ? (sel.kind === 'day' ? sel.date : sel.anniv.date) : null
@@ -192,8 +234,24 @@ export function SkyScreen({ nav }: { nav: Nav }) {
   else if (showPast) { headTitle = SKY_COPY.pastTitle; headSub = `${monthNumber(firstMonth)}월부터 · 별 ${totalStars} · 달 ${moonCount}` }
   else { headTitle = `${monthNumber(thisMonth)}월의 하늘`; headSub = SKY_COPY.subtitle }
 
+  const touring = tour !== null
+  if (touring && !sel) { headTitle = `${monthNumber(thisMonth)}월의 하늘`; headSub = SKY_COPY.subtitle; headKicker = null }
   const centered = headKicker !== null
-  const rootClass = `screen skyScreen ${reduced ? 'still' : ''} ${pageVisible ? '' : 'paused'} ${sel ? 'zoomed' : ''}`
+  const showChip = !empty && !sel && !showPast && !touring
+  const rootClass = `screen skyScreen ${reduced ? 'still' : ''} ${pageVisible ? '' : 'paused'} ${sel ? 'zoomed' : ''} ${prefs.twinkle ? '' : 'noTwinkle'} ${touring ? 'touring' : ''}`
+
+  // 둘러보기의 하늘 층 - 이번 달 별 · 달 · 가장 따뜻한 날(1단계와 같은 자리 · 크기 · 반짝임 주기)
+  const tourStars: TourStar[] = useMemo(() => {
+    if (!touring) return []
+    const thisDays = (starsByMonth.get(thisMonth) ?? []).map((date) => ({ date, temperature: sky.tempStatus[thisMonth] === 'ok' ? (sky.temps[date] ?? null) : null }))
+    const sizes = assignStarSizes(thisDays)
+    return thisDays.map(({ date }) => {
+      const rec = recordByDate.get(date) as DayRecord
+      return { date, pos: starPosition(rec.id), size: sizes.get(date) ?? 5, period: twinklePeriodSeconds(rec.id), delay: twinkleDelaySeconds(rec.id), label: `${mdLabel(date)}의 별` }
+    })
+  }, [touring, starsByMonth, thisMonth, sky.tempStatus, sky.temps, recordByDate])
+  const tourWarm = touring ? warmestDate((starsByMonth.get(thisMonth) ?? []).map((date) => ({ date, temperature: sky.tempStatus[thisMonth] === 'ok' ? (sky.temps[date] ?? null) : null }))) : null
+  const tourMoon = touring ? moonOfMonth(thisMonth, sky.moons, sky.draftPeriodStart) : null
 
   return (
     <div className={rootClass} data-testid="sky-screen" data-view={empty ? 'empty' : sel ? (sel.kind === 'day' ? 'star' : 'anniversary') : showPast ? 'past' : 'month'}>
@@ -204,7 +262,7 @@ export function SkyScreen({ nav }: { nav: Nav }) {
       {empty ? (
         <EmptySky onRecord={() => { useSheetStore.getState().open('record') }} />
       ) : (
-        <div className="skyScroll" ref={scrollRef} onScroll={onScroll} data-testid="sky-scroll" style={sel ? { overflowY: 'hidden' } : undefined}>
+        <div className={`skyScroll ${touring ? 'tourHidden' : ''}`} ref={scrollRef} onScroll={onScroll} data-testid="sky-scroll" style={sel || touring ? { overflowY: 'hidden' } : undefined} aria-hidden={touring || undefined}>
           {months.map((month) => (
             <MonthPanel
               key={month}
@@ -228,6 +286,27 @@ export function SkyScreen({ nav }: { nav: Nav }) {
         </div>
       )}
 
+      {tour ? (
+        <SkyTour
+          mode={tour.mode}
+          leaving={tour.leaving}
+          reduced={reduced}
+          twinkle={prefs.twinkle}
+          stars={tourStars}
+          monthLabel={`${monthNumber(thisMonth)}월 · 별 ${tourStars.length}`}
+          warmest={tourWarm && recordByDate.get(tourWarm)
+            ? { date: tourWarm, title: `${monthNumber(thisMonth)}.${dayNumberOf(tourWarm)}${firstPlace(recordByDate.get(tourWarm) as DayRecord) ? ` ${firstPlace(recordByDate.get(tourWarm) as DayRecord)}` : ''}`, caption: SKY_COPY.warmest }
+            : null}
+          moon={tourMoon ? { label: tourMoon.kind === 'published' ? `VOL.${String(tourMoon.volume).padStart(2, '0')} · ${monthNumber(thisMonth)}월호` : `${monthNumber(thisMonth)}월호`, draft: tourMoon.kind === 'draft' } : null}
+          guideSeen={prefs.guideSeen}
+          dragHintSeen={prefs.dragHintSeen}
+          onGuideSeen={markGuideSeen}
+          onDragHintSeen={markDragHintSeen}
+          onNoSensor={toDrag}
+          onStar={(date) => setSel({ kind: 'day', date })}
+        />
+      ) : null}
+
       {sky.error && starDates.length === 0 ? <p className="skyError" role="status">{SKY_COPY.loadFailed}</p> : null}
 
       {/* 머리 */}
@@ -237,11 +316,19 @@ export function SkyScreen({ nav }: { nav: Nav }) {
           <h1 className="skyTitle" data-testid="sky-title">{headTitle}</h1>
           {headSub ? <p className="skySub" data-testid="sky-sub">{headSub}</p> : null}
         </div>
-        <button type="button" className="skyClose press" aria-label="닫기" data-testid="sky-close" onClick={() => (sel ? setSel(null) : nav.back())}>✕</button>
+        <div className="skyHeadButtons">
+          {showChip ? (
+            <button type="button" className="skyTourBtn press" aria-label={SKY_COPY.tourA11y} data-testid="sky-tour-open" onClick={startTour}>
+              <TourIcon />
+              <span className="skyTourBtnText" data-testid="sky-tour-open-text">{SKY_COPY.tour}</span>
+            </button>
+          ) : null}
+          <button type="button" className="skyClose press" aria-label="닫기" data-testid="sky-close" onClick={() => (sel ? setSel(null) : tour ? exitTour() : nav.back())}>✕</button>
+        </div>
       </div>
 
       {/* 지평선 + D+ + 안내 */}
-      {!empty && !sel ? (
+      {!empty && !sel && !touring ? (
         <div className="skyHorizon" data-testid="sky-horizon">
           <div className="hill" />
           <div className="hillText">
@@ -271,6 +358,19 @@ export function SkyScreen({ nav }: { nav: Nav }) {
             onOpenDay={() => nav.push('date-detail', { params: { id: selRecord.id } })}
           />
         )
+      ) : null}
+
+      {/* C09 iOS 움직임 권한 앞 화면(코드만 - 실행 확인은 Mac 뒤) */}
+      {asking ? (
+        <div className="skySheet skyAsk" data-testid="sky-motion-ask" role="dialog" aria-label={SKY_COPY.askTitle}>
+          <i className="skySheetHandle" />
+          <div className="skyAskIcon" aria-hidden="true"><MotionIcon /></div>
+          <h2 className="skySheetTitle">{SKY_COPY.askTitle}</h2>
+          <p className="skyAskBody">{SKY_COPY.askBody}</p>
+          <p className="skyAskNotice">{SKY_COPY.askNotice}</p>
+          <button type="button" className="skyPill wide press" onClick={() => void allowMotion()} data-testid="sky-motion-allow">{SKY_COPY.askAllow}</button>
+          <button type="button" className="skyTextBtn press" onClick={() => { setAsking(false); setTour({ mode: 'drag', leaving: false }) }} data-testid="sky-motion-drag">{SKY_COPY.askDrag}</button>
+        </div>
       ) : null}
 
       {/* C05 */}
@@ -513,6 +613,26 @@ function PhotoPager({ record, index, onIndex, onClose }: { record: DayRecord; in
         ))}
       </div>
     </div>
+  )
+}
+
+function TourIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+      <path d="M5 17a7 7 0 0 1 14 0" />
+      <path d="M3 20h18" />
+      <path d="M12 4v2.5M5.2 7.2l1.7 1.7M18.8 7.2l-1.7 1.7" />
+    </svg>
+  )
+}
+
+function MotionIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <rect x="8" y="4" width="8" height="14" rx="2" />
+      <path d="M6 20h12" />
+      <path d="M5 6.5a6 6 0 0 0-1 3M19 6.5a6 6 0 0 1 1 3" />
+    </svg>
   )
 }
 

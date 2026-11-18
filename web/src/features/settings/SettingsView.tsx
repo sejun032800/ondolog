@@ -4,6 +4,8 @@
  * 목록 표는 루트 `@/utils/settingsRules`의 `SETTINGS_GROUPS`다 - **이번에 갈 곳이 있는 항목만** 있다(프로필 · 연결된 계정 · 연인 · 커플 닉네임 · 성격 프로필 · 개인정보 & 약관 · 앱 정보 · 문의).
  * 보드에 있지만 갈 곳이 없는 항목(구독 · 사진 & 데이터 · 데이터 내려받기 · 빠진 지면 기본값 · 생체정보 · OUR SKY · 발행물 테마)과 [연결 해제] · [회원 탈퇴](하위 화면 안에 있다)는 그리지 않는다.
  * 78-: NOTIFICATIONS > 알림(H10)은 보드 H02 자리(PERSONALITY 다음 · PRIVACY 앞)에 이 파일이 더한다 - 루트 `SETTINGS_GROUPS`(RN 동결 앱과 공용)는 바꾸지 않는다.
+ * 85-(MASTER 9-8-4 · 보드 patch9b H01_oursky · H01_reduced): OUR SKY 묶음을 COUPLE 다음에 이 파일이 더한다 - "별 반짝임" 한 줄(값은 기기에만).
+ *   기기 움직임 줄이기가 켜져 있으면 줄 비활성 + 묶음 아래 문구(사용자가 켜 둔 값은 지우지 않는다). "유성 떨어뜨리기" 줄은 유성이 열릴 때부터.
  * 미연결이어도 이 탭은 전부 열린다 - "연인" 줄은 "연결 전", 눌러서 열리는 커플 화면이 잠긴 문(I01)을 보인다.
  * 값은 읽기뿐이다. 쓰는 것은 하위 화면이 한다. B14: 값이 다 읽히기 전에는 오른쪽 값 자리가 뼈대다(값이 늦게 채워지지 않는다).
  */
@@ -16,11 +18,20 @@ import { useCoupleStore } from '../../stores/coupleStore'
 import { useDissolutionStore } from '../../stores/dissolutionStore'
 import type { ScreenName } from '../../app/routes'
 import { appVersion } from './appInfo'
-import { ListGroup, ListRow } from './parts'
+import { ListGroup, ListRow, Toggle } from './parts'
+import { useReducedMotionLive, useSkyPrefStore, useSkyPrefs } from '../sky/skyPrefs'
 import { useSettingsSummary } from './useSettingsSummary'
 
 /** 보드 H02 NOTIFICATIONS 묶음(78-). */
 export const NOTIFY_GROUP = { kicker: 'NOTIFICATIONS', label: '알림' } as const
+
+/** 85- OUR SKY 묶음(보드 H01 · R127-2 문구 정정). */
+export const SKY_GROUP = {
+  kicker: 'OUR SKY',
+  twinkle: '별 반짝임',
+  twinkleDesc: '하늘의 별이 천천히 숨 쉬어요',
+  reducedNote: '기기에서 움직임을 줄여 두어 하늘이 멈춰 있어요',
+} as const
 
 export function SettingsView({ nav }: { nav: Nav }) {
   const userId = useAuthStore((s) => s.userId)
@@ -31,6 +42,8 @@ export function SettingsView({ nav }: { nav: Nav }) {
   const grace = useCoupleStore((s) => s.grace)
   const dissolution = useDissolutionStore((s) => s.dissolution)
   const summary = useSettingsSummary(userId, partnerId)
+  const skyPrefs = useSkyPrefs(userId)
+  const reducedMotion = useReducedMotionLive()
 
   const connected = coupleStatus === 'connected'
   const coupleKnown = coupleStatus === 'connected' || coupleStatus === 'disconnected'
@@ -90,6 +103,30 @@ export function SettingsView({ nav }: { nav: Nav }) {
             ))}
           </ListGroup>
         </section>
+        {group.kicker === 'COUPLE' ? (
+          <section className="setSection" data-testid="settings-oursky">
+            <p className="t-kicker c-mute setKicker">{SKY_GROUP.kicker}</p>
+            <ListGroup>
+              <div className={`setSkyRow ${reducedMotion ? 'off' : ''}`}>
+                <ListRow
+                  label={SKY_GROUP.twinkle}
+                  description={SKY_GROUP.twinkleDesc}
+                  control={
+                    <Toggle
+                      value={reducedMotion ? false : skyPrefs.twinkle}
+                      disabled={reducedMotion}
+                      onChange={(on) => useSkyPrefStore.getState().setTwinkle(on)}
+                      label={SKY_GROUP.twinkle}
+                      testId="settings-sky-twinkle"
+                    />
+                  }
+                  testId="settings-row-sky-twinkle"
+                />
+              </div>
+            </ListGroup>
+            {reducedMotion ? <p className="t-sub c-mute setNote" data-testid="settings-sky-reduced">{SKY_GROUP.reducedNote}</p> : null}
+          </section>
+        ) : null}
         </Fragment>
       ))}
     </>

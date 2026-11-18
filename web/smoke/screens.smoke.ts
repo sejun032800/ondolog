@@ -232,6 +232,62 @@ test.describe('79- 화면 스모크', () => {
     await check(page, w, 'sky-reduced-motion')
   })
 
+  test('85- 하늘 2단계: [둘러보기] 칩 두 폭(390 글자 · 360 원) · C08-alt 끌기 · C01로 돌아옴', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    const w = await openAccount(page)
+    await seen(page.getByTestId('main-days'))
+    await touchDrag(page.locator('.mainScroll'), 120, 320)
+    await seen(page.getByTestId('sky-screen'))
+    const chip = page.getByTestId('sky-tour-open')
+    await expect(chip).toHaveAttribute('aria-label', '하늘 둘러보기')
+    await expect(page.getByTestId('sky-tour-open-text')).toBeVisible() // 390pt: 글자 칩
+    const wide = await chip.boundingBox()
+    const close = await page.getByTestId('sky-close').boundingBox()
+    expect(wide && wide.width > 60).toBe(true)
+    expect(wide && close && Math.abs((wide.y + wide.height / 2) - (close.y + close.height / 2)) < 1).toBe(true) // ✕와 세로 중심 같음
+    expect(wide && close && wide.x + wide.width <= close.x).toBe(true) // ✕ 왼쪽
+    await check(page, w, 'sky-c01-chip-390', [page.getByTestId('sky-title')])
+    await page.setViewportSize({ width: 360, height: 780 })
+    await expect(page.getByTestId('sky-tour-open-text')).toBeHidden() // 360pt: 40pt 원 아이콘
+    const narrow = await chip.boundingBox()
+    expect(narrow && Math.round(narrow.width) === 40 && Math.round(narrow.height) === 40).toBe(true)
+    await check(page, w, 'sky-c01-chip-360', [page.getByTestId('sky-title')])
+
+    // C08-alt: Playwright에는 센서 값이 없다 -> 센서 기다림 뒤 끌기(또는 처음부터 끌기)
+    await chip.click()
+    const tour = page.getByTestId('sky-tour')
+    await seen(tour)
+    await expect(tour).toHaveAttribute('data-mode', 'drag', { timeout: 3000 })
+    await page.getByTestId('sky-guide-ok').click() // C10 처음 한 번
+    await expect(page.getByTestId('sky-drag-hint')).toBeVisible()
+    await check(page, w, 'sky-c08-alt')
+    const yaw0 = await tour.getAttribute('data-yaw')
+    const box = await tour.boundingBox()
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2, { steps: 6 })
+      await page.mouse.up()
+    }
+    await expect(page.getByTestId('sky-drag-hint')).toBeHidden()
+    expect(await tour.getAttribute('data-yaw')).not.toBe(yaw0)
+    await page.getByTestId('sky-close').click()
+    await expect(tour).toBeHidden()
+    await expect(page.getByTestId('sky-screen')).toBeVisible() // 메인이 아니라 C01
+    await expect(chip).toBeVisible()
+  })
+
+  test('85- 설정 H01: OUR SKY "별 반짝임" 줄', async ({ page }) => {
+    const w = await openAccount(page)
+    await tab(page, 'settings')
+    const row = page.getByTestId('settings-row-sky-twinkle')
+    await seen(row)
+    await expect(row).toContainText('별 반짝임')
+    await expect(row).toContainText('하늘의 별이 천천히 숨 쉬어요')
+    await expect(page.getByTestId('settings-sky-twinkle')).toHaveAttribute('aria-checked', 'true')
+    await check(page, w, 'settings-oursky')
+  })
+
   test('채팅: 목록 · 입력창 · 사진 칸 비율 · 맨 아래 붙기', async ({ page }) => {
     const w = await openAccount(page)
     await tab(page, 'chat')

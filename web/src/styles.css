@@ -865,3 +865,61 @@ input { font: inherit; }
 .pushPreview { display: flex; flex-direction: column; gap: 10px; margin-top: 48px; }
 .pushCard { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 22px; background: rgba(20,17,31,.9); border: 1px solid var(--hairline); }
 .pushCard.dim { margin: 0 14px; opacity: .55; }
+
+/* ── 85- 하늘 2단계: [둘러보기] 칩 · C08/C08-alt · C10 · C09 · 별 반짝임 끔 · OUR SKY (보드 N-R17-Our-Sky-2 patch9b) ── */
+.skyHeadButtons { display: flex; align-items: center; gap: 8px; flex: none; }
+.skyTourBtn { pointer-events: auto; height: 40px; border-radius: 20px; border: 1px solid var(--hairline); background: rgba(10,8,20,.4); color: var(--text); font-size: 13px; line-height: 18px; display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; flex: none; }
+.skyTourBtn svg { flex: none; color: var(--textSub); }
+/* 폭 380pt 미만: ✕와 같은 40pt 원 아이콘만(읽기 이름 "하늘 둘러보기"는 aria-label) - R127-2 */
+@media (max-width: 379.98px) {
+  .skyTourBtn { width: 40px; padding: 0; justify-content: center; border-radius: 50%; }
+  .skyTourBtnText { display: none; }
+}
+.skyScreen.noTwinkle .star { animation: none !important; opacity: .55; }
+.skyScreen.noTwinkle .skyStar i, .skyTour.noTwinkle .skyStar i { animation: none !important; opacity: 1; transform: none; }
+.skyScroll.tourHidden { opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+.skyTour { position: absolute; inset: 0; z-index: 2; touch-action: none; overflow: hidden; }
+.skyTour.enter { animation: tourIn 240ms ease-out both; }
+.skyTour.enter.reduced { animation: fadeIn 150ms linear both; }
+.skyTour.leave { animation: tourOut 180ms ease-in both; pointer-events: none; }
+.skyTour.leave.reduced { animation: tourOut 120ms linear both; }
+@keyframes tourIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes tourOut { from { opacity: 1 } to { opacity: 0 } }
+.skyTourField { position: absolute; inset: 0; }
+.skyMonthLabel.tour { left: 0; transform: translate(-50%, -50%); }
+.skyMoon.tour { right: auto; transform: translate(-50%, -12px); }
+.skyTourChip { position: absolute; top: 46%; z-index: 4; height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--hairline); background: rgba(10,8,20,.4); color: var(--text); font-size: 13px; line-height: 18px; animation: fadeIn 200ms ease both; }
+.skyTourChip.right { right: 12px; }
+.skyTourChip.left { left: 12px; }
+.skyTourChip.bottom, .skyTourChip.top { left: 50%; transform: translateX(-50%); }
+.skyTourChip.bottom { top: auto; bottom: calc(var(--bot) + 108px); }
+.skyTourChip.top { top: calc(var(--top) + 96px); }
+.skyTour.reduced .skyTourChip { animation: none; }
+.skyCompass { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; pointer-events: none; z-index: 3; animation: compassRise 240ms ease-out both; }
+.skyTour.reduced .skyCompass { animation: fadeIn 150ms linear both; }
+@keyframes compassRise { from { opacity: 0; transform: translateY(24px) } to { opacity: 1; transform: none } }
+.skyCompass .hill { position: absolute; inset: 22px -8% 0; border-radius: 50% 50% 0 0 / 100% 100% 0 0; background: linear-gradient(#0E0B1C, #07050F); border-top: 1px solid rgba(243,239,247,.22); }
+.skyCompass .ticks { position: absolute; left: 0; right: 0; top: 28px; height: 14px; overflow: hidden; }
+.skyCompass .ticks i { position: absolute; top: 0; width: 1px; height: 6px; background: rgba(243,239,247,.25); }
+.skyCompass .ticks i.long { height: 12px; background: rgba(243,239,247,.45); }
+.skyCompass .dir { position: absolute; bottom: calc(var(--bot) + 10px); transform: translateX(-50%); font-size: 12px; line-height: 16px; color: var(--textMute); white-space: nowrap; }
+.skyCompass .dir.front { color: var(--lilacText, var(--text)); font-weight: 600; }
+.skyGuide { position: absolute; inset: 0; z-index: 5; background: rgba(10,8,20,.62); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 28px; animation: fadeIn 240ms ease-out both; }
+.skyGuide h2 { margin: 18px 0 0; font-size: 19px; line-height: 26px; font-weight: 600; color: var(--text); }
+.skyGuide p { margin: 10px 0 0; font-size: 14px; line-height: 23px; color: var(--textSub); }
+.skyGuideArt { color: var(--lilac); }
+.skyPill { margin-top: 32px; width: 200px; height: 52px; border-radius: 26px; border: 0; background: var(--text); color: var(--ink); font-size: 15px; font-weight: 600; }
+.skyPill.wide { width: 100%; margin-top: 20px; }
+.skyTextBtn { display: block; margin: 14px auto 0; background: none; border: 0; color: var(--textSub); font-size: 14px; line-height: 20px; padding: 6px 12px; }
+.skyDragHint { position: absolute; left: 0; right: 0; bottom: calc(var(--bot) + 132px); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; color: var(--textSub); animation: fadeIn 300ms ease-out both; }
+.skyDragHint .row { display: flex; align-items: center; gap: 14px; font-size: 18px; color: var(--textMute); }
+.skyDragHint .finger { width: 44px; height: 44px; border-radius: 50%; background: rgba(10,8,20,.5); border: 1px solid var(--hairline); display: flex; align-items: center; justify-content: center; color: var(--text); }
+.skyDragHint p { margin: 0; font-size: 13px; line-height: 18px; }
+.skyAsk { padding-bottom: 16px; }
+.skyAskIcon { width: 52px; height: 52px; border-radius: 16px; background: rgba(185,162,240,.12); border: 1px solid rgba(185,162,240,.3); color: var(--lilac); display: flex; align-items: center; justify-content: center; }
+.skyAsk .skySheetTitle { margin-top: 18px; font-size: 19px; line-height: 26px; }
+.skyAskBody { margin: 8px 0 0; font-size: 14px; line-height: 22px; color: var(--textSub); }
+.skyAskNotice { margin: 14px 0 0; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--hairline); background: rgba(243,239,247,.04); font-size: 12.5px; line-height: 19px; color: var(--textSub); }
+.setSkyRow.off { opacity: .4; }
+.setNote { margin: -4px 0 0; padding: 0 4px; font-size: 13px; line-height: 19px; }
+@media (prefers-reduced-motion: reduce) { .skyTour.enter, .skyCompass, .skyGuide, .skyDragHint, .skyTourChip { animation-duration: 150ms !important; } }

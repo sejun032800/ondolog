@@ -83,6 +83,11 @@ const CASES: Case[] = [
     missing: { coupleId: 'c1', records: [{ id: 'd1', date: '2026-10-03' }] }, wrongType: { coupleId: 'c1', records: [dayRec], allLoaded: true, temps: {}, tempStatus: { '2026-10': 'maybe' }, moons: [], draftPeriodStart: null } },
   { name: '마지막 탭', kind: 'route', good: { route: 'chat', at: 1 }, missing: { route: 'chat' }, wrongType: { route: 'chat', at: '1' } },
   { name: '푸시 권한 안내 보임', kind: 'push', scope: 'asked', good: { asked: true }, missing: {}, wrongType: { asked: 'true' } },
+  // 85- 하늘 사람 설정(기기에만)
+  { name: '별 반짝임', kind: 'skypref', scope: 'twinkle', good: { on: false }, missing: {}, wrongType: { on: 'off' } },
+  { name: '둘러보기 안내 봤음', kind: 'skypref', scope: 'guide', good: { seen: true }, missing: {}, wrongType: { seen: 1 } },
+  { name: '끌기 힌트 봤음', kind: 'skypref', scope: 'dragHint', good: { seen: true }, missing: {}, wrongType: { seen: 'y' } },
+  { name: '움직임 권한 거부', kind: 'skypref', scope: 'motion', good: { denied: true }, missing: {}, wrongType: { denied: null } },
 ]
 
 describe('81- 범주마다: 깨진 값 · 옛 버전 -> 그 범주만 버림 · cache_fail 1회', () => {

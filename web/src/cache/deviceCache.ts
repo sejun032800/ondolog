@@ -15,8 +15,10 @@ const PREFIX = 'ondolog.dc1:'
 /**
  * 저장 종류. `route` · `push`(78- 권한 안내를 보였음)는 커플 자료가 아니다(해제 완료 때 남는다).
  * `qkeep`(81-)은 변환하지 못한 대기열 원본을 보존하는 칸 - 로그아웃 · 탈퇴 요청 · 계정 전환 때 지워지고(사용자 키 규칙), 해제 완료 때는 대기열과 같이 남는다.
+ * `skypref`(85-)는 하늘 사람 설정(별 반짝임 · 둘러보기 안내를 봤음 · 끌기 힌트를 봤음 · iOS 움직임 권한 거부) - 커플 자료가 아니다(해제 완료 때 남는다).
+ *   사용자 키라 로그아웃 · 탈퇴 요청 · 계정 전환 때는 지워진다(사람 설정 - 다른 계정이 이어받지 않는다). 센서 값은 여기에 없다.
  */
-export type CacheKind = 'chat' | 'main' | 'feed' | 'sky' | 'name' | 'route' | 'push' | 'qkeep'
+export type CacheKind = 'chat' | 'main' | 'feed' | 'sky' | 'name' | 'route' | 'push' | 'qkeep' | 'skypref'
 /** 커플 자료 종류 - 로그아웃 · 탈퇴 요청 · 해제 요청(유예 진입) · 해제 완료 · 계정 전환에서 지워진다. 하늘('sky', 77-)도 여기에 든다. */
 export const COUPLE_KINDS: readonly CacheKind[] = ['chat', 'main', 'feed', 'sky']
 
@@ -159,7 +161,11 @@ export function purgeOtherUsers(userId: string): number {
 
 /** 해제 완료(커플이 더는 없음): 그 사용자의 커플 자료(채팅 · 메인 요약 · 피드 · 하늘)만. 이름 · 마지막 경로는 남는다. */
 export function clearCoupleCache(userId: string): void {
-  removeWhere((k) => COUPLE_KINDS.some((kind) => k.startsWith(`${PREFIX}${userId}:${kind}`)))
+  // 범주 이름이 정확히 같을 때만(85-: 'sky'가 'skypref' 키까지 지우지 않게 - 범주 뒤는 끝 또는 ':').
+  removeWhere((k) => COUPLE_KINDS.some((kind) => {
+    const base = `${PREFIX}${userId}:${kind}`
+    return k === base || k.startsWith(`${base}:`)
+  }))
 }
 
 // ---------------------------------------------------------------------------

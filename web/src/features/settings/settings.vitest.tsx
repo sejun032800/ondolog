@@ -23,6 +23,7 @@ import { makeFakeBridge, makeFakeNav } from '../../testSupport'
 import type { FakeRow } from '../../testSupportCouple'
 import pkg from '../../../package.json'
 import { AboutScreen } from './AboutScreen'
+import { DEFAULT_SKY_PREFS, useSkyPrefStore } from '../sky/skyPrefs'
 import { CoupleScreen } from './CoupleScreen'
 import { PersonalityScreen } from './PersonalityScreen'
 import { PrivacyScreen } from './PrivacyScreen'
@@ -1127,5 +1128,63 @@ describe('H19 앱 정보 · 문의', () => {
     open()
     click('about-terms')
     expect(within(screen.getByRole('dialog')).getByText(LEGAL_DOCUMENTS.terms.title)).toBeTruthy()
+  })
+})
+
+// ───────────────────────────── 85- H01 OUR SKY (MASTER 9-8-4 · 보드 patch9b H01_oursky · H01_reduced · R127-2) ─────────────────────────────
+describe('85- H01 OUR SKY - 별 반짝임(기기에만)', () => {
+  const realMatchMedia = window.matchMedia
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', { value: realMatchMedia, configurable: true, writable: true })
+    localStorage.clear()
+    useSkyPrefStore.setState({ userId: null, prefs: DEFAULT_SKY_PREFS })
+  })
+  const reduceMotion = (on: boolean) =>
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (q: string) => ({ matches: on && q.includes('reduce'), media: q, addEventListener: () => {}, removeEventListener: () => {} }),
+    })
+
+  it('COUPLE 다음 · 제목 OUR SKY · "별 반짝임" + "하늘의 별이 천천히 숨 쉬어요"(R127-2) · 기본 켬 · "유성 떨어뜨리기" 줄 0', async () => {
+    settingsDb()
+    await loadStores()
+    render(<SettingsTab nav={makeFakeNav()} />)
+    await settle()
+    const kickers = Array.from(document.querySelectorAll('.setKicker')).map((k) => k.textContent)
+    expect(kickers.indexOf('OUR SKY')).toBe(kickers.indexOf('COUPLE') + 1)
+    const row = byId('settings-row-sky-twinkle')
+    expect(row.textContent).toContain('별 반짝임')
+    expect(row.textContent).toContain('하늘의 별이 천천히 숨 쉬어요')
+    expect(byId('settings-sky-twinkle').getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryByText(/유성 떨어뜨리기/)).toBeNull()
+  })
+
+  it('끄면 기기에만 저장(서버 쓰기 0) · 다시 켜짐', async () => {
+    const db = settingsDb()
+    await loadStores()
+    render(<SettingsTab nav={makeFakeNav()} />)
+    await settle()
+    const before = db.writes.length
+    click('settings-sky-twinkle')
+    expect(byId('settings-sky-twinkle').getAttribute('aria-checked')).toBe('false')
+    expect(JSON.parse(localStorage.getItem('ondolog.dc1:me:skypref:twinkle')!)).toEqual({ __v: 1, d: { on: false } })
+    expect(db.writes.length).toBe(before)
+    expect(rpcNames(db)).not.toContain('set_sky_twinkle')
+    click('settings-sky-twinkle')
+    expect(JSON.parse(localStorage.getItem('ondolog.dc1:me:skypref:twinkle')!).d).toEqual({ on: true })
+  })
+
+  it('기기 움직임 줄이기 켜짐 -> 줄 비활성(꺼진 모양 · 누를 수 없음) + 문구 · 켜 둔 값은 지우지 않음', async () => {
+    reduceMotion(true)
+    settingsDb()
+    await loadStores()
+    render(<SettingsTab nav={makeFakeNav()} />)
+    await settle()
+    const toggle = byId('settings-sky-twinkle') as HTMLButtonElement
+    expect(toggle.disabled).toBe(true)
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    expect(byId('settings-sky-reduced').textContent).toBe('기기에서 움직임을 줄여 두어 하늘이 멈춰 있어요')
+    expect(localStorage.getItem('ondolog.dc1:me:skypref:twinkle')).toBeNull() // 사용자 값(기본 켬)은 그대로
   })
 })

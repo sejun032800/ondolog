@@ -77,6 +77,10 @@ const routeValue = shape({ route: isStr, at: isNum })
 /** 81-b: 마지막으로 서버가 정해 준 계정 화면(오프라인 첫 실행에 그 화면으로). */
 const bootRoute = shape({ route: isStr })
 const pushAsked = shape({ asked: isBool })
+/** 85-: 하늘 사람 설정(기기에만). scope마다 칸 하나. 센서 값은 저장하지 않는다. */
+const skyPrefOn = shape({ on: isBool })
+const skyPrefSeen = shape({ seen: isBool })
+const skyPrefDenied = shape({ denied: isBool })
 /** 보존한 대기열 원본(81-). 원본은 글자 그대로(`raw`) - 다시 해석하지 않는다. */
 export const queueKeepValue = shape({ entries: arrayOf(shape({ at: isStr, raw: isStr })) })
 
@@ -85,7 +89,7 @@ export const queueKeepValue = shape({ entries: arrayOf(shape({ at: isStr, raw: i
  * (81- 직전 모양 = 지금 모양 1이라서. 버전이 2가 되면 버전 없는 값도 옛 버전으로 버려진다).
  */
 export const CACHE_VERSION = {
-  chat: 1, main: 1, feed: 1, sky: 1, name: 1, route: 1, push: 1, qkeep: 1,
+  chat: 1, main: 1, feed: 1, sky: 1, name: 1, route: 1, push: 1, qkeep: 1, skypref: 1,
 } as const
 
 /** 범주 + scope -> 검사. 모르는 scope면 null(시작 때 훑기는 건드리지 않고, 읽기는 버린다). */
@@ -116,6 +120,11 @@ export function checkFor(kind: keyof typeof CACHE_VERSION, scope?: string): Chec
       return scope === 'asked' ? pushAsked : null
     case 'qkeep':
       return queueKeepValue
+    case 'skypref':
+      if (scope === 'twinkle') return skyPrefOn
+      if (scope === 'guide' || scope === 'dragHint') return skyPrefSeen
+      if (scope === 'motion') return skyPrefDenied
+      return null
     default:
       return null
   }
