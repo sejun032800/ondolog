@@ -11,7 +11,7 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
-## `82-` 계정 전환 대기열 규칙 + 채팅 진입 때 서랍 알림 지우기 (메인 세션, 2026-11-17, 위임문 `phase-7/82-dispatch-account-switch-queue.md` · 근거 `81-b-pm-report.md` §5 · R120-2 · R120-4 · R118-2 · R119-2 · R39-5 b) - 완료 (미커밋 · build · cap sync 대기)
+## `82-` 계정 전환 대기열 규칙 + 채팅 진입 때 서랍 알림 지우기 (메인 세션, 2026-11-17, 위임문 `phase-7/82-dispatch-account-switch-queue.md` · 근거 `81-b-pm-report.md` §5 · R120-2 · R120-4 · R118-2 · R119-2 · R39-5 b) - 완료 (커밋됨 · build · cap sync 완료)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
 
@@ -45,7 +45,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 | ⑤ 로그아웃 문구 | `unsentCount.ts` | 4갈래 · 주인 것만 셈 · `offlineBoot81b` 3건 기대값 · 스모크 `logout-unsent` | 로그아웃 [취소] 화면 두 줄 |
 | R120-2 서랍 | `pushPort.ts` · `pushCore.ts` · `ChatTab.tsx` | 그 커플 것만 · 두 번 진입 · 서버 태그 대조 · iOS 모양 · 미지원 다리 · 채팅 탭 렌더 · 미연결 | 삼성: 알림 여럿 쌓인 채 채팅 탭 → 메시지 알림만 사라지고 변경 안내 남음 · iOS(Mac 뒤) |
 
-검증: **`npm run gate` 통과 124.2초**(web tsc 8.5초 → Vitest **66/1114** + 1 건너뜀 25.8초 → 법무 8/8 5.6초 → `smoke:webkit` **28/28** 84.3초) · 루트 tsc 0 · jest **116/1994** · PGlite **10/129** · Python **324 OK** · **`build` · `build:trial` · `cap sync` 아직 안 돌림**(Proteur가 81-b 빌드로 폰 녹화 중 - 녹화가 끝난 뒤 맨 끝 한 번). 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0 · 새 파일 이름 ASCII.
+검증: **`npm run gate` 통과 124.2초**(web tsc 8.5초 → Vitest **66/1114** + 1 건너뜀 25.8초 → 법무 8/8 5.6초 → `smoke:webkit` **28/28** 84.3초) · 루트 tsc 0 · jest **116/1994** · PGlite **10/129** · Python **324 OK** · `build` · `build:trial` · `cap sync android` 완료(2026-11-18, 81-b 녹화 끝난 뒤 · 82- 커밋 뒤 한 번). 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0 · 새 파일 이름 ASCII.
 
 ## `81-b` 알림 다시 울림 + 로그아웃 확인 문구 + 오프라인 첫 실행 (메인 세션, 2026-11-17, 위임문 `phase-7/81-b-dispatch-realert-logout-warning.md` + 보충 지시(R119-1~4) · 근거 `81-and-phone-check-3-pm-report.md` §B · R118-2~5 · R109-2 · R119-1~5) - 완료 (미커밋 · 함수 배포 전)
 
