@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Our Sky 2단계 R17 9b</title>
+<style>
+/* 글꼴 — 저장소 assets/fonts/ 에서 읽음(새 글꼴 파일 넣지 않음) */
+@font-face{font-family:'Pretendard';font-weight:400;src:local('Pretendard Regular'),url('../../../assets/fonts/Pretendard-Regular.otf'),url('../../../assets/fonts/Pretendard-Regular.ttf'),url('../../../assets/fonts/Pretendard-Regular.woff2');}
+@font-face{font-family:'Pretendard';font-weight:500;src:local('Pretendard Medium'),url('../../../assets/fonts/Pretendard-Medium.otf'),url('../../../assets/fonts/Pretendard-Medium.ttf'),url('../../../assets/fonts/Pretendard-Medium.woff2');}
+@font-face{font-family:'Pretendard';font-weight:600;src:local('Pretendard SemiBold'),url('../../../assets/fonts/Pretendard-SemiBold.otf'),url('../../../assets/fonts/Pretendard-SemiBold.ttf'),url('../../../assets/fonts/Pretendard-SemiBold.woff2');}
+@font-face{font-family:'Pretendard';font-weight:700;src:local('Pretendard Bold'),url('../../../assets/fonts/Pretendard-Bold.otf'),url('../../../assets/fonts/Pretendard-Bold.ttf'),url('../../../assets/fonts/Pretendard-Bold.woff2');}
+@font-face{font-family:'MaruBuri';font-weight:300;src:local('MaruBuri Light'),url('../../../assets/fonts/MaruBuri-Light.otf'),url('../../../assets/fonts/MaruBuri-Light.ttf');}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0A0814; --inkRaise:#14111F; --bgSet:#0F0D1A;
+  --hairline:rgba(243,239,247,.10);
+  --text:#F3EFF7; --textSub:#C9C1DA; --textMute:#9C93B4; --textFaint:#6E6688;
+  --lilac:#B9A2F0; --lilacText:#D7C9FA; --moon:#E7D9C3; --rose:#F4B9C8; --orchid:#E3A0C8; --mist:#A9B6EC;
+  --anno:#7FE3FF; --annoInk:#062530;   /* 보드 주석 전용 — 앱 토큰 아님 */
+  --sans:'Pretendard',-apple-system,sans-serif; --serif:'MaruBuri',serif;
+}
+body{background:#05030C;color:var(--text);font-family:var(--sans);padding:64px 72px 120px;min-width:1820px;-webkit-font-smoothing:antialiased}
+code{font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:var(--lilacText);background:rgba(185,162,240,.09);padding:1px 5px;border-radius:4px;white-space:nowrap}
+b{font-weight:600;color:var(--text)}
+
+.hd{display:grid;grid-template-columns:1fr 440px;gap:48px;align-items:end;border-bottom:1px solid var(--hairline);padding-bottom:32px;margin-bottom:36px}
+.kicker{font-size:10.5px;font-weight:600;letter-spacing:.26em;color:var(--textMute);text-transform:uppercase}
+.hd h1{font-size:32px;font-weight:700;letter-spacing:-.02em;margin:10px 0 12px}
+.hd p{font-size:14px;color:var(--textSub);line-height:22px}
+.legend{border:1px solid var(--hairline);border-radius:14px;padding:16px 18px;font-size:12.5px;color:var(--textSub);line-height:20px;display:flex;flex-direction:column;gap:8px}
+.legend .lg{display:flex;gap:10px;align-items:flex-start}
+.sw-pin{flex:none;width:18px;height:18px;border-radius:50%;background:var(--anno);color:var(--annoInk);font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.sw-dash{flex:none;width:18px;height:18px;border-radius:50%;border:1.5px dashed var(--anno);margin-top:1px}
+
+h2.blk{font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--lilacText);margin-bottom:14px}
+table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;border:1px solid var(--hairline);border-radius:14px;overflow:hidden;margin-bottom:56px}
+.t th{background:var(--inkRaise);text-align:left;padding:10px 16px;font-size:10.5px;font-weight:700;letter-spacing:.14em;color:var(--textMute);border-bottom:1px solid var(--hairline)}
+.t td{padding:11px 16px;color:var(--textSub);line-height:20px;vertical-align:top;border-bottom:1px solid rgba(243,239,247,.05)}
+.t tr:last-child td{border-bottom:none}
+.t td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+.t .old{color:var(--textFaint);text-decoration:line-through;text-decoration-color:rgba(156,147,180,.5)}
+.t .grp td{background:rgba(185,162,240,.05);font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--lilacText);padding:8px 16px}
+
+.section{margin-bottom:84px}
+.sec-hd{display:flex;align-items:baseline;gap:16px;margin-bottom:8px}
+.sec-no{font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--lilacText)}
+.sec-title{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.sec-desc{font-size:13.5px;color:var(--textSub);line-height:21px;margin-bottom:26px;max-width:1000px}
+
+.screens{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+.sw{width:390px;display:flex;flex-direction:column;gap:10px}
+.sid{font-size:10.5px;font-weight:700;letter-spacing:.16em;color:var(--textMute)}
+.sid em{font-style:normal;color:var(--lilacText)}
+.sname{font-size:14px;font-weight:600;margin-top:-4px}
+.notes{list-style:none;display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.notes li{display:flex;gap:8px;font-size:12px;color:var(--textSub);line-height:18px}
+.notes li .n{flex:none;width:16px;height:16px;border-radius:50%;background:var(--anno);color:var(--annoInk);font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.notes li.p{color:var(--textMute)} .notes li.p::before{content:'·';flex:none;width:16px;text-align:center;color:var(--textFaint)}
+
+/* ── 폰 390×844 (상태바 없음 — 현재 화면 규칙) ── */
+.phone{position:relative;width:390px;height:844px;border-radius:44px;overflow:hidden;background:var(--ink);box-shadow:inset 0 0 0 1px rgba(243,239,247,.12);flex:none;isolation:isolate}
+.photo{position:absolute;inset:0;z-index:0;background-color:#0B0916;
+  background-image:url('../../../assets/images/sky_world.jpg'),url('../../../assets/sky_world.jpg'),url('../../../assets/images/sky/sky_world.jpg'),url('../../../assets/sky/sky_world.jpg');
+  background-size:390px auto;background-repeat:no-repeat;background-position:0 -620px}
+.photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,8,20,.55) 0,rgba(10,8,20,0) 150px),rgba(75,65,90,.18)}
+.L{position:absolute;inset:0}
+.frame{position:absolute;inset:0;border-radius:44px;box-shadow:inset 0 0 0 1px rgba(243,239,247,.12);z-index:60;pointer-events:none}
+
+.ttl{position:absolute;left:24px;top:54px;font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:32px;color:var(--text);z-index:10}
+.sub{position:absolute;left:24px;top:88px;font-size:13px;color:#9D99AE;line-height:18px;z-index:10}
+.xbtn,.chipb{position:absolute;top:52px;height:40px;border-radius:999px;background:rgba(14,12,26,.55);box-shadow:inset 0 0 0 1px rgba(243,239,247,.14);display:flex;align-items:center;justify-content:center;z-index:10}
+.xbtn{right:20px;width:40px}
+.chipb{right:68px;padding:0 14px 0 12px;gap:6px;font-size:13px;font-weight:500;color:var(--textSub);white-space:nowrap}
+.chipb.ic{width:40px;padding:0}
+
+.lbl{position:absolute;font-size:10.5px;font-weight:600;letter-spacing:.02em;white-space:nowrap;z-index:9}
+.ds{position:absolute;border-radius:50%;background:#EEEAF6;transform:translate(-50%,-50%);z-index:5}
+.ds.s4{width:4px;height:4px;box-shadow:0 0 6px 2px rgba(185,162,240,.45)}
+.ds.s5{width:5px;height:5px;box-shadow:0 0 8px 3px rgba(185,162,240,.5)}
+.ds.s8{width:8px;height:8px;box-shadow:0 0 12px 4px rgba(185,162,240,.6)}
+.ds.past{opacity:.55}
+.tw{animation:tw var(--d) ease-in-out var(--dl) infinite alternate}
+@keyframes tw{from{opacity:.35}to{opacity:.75}}
+.still .tw,.still .ds{animation:none!important}
+
+.dplus{position:absolute;left:0;right:0;top:777px;text-align:center;font-size:15px;font-weight:600;color:var(--text);z-index:8}
+.dhint{position:absolute;left:0;right:0;top:798px;text-align:center;font-size:11.5px;color:#9C99AA;z-index:8}
+
+.pin{position:absolute;z-index:50;width:20px;height:20px;border-radius:50%;background:var(--anno);color:var(--annoInk);font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(5,3,12,.75)}
+.ring{position:absolute;z-index:49;border-radius:50%;border:1.5px dashed var(--anno);transform:translate(-50%,-50%)}
+
+/* 시트 — C04 문법(떠 있는 카드) */
+.sheet{position:absolute;left:12px;right:12px;bottom:12px;z-index:20;background:#13101E;border-radius:32px;box-shadow:inset 0 0 0 1px rgba(243,239,247,.08);padding:14px 23px 20px}
+.grab{width:36px;height:4px;border-radius:2px;background:rgba(243,239,247,.22);margin:0 auto 20px}
+.pill{height:52px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600}
+.pill.w{background:#F2EFF6;color:#0A0814}
+.pill.d{background:#24202F;color:var(--text)}
+.txtbtn{height:46px;display:flex;align-items:center;justify-content:center;font-size:14.5px;font-weight:500;color:var(--textSub)}
+
+/* 설정 — H01 문법 */
+.set{background:var(--bgSet)}
+.set .h{position:absolute;left:24px;top:54px;font-size:25px;font-weight:700;letter-spacing:-.02em}
+.kk{position:absolute;left:24px;font-size:10.5px;font-weight:600;letter-spacing:.32em;color:#9E99B1}
+.card{position:absolute;left:20px;right:20px;background:#13111E;border-radius:22px;overflow:hidden}
+.r{position:relative;display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:55px}
+.r.t2{height:62px}
+.r+.r::before{content:'';position:absolute;left:20px;right:20px;top:0;height:1px;background:#22202D}
+.r .lab{font-size:16px;color:#F3F1FC}
+.r .dsc{font-size:13px;color:#9D99AE;margin-top:2px}
+.r .val{font-size:15px;color:#9D99AF;display:flex;align-items:center;gap:6px}
+.tg{flex:none;width:46px;height:28px;border-radius:999px;position:relative}
+.tg::after{content:'';position:absolute;top:3px;width:22px;height:22px;border-radius:50%}
+.tg.on{background:#B9A2F0}.tg.on::after{right:3px;background:#0A0815}
+.tg.off{background:rgba(243,239,247,.14)}.tg.off::after{left:3px;background:#6E6688}
+.dim{opacity:.4}
+.tabbar{position:absolute;left:0;right:0;top:748px;height:96px;background-size:390px 96px;z-index:30}
+
+.box{padding:16px 18px;border-radius:14px;background:rgba(185,162,240,.06);border:1px solid rgba(185,162,240,.18);font-size:13px;color:var(--textSub);line-height:21px}
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px}
+.rule{background:var(--inkRaise);border:1px solid var(--hairline);border-radius:14px;padding:16px 18px}
+.rule h4{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--lilacText);margin-bottom:8px}
+.rule p{font-size:13px;color:var(--textSub);line-height:20px}
+.layers{display:flex;gap:20px;align-items:stretch;margin:4px 0 30px}
+.layer-card{flex:1;border:1px solid var(--hairline);border-radius:14px;padding:16px 18px;background:rgba(20,17,31,.5);font-size:12.5px;color:var(--textSub);line-height:19px}
+.layer-card h4{font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)}
+.layer-card .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.1em;padding:2px 6px;border-radius:5px;margin-bottom:8px}
+.tag.fix{color:#9C93B4;background:rgba(156,147,180,.12)} .tag.mov{color:var(--lilacText);background:rgba(185,162,240,.14)}
+
+.live-ctl{display:flex;gap:8px}
+.live-ctl button{font:inherit;font-size:12px;font-weight:600;color:var(--textSub);background:var(--inkRaise);border:1px solid var(--hairline);border-radius:999px;padding:6px 12px;cursor:pointer}
+.live-ctl button.on{color:#0A0814;background:#F2EFF6;border-color:#F2EFF6}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div>
+    <div class="kicker">ONDOLOG Design · R17 · patch9b · 2026-11-18</div>
+    <h1>우리의 하늘 2단계 — 현재 앱 위에 더하기</h1>
+    <p>patch9를 <b>현재 앱 화면</b>(refs: C01~C07 · H01/H02 · <code>03_Y1-Our-Sky</code> · <code>sky_world.jpg</code>)에 맞춰 다시 그린 판입니다. 원칙 — <b>이미 앱에 있는 것은 현재 앱이 이기고</b>, 2단계에서 새로 생기는 것(둘러보기 · 안내 · 권한 · 유성 빈도)만 patch9 결정을 따릅니다.<br>
+    화면은 현재 화면과 같은 390×844(JPG 780×1688), 상태바 없음. 글꼴은 저장소 <code>assets/fonts/</code>에서 읽습니다.</p>
+  </div>
+  <div class="legend">
+    <div class="lg"><span class="sw-pin">1</span><span>하늘색 번호는 <b>보드 주석</b>(앱에 그리지 않음). 설명은 각 화면 아래.</span></div>
+    <div class="lg"><span class="sw-dash"></span><span>점선 원 = 누를 수 있는 범위(주석).</span></div>
+    <div class="lg"><span style="flex:none;width:18px;text-align:center;color:var(--textFaint)">—</span><span>번호 없는 요소는 현재 앱 그대로입니다.</span></div>
+  </div>
+</div>
+
+<h2 class="blk">PATCH9 → 9B — 현재 앱과 다르던 6곳</h2>
+<table class="t">
+  <thead><tr><th>항목</th><th>patch9 (버림)</th><th>patch9b = 현재 앱</th><th>화면</th></tr></thead>
+  <tbody>
+    <tr><td>1 · 배경</td><td class="old">보라 그라데이션</td><td><code>sky_world.jpg</code> 사진. 둘러보기에서는 <b>사진 층 고정</b>, 별·달·라벨·방위 층만 돎</td><td>모든 하늘 화면</td></tr>
+    <tr><td>2 · C01</td><td class="old">머리·✕·라벨·D+ 없이 [둘러보기]가 ✕ 자리</td><td>현재 C01 그대로 + [둘러보기]를 <b>✕ 왼쪽 같은 줄</b>에(높이 40 · 세로 중심 ✕와 같음)</td><td>C01 · C01_meteor · C01_twinkle_off · C09</td></tr>
+    <tr><td>3 · 떨어진 말</td><td class="old">바닥 카드 · 왼쪽 위→오른쪽 아래 lilac 유성</td><td>기존 C03 전체 화면(FALLEN WORDS · {n}/{N} · 이전/다음 말 · 채팅에서 보기). 유성은 <b>오른쪽 위 → 왼쪽 아래</b>, 흰 꼬리 · rose빛 머리</td><td>C03_caught · C01_meteor</td></tr>
+    <tr><td>4 · 설정</td><td class="old">"우리의 하늘" 한글 묶음 · 뼈대 줄</td><td>H01의 <code>OUR SKY</code> 묶음(COUPLE 다음) · 기존 문구 · 실제 줄</td><td>H01_oursky · H01_reduced</td></tr>
+    <tr><td>5 · 버튼</td><td class="old">lilac 채움</td><td>하늘 화면 기본 버튼 = <b>흰 알약</b>, 보조 = 어두운 알약 / 글자 버튼</td><td>C09 · C10</td></tr>
+    <tr><td>6 · 납품</td><td class="old">글꼴 동봉 · 640×1336 · 8열 색인</td><td>글꼴 동봉 없음 · 780×1688 · <code>id,file,screen,board</code> 4열(주석 판은 파일만)</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<!-- ═════ 17-a ═════ -->
+<div class="section">
+  <div class="sec-hd"><span class="sec-no">17-a</span><span class="sec-title">둘러보기 — 기기 방향 · 끌기</span></div>
+  <div class="sec-desc">C01의 [둘러보기] → (iOS만 C09) → C10 처음 한 번 안내 → C08 센서 / C08-alt 끌기 → ✕ 또는 뒤로 = <b>C01로</b>. 센서 값은 기기 안에서만 쓰고, C08이 보일 때만 리스너를 켭니다.</div>
+
+  <div class="layers">
+    <div class="layer-card"><span class="tag fix">고정</span><h4>사진 층 — <code>sky_world.jpg</code></h4>사진 폭이 화면 폭과 같고(780px = 390pt) 세로 한 장이라 360°로 이을 수 없습니다. <b>시차 0</b> — C01과 같은 구간 그대로 둡니다.</div>
+    <div class="layer-card"><span class="tag mov">돎</span><h4>하늘 층 — 별 · 달 · 라벨 · 30° 보조선</h4>데이트 별, 달, "10월 · 별 5", 가장 따뜻한 별 라벨, VOL 라벨이 한 층으로 기기 방향/끌기를 따라 움직입니다. 별 좌표는 1단계와 같이 기록 id로 고정.</div>
+    <div class="layer-card"><span class="tag mov">돎 · 가로만</span><h4>방위 층 — 지평선 눈금 · 북/북동…</h4>지평선 실루엣(C01과 같은 모양)은 고정, 그 위 눈금과 방위 글자만 좌우로 흐릅니다.</div>
+    <div class="layer-card"><span class="tag fix">고정</span><h4>머리 · ✕ · 칩</h4>"{M}월의 하늘" · 부제 · ✕ · "이번 달 별 ›"은 화면에 붙어 있습니다.</div>
+  </div>
+
+  <div class="screens">
+    <div class="sw" data-shot="C01"><div class="sid">C01 · <em>갱신 — 칩 하나 더함</em></div><div class="sname">하늘 — [둘러보기]</div>
+      <div class="phone tw-on" data-build="c01" data-meteor="c01"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>[둘러보기] — ✕와 같은 면(어두운 반투명 + 테두리), <b>높이 40 · 세로 중심 y 72 · ✕ 왼쪽 8pt</b>. 아이콘 15 + 13pt 글자.</span></li><li><span class="n">1</span><span><b>화면 폭 380pt 미만이면 아이콘만</b> — ✕와 같은 40pt 원(접근성 이름 "하늘 둘러보기"). 글자 칩은 360pt에서 부제와 9pt 겹치기 때문(맨 아래 확인 표). 부제·머리는 현재 앱 그대로 둡니다.</span></li>
+        <li class="p"><span>그 밖의 모든 요소(머리 · ✕=메인으로 · 라벨 · 유성 · 지평선 · D+ · 안내)는 현재 C01 그대로. 빈 하늘(C06)에는 칩을 두지 않습니다.</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="C09"><div class="sid">C09 · <em>신규 · iOS만</em></div><div class="sname">움직임 권한 앞 화면</div>
+      <div class="phone" data-build="c09"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>C04와 같은 떠 있는 시트(좌우·아래 12, 모서리 32). 문구는 patch9 그대로, 센서 고지 줄은 고정 문장.</span></li>
+        <li><span class="n">2</span><span>[움직임 사용하기] = <b>흰 알약</b> → iOS 권한 창 → 허용 C10→C08 / 거부 C10(끌기 문구)→C08-alt.</span></li>
+        <li><span class="n">3</span><span>글자 버튼 → 권한을 묻지 않고 곧장 C08-alt. 한 번 거부한 뒤에는 이 화면 없이 C08-alt.</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="C10"><div class="sid">C10 · <em>신규</em></div><div class="sname">처음 한 번 안내</div>
+      <div class="phone" data-build="c10"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>C08 위 장막 .62 + 그림(인라인 SVG) + 문구 — patch9 그대로.</span></li>
+        <li><span class="n">2</span><span>[알겠어요] = <b>흰 알약</b>(폭 200). 누르거나 폰이 20° 넘게 움직이면 닫힘. 봤는지 여부는 <b>기기에만</b> 저장.</span></li>
+        <li class="p"><span>끌기 모드: 같은 틀, 문구 "손가락으로 하늘을 끌어 보세요", 그림은 C08-alt의 손가락 아이콘.</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="C08"><div class="sid">C08 · <em>신규</em></div><div class="sname">둘러보기 — 이번 달 별이 보일 때</div>
+      <div class="phone tw-on" data-build="c08"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>머리는 C01과 같은 말 — "{M}월의 하늘"(연도 없음) + 부제. 칩 없음.</span></li>
+        <li><span class="n">2</span><span>✕ = <b>C01로 돌아감</b>(메인 아님). 시스템 뒤로도 같음. 폰을 내려도 나가지 않습니다.</span></li>
+        <li><span class="n">3</span><span>바닥 — C01 지평선 실루엣 그대로, 그 위에 방위 눈금(20pt 간격, 방위 자리는 긴 눈금) + 북·북동… 정면만 <code>lilacText</code>. 이 화면에서는 D+와 "위로 끌면" 안내를 숨깁니다(끌기가 회전이라 뜻이 달라짐).</span></li>
+        <li><span class="n">4</span><span>별을 누르면 <b>기존 C04 시트</b>(새 시트 없음). 라벨은 별과 함께 돕니다.</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="C08_offscreen"><div class="sid">C08 · <em>상태</em></div><div class="sname">이번 달 별이 화면 밖일 때</div>
+      <div class="phone tw-on" data-build="c08off"></div>
+      <ul class="notes">
+        <li><span class="n">5</span><span>"이번 달 별 ›" — ✕와 같은 면, 높이 34. 이번 달 데이트 별이 <b>하나도</b> 안 보일 때만 가까운 가장자리에. 누르면 그쪽으로 0.6초 회전. 그 달 별이 0개면 달을 가리킵니다.</span></li>
+        <li class="p"><span>사진은 움직이지 않으므로 은하수 모양은 C08과 같고, 별·라벨만 사라집니다.</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="C08_alt"><div class="sid">C08-alt · <em>신규</em></div><div class="sname">끌기 모드 — 처음 끌기 전</div>
+      <div class="phone" data-build="c08alt"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>손가락 + 좌우 화살표 + 한 줄(patch9 그대로). 첫 끌기에서 사라지고 다시 나오지 않음.</span></li>
+        <li class="p"><span>센서 없음 · 거부 · 기기 움직임 줄이기 세 경우. 좌우 360°, 위아래 −10°~90°에서 멈춤. 별에는 반짝임 없음(줄인 모션인 경우).</span></li>
+      </ul></div>
+  </div>
+</div>
+
+<!-- ═════ 17-b ═════ -->
+<div class="section">
+  <div class="sec-hd"><span class="sec-no">17-b</span><span class="sec-title">유성 · 떨어진 말</span></div>
+  <div class="sec-desc">유성 모양과 C03은 <b>현재 보드 그대로</b>입니다. 2단계가 더하는 것은 <b>빈도·누를 수 있는 시간·줄인 모션 모양</b>과 C03의 <b>{n}/{N} 뜻</b>(잡은 말 전체 중 몇 번째 — PM R125-5)뿐입니다.</div>
+
+  <div class="screens">
+    <div class="sw" data-shot="C01_meteor"><div class="sid">C01 · <em>유성이 지날 때</em></div><div class="sname">누를 수 있는 범위</div>
+      <div class="phone tw-on" data-build="c01m" data-meteor="c01"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>유성 = 현재 C01 모양: <b>오른쪽 위 → 왼쪽 아래</b>, 흰 꼬리, 머리는 흰 점 + rose빛 후광. 화면 오른쪽 위 가장자리에서 들어와 ✕·칩 아래로 지나갑니다.</span></li>
+        <li><span class="n">2</span><span>누르는 범위 — 머리를 따라다니는 <b>지름 64pt</b> 원(주석). 누를 수 있는 시간 3초.</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="C01_meteor_reduced"><div class="sid">C01 · <em>움직임 줄이기</em></div><div class="sname">제자리 빛</div>
+      <div class="phone still" data-build="c01m" data-meteor="still"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>꼬리·이동 없이 제자리에서 나타나 <b>4초</b> 머무는 빛(흰 점 + rose 후광 + 바깥 고리 하나). 자리는 유성이 지났을 길의 중간. 누르는 범위·결과는 같음.</span></li>
+        <li class="p"><span>반짝임 토글을 꺼도 유성은 떨어집니다. 유성을 끄는 것은 OUR SKY의 "유성 떨어뜨리기" 줄(유성 연결 때부터 보임).</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="C03_caught"><div class="sid">C03 · <em>방금 잡은 말</em></div><div class="sname">떨어진 말 — 기존 C03 그대로</div>
+      <div class="phone" data-build="c03"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span><b>{n} / {N}</b> = 지금까지 잡은 말 전체 중 위치. 방금 잡은 말이 <b>N번째(마지막)</b>로 열립니다 → "3 / 3".</span></li>
+        <li><span class="n">2</span><span>마지막 말이라 "다음 말 ›"은 흐리게(현재 C03에서 1/3일 때 "이전 말"이 흐린 것과 같은 규칙).</span></li>
+        <li class="p"><span>문장 · 출처 표기("{이름} · {M}월 {D}일 밤 {h}시 {m}분") · 채팅에서 보기 · 안내 · 공유 버튼 없음 — 모두 현재 그대로. 원문은 자르지 않고 길면 이 화면 안에서 스크롤.</span></li>
+      </ul></div>
+
+    <div class="sw"><div class="sid">라이브 · <em>모션 확인용</em></div><div class="sname">17-d 값 반복 재생 (JPG 없음)</div>
+      <div class="live-ctl"><button id="bN" class="on">기본</button><button id="bR">움직임 줄이기</button></div>
+      <div class="phone tw-on" data-build="live"></div>
+      <ul class="notes"><li class="p"><span>브라우저에서 열면 6초마다 한 번 재생(앱은 하루 한 번). 아래 하늘색 글자는 남은 누를 수 있는 시간(주석).</span></li></ul></div>
+  </div>
+
+  <div class="rules">
+    <div class="rule"><h4>빈도</h4><p>하루(자정 기준) 최대 <b>한 번</b>, 그날 하늘(C01·C08)을 처음 연 뒤 4~10초 사이. C02(지난 하늘)에서는 떨어지지 않음.</p></div>
+    <div class="rule"><h4>놓친 말 · 잡은 말</h4><p>누를 수 있는 시간 3초(줄인 모션 5.2초). 놓친 말은 다음 날 다시 후보, 잡은 말은 다시 떨어지지 않음 — 84-c 후보 풀 조건(R125-5). 잡은 말 목록은 <b>기기에만</b>.</p></div>
+    <div class="rule"><h4>후보가 0일 때</h4><p>유성 없음, 아무 표시 없음.</p></div>
+  </div>
+</div>
+
+<!-- ═════ 17-c ═════ -->
+<div class="section">
+  <div class="sec-hd"><span class="sec-no">17-c</span><span class="sec-title">별 반짝임 — H01의 OUR SKY 묶음</span></div>
+  <div class="sec-desc">기존 H01 보드의 <code>OUR SKY</code> 묶음(COUPLE 다음)을 씁니다. <b>85- 시점에는 "별 반짝임" 한 줄만</b> 보이고, "유성 떨어뜨리기" 줄은 유성이 실제로 연결될 때부터 보입니다(그때 모습 = 현재 H01 보드). 두 토글 값은 기기에만 저장.</div>
+
+  <div class="screens">
+    <div class="sw" data-shot="H01_oursky"><div class="sid">H01 · <em>85- 시점</em></div><div class="sname">OUR SKY — 별 반짝임 한 줄</div>
+      <div class="phone set" data-build="h01"></div>
+      <ul class="notes">
+        <li><span class="n">1</span><span>묶음 제목 <code>OUR SKY</code>, 줄 "별 반짝임 · 배경 별이 천천히 숨 쉬어요"(기존 문구), 기본 켬.</span></li>
+        <li class="p"><span>다른 줄은 지금 앱에 있는 것: ACCOUNT · COUPLE · OUR SKY · PERSONALITY · NOTIFICATIONS · PRIVACY · ETC(아래는 스크롤). 값 글자는 H01/H02 refs 그대로.</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="H01_reduced"><div class="sid">H01 · <em>기기 움직임 줄이기 켜짐</em></div><div class="sname">비활성 + 보조 문구</div>
+      <div class="phone set" data-build="h01r"></div>
+      <ul class="notes">
+        <li><span class="n">2</span><span>줄을 40%로 흐리게, 토글은 꺼진 모양으로 누를 수 없음. 묶음 아래 보조 문구 <b>"기기에서 움직임을 줄여 두어 하늘이 멈춰 있어요"</b>(Android·iOS 공통).</span></li>
+        <li class="p"><span>사용자가 켜 둔 값은 지우지 않음 — 기기 설정을 되돌리면 원래 값으로.</span></li>
+      </ul></div>
+
+    <div class="sw" data-shot="C01_twinkle_off"><div class="sid">C01 · <em>반짝임 끔</em></div><div class="sname">멈춘 하늘 — 표시 없음</div>
+      <div class="phone still" data-build="c01" data-meteor="c01"></div>
+      <ul class="notes">
+        <li><span class="n">3</span><span>현재 C01 그대로에서 <b>반짝임만 멈춤</b> — 데이트 별(1단계 2.8~5.2초 반짝임)과 배경 별 숨 모두, 각자 기본 밝기로 고정. "꺼짐" 표시 없음. 유성·별이 켜지는 첫 연출은 그대로.</span></li>
+      </ul></div>
+  </div>
+</div>
+
+<!-- ═════ 17-d ═════ -->
+<div class="section">
+  <div class="sec-hd"><span class="sec-no">17-d</span><span class="sec-title">모션 허용표 — ONDOLOG_DESIGN.md §6에 붙일 줄</span></div>
+  <div class="sec-desc">patch9 12줄에서 바뀐 곳: 층 분리 줄 추가 · 유성 방향/색을 현재 보드로 · 카드 열고 닫기 줄 삭제(C03 전환은 1단계 그대로) · 반짝임 끔 범위.</div>
+  <table class="t" style="margin-bottom:20px">
+    <thead><tr><th>요소</th><th>기본</th><th>곡선</th><th>움직임 줄이기</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="5">반짝임 (17-c)</td></tr>
+      <tr><td>배경 별 숨</td><td>투명도 <code>.35↔.75</code>, 별마다 <code>9–12s</code> · 시작 위상 무작위</td><td><code>ease-in-out</code></td><td>정지</td><td>숨 쉬는 배경 별 최대 20개(V40)</td></tr>
+      <tr><td>데이트 별 반짝임</td><td>1단계 값 그대로(별마다 <code>2.8–5.2s</code>)</td><td>1단계</td><td>정지</td><td>토글 끔 = 둘 다 정지, 각자 기본 밝기로</td></tr>
+      <tr class="grp"><td colspan="5">둘러보기 (17-a)</td></tr>
+      <tr><td>층 분리</td><td>사진 층 <b>고정(시차 0)</b> · 하늘 층(별·달·라벨·보조선) 회전 · 방위 층 가로 이동</td><td>—</td><td>같음</td><td>사진 폭 = 화면 폭이라 좌우 여유 없음</td></tr>
+      <tr><td>C01 → C08 들어가기</td><td>C01 머리 아래 요소 페이드아웃 <code>180ms</code> → 방위 눈금 아래에서 <code>24pt</code> 떠오르며 <code>240ms</code></td><td><code>ease-out</code></td><td>교차 페이드 <code>150ms</code></td><td>사진·머리·✕는 그대로 있음(바뀌는 건 칩·D+·안내 → 방위)</td></tr>
+      <tr><td>C08 → C01 나가기</td><td>역순 <code>180ms</code></td><td><code>ease-in</code></td><td><code>120ms</code></td><td>센서 리스너는 나가기 시작 시점에 해제</td></tr>
+      <tr><td>센서 → 회전</td><td>매 프레임, 지수 평활 <code>α = 0.2</code> · 센서 30Hz로 솎음</td><td>—</td><td>센서 대신 끌기</td><td>그리기 <code>requestAnimationFrame</code></td></tr>
+      <tr><td>끌기 → 회전</td><td>손가락 따라 즉시 · 놓으면 관성 <code>600ms</code></td><td><code>cubic-bezier(.2,.8,.2,1)</code></td><td>관성 없음</td><td>위아래 끝에서 튕김 없이 멈춤</td></tr>
+      <tr><td>C10 닫힘 · 끌기 힌트</td><td>페이드 <code>240ms</code> / <code>300ms</code></td><td><code>ease-out</code></td><td><code>150ms</code> / 즉시</td><td>20° 움직임·[알겠어요] / 첫 끌기</td></tr>
+      <tr><td>"이번 달 별 ›"</td><td>나타남·사라짐 <code>200ms</code> · 누르면 <code>600ms</code> 회전</td><td><code>cubic-bezier(.2,.8,.2,1)</code></td><td>즉시</td><td>—</td></tr>
+      <tr class="grp"><td colspan="5">유성 (17-b)</td></tr>
+      <tr><td>유성 지나감</td><td>오른쪽 위 가장자리 → 왼쪽 아래, 각도 25–35° · 머리 이동 <code>2.4s</code> · 꼬리 0→끝 길이를 처음 <code>0.4s</code>에</td><td>머리 <code>cubic-bezier(.3,0,.7,1)</code></td><td>제자리 빛: 나타남 <code>0.6s</code> · 머묾 <code>4s</code> · 사라짐 <code>0.6s</code></td><td>모양·색은 현재 C01 유성. 누를 수 있는 시간 3s / 5.2s</td></tr>
+      <tr><td>유성 사라짐</td><td>투명도 1→0 <code>0.6s</code>, 꼬리는 머리 쪽으로 줄어듦</td><td><code>ease-in</code></td><td>위와 같음</td><td>흔적 없음</td></tr>
+      <tr><td>유성 누름 → C03</td><td>1단계 C03 전환 그대로</td><td>1단계</td><td>1단계</td><td>새 값 없음. 잡은 말이 N번째로 열림</td></tr>
+    </tbody>
+  </table>
+  <div class="box"><b>V40</b> — 반짝임·숨은 투명도만 바꿈(그림자 크기 애니메이션 금지). 하늘 층 회전은 좌표 계산을 프레임당 1회, 화면 밖 별은 그리지 않음. 사진 층은 다시 그리지 않음(고정). 실기기 확인: C08 끌기 + 반짝임 동시에 55fps 이상.</div>
+</div>
+
+<h2 class="blk">폭 확인 — [둘러보기] 칩 (390 · 375 · 360 · 320pt)</h2>
+<div id="w360" class="box" style="margin-bottom:24px">계산 중…</div>
+<div style="display:flex;gap:32px;align-items:flex-start">
+  <div class="phone wchk" data-build="c01" data-meteor="c01" style="width:390px;height:180px"></div>
+  <div class="phone wchk" data-build="c01" data-meteor="c01" style="width:375px;height:180px"></div>
+  <div class="phone wchk" data-build="c01" data-meteor="c01" style="width:360px;height:180px"></div>
+  <div class="phone wchk" data-build="c01" data-meteor="c01" style="width:320px;height:180px"></div>
+</div>
+
+<script>
+const TABBAR='data:image/jpeg;base64,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ooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//9k=';
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const ICO={
+ browse:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 18h18"/><path d="M5.5 18a6.5 6.5 0 0 1 13 0"/><path d="M12 4v2.5M5.2 7.2l1.7 1.7M18.8 7.2l-1.7 1.7"/></svg>',
+ x:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F3EFF7" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+ arrow:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'
+};
+const P=(x,y,n)=>`<div class="pin" style="left:${x}px;top:${y}px">${n}</div>`;
+const RING=(x,y,d=64)=>`<div class="ring" style="left:${x}px;top:${y}px;width:${d}px;height:${d}px"></div>`;
+
+/* 배경 숨 별(최대 20) */
+function breath(seed){const r=rng(seed);let s='';for(let i=0;i<20;i++){const sz=r()<.7?1:1.5;s+=`<span class="tw" style="position:absolute;left:${(r()*100).toFixed(1)}%;top:${(12+r()*76).toFixed(1)}%;width:${sz}px;height:${sz}px;border-radius:50%;background:#fff;opacity:.55;--d:${(9+r()*3).toFixed(1)}s;--dl:${(-r()*12).toFixed(1)}s"></span>`}return `<div class="L" style="z-index:3">${s}</div>`}
+
+/* 데이트 별 */
+function star(x,y,c,past){const r=Math.random();return `<div class="ds ${c} ${past?'past':''} tw" style="left:${x}px;top:${y}px;--d:${(2.8+((x*7+y)%24)/10).toFixed(1)}s;--dl:-${((x+y)%30)/10}s"></div>`}
+function flare(x,y,big){const L=big?54:24,o=big?.85:.35,c=big?9:5;return `<div style="position:absolute;left:${x}px;top:${y}px;z-index:5;transform:translate(-50%,-50%)">
+ <svg width="${L}" height="${L}" viewBox="0 0 ${L} ${L}" style="position:absolute;left:${-L/2}px;top:${-L/2}px;overflow:visible"><defs><linearGradient id="fh${L}" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity="${o}"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="fv${L}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity="${o}"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><rect x="0" y="${L/2-.5}" width="${L}" height="1" fill="url(#fh${L})"/><rect x="${L/2-.5}" y="0" width="1" height="${L}" fill="url(#fv${L})"/></svg>
+ <div class="tw" style="position:absolute;left:${-c/2}px;top:${-c/2}px;width:${c}px;height:${c}px;border-radius:50%;background:#fff;box-shadow:0 0 ${big?16:8}px ${big?6:2}px rgba(220,210,255,${big?.7:.4});--d:4s;--dl:-1s"></div></div>`}
+function moon(x,y,dim){return `<svg style="position:absolute;left:${x-16}px;top:${y-16}px;z-index:5;overflow:visible;opacity:${dim?.45:1}" width="32" height="32" viewBox="0 0 32 32"><defs><radialGradient id="mg"><stop offset=".4" stop-color="#E7D9C3" stop-opacity=".22"/><stop offset="1" stop-color="#E7D9C3" stop-opacity="0"/></radialGradient></defs><circle cx="16" cy="16" r="22" fill="url(#mg)"/><path d="M13 2.5 A13.5 13.5 0 1 1 13 29.5 A5 13.5 0 0 0 13 2.5Z" fill="#E7D9C3"/></svg>`}
+const lab=(x,y,txt,col,align='left',w=600)=>`<div class="lbl" style="left:${x}px;top:${y}px;color:${col};font-weight:${w};${align==='center'?'transform:translateX(-50%);text-align:center':''}">${txt}</div>`;
+
+/* 현재 C01의 하늘 층(위치는 refs C01 실측) */
+function skyC01(dx=0,dy=0,opts={}){
+  const S=(x,y,c,p)=>star(x+dx,y+dy,c,p);
+  return `<div class="L" style="z-index:5">
+   ${lab(40+dx,183+dy,'10월 · 별 5','#B9A2F0')}
+   ${S(84,214,'s5')}${S(150,290,'s5')}${flare(268+dx,262+dy,false)}${S(204,308,'s4')}${S(214,372,'s4',1)}
+   ${flare(302+dx,429+dy,true)}
+   ${lab(302+dx,447+dy,'10.18 망원','#F6F3FE','center',700)}${lab(302+dx,465+dy,'가장 따뜻했던 날','#9C97B4','center',400)}
+   ${S(250,487,'s4')}${S(202,509,'s4')}
+   ${moon(326+dx,560+dy)}${lab(322+dx,582+dy,'VOL.02 · 9월호','#E7D9C3','center',700)}
+   ${lab(40+dx,585+dy,'9월 · 별 4','#726A8B')}
+   ${S(116,664,'s4',1)}${S(53,672,'s4',1)}${S(198,629,'s4',1)}${S(46,612,'s4',1)}
+  </div>`}
+
+/* 지평선 실루엣 */
+function ground(mode,w=390){
+  const sx=w/390, path=mode==='c03'?`M0 779 C 60 772, 140 760, 205 761 S 270 777, 310 775 S 365 765, ${w} 766`:`M0 779 C 60 775, 120 762, 205 761 S 330 768, ${w} 764`;
+  let ticks='',cards='';
+  if(mode==='cardinal'){
+    const yAt=x=>{const t=x/w;return 779-(17*Math.sin(Math.PI*Math.min(1,t*1.15)))+ (t>.85?3:0)};
+    for(let i=0;i<=19;i++){const x=i*20+5,y=yAt(x),maj=(i%5===0);ticks+=`<line x1="${x}" x2="${x}" y1="${y+3}" y2="${y+(maj?11:6)}" stroke="#B9A2F0" stroke-opacity="${maj?.55:.22}"/>`}
+    cards=`<div style="position:absolute;top:796px;left:0;right:0;z-index:9;display:flex;justify-content:space-between;padding:0 50px;font-size:11.5px;font-weight:600;letter-spacing:.06em;color:rgba(185,162,240,.45)">${mode==='cardinal'?'<span>북서</span><span style="color:#D7C9FA">북</span><span>북동</span>':''}</div>`;
+  }
+  return `<svg class="L" style="z-index:7" viewBox="0 0 ${w} 844" preserveAspectRatio="none"><defs><linearGradient id="gg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0E0B19"/><stop offset="1" stop-color="#06050B"/></linearGradient></defs>
+   <path d="${path} L${w} 844 L0 844Z" fill="url(#gg)"/><path d="${path}" fill="none" stroke="rgba(201,193,218,.45)" stroke-width="1"/>${ticks}</svg>${cards}`}
+
+/* 유성 */
+function meteorC01(){return `<svg class="L" style="z-index:6;overflow:visible" viewBox="0 0 390 844"><defs><linearGradient id="mt" gradientUnits="userSpaceOnUse" x1="396" y1="98" x2="332" y2="136"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".95"/></linearGradient><radialGradient id="mh"><stop offset="0" stop-color="#F4B9C8" stop-opacity=".7"/><stop offset="1" stop-color="#F4B9C8" stop-opacity="0"/></radialGradient></defs>
+ <line x1="396" y1="98" x2="332" y2="136" stroke="url(#mt)" stroke-width="1.6" stroke-linecap="round"/><circle cx="332" cy="136" r="8" fill="url(#mh)"/><circle cx="332" cy="136" r="2.6" fill="#fff"/></svg>`}
+function meteorStill(x,y){return `<svg class="L" style="z-index:6;overflow:visible" viewBox="0 0 390 844"><defs><radialGradient id="ms"><stop offset="0" stop-color="#F4B9C8" stop-opacity=".75"/><stop offset="1" stop-color="#F4B9C8" stop-opacity="0"/></radialGradient></defs><circle cx="${x}" cy="${y}" r="16" fill="url(#ms)"/><circle cx="${x}" cy="${y}" r="3" fill="#fff"/><circle cx="${x}" cy="${y}" r="10" fill="none" stroke="#F4B9C8" stroke-opacity=".45"/></svg>`}
+
+function head(t='10월의 하늘',chip=true,w=390){return `<div class="ttl">${t}</div><div class="sub">우리가 함께한 하루가 별이 됐어요</div><div class="xbtn">${ICO.x}</div>${chip?(w>=380?`<div class="chipb">${ICO.browse}둘러보기</div>`:`<div class="chipb ic">${ICO.browse}</div>`):''}`}
+const bottomC01=`<div class="dplus">D+298</div><div class="dhint">위로 끌면 지난 하늘 · 놓으면 오늘로</div>`;
+
+/* C08의 하늘 층 — 같은 별을 돌려 본 자리 */
+function skyC08(){const S=(x,y,c,p)=>star(x,y,c,p);
+ return `<div class="L" style="z-index:5"><svg class="L" viewBox="0 0 390 844"><path d="M-30 610 Q195 300 420 610" fill="none" stroke="#B9A2F0" stroke-opacity=".16" stroke-dasharray="2 6"/></svg>
+  ${lab(150,238,'10월 · 별 5','#B9A2F0')}${S(180,270,'s5')}${S(246,262,'s5')}${flare(300,300,false)}${S(222,330,'s4')}${S(162,352,'s4')}
+  ${flare(270,412,true)}${lab(270,430,'10.18 망원','#F6F3FE','center',700)}${lab(270,448,'가장 따뜻했던 날','#9C97B4','center',400)}
+  ${S(206,470,'s4')}${moon(90,330)}${lab(90,352,'VOL.02 · 9월호','#E7D9C3','center',700)}</div>`}
+
+const B={
+ c01:(w)=>`<div class="photo"></div>${breath(7)}${skyC01()}${ground('c01',w)}${bottomC01}${head('10월의 하늘',true,w)}`,
+ c01m:()=>`<div class="photo"></div>${breath(7)}${skyC01()}${ground('c01')}${bottomC01}${head()}`,
+ c09:()=>`<div class="photo"></div>${skyC01()}${ground('c01')}${bottomC01}${head()}<div class="L" style="z-index:15;background:rgba(10,8,20,.55)"></div>
+   <div class="sheet"><div class="grab"></div>
+    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" style="margin-bottom:16px"><rect x=".5" y=".5" width="51" height="51" rx="16" fill="rgba(185,162,240,.12)" stroke="rgba(185,162,240,.28)"/><rect x="20" y="14" width="12" height="22" rx="3" stroke="#D7C9FA" stroke-width="1.6"/><path d="M14 23a13 13 0 0 1 3-6.5M38 23a13 13 0 0 0-3-6.5" stroke="#B9A2F0" stroke-width="1.6" stroke-linecap="round"/><path d="M18 41h16" stroke="#B9A2F0" stroke-width="1.6" stroke-linecap="round" opacity=".6"/></svg>
+    <div style="font-size:20px;font-weight:700;line-height:28px;margin-bottom:8px">폰을 들고 하늘을 둘러볼까요?</div>
+    <div style="font-size:14.5px;color:#C9C1DA;line-height:23px;margin-bottom:16px;word-break:keep-all">폰을 움직이는 방향으로 하늘이 따라 돌아요. 이를 위해 기기의 움직임 정보를 써요.</div>
+    <div style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:rgba(243,239,247,.04);box-shadow:inset 0 0 0 1px rgba(243,239,247,.08);font-size:13px;color:#C9C1DA;line-height:19px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B9A2F0" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" style="flex:none;margin-top:2px"><path d="M12 3 5 6v5c0 4.5 3 8.2 7 9.5 4-1.3 7-5 7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg><span>움직임 정보는 이 폰 안에서만 쓰고, 저장하거나 보내지 않아요.</span></div>
+    <div class="pill w" style="margin-top:22px">움직임 사용하기</div><div class="txtbtn">손가락으로 둘러볼게요</div></div>
+   ${P(350,560,1)}${P(350,662,2)}${P(350,712,3)}`,
+ c08:()=>`<div class="photo"></div>${breath(7)}${skyC08()}${ground('cardinal')}${head('10월의 하늘',false)}${P(206,60,1)}${P(296,62,2)}${P(224,784,3)}${P(296,250,4)}`,
+ c08off:()=>`<div class="photo"></div>${breath(9)}${ground('cardinal').replace('<span>북서</span><span style="color:#D7C9FA">북</span><span>북동</span>','<span>남서</span><span style="color:#D7C9FA">서</span><span>북서</span>')}${head('10월의 하늘',false)}
+   <div class="xbtn" style="top:388px;right:12px;width:auto;height:34px;padding:0 8px 0 13px;gap:4px;font-size:12.5px;font-weight:500;color:#D7C9FA">이번 달 별<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D7C9FA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>${P(352,360,5)}`,
+ c08alt:()=>`<div class="photo"></div>${skyC08()}${ground('cardinal')}${head('10월의 하늘',false)}
+   <div style="position:absolute;left:0;right:0;top:620px;z-index:9;display:flex;flex-direction:column;align-items:center;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px"><svg width="18" height="10" viewBox="0 0 18 10" fill="none"><path d="M17 5H2m0 0 4-4M2 5l4 4" stroke="#9C93B4" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+     <div style="width:44px;height:44px;border-radius:50%;background:rgba(14,12,26,.55);box-shadow:inset 0 0 0 1px rgba(243,239,247,.14);display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D7C9FA" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10.5V9a1.5 1.5 0 0 1 3 0v2"/><path d="M15 11a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-4.6-2.2L4 15a1.5 1.5 0 0 1 2.3-1.9L9 15.5"/></svg></div>
+     <svg width="18" height="10" viewBox="0 0 18 10" fill="none"><path d="M1 5h15m0 0-4-4m4 4-4 4" stroke="#9C93B4" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div style="font-size:13px;color:#C9C1DA">손가락으로 하늘을 끌어 보세요</div></div>${P(96,628,1)}`,
+ c10:()=>`<div class="photo"></div>${skyC08()}${ground('cardinal')}${head('10월의 하늘',false)}<div class="L" style="z-index:15;background:rgba(10,8,20,.62)"></div>
+   <div class="L" style="z-index:16;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:0 40px;text-align:center">
+    <svg width="132" height="120" viewBox="0 0 132 120" fill="none"><path d="M22 84a50 50 0 0 1 88 0" stroke="#B9A2F0" stroke-width="1.4" stroke-dasharray="3 5" stroke-linecap="round" opacity=".7"/><path d="m104 74 6 10-11 1" stroke="#B9A2F0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><g transform="rotate(-18 66 70)"><rect x="52" y="44" width="28" height="50" rx="6" fill="#14111F" stroke="#D7C9FA" stroke-width="1.6"/><circle cx="66" cy="62" r="2.4" fill="#fff"/><circle cx="60" cy="72" r="1.4" fill="#fff" opacity=".7"/><circle cx="72" cy="70" r="1.6" fill="#fff" opacity=".8"/></g><path d="M40 112h52" stroke="#6E6688" stroke-width="1.4" stroke-linecap="round"/></svg>
+    <div><div style="font-size:20px;font-weight:700;line-height:28px;margin-bottom:8px">폰을 하늘 쪽으로 들어 보세요</div><div style="font-size:14.5px;color:#C9C1DA;line-height:23px;word-break:keep-all">천천히 돌면 하늘이 따라 움직여요.<br>별을 누르면 그날 기록을 볼 수 있어요.</div></div>
+    <div class="pill w" style="width:200px;margin-top:6px">알겠어요</div></div>${P(110,300,1)}${P(300,524,2)}`,
+ c03:()=>`<div class="photo" style="background-position:0 -380px"></div><div class="L" style="z-index:1;background:rgba(10,8,20,.42)"></div>${breath(5)}
+   <div class="lbl" style="left:0;right:0;top:56px;text-align:center;font-size:10.5px;letter-spacing:.34em;color:#DDAACA">FALLEN WORDS</div>
+   <div class="lbl" style="left:0;right:0;top:73px;text-align:center;font-size:12px;font-weight:400;color:#9C98AD">3 / 3</div><div class="xbtn">${ICO.x}</div>
+   <svg class="L" style="z-index:6" viewBox="0 0 390 844"><defs><linearGradient id="c3t" gradientUnits="userSpaceOnUse" x1="356" y1="95" x2="70" y2="300"><stop offset="0" stop-color="#E3A0C8" stop-opacity="0"/><stop offset=".6" stop-color="#C98AB4" stop-opacity=".6"/><stop offset="1" stop-color="#F7DCE9"/></linearGradient><radialGradient id="c3h"><stop offset="0" stop-color="#F4B9C8" stop-opacity=".75"/><stop offset="1" stop-color="#F4B9C8" stop-opacity="0"/></radialGradient></defs><line x1="356" y1="95" x2="70" y2="300" stroke="url(#c3t)" stroke-width="2.4" stroke-linecap="round"/><circle cx="70" cy="300" r="18" fill="url(#c3h)"/><circle cx="70" cy="300" r="5.5" fill="#fff"/></svg>
+   <div style="position:absolute;left:35px;top:360px;z-index:8;font-family:var(--serif);font-weight:300;font-size:33px;line-height:49px;color:#CCC4DA;letter-spacing:.01em">기다릴게.<br><span style="padding-left:37px">천천히 와도 돼</span></div>
+   <div class="lbl" style="left:34px;top:476px;font-size:12px;font-weight:400;color:#9D98AF">서영 · 9월 18일 밤 11시 12분</div>
+   ${ground('c03')}
+   <div class="lbl" style="left:24px;top:751px;font-size:12.5px;font-weight:400;color:#CAC6D9">‹ 이전 말</div>
+   <div class="lbl" style="right:24px;top:751px;font-size:12.5px;font-weight:400;color:#706B84">다음 말 ›</div>
+   <div class="lbl" style="left:24px;top:793px;font-size:11.5px;font-weight:400;color:#6F6C81">지나가는 유성을 누르면 떠요</div>
+   <div class="lbl" style="right:24px;top:790px;font-size:13px;font-weight:600;color:#A9B6EC;display:flex;align-items:center;gap:4px">채팅에서 보기 ${ICO.arrow}</div>
+   ${P(222,72,1)}${P(306,718,2)}`,
+ h01:(w,red)=>{
+   const row=(l,v)=>`<div class="r"><span class="lab">${l}</span><span class="val">${v} ${ICO.arrow}</span></div>`;
+   return `<div class="h">설정</div>
+   <div class="kk" style="top:109px">ACCOUNT</div><div class="card" style="top:134px">${row('프로필','세준')}${row('연결된 계정','카카오')}</div>
+   <div class="kk" style="top:265px">COUPLE</div><div class="card" style="top:290px">${row('연인','서영 · D+298')}${row('커플 닉네임','늘봄')}</div>
+   <div class="kk" style="top:421px">OUR SKY</div>
+   <div class="card ${red?'':''}" style="top:446px"><div class="r t2 ${red?'dim':''}"><div><div class="lab">별 반짝임</div><div class="dsc">배경 별이 천천히 숨 쉬어요</div></div><div class="tg ${red?'off':'on'}"></div></div></div>
+   ${red?`<div style="position:absolute;left:24px;right:24px;top:516px;font-size:12.5px;line-height:18px;color:#9D99AE">기기에서 움직임을 줄여 두어 하늘이 멈춰 있어요</div>`:''}
+   <div class="kk" style="top:${red?556:538}px">PERSONALITY</div><div class="card" style="top:${red?581:563}px">${row('성격 프로필','KEELEMBER')}</div>
+   <div class="kk" style="top:${red?666:648}px">NOTIFICATIONS</div><div class="card" style="top:${red?691:673}px">${row('알림','')}</div>
+   <div class="tabbar" style="background-image:url(${TABBAR})"></div>
+   ${red?P(4,466,2):P(150,415,1)}`},
+ h01r:(w)=>B.h01(w,true),
+ live:()=>`<div class="photo"></div>${breath(7)}${skyC01()}${ground('c01')}${bottomC01}${head()}
+   <svg class="L" style="z-index:6;overflow:visible" viewBox="0 0 390 844"><defs><radialGradient id="lh"><stop offset="0" stop-color="#F4B9C8" stop-opacity=".75"/><stop offset="1" stop-color="#F4B9C8" stop-opacity="0"/></radialGradient></defs>
+    <line id="lvT" x1="0" y1="0" x2="0" y2="0" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><g id="lvH"><circle r="8" fill="url(#lh)"/><circle r="2.6" fill="#fff"/></g>
+    <g id="lvS" opacity="0"><circle cx="300" cy="160" r="16" fill="url(#lh)"/><circle cx="300" cy="160" r="3" fill="#fff"/><circle cx="300" cy="160" r="10" fill="none" stroke="#F4B9C8" stroke-opacity=".45"/></g></svg>
+   <div class="lbl" id="lvL" style="left:0;right:0;top:722px;text-align:center;font-size:12px;color:#7FE3FF;z-index:30">유성 대기</div>`
+};
+
+document.querySelectorAll('[data-build]').forEach(ph=>{
+  const w=ph.offsetWidth; let html=B[ph.dataset.build](w);
+  if(ph.dataset.meteor==='c01') html+=meteorC01();
+  if(ph.dataset.meteor==='still') html+=meteorStill(300,160);
+  if(ph.dataset.build==='c01'&&ph.closest('[data-shot="C01"]')) html+=P(196,46,1);
+  if(ph.dataset.build==='c01m'&&ph.dataset.meteor==='c01') html+=RING(332,136)+P(374,104,1)+P(356,166,2);
+  if(ph.dataset.build==='c01m'&&ph.dataset.meteor==='still') html+=RING(300,160)+P(334,128,1);
+  if(ph.closest('[data-shot="C01_twinkle_off"]')) html+=P(16,236,3);
+  ph.innerHTML=html+'<div class="frame"></div>';
+});
+
+/* 360 · 320 폭 겹침 확인 */
+(function(){
+  const out=[];
+  for(const ph of document.querySelectorAll('.wchk')){
+    const r=e=>e.getBoundingClientRect();
+    const chip=r(ph.querySelector('.chipb')), sub=r(ph.querySelector('.sub')), ttl=r(ph.querySelector('.ttl')), x=r(ph.querySelector('.xbtn'));
+    const ov=(a,b)=>!(a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top);
+    const gapT=Math.round(chip.left-ttl.right), gapS=Math.round(chip.left-sub.right);
+    const meteorTop=r(ph).top+98;  // 유성 꼬리 시작 y
+    out.push(`<b>${ph.offsetWidth}pt</b> · ${ph.querySelector('.chipb.ic')?'아이콘 원':'글자 칩'} — 제목↔칩 ${gapT}pt · 부제 끝↔칩 ${gapS}pt · 칩↔부제 겹침 <b>${ov(chip,sub)?'있음':'없음'}</b> · 칩↔제목 겹침 <b>${ov(chip,ttl)?'있음':'없음'}</b> · 유성 꼬리 시작(y 98)은 칩 아래 ${Math.round(98-(chip.bottom-r(ph).top))}pt`);
+  }
+  document.getElementById('w360').innerHTML=out.join('<br>');
+})();
+
+/* 라이브 유성 */
+(function(){
+  const T=document.getElementById('lvT'),H=document.getElementById('lvH'),S=document.getElementById('lvS'),L=document.getElementById('lvL'),bN=document.getElementById('bN'),bR=document.getElementById('bR');
+  if(!T)return; let red=false,t0=performance.now();
+  const bez=(a,b,c,d)=>x=>{let lo=0,hi=1,u=.5;for(let i=0;i<28;i++){u=(lo+hi)/2;const X=3*(1-u)*(1-u)*u*a+3*(1-u)*u*u*c+u*u*u;X<x?lo=u:hi=u}return 3*(1-u)*(1-u)*u*b+3*(1-u)*u*u*d+u*u*u};
+  const hE=bez(.3,0,.7,1),iE=bez(.42,0,1,1),e=bez(.25,.1,.25,1);
+  const A=[400,92],Bp=[150,236],TL=90; // 오른쪽 위 → 왼쪽 아래(약 30°)
+  bN.onclick=()=>{red=false;t0=performance.now();bN.classList.add('on');bR.classList.remove('on')};
+  bR.onclick=()=>{red=true;t0=performance.now();bR.classList.add('on');bN.classList.remove('on')};
+  function f(now){const t=((now-t0)/1000)%6-1;
+    if(!red){S.setAttribute('opacity',0);
+      if(t<0||t>3){T.setAttribute('opacity',0);H.setAttribute('opacity',0);L.textContent='유성 대기'}
+      else{const p=hE(Math.min(1,t/2.4)),hx=A[0]+(Bp[0]-A[0])*p,hy=A[1]+(Bp[1]-A[1])*p,len=Math.hypot(Bp[0]-A[0],Bp[1]-A[1]);
+        let tl=Math.min(TL,t/.4*TL),op=1; if(t>2.4){const q=iE((t-2.4)/.6);op=1-q;tl=TL*(1-q)}
+        const ux=(A[0]-Bp[0])/len,uy=(A[1]-Bp[1])/len;
+        T.setAttribute('x1',hx+ux*tl);T.setAttribute('y1',hy+uy*tl);T.setAttribute('x2',hx);T.setAttribute('y2',hy);T.setAttribute('opacity',op*.9);
+        H.setAttribute('transform',`translate(${hx} ${hy})`);H.setAttribute('opacity',op);L.textContent='누를 수 있음 '+(3-t).toFixed(1)+'s'}}
+    else{T.setAttribute('opacity',0);H.setAttribute('opacity',0);
+      if(t<0||t>5.2){S.setAttribute('opacity',0);L.textContent='유성 대기'}
+      else{S.setAttribute('opacity',t<.6?e(t/.6):(t<4.6?1:1-e((t-4.6)/.6)));L.textContent='누를 수 있음 '+(5.2-t).toFixed(1)+'s'}}
+    requestAnimationFrame(f)}
+  requestAnimationFrame(f);
+})();
+</script>
+</body>
+</html>
