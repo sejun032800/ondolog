@@ -39,5 +39,16 @@ export default defineConfig(({ command }) => ({
     // 시험 파일 이름은 *.vitest.ts(x)만(루트 jest가 줍지 않게 - R70-3).
     include: ['src/**/*.vitest.{ts,tsx}'],
     css: false,
+    // 86-(R128-4 · 분류 C): 시험마다 끝에 전역 상태(DOM · 타이머 · 전역 바꿔치기 · 감시 · 기기 저장)를 되돌린다.
+    setupFiles: ['src/vitestSetup.ts'],
+    // 86-(R128-4): 값을 적어 둔다(기본값에 기대지 않음). 워커 9 = 이 PC 논리 코어 18의 절반 - 부하 없이는 17개보다 약 3초 느리지만
+    // (측정 22.1/22.8초 vs 25.3/25.7초) 같은 PC의 다른 일(IDE · 브라우저 · 84- 실측)과 겹쳐도 코어가 남는다. 시간 한도는 Vitest 3 기본값 그대로(키우지 않음).
+    pool: 'forks',
+    maxWorkers: 9,
+    minWorkers: 1,
+    testTimeout: 5_000,
+    hookTimeout: 10_000,
+    // 자동 재시도로 덮지 않는다(R128-4) - 0 고정.
+    retry: 0,
   },
 }))

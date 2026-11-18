@@ -53,13 +53,24 @@ const jpeg = (name = 'IMG_1.jpg', type = 'image/jpeg') => new File([BYTES as Blo
 const unreadable = (name = 'bad.jpg') => ({ name, type: 'image/jpeg', size: 8, lastModified: 2000, arrayBuffer: async () => { throw new Error('NotReadableError') } }) as unknown as File
 
 let urlSeq = 0
+/**
+ * 86-(R128-4 · 분류 C): 시험마다 미리보기 주소 앞머리를 다르게 한다. 고른 사진 출처(`feedPhotoStage.ts` `sources`)는 모듈 전역이라,
+ * 앞 시험의 늦은 정리(`releaseStaged`)가 같은 주소(`blob:own-1`)를 쓰는 다음 시험의 사진을 지워 "사진 읽기"로 떨어졌다(부하 20회 중 2회).
+ */
+let testNo = 0
+/**
+ * 86-(R128-4 · 분류 B): 고른 사진을 실제 FileReader로 읽고 복사본을 쓰는 비동기(브라우저 API - 시계를 주입할 수 없음)를 기다린다.
+ * 기본 1초는 부하에서 모자랐다(부하 20회 중 1회 "1장 골랐어요" 못 찾음). 3초 = 같은 파일의 저장 진단 기다림(4초)보다 짧은 앞 단계 값.
+ */
+const STAGE_WAIT = { timeout: 3000 }
+const own = (n: number) => `blob:t${testNo}-own-${n}`
 const fetchSpy = vi.fn()
 const revoked: string[] = []
 const made: Blob[] = []
 
 function deps(over: Partial<StageDeps> = {}): StageDeps {
   return {
-    makeUrl: (b) => { made.push(b); urlSeq += 1; return `blob:own-${urlSeq}` },
+    makeUrl: (b) => { made.push(b); urlSeq += 1; return own(urlSeq) },
     revokeUrl: (u) => { revoked.push(u) },
     readExif: async () => null,
     readSize: async () => ({ width: 4000, height: 3000 }),
@@ -71,18 +82,20 @@ function deps(over: Partial<StageDeps> = {}): StageDeps {
 beforeEach(() => {
   store.files.clear(); store.writes.length = 0; store.failWrite = false; store.failRead = false
   picker.files = []; picker.calls.length = 0; picker.exif = { DateTimeOriginal: '2026:10:03 14:20:11' } // 가짜 EXIF(촬영 시각만)
-  urlSeq = 0; revoked.length = 0; made.length = 0
+  testNo += 1; urlSeq = 0; revoked.length = 0; made.length = 0
   fetchSpy.mockReset()
   vi.stubGlobal('fetch', fetchSpy)
   // jsdom에는 Blob 주소 만들기가 없다 - 화면 시험용(이름만 다르게 해 앱 소유 주소임을 구분한다).
-  ;(URL as unknown as { createObjectURL: (b: Blob) => string }).createObjectURL = () => { urlSeq += 1; return `blob:own-${urlSeq}` }
+  ;(URL as unknown as { createObjectURL: (b: Blob) => string }).createObjectURL = () => { urlSeq += 1; return own(urlSeq) }
   ;(URL as unknown as { revokeObjectURL: (u: string) => void }).revokeObjectURL = (u) => { revoked.push(u) }
   useAuthStore.getState().setUserId('me')
   useCoupleStore.setState({ status: 'connected', coupleId: 'c1', partnerId: 'you' })
   useToastStore.getState().hide()
   useTrialDiag.getState().clearPhoto()
 })
-afterEach(() => {
+afterEach(async () => {
+  // 86-(R128-4 · 분류 C): 저장이 끝난 뒤에 정리한다 - 끝나지 않은 저장 사슬이 다음 시험 중에 사진을 놓거나(`releaseStaged`) 진단을 남겼다.
+  await waitFor(() => expect(screen.queryByText('남기는 중이에요')).toBeNull(), { timeout: 4000 })
   cleanup()
   vi.unstubAllGlobals()
   setSupabaseForTest(undefined)
@@ -103,7 +116,7 @@ describe('읽기 - 고르는 단계에서 File 자체를 한 번 읽고 앱이 �
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(out).toHaveLength(1)
     expect(out[0].failed).toBeUndefined()
-    expect(out[0].uri).toBe('blob:own-1') // 새 Blob에서 만든 앱 소유 주소
+    expect(out[0].uri).toBe(own(1)) // 새 Blob에서 만든 앱 소유 주소
     expect(made[0]).toBeInstanceOf(Blob)
     expect(made[0].size).toBe(BYTES.length)
     expect(store.writes).toHaveLength(1)
@@ -120,9 +133,9 @@ describe('읽기 - 고르는 단계에서 File 자체를 한 번 읽고 앱이 �
     releaseStaged(out, undefined, (u) => revoked.push(u))
     releaseStaged(out, undefined, (u) => revoked.push(u))
     await waitFor(() => expect(store.files.size).toBe(0))
-    expect(revoked).toEqual(['blob:own-1'])
+    expect(revoked).toEqual([own(1)])
     expect(stagedCount()).toBe(before - 1)
-    await expect(readStagedBytes('blob:own-1')).rejects.toThrow()
+    await expect(readStagedBytes(own(1))).rejects.toThrow()
   })
 
   it('읽기에 실패한 사진은 자리표시(failed)로 돌려주고 나머지는 간다', async () => {
@@ -208,10 +221,10 @@ describe('기록 시트 - 고르기 -> 썸네일 -> 저장(RN 규칙)', () => {
     const db = await opened()
     picker.files = [jpeg()]
     await chooseVia('album')
-    await screen.findByText('1장 골랐어요')
+    await screen.findByText('1장 골랐어요', {}, STAGE_WAIT)
     await waitFor(() => expect(screen.getByTestId('row-date').textContent).toContain('2026.10.03')) // 가짜 EXIF 촬영일로 날짜가 채워진다
     const img = document.querySelector('.thumb img') as HTMLImageElement
-    expect(img.getAttribute('src')).toMatch(/^blob:own-/)
+    expect(img.getAttribute('src')).toMatch(new RegExp(`^blob:t${testNo}-own-`)) // 이 시험이 만든 앱 소유 주소
     expect(fetchSpy).not.toHaveBeenCalled() // 선택기 blob 주소 fetch 0
     fireEvent.click(screen.getByRole('button', { name: '기록 남기기' }))
     await waitFor(() => expect(db.uploads).toHaveLength(1))
@@ -231,7 +244,7 @@ describe('기록 시트 - 고르기 -> 썸네일 -> 저장(RN 규칙)', () => {
     picker.files = [jpeg()]
     picker.exif = null // 카메라가 EXIF를 남기지 않은 경우
     await chooseVia('camera')
-    await screen.findByText('1장 골랐어요')
+    await screen.findByText('1장 골랐어요', {}, STAGE_WAIT)
     expect(picker.calls.at(-1)).toEqual({ limit: 1, capture: true })
     // EXIF가 없는 카메라 사진은 지금 시각으로 날짜가 채워진다(안내 문구 = 촬영 시각 있음)
     expect(screen.getByTestId('exif-note').textContent).toBe('사진의 촬영 시각으로 날짜를 먼저 채웠어요')
@@ -241,7 +254,7 @@ describe('기록 시트 - 고르기 -> 썸네일 -> 저장(RN 규칙)', () => {
     const db = await opened()
     picker.files = [unreadable(), jpeg('ok.jpg')]
     await chooseVia('album')
-    await screen.findByText('1장 골랐어요')
+    await screen.findByText('1장 골랐어요', {}, STAGE_WAIT)
     expect(screen.getByTestId('repick-photo').textContent).toBe('다시 고르기')
     fireEvent.change(screen.getByTestId('memo-input'), { target: { value: '메모' } })
     fireEvent.click(screen.getByRole('button', { name: '기록 남기기' }))
@@ -288,7 +301,7 @@ describe('진단(시험 빌드) - 실패 단계 이름과 짧은 분류만', () 
     picker.files = [jpeg('secret-name.jpg')]
     fireEvent.click(screen.getByTestId('pick-photos'))
     await act(async () => { fireEvent.click(await screen.findByTestId('chat-attach-album')) })
-    await screen.findByText('1장 골랐어요')
+    await screen.findByText('1장 골랐어요', {}, STAGE_WAIT)
     fireEvent.change(screen.getByTestId('memo-input'), { target: { value: '메모' } })
     return db
   }

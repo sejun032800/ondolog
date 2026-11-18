@@ -52,6 +52,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  vi.useRealTimers() // 86-: 시험 안에서 켠 가짜 타이머가 다음 시험으로 새지 않게
   setSupabaseForTest(undefined)
   useAuthStore.getState().setUserId(null)
   useCoupleStore.getState().reset()
@@ -290,10 +291,17 @@ describe('E03 데이트 상세', () => {
     expect(nav.push).toHaveBeenCalledWith('stop-edit', { params: { id: 'd1', stop: 's0' } })
   })
 
+  /**
+   * 86-(R128-4 · 분류 A): 길게 누르기의 500ms를 실제 시계로 기다리지 않는다 - 누르기 전에 가짜 setTimeout을 켜고(`shouldAdvanceTime`: findBy · waitFor가
+   * 그대로 돈다) 560ms를 명시적으로 넘긴다. 부하에서 실제 대기가 시험 한도(5초)를 잡아먹던 것을 없앤다.
+   */
+  const fakePress = () => { if (!vi.isFakeTimers()) vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true }) }
+  const elapse = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
   /** 길게 누르기: pointerdown -> 500ms 넘게 가만히. */
   const hold = async (el: Element, ms = 560) => {
+    fakePress()
     fireEvent.pointerDown(el, { clientX: 10, clientY: 10 })
-    await act(async () => { await new Promise((r) => setTimeout(r, ms)) })
+    await elapse(ms)
   }
 
   it('A-2-2 길게 누르기만: ⋯ 버튼은 없다 · 내 것(사진 · 메모)만 길게 누르기가 되고 눌림 연출이 있다 · 상대의 것은 눌림 연출도 길게 누르기도 없다', async () => {
@@ -324,13 +332,14 @@ describe('E03 데이트 상세', () => {
     open()
     await screen.findByTestId('detail-title')
     const el = screen.getByTestId('photo-p1')
+    fakePress()
     fireEvent(el, new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }))
     fireEvent.pointerUp(el)
-    await act(async () => { await new Promise((r) => setTimeout(r, 560)) })
+    await elapse(560)
     expect(screen.queryByTestId('delete-confirm')).toBeNull()
     fireEvent(el, new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }))
     fireEvent(el, new MouseEvent('pointermove', { bubbles: true, clientX: 40, clientY: 10 })) // 스크롤(jsdom에는 PointerEvent가 없어 좌표를 MouseEvent로 싣는다)
-    await act(async () => { await new Promise((r) => setTimeout(r, 560)) })
+    await elapse(560)
     expect(screen.queryByTestId('delete-confirm')).toBeNull()
   })
 
@@ -693,7 +702,8 @@ describe('E11 데이트 기록 쓰기', () => {
     expect(btn.getAttribute('aria-disabled')).toBe('true')
     picker.next = [photo('a', T1)]
     fireEvent.click(btn)
-    await act(async () => { await new Promise((r) => setTimeout(r, 30)) })
+    // 86-(분류 A): 고정 30ms 대신 시트가 열리기를 기다린다(부하에서 30ms 안에 반응이 끝나지 않을 수 있음)
+    await waitFor(() => expect(useSheetStore.getState().current).toBe('record'), { timeout: 2000 })
     expect(useSheetStore.getState().current).toBe('record') // 반응한다(이유 + 초대 안내 시트) - 사진 고르기 · 저장은 불리지 않는다
     useSheetStore.getState().closeAll()
     expect(db.writes).toEqual([])

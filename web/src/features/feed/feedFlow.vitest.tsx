@@ -2,7 +2,7 @@
  * 피드 흐름 시험(74-4) - 앱 껍질 안에서: 피드 -> E03 -> E15 -> 뒤로 -> 뒤로, 하드웨어 뒤로 가기, E11 시트(뒤로 가기는 시트만 닫는다).
  * `nav.push(name, { params })`로 실린 데이트 id가 뒤로 갔다 돌아와도 남는지(주소 끝 `?id=`)도 여기서 본다. 서버는 가짜 - 원격 0.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from '../../App'
 import { setSupabaseForTest } from '../../auth/client'
@@ -14,9 +14,14 @@ import { makeFakeBridge } from '../../testSupport'
 import { COUPLE_ROW, PROFILES, dateRow, makeFeedDb, memoRow, photoRow, stopRow } from './feedTestSupport'
 
 const screenName = () => document.querySelector('[data-screen]')?.getAttribute('data-screen')
-const cooldown = () => act(async () => { await new Promise((r) => setTimeout(r, NAV_COOLDOWN_MS + 30)) })
+/**
+ * 86-(R128-4 · 분류 A): 연타 막기(`navigation.tsx` `NAV_COOLDOWN_MS`)는 `Date.now()`로 잰다 - 실제로 380ms를 기다리지 않고 가짜 Date만 넘긴다
+ * (이 파일은 Date만 가짜 - 다른 타이머 · findBy는 그대로). 한 시험에 여러 번 기다려 부하에서 5초 한도에 닿던 것을 없앤다.
+ */
+const cooldown = () => act(() => { vi.setSystemTime(Date.now() + NAV_COOLDOWN_MS + 30) })
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
   const db = makeFeedDb({
     me: 'me',
     couples: [COUPLE_ROW],
@@ -34,6 +39,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   setSupabaseForTest(undefined)
   useAuthStore.getState().setUserId(null)
   useCoupleStore.getState().reset()

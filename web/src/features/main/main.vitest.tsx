@@ -15,7 +15,9 @@ import { useCoupleStore } from '../../stores/coupleStore'
 import { useProfileStore } from '../../stores/profileStore'
 import { useSheetStore } from '../../stores/sheetStore'
 import { useToastStore } from '../../stores/toastStore'
-import { makeFakeNav } from '../../testSupport'
+import { makeFakeBridge, makeFakeNav } from '../../testSupport'
+// 86-(R128-4 · 분류 E): 앱 전체를 시험 안에서 동적으로 불러오면 부하에서 모듈 읽기만으로 5초 한도를 넘었다(부하 20회 중 5회) - 파일을 모을 때 한 번 읽는다.
+import App from '../../App'
 import { MainTab } from '../../tabs/MainTab'
 import { kstToday } from '@/utils/magazine'
 import { monthElapsedPercent } from '../magazine/monthProgress'
@@ -531,8 +533,6 @@ describe('MainTab - 훅까지(가짜 클라이언트)', () => {
 
 describe('하늘 · 탭 바(Shell)', () => {
   it('메인 경로는 하늘을 켜고 장막 .42 + 하단 장막을 둔다. 탭 5개는 미연결에도 모두 보인다', async () => {
-    const { default: App } = await import('../../App')
-    const { makeFakeBridge } = await import('../../testSupport')
     useCoupleStore.setState({ status: 'disconnected', temperature: 36.5 })
     render(<App bridge={makeFakeBridge()} initialPath="/main" />)
     await act(async () => {})

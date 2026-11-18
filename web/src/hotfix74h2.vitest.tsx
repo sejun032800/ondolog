@@ -45,6 +45,9 @@ function resetMemory() {
   useSheetStore.getState().closeAll()
   useAccountProblemStore.getState().clear()
   useTrialDiag.getState().clear()
+  // 86-(R128-4 · 분류 C): 링크 접수 순번은 앱 한 번 실행 동안 이어지는 값이라 `clear()`가 되돌리지 않는다 - 시험마다 0부터
+  // (시험 순서를 섞으면 앞 시험의 링크가 "#2"로 이어졌다).
+  useTrialDiag.setState({ linkSeq: 0 })
   resetSettingsSummaryCache()
   forgetLibrary()
 }

@@ -312,13 +312,18 @@ describe('76-A2 올리는 시간은 연결 판정에서 뺀다 - 판정은 기�
     const report = vi.fn()
     const probe = vi.fn(async () => new Response(''))
     let n = 0
-    const base = (() => (n++ === 0 ? new Promise<Response>(() => {}) : reject())) as unknown as typeof fetch
+    // 86-(R128-4 · 분류 C): 도는 중인 업로드를 시험 끝에 끝낸다 - 끝나지 않으면 모듈의 "올리는 중" 수(`uploadsInFlight`)가 1로 남아
+    // 순서를 섞었을 때 뒤 시험의 일반 거부가 확인 요청 쪽으로 갔다.
+    let finishUpload: (r: Response) => void = () => undefined
+    const base = (() => (n++ === 0 ? new Promise<Response>((res) => { finishUpload = res }) : reject())) as unknown as typeof fetch
     const wrapped = trackConnection(base, report, { probe: () => probe })
-    void wrapped(url, { method: 'POST', body: body() }) // 도는 중인 업로드
+    const upload = wrapped(url, { method: 'POST', body: body() }) // 도는 중인 업로드
     await expect(wrapped('https://x.test/rest/v1/a')).rejects.toBeTruthy()
     await vi.advanceTimersByTimeAsync(0)
     expect(probe).toHaveBeenCalledTimes(1)
     expect(report).not.toHaveBeenCalledWith(false)
     expect(report).toHaveBeenCalledWith(true)
+    finishUpload(new Response(''))
+    await upload
   })
 })
