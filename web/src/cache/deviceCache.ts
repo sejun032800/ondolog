@@ -349,3 +349,25 @@ export function listQueueOriginals(userId: string | null): string[] {
   }
   return out
 }
+
+/**
+ * 83-(R121-3): 이 사용자의 보존 칸에 든 글자 전부(깨진 칸은 칸 글자 그대로). **읽지 못하면 null**(모름) - 옛 자리 사진 파일이 이 사용자 것인지 판정할 때
+ * "모르면 지우지 않는다"를 지키려고 `listQueueOriginals`(셀 수 없으면 센 만큼)와 따로 둔다. 던지지 않는다.
+ */
+export function readQueueOriginalsStrict(userId: string): string[] | null {
+  const s = store()
+  if (!s) return null
+  try {
+    const mine = `${PREFIX}${userId}:qkeep:`
+    const out: string[] = []
+    for (let i = 0; i < s.length; i += 1) {
+      const k = s.key(i)
+      if (!k || !k.startsWith(mine)) continue
+      const raw = s.getItem(k)
+      if (raw) out.push(raw)
+    }
+    return out
+  } catch {
+    return null
+  }
+}

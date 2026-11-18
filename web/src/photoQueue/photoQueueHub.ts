@@ -34,7 +34,8 @@ export interface PhotoQueueListener {
 export interface PhotoQueueHubDeps {
   /** 한 번의 시도. 던지지 않는 것이 규칙이지만 던져도 러너가 일시 실패로 본다. */
   attempt: (item: QueuedPhoto) => Promise<AttemptedPhoto>
-  fs: PhotoFs
+  /** 83-: `copyInFor`가 있으면 새 사진은 주인 폴더(`chat-photo-queue/{userId}/…`)에. */
+  fs: PhotoFs & { copyInFor?: (userId: string, sourceUri: string, clientId: string, ext: string) => Promise<string> }
   store: PhotoQueueStore
   newId?: () => string
   now?: () => Date
@@ -81,6 +82,11 @@ export class PhotoQueueHub {
 
   getPhotoQueue(): ChatPhotoQueue | null {
     return this.photo
+  }
+
+  /** 83-: 메모리 큐의 사진(기기 저장이 끝나기 전에도 보인다 - 로그아웃 확인 창의 수 세기용). */
+  unsent(): { id: string; ownerId: string; coupleId: string }[] {
+    return (this.photo?.getQueue() ?? []).map((p) => ({ id: p.clientId, ownerId: p.userId, coupleId: p.coupleId }))
   }
 
   subscribe(listener: PhotoQueueListener): () => void {
@@ -165,7 +171,8 @@ export class PhotoQueueHub {
     const clientId = (this.deps.newId ?? generateUuidV4)()
     let localUri: string
     try {
-      localUri = await this.deps.fs.copyIn(photo.uri, clientId, photo.ext)
+      const fs = this.deps.fs
+      localUri = fs.copyInFor ? await fs.copyInFor(target.userId, photo.uri, clientId, photo.ext) : await fs.copyIn(photo.uri, clientId, photo.ext)
     } catch {
       return null
     }

@@ -6,10 +6,15 @@
  * 보존 칸에 쓰지 못하면(저장 막힘 · 로그인 전) 이 실행 동안 원래 키를 **덮어쓰지 않는다**(`held`) - 원본이 원래 자리에 남는다. 이번 실행의 새 항목은 메모리 큐로는 계속 간다.
  * 82-(R120-4): `ownerOf`를 주면 **주인이 지금 세션 사용자(`ctx.userId`)인 항목만** 돌려준다(남의 항목은 보내기에 들어가지 않는다 - 서버 거부에 기대지 않음).
  *   세션이 없으면(`ctx.userId` null) 아무것도 돌려주지 않고 키를 덮어쓰지 않는다(다음 로그인 때 판정). 읽기는 계정 전환 정리(`queueOwner`)가 끝난 뒤에.
+ * 83-(R121-3): `migrate`(사진 파일을 사용자 폴더로 옮기기)는 **읽기 안에서** 돈다(그동안 저장은 기다린다 - 옮긴 경로를 새 항목 저장이 덮지 않게).
+ *   저장값을 새 경로로 쓴 뒤에만 `settle(true)`(옛 파일 지움), 못 쓰면 `settle(false)`(새 복사본 지움 · 원본 · 옛 경로 그대로 - 다음 읽기 때 이어서). 보존 칸에 못 넣어 `held`인 키는 옮기지 않는다.
  */
 import { keepQueueOriginals, reportCacheFailOnce, type QueueName } from './deviceCache'
 import { queueOwnerPurgeDone, resetQueueOwnerGateForTest } from './queueOwner'
 import { readQueue, writeQueue, type QueueCtx } from './queueShapes'
+
+/** 83-: 읽은 항목을 바꿔 쓸 일(없으면 null). */
+export type QueueMigrate<T> = (items: T[]) => Promise<{ items: T[]; settle: (saved: boolean) => Promise<void> } | null>
 
 export interface PrefsLike {
   get: (o: { key: string }) => Promise<{ value: string | null }>
@@ -28,8 +33,9 @@ export async function loadQueue<T>(
   ctx: QueueCtx,
   convert: (x: unknown, ctx: QueueCtx) => T | null,
   ownerOf?: (item: T) => string,
+  migrate?: QueueMigrate<T>,
 ): Promise<T[]> {
-  const run = loadOnce(prefs, key, queue, ctx, convert, ownerOf)
+  const run = loadOnce(prefs, key, queue, ctx, convert, ownerOf, migrate)
   loading.set(key, run)
   try {
     return await run
@@ -45,6 +51,7 @@ async function loadOnce<T>(
   ctx: QueueCtx,
   convert: (x: unknown, ctx: QueueCtx) => T | null,
   ownerOf?: (item: T) => string,
+  migrate?: QueueMigrate<T>,
 ): Promise<T[]> {
   await queueOwnerPurgeDone()
   if (ownerOf && !ctx.userId) {
@@ -79,7 +86,22 @@ async function loadOnce<T>(
       // 다음 변경 때 다시 쓴다. 원본은 이미 보존 칸에 있다.
     }
   }
-  return mine(r.items)
+  let items = r.items
+  if (migrate) {
+    const m = await migrate(items).catch(() => null)
+    if (m) {
+      let saved = false
+      try {
+        await prefs.set({ key, value: writeQueue(m.items) })
+        saved = true
+      } catch {
+        // 못 썼다 - 옛 경로 그대로(원본 파일도 그대로). 다음 읽기 때 다시.
+      }
+      await m.settle(saved).catch(() => undefined)
+      if (saved) items = m.items
+    }
+  }
+  return mine(items)
 }
 
 export async function saveQueue<T>(prefs: PrefsLike, key: string, items: readonly T[]): Promise<void> {

@@ -24,6 +24,15 @@ export interface TextQueueListener {
   /** 서버가 확정한 메시지 행. */
   onMessage?: (row: MessageRow) => void
   onTextQueue?: (queue: QueuedMessage[]) => void
+  /** 83-: 보내는 중(첫 시도 진행 중 - 아직 큐 밖일 수 있음) 목록이 바뀜. 로그아웃 확인 창이 수를 다시 센다. */
+  onSending?: () => void
+}
+
+/** 83-: 아직 서버가 확정하지 않은 글 하나(로그아웃 확인 창의 수 세기용). */
+export interface UnsentRef {
+  id: string
+  ownerId: string
+  coupleId: string
 }
 
 export interface TextQueueStore {
@@ -56,8 +65,25 @@ export class TextQueueHub {
   private text: ChatRetryQueue | null = null
   private generation = 0
   private readonly listeners = new Set<TextQueueListener>()
+  /** 83-: 시도가 진행 중인 글(첫 시도 포함 - 채팅이 보낸 직후 "보내는 중"이지만 실패 전에는 큐에 없다). */
+  private readonly sending = new Map<string, OutgoingMessage>()
 
   constructor(private readonly deps: TextQueueHubDeps) {}
+
+  /**
+   * 83-: 아직 서버가 확정하지 않은 글 - 메모리 큐 + 시도 중인 글(같은 id 한 번). 기기 저장이 끝나기 전 · 첫 시도가 끝나기 전에도 보인다.
+   * (81-b 폰 확인 11번: 저장값만 세면 방금 보낸 글이 0으로 보였다.)
+   */
+  unsent(): UnsentRef[] {
+    const out = new Map<string, UnsentRef>()
+    for (const q of this.text?.getQueue() ?? []) out.set(q.clientMsgId, { id: q.clientMsgId, ownerId: q.senderId, coupleId: q.coupleId })
+    for (const m of this.sending.values()) out.set(m.clientMsgId, { id: m.clientMsgId, ownerId: m.senderId, coupleId: m.coupleId })
+    return [...out.values()]
+  }
+
+  private sendingChanged(): void {
+    for (const l of this.listeners) l.onSending?.()
+  }
 
   current(): { coupleId: string; userId: string } | null {
     if (!this.key) return null
@@ -120,7 +146,15 @@ export class TextQueueHub {
   async attemptText(item: OutgoingMessage): Promise<AttemptOutcome> {
     // 82-(R120-4): 항목 주인 ≠ 지금 세션 사용자면 절대 보내지 않는다(서버 거부에 기대지 않음). 일시 실패로 두어 주인의 항목 상태를 영구 실패로 바꾸지 않는다.
     if (this.deps.sessionUserId && item.senderId !== this.deps.sessionUserId()) return { outcome: 'failed', errorClass: 'retryable' }
-    const result = await this.deps.send(item)
+    this.sending.set(item.clientMsgId, item)
+    this.sendingChanged()
+    let result: SendMessageResult
+    try {
+      result = await this.deps.send(item)
+    } finally {
+      this.sending.delete(item.clientMsgId)
+      this.sendingChanged()
+    }
     if (result.status === 'sent') {
       for (const l of this.listeners) l.onMessage?.(result.row)
       return { outcome: 'sent' }

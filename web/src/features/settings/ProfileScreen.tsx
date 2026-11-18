@@ -19,6 +19,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { useProfileStore } from '../../stores/profileStore'
 import { logoutToStart } from './accountActions'
 import { countUnsentMessages, logoutNotes, type UnsentCounts } from './unsentCount'
+import { hubUnsentSource } from './unsentSource'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { ListGroup, ListRow, SettingsFrame, SettingsSkeletonBlock } from './parts'
 
@@ -55,9 +56,16 @@ export function ProfileScreen({ nav }: { nav: Nav }) {
   const coupleId = useCoupleStore((s) => s.coupleId ?? s.graceCoupleId)
   useEffect(() => {
     if (!logoutAsk) { setUnsent({ queued: 0, kept: 0 }); return }
+    // 83-(81-b 폰 확인 11번): 기기 저장 + 허브 메모리(방금 보낸 글 · 저장 전 큐)를 같이 센다. 창이 열려 있는 동안 바뀌면 다시 센다(마지막 것만 반영).
     let cancelled = false
-    void countUnsentMessages(userId, coupleId).then((n) => { if (!cancelled) setUnsent(n) }, () => undefined)
-    return () => { cancelled = true }
+    let seq = 0
+    const recount = () => {
+      const mine = ++seq
+      void countUnsentMessages(userId, coupleId, undefined, hubUnsentSource).then((n) => { if (!cancelled && mine === seq) setUnsent(n) }, () => undefined)
+    }
+    recount()
+    const off = hubUnsentSource.subscribe(recount)
+    return () => { cancelled = true; off() }
   }, [logoutAsk, userId, coupleId])
 
   useEffect(() => {

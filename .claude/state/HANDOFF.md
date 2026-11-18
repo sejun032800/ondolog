@@ -11,6 +11,26 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `83-` 계정 전환 때 이전 주인 사진 폴더째 삭제 + 로그아웃 창 "보내는 중" 수 (메인 세션, 2026-11-18, 위임문 `phase-7/83-dispatch-photo-folder-purge.md` · 근거 `82-pm-report.md` §4-2 · R121-3 · R121-5 · R120-4 · 덧붙임 = 81-b 폰 확인 11번) - 완료 (미커밋)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
+
+**1단계 판정 = 사용자별 폴더 아님**: 83- 이전 사진 복사본 = `chat-photo-queue/{clientId}.{ext}`(`web/src/photoQueue/webPhotoFs.ts` 옛 45줄 `copyIn`) - 사용자 구분 없는 한 폴더. → 위임서 표 둘째 줄(새 파일은 사용자 폴더 · 기존 파일 옮김).
+
+수정:
+- 새 사진 = `chat-photo-queue/{userId}/{clientId}.{ext}`(`webPhotoFs.ts` `copyInFor` · 허브 `enqueue`가 씀). 공통 `PhotoFs`(루트 `src/services/chatPhotoCore.ts`) 모양은 그대로.
+- 기존 파일 옮기기(`photoQueueStore.ts` `legacyPhotoMover` · `queueStorage.ts` `migrate`): 지금 사용자 항목 중 옛 자리 것만 - 복사(읽어서 씀 · 생겼는지 확인) → 저장값 경로 갱신 → **그 뒤에** 원본 지움. 복사 실패 = 그 항목 옛 경로 그대로(원본으로 보냄 · 다음 읽기 때 다시). 저장값 못 씀 = 새 복사본만 지우고 전부 옛 경로. `held` 키(81- 보존 실패)는 옮기지 않음. 옮기기는 **읽기 잠금 안**에서 돌아 그동안 새 항목 저장이 덮지 않음. 남의 항목은 옮기지 않음.
+- 계정 전환 정리(`cache/queueOwner.ts` `purgePhotoFolders` - 82- 항목 정리 뒤): 지금 사용자가 아닌 폴더 **폴더째** 삭제(저장값 깨져도). 지금 사용자 폴더는 손대지 않음. 옛 자리 파일(주인 모름)은 남은 사진 대기열 저장값 전부 + 지금 사용자 보존 칸(`deviceCache.ts` `readQueueOriginalsStrict`) 어디에도 이름이 없고 **전부 읽혔을 때만** 지움 - 하나라도 못 읽거나 깨지면 하나도 안 지움(결정 기록).
+- 덧붙임(로그아웃 창): **원인 = 후보 ① 메모리의 보내는 중 항목을 세지 않음** + ③의 일부(창이 열릴 때 한 번만 셈). 근거: 채팅 보내기는 말풍선을 "보내는 중"으로 먼저 그리고(`useChatMessages.ts` `sendText` - `pending: true`) 첫 시도(`textQueueHub.attemptText`)가 **실패한 뒤에야** 큐에 넣으며(`enqueueAfterInitialFailure`) 기기 저장은 그다음 비동기(`textQueueHub.ts` `onQueueChange` → `queueStorage.saveQueue`). 창의 수(`unsentCount.ts` 옛 45~57줄)는 **기기 저장만** 창이 열릴 때 한 번 읽었다 → 첫 시도 진행 중 · 저장 전이면 0. 수정 전 코드로 재현 시험 3건 실패 확인(아래). 후보 ② 주인 판정은 해당 없음(`senderId` = 지금 사용자 - 같은 시험에서 저장된 뒤엔 1로 셈). 수정: 허브가 시도 중인 글을 들고(`textQueueHub.ts` `sending` · `unsent()` · `onSending`) · 사진 허브 `unsent()` · 새 `features/settings/unsentSource.ts` · 수 = 저장 + 메모리를 id로 합쳐 한 번씩(주인 = 지금 사용자 · 같은 커플) · 창이 열려 있는 동안 바뀌면 다시 셈(`ProfileScreen.tsx`). 동작(R39-5 b) 그대로 · 문구 그대로.
+
+시험: `web/src/photoFolder83.vitest.tsx` 14건(판정 · 새 사진 자리 · 정상/깨진 저장값 전환 · 저장값 없음 · 폴더 못 읽음 · 같은 계정 각 1번 · 옮긴 뒤 1번 · 옮기다 실패 → 원본 남음 → 이어서 · 저장값 못 씀 · 남의 항목 안 옮김 · 옛 자리 파일 3갈래) · `web/src/logoutUnsent83.vitest.tsx` 6건(요청 안 끝남 · 바로 연결 오류 + 저장 전 · 창 연 뒤 보냄 · 중복 0 · 남의 항목 0 · 확정되면 줄 사라짐). 앞 3건은 수정 전 코드에서 실패(창의 줄 `[]`).
+
+검증: **`npm run gate` 통과 257.4초**(Vitest **68/1134** + 1 건너뜀 · 법무 통과 · `smoke:webkit` **28/28**) · 루트 tsc 0 · jest **116/1994**(PGlite 포함) · Python **324 OK** · `build` · `build:trial` · `cap sync android`(맨 끝 한 번 · `web/android` 변경 0). 마이그레이션 0 · 원격 0 · 새 패키지 0 · 네이티브 0 · `demo_responses` 0 · R34-3 0. 키 · 주소 · ref · id · 이메일 · 토큰 · 내용 0 · 새 파일 이름 ASCII.
+
+결정 기록(출처 R121-3 · R120-4): ① 옮기기 = 복사 후 저장값 갱신 후 원본 삭제(어느 순간에도 저장값이 가리키는 파일 있음). ② 주인 모르는 옛 자리 파일 = 위 조건에서만 삭제, 아니면 남김(다음 로그인 때 다시 판정). ③ 폴더 정리는 매 로그인 때 돌지만 같은 계정이면 지울 폴더 0. ④ 위임서가 가리킨 `81-b-phone-check-pm-report.md`는 저장소에 없음 - 덧붙임 증상은 Proteur 메시지 문장 그대로 사용.
+
+폰에서만 확인되는 것: 업데이트 덮어 설치 전 비행기 모드로 사진 1장 남김 → 설치 → 연결 → 상대에게 1번 도착(옛 자리 → 사용자 폴더 옮기기 실기기 파일 API) · A 사진 남김 → B 로그인 → (기기 파일 직접 볼 수 없음 - 동작으로만) B 화면 A 사진 0 · 비행기 모드 글 1 → 바로 로그아웃 창에 "1개" 줄.
+
 ## `82-` 계정 전환 대기열 규칙 + 채팅 진입 때 서랍 알림 지우기 (메인 세션, 2026-11-17, 위임문 `phase-7/82-dispatch-account-switch-queue.md` · 근거 `81-b-pm-report.md` §5 · R120-2 · R120-4 · R118-2 · R119-2 · R39-5 b) - 완료 (커밋됨 · build · cap sync 완료)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
@@ -2351,7 +2371,8 @@ deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functi
 
 #### 0-6 잠금 — 저장소 밖 허용 목록 (75-, R76-9 · R78-5)
 초기화 스크립트(`resetTestAccount.ts`, 단독 · 커플 모드 · `--with-issues` 모두)는 **저장소 밖 허용 목록 파일**에 있는 이메일만 받는다. 판정은 접속 전(네트워크 0)이고, 미리 보기도 같다.
-- 위치: 환경 변수 `ONDOLOG_RESET_ALLOWLIST`(파일 경로)가 있으면 그 파일, 없으면 `%USERPROFILE%\.ondologeset-allowlist.txt`. 저장소 안에 두지 않는다.
+- 위치: 환경 변수 `ONDOLOG_RESET_ALLOWLIST`(파일 경로)가 있으면 그 파일, 없으면 `%USERPROFILE%\.ondolog
+eset-allowlist.txt`. 저장소 안에 두지 않는다.
 - 형식: UTF-8 텍스트, 한 줄에 하나. `#` 뒤는 주석, 빈 줄 무시.
   - `project=<개발 프로젝트 ref>` 줄 1개 이상(필수) — 접속 주소의 ref가 이 중 하나가 아니면 "개발 프로젝트가 아니다"로 거부
   - 나머지 줄 = 초기화를 허용할 시험 계정 이메일(대소문자 무시)

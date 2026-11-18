@@ -8,10 +8,16 @@
  * - 다른 계정이 로그인하는 순간(`startQueueOwnerPurge` - `useAccountData`): 이 기기의 모든 글 · 사진 대기열 키에서 주인이 지금 사용자가 아닌 항목을 지우고,
  *   그 사진 항목의 파일도 지운다(R118-2와 같은 원칙). 같은 계정이면 지울 것이 없다(R39-5 b - 이어서 보냄). 지운 건수만 돌려준다(오류 기록 대상 아님).
  * - 대기열 읽기(`loadQueue`)는 이 정리가 끝난 뒤에 읽는다(정리와 저장이 겹쳐 새 항목을 잃지 않게).
+ * - 83-(R121-3): 사진 파일은 사용자별 폴더(`chat-photo-queue/{userId}/`)에 있다. 항목 정리 뒤 **지금 사용자가 아닌 폴더를 폴더째** 지운다 -
+ *   저장값이 깨져 파일 경로를 몰라도 남지 않는다(82- 한계). 지금 사용자 폴더는 절대 건드리지 않는다.
+ *   83- 이전 자리(`chat-photo-queue/{파일}` - 폴더 없이 바로 아래)의 파일은 주인을 파일로 알 수 없다 -> **지금 사용자 것이 아님이 확실할 때만** 지운다:
+ *   남은 사진 대기열 저장값 전부(정리 뒤 = 지금 사용자 것)와 지금 사용자의 보존 칸 글자 어디에도 그 파일 이름이 없고, 그 글자들을 모두 읽었을 때.
+ *   하나라도 못 읽거나 깨져 있으면 옛 자리 파일은 하나도 지우지 않는다(다음 로그인 때 다시). 지금 사용자 것은 읽을 때 사용자 폴더로 옮겨진다(`photoQueueStore`).
  * 던지지 않는다.
  */
 import { Preferences } from '@capacitor/preferences'
-import { webPhotoFs } from '../photoQueue/webPhotoFs'
+import { photoQueueFiles, webPhotoFs, type PhotoQueueFiles } from '../photoQueue/webPhotoFs'
+import { readQueueOriginalsStrict } from './deviceCache'
 
 export const TEXT_QUEUE_PREFIX = 'chat_queue:'
 export const PHOTO_QUEUE_PREFIX = 'chat_photo_queue:'
@@ -26,6 +32,20 @@ export interface PrefsAllLike {
 export interface OwnerPurgeDeps {
   prefs: PrefsAllLike
   removeFile: (uri: string) => Promise<void> | void
+  /** 83-: 폴더 정리. 없으면 건너뜀(항목 정리만). */
+  files?: Pick<PhotoQueueFiles, 'list' | 'removeUserDir' | 'remove'>
+  /** 83-: 지금 사용자의 보존 칸 글자(못 읽으면 null). */
+  originals?: (userId: string) => string[] | null
+}
+
+/** 83-: 정리 결과(시험 · 진단용 숫자). */
+export interface FolderPurgeResult {
+  /** 지운 다른 사용자 폴더 수. */
+  dirs: number
+  /** 지운 옛 자리 파일 수. */
+  legacy: number
+  /** 옛 자리 파일 판정을 못 해 남겨 둔 경우(모름). */
+  legacyUnsure: boolean
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -129,11 +149,61 @@ export async function purgeOtherOwners(userId: string, deps: OwnerPurgeDeps = de
       removed += await purgeKey(deps, key, userId, (x) => (nonEmpty(x.userId) ? x.userId : null), photoKeyUser(key))
     }
   }
+  await purgePhotoFolders(userId, deps).catch(() => undefined)
   return removed
 }
 
+/** 83-: 다른 사용자 폴더째 + (확실할 때만) 옛 자리 파일. 항목 정리(`purgeOtherOwners`) 뒤에 부른다. 던지지 않는다. */
+export async function purgePhotoFolders(userId: string, deps: OwnerPurgeDeps): Promise<FolderPurgeResult> {
+  const result: FolderPurgeResult = { dirs: 0, legacy: 0, legacyUnsure: false }
+  const files = deps.files
+  if (!files || !userId) return result
+  const entries = await files.list().catch(() => null)
+  if (!entries) return { ...result, legacyUnsure: true }
+  for (const e of entries) {
+    if (e.type === 'directory' && e.name !== userId && (await files.removeUserDir(e.name).catch(() => false))) result.dirs += 1
+  }
+  const legacy = entries.filter((e) => e.type === 'file')
+  if (legacy.length === 0) return result
+  const refs = await referenceTexts(userId, deps)
+  if (refs === null) return { ...result, legacyUnsure: true }
+  for (const f of legacy) {
+    if (refs.some((t) => t.includes(f.name))) continue // 지금 사용자 것일 수 있다 - 남김
+    await files.remove(`${QUEUE_DIR_PREFIX}${f.name}`).catch(() => undefined)
+    result.legacy += 1
+  }
+  return result
+}
+
+const QUEUE_DIR_PREFIX = 'chat-photo-queue/'
+
+/** 정리 뒤 남은 사진 대기열 저장값 전부 + 지금 사용자의 보존 칸. 하나라도 못 읽으면 null. */
+async function referenceTexts(userId: string, deps: OwnerPurgeDeps): Promise<string[] | null> {
+  let keys: string[]
+  try {
+    keys = (await deps.prefs.keys()).keys
+  } catch {
+    return null
+  }
+  const out: string[] = []
+  for (const key of keys) {
+    if (!key.startsWith(PHOTO_QUEUE_PREFIX)) continue
+    try {
+      const v = (await deps.prefs.get({ key })).value
+      if (!v) continue
+      if (!listOf(v)) return null // 깨진 저장값 - 무엇을 가리키는지 모른다
+      out.push(v)
+    } catch {
+      return null
+    }
+  }
+  const kept = (deps.originals ?? readQueueOriginalsStrict)(userId)
+  if (kept === null) return null
+  return [...out, ...kept]
+}
+
 function defaultDeps(): OwnerPurgeDeps {
-  return { prefs: Preferences as unknown as PrefsAllLike, removeFile: (uri) => webPhotoFs.remove(uri) }
+  return { prefs: Preferences as unknown as PrefsAllLike, removeFile: (uri) => webPhotoFs.remove(uri), files: photoQueueFiles }
 }
 
 let gate: Promise<unknown> = Promise.resolve()
