@@ -1,10 +1,11 @@
 /**
  * 86-(R128-4) 부하 상태 Vitest 반복 - 흔들리는 시험 찾기 · 20회 연속 확인. Node 기본 기능만(새 패키지 0).
  *
- * 부하 조건: 측정 회차는 Vitest 워커를 최대(논리 코어 수)로 돌리고, **같은 시각에 Vitest 전체를 한 벌 더**(같은 워커 수) 돌린다.
+ * 부하 조건(86-b · R129-2 기본): 측정 회차는 게이트 설정 그대로(`vite.config.ts` 워커 9)로 돌리고, **같은 시각에 Vitest 전체를 한 벌 더**(같은 워커 9) 돌린다.
+ * `--workers-max`를 주면 86- 첫 조건(두 벌 모두 워커 = 논리 코어 수)으로 돌린다.
  * 기록(JSON · 요약)은 저장소 밖 `os.tmpdir()/ondolog-stress/<회차>`에만. 화면에는 숫자와 시험 이름만.
  *
- * 사용(web/에서): node scripts/stress-vitest.mjs [--runs 20] [--stop-on-fail] [--no-load] [--sequence-shuffle]
+ * 사용(web/에서): node scripts/stress-vitest.mjs [--runs 20] [--stop-on-fail] [--no-load] [--sequence-shuffle] [--workers-max]
  */
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -22,7 +23,8 @@ const outDir = path.join(os.tmpdir(), 'ondolog-stress', new Date().toISOString()
 fs.mkdirSync(outDir, { recursive: true })
 
 function vitest(extra, reportFile) {
-  const a = ['vitest', 'run', `--maxWorkers=${cores}`, '--reporter=json', `--outputFile=${JSON.stringify(reportFile)}`, ...extra]
+  const workers = flag('--workers-max') ? [`--maxWorkers=${cores}`] : []
+  const a = ['vitest', 'run', ...workers, '--reporter=json', `--outputFile=${JSON.stringify(reportFile)}`, ...extra]
   return new Promise((resolve) => {
     const child = spawn('npx', a, { cwd: webDir, shell: true, stdio: ['ignore', 'ignore', 'ignore'] })
     child.on('exit', (code) => resolve(code ?? 1))
@@ -53,7 +55,7 @@ function failuresOf(reportFile) {
 const tally = new Map()
 let streak = 0
 let best = 0
-console.log(`[stress] 코어 ${cores} · 회차 ${runs} · 부하 ${flag('--no-load') ? '없음' : 'Vitest 한 벌 동시'} · 기록 ${outDir}`)
+console.log(`[stress] 코어 ${cores} · 워커 ${flag('--workers-max') ? cores : '설정값'} · 회차 ${runs} · 부하 ${flag('--no-load') ? '없음' : 'Vitest 한 벌 동시'} · 기록 ${outDir}`)
 for (let i = 1; i <= runs; i += 1) {
   const t = Date.now()
   const report = path.join(outDir, `run-${i}.json`)
