@@ -11,6 +11,78 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `84-c` 매거진 AI 자동 검사 - 칸별 말투 · 숫자/시각 · 요일 · 시험 데이터 연도 (메인 세션, 2026-11-19, 위임문 `phase-7/84-c-dispatch-auto-checks.md` · 출처 ROADMAP r133 R133-1~6) - 완료 · **⑥ 발행 노트 한 줄만 멈춤** (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-19-r133` - 통과. **LLM 호출 0**(시험 · 다시 검사 모두 가짜 응답 · 저장된 실행) · 원격 0(허용 질의 없음 - 실행 0) · 마이그레이션 0 · 함수 배포 0 · 새 패키지 0 · `web/` 0 · `consent.ts` 0 · `demo_responses` 0 · 실제 데이터 0 · R34-3 0 · 커밋 0.
+
+### 멈춘 것
+- **⑥ 발행 노트 끝 AI 안내 한 줄**: 발행 노트는 `web/`이 아니라 **렌더러**(`render/compose.py:769` 노트 쪽 · `:927` 노트 문장 · 틀 `render/issue/note.html`)에 있다 - 이번 편집 범위(`_shared` · `src/engine/corners` · `scripts/ops` · CORNER_CONTENT) 밖이라 그 항목만 멈춤. 문장은 위임서 그대로 준비됨: "온도록이 쓴 문장은 두 분의 기록을 바탕으로 AI가 만들었습니다. 두 분이 남긴 말과 사진은 고치지 않았습니다." 참고: 앱 쪽 비슷한 문구가 `src/constants/magazineCopy.ts:10`(해요체)에 있다.
+
+### ①~⑦ 지금(HEAD 파일:줄) → 고친 것
+| # | 고치기 전 | 고친 것 · 시험 |
+|---|---|---|
+| ① 칸별 말투 | 검사 없음. 값 검사는 길이 · 금지 표현뿐(`src/engine/corners/valueChecks.ts:69-81`). 재요청은 같은 요청 그대로(`cornerPipeline.ts:767-770`) | 새 `src/engine/corners/contentChecks.ts`(순수) - 문장 끝 분류(합니다체 · 해요체 · ~다체 · 반말 · 명사형 · 연결형) · 인용(따옴표 6종) 제외 · 칸 3종(R133-4 표). 코너가 칸 목록을 만듦(새 `_shared/corners/contentTargets.ts` · 코너 3종 `contentChecksFor`). 골격 7단계(저장 스키마 뒤)에서 보고 걸리면 `schema_invalid` + **재요청 안내 블록**(칸 · 규칙만) → 기존 1회 재요청 → 또 걸리면 빠짐. 시험 `__tests__/engine/corners/contentChecks84c.test.ts` · `_shared/corners/contentChecks84c.test.ts` |
+| ② 숫자 · 시각 | 검사 없음. 프롬프트에 시각 형식 없음 | 프롬프트 공통 원칙에 "입력 값 그대로 · 오전/오후 h시 m분 · 24시 표기 0"(`cornerCommon.ts` 공통 원칙). 출력 검사: "HH:MM" · 24시 · 오전/오후 없음 · "반" = 형식 위반 / 오전 · 오후 · 정오 · 자정 값이 그 칸이 볼 수 있는 입력 시각과 같아야 함(데이트 아카이브는 **그 데이트의 시각만**) / "N월 N일" · "N일" · "N월" · "N년" 입력 날짜 / "사진 n장"(숫자 · 한글 수사 1~10) 입력 장수 / 그 밖의 아라비아 숫자는 입력에 나온 숫자. "본문 숫자 대조"는 여기 합침 |
+| ③ 요일 | 입력에 요일 없음 - 모델이 메시지 문맥으로 짐작 | 메시지 · 데이트 · 사진 줄에 `weekday`(KST, 엔진 계산 - `cornerCommon.ts` `messageLine` · `dateLine` · `thisMonth.ts` 사진 줄). 프롬프트 "요일은 weekday 칸에서만 · 같은 문장에 날짜". 출력 검사: 요일 낱말(월~일요일 · 주말 · 평일)의 날짜 = 같은 문장의 날짜, 없으면 칸 근거 날짜(하나일 때) - 못 정하면 실패 · 인용 제외 |
+| ④ 데이터 연도 | `fixtures/m1-month/dataset.ts` 2026년(요일 · 추석 문구는 2025년 달력) | 날짜만 1년 앞(37곳 · 재소환 2024-09-20 · 파주 2025-03-08) · 문구 · ID 그대로 · `FIXTURE_YEAR` · `periodOf(year)` · `buildTables(year)`(2차 다시 검사용 2026). 시험 `scripts/ops/fixtureYear84c.test.ts`(요일 메시지 20건 · 요일 낱말 22개 · 추석 · 2026 옮김) |
+| ⑤ 마무리 42자 | 프롬프트에 글자 수 없음(`thisMonth.ts:263`) | "공백과 부호를 포함해 42자 이내, 합니다체 한 문장"(상한 42 그대로). 시험 "이달의 우리: 마무리 42자 안내" |
+| ⑥ R52-3 · 발행 노트 | 숨김은 이미 렌더러(`render/compose.py:654-667` · `render/facts.py:224-240`). 프롬프트에는 없음 | 프롬프트에 "셀 수 있는 신호 = place(지역 · 장소명 그대로) · 셀 수 없는 신호는 숨겨짐 · place를 먼저"(`thisMonth.ts` signals). 시험 "R52-3 셀 수 있는 신호". **발행 노트 한 줄은 멈춤**(위) |
+| ⑦ CORNER_CONTENT | 칸별 말투 표 없음 | `docs/ONDOLOG_CORNER_CONTENT.md` §0-5 "칸별 말투"(출처 R133-4) |
+
+함께 고친 것: 고정 질문 2개(아래) · 데이트 아카이브 맞춤 질문 좋은 예("~의향은?" → "~해볼까요?" - 2차 Opus 반말이 이 예를 닮았다) · 다정한 말들 정황 좋은 예("주말 아침에 오간 대화" → "점심시간에 오간 대화" - 날짜 없는 요일 예) · 샘플 출력(`scripts/ops/sampleOutputs.ts` - 캡션 "HH:MM" → "오전/오후 h시 m분" · 본문 · 리드 · 마무리 합니다체 · 질문 해요체) · 옛 시험의 가짜 LLM 출력 문장(~다체 · 반말 → 규칙대로).
+
+### 고정 질문 2개 (R133-4 ③)
+| | 전 | 후 |
+|---|---|---|
+| rating | 이날의 데이트는 10점 만점에 몇 점? | 이날의 데이트는 10점 만점에 몇 점인가요? |
+| recall | 이날 중 가장 기억에 남는 건? | 이날 중 가장 기억에 남는 건 무엇인가요? |
+- 옛 문구가 남은 곳(편집 범위 밖 - PE/PM): `docs/ONDOLOG_MASTER.md:5520-5521` · `docs/ONDOLOG_CORNER_CONTENT.md` §2-3 예시 JSON · `docs/design/nocturne/render/issue/pages/da-places.html:52` · `render/issue/pages/da-places.html:52`(틀의 자리 글자 - 렌더는 content 값으로 바꿔 넣음) · `render/tests/fixtures.py:73-74`(렌더 시험 자료). 이미 저장된 호의 content는 옛 문구 그대로(스냅샷).
+
+### 다시 검사 (84-b 2차 json 18개 · 시도 20 · 2026년 날짜 그대로 · `scripts/ops/out/recheck.md`)
+| 잡혀야 하는 것 | 잡힌 것 |
+|---|---|
+| Opus this_month r3 리드 · 본문 ~다체 | 5칸(리드 1 · 본문 4) |
+| Opus date_archive r1 · r2 반올림 시각 | 3곳 - r1 "오후 1시"(13:10) · r2 "오후 1시"(13:10) · **r2 "오전 11시"(11:20)** - 위임서는 2곳, r2의 11:20도 반올림이라 함께 잡힘 |
+| Sonnet date_archive "13시 10분" | 1(r1) |
+| 맞춤 질문 반말 5곳(Opus r1 · r2) | Opus 6(r1 3 · r2 3) + Sonnet r2 1 - 더 잡힌 2곳은 "~의향은?" · "~꼽는다면?"으로 위임서 표가 반말 예로 든 끝 |
+| Sonnet this_month r1 두 번째 시도 ~다체 | 4칸(리드 · 본문 3) |
+| 요일 13곳(2026년 날짜 기준이면 틀림) | 13(Opus 다정 r3 2 · Opus 이달 r1 6 · r3 3 · Sonnet 이달 r2 1 · r3 1) |
+
+목록 밖에서 잡힌 것(오탐 아님 - 규칙 그대로, **PM 판단용**): Sonnet this_month r2 실린 시도 - "낮 12시 30분"(값은 입력 12:30과 같음 · 형식이 오전/오후 아님) · "7시"(메시지 원문 "7시에 거기서 보자"의 시각 · 오전/오후 없음) / Sonnet this_month r1 두 번째 시도(안 실림) - "평일" 2곳(근거 날짜 여럿). 날짜 · 숫자 검사 걸림 0(오탐 0). 합계 위반 37.
+
+### 숫자 검사가 하지 않는 범위 ("확인 필요")
+1. 한글 수사(사진 장수 밖): "두 곳" · "세 번" · "한 끼" · "두 날" · "두 번째".
+2. 상대 날짜 · 기간: "이틀 전" · "엿새 전" · "1년 전" · "다음 날" · "전날" · "3일 뒤".
+3. 숫자 없는 시간대 말: "점심 무렵" · "저녁" · "낮" · "아침"이 실제 시각과 맞는지.
+4. 서수 · 계산된 날: "첫 일요일" · "둘째 주" - 요일 낱말이 있으면 ③이 날짜를 못 정해 실패로 잡지만, 요일 없는 서수는 보지 않음.
+5. 사진 밖의 개수(메시지 n건 · n곳 · n번)는 아라비아 숫자가 **입력 어딘가에 나온 숫자인지**만 본다(뜻까지 대조 안 함).
+6. 홀로 쓴 "N일"은 입력 날짜 중 그 일(日)이 있는지만(달이 여럿이면 어느 달인지 안 봄).
+
+### 결정 기록 (출처 R133-1~6)
+1. 검사 자리: 값 검사(84-a, Zod 직후)는 그대로. 내용 검사는 **저장 스키마까지 통과한 뒤(7단계)** - 구조 · ID 오류가 먼저 보이게. 값 검사에 걸리면 그때 내용 검사 결과도 함께 알린다(재요청 1회 안에서 다 고치게).
+2. 재요청 안내: 값 · 내용 검사에 걸렸을 때만, 원래 요청 **끝에 user 블록 하나**(system · 앞 user 블록 · 캐시 지점 그대로). 그 밖의 `schema_invalid`(JSON · Zod · ID · 파생값)는 84-a까지처럼 같은 요청. 한도는 그대로 1회.
+3. 시각 형식은 위임서 문구대로 **오전/오후 · 정오 · 자정만** 허용 - "낮 12시 30분" · "저녁 7시"도 형식 위반(PM 판단 항목: 낮 · 저녁 같은 앞말을 허용할지).
+4. 라벨 칸의 해요체는 R133-4 허용 목록에 없어 위반으로 본다.
+5. 데이트 아카이브 기사는 그 데이트의 입력값만 본다(다른 날 11:00이 있어 11:20의 반올림이 가려지던 것을 막음). 이달의 우리 · 다정한 말들은 입력 전체.
+6. 시험 데이터 ID(`date-2025-0920` · `date-2026-0308` · `ph-2025-*` · `stop-2025-*` · `memo-2025-1`)는 날짜가 아니라 이름이라 그대로 두었다(위임서 "날짜만").
+7. 다정한 말들 해설 문장은 지금 스키마에 없다(정황 `context`만 - 라벨 칸).
+8. 엔진 결정론 규칙 A(`new Date(` 금지)에 맞춰 KST 날짜 · 요일은 `Date.parse` · `Date.UTC` + 날 수 계산으로 한다.
+
+### ④ 영향받은 것
+- 바꾼 시험 데이터: `scripts/ops/fixtures/m1-month/dataset.ts`(날짜 37곳 · `FIXTURE_YEAR` · `periodOf` · `buildTables(year)`) · `chat.ts`(머리 주석만 - 날짜는 `dataset.ts`가 붙임).
+- 기댓값이 바뀐 시험: `scripts/ops/operatorPath.test.ts`(기간 인수 · `period_end` 2025-09-30 · 큰 입력 합성 메시지 연도 · "시작이 끝" 경우의 끝 날짜) · `scripts/ops/liveMode84a.test.ts`(기간 인수 · 조립 기간). 숫자 · 결과 단언은 그대로.
+- 이 데이터를 쓰는 곳: 하네스 `m1QualityRun.ts` · `m1InputCandidates.ts`(연도를 `FIXTURE_YEAR`로) · `m1Review.ts`(다툰 날을 월-일로) · `m1Recheck.ts` · `seedTestData.ts`(**원격 시험 커플 시드 - 다음에 돌리면 2025년 날짜로 들어간다**, 이번에 실행 0 · 코드 변경 0).
+- 다른 시험 데이터(`cornerFixtures.ts` 2026-08 등) · 실제 데이터 · `demo_responses` 변경 0.
+
+### 84-b 3차 실행 명령
+84-a 절 "84-b 실행 명령"의 키 넣기 · `run` 두 줄 · `review` · 창 닫기 **그대로**(태그만 새로: `--tag 84b3` 권장 - 2차 json과 나란히 남는다). 더한 줄 하나(키 · 네트워크 불필요):
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts recheck
+```
+→ `scripts/ops/out/recheck.md`(2차 · 3차 모든 시도를 새 검사로 - 3차 json에는 `fixtureYear: 2025`가 남는다).
+
+검증: 루트 tsc 0 · jest **124/2180**(이전 121/2089 · 새 시험 파일 3개 · PGlite 포함) · deno check(`m1QualityRun.ts` · `m1Recheck.ts` · `m1Review.ts` · `generateIssueCli.ts` · `publishIssueCli.ts` · `push-send/index.ts`) 통과 · `recheck` 실행(2차 json, 오프라인) · Python **324 OK**(340.0초) · `npm run gate` **1회 통과 119초**(Vitest 69/1181 + 1 건너뜀 · 법무 8/8 · smoke 32/32 · `web/` 변경 0). 키 · 주소 · 요청 id · 생성 문장 0 · 새 파일 이름 ASCII.
+
 ## `84-a2` LLM 요청 고치기 - 샘플링 값 · prefill · 재요청 · 사고 블록 (메인 세션, 2026-11-19, 위임문 `phase-7/84-a2-dispatch-llm-request-fix.md` · 출처 ROADMAP r131 R131-1~4) - 완료 (미커밋)
 
 시작 확인: `DOC_REVISION: 2026-11-19-r131`(ROADMAP 15줄) - 통과. 멈춤 0. **LLM 호출 0**(시험은 가짜 fetch) · 원격 0(허용 질의 없음 - 실행 0) · 마이그레이션 0 · 함수 배포 0 · 새 패키지 0 · `web/` 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 0 · 커밋 0.

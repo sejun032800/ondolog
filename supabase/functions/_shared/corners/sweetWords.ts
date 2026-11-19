@@ -44,6 +44,8 @@ import {
 } from '../../../../src/types/corners/storedContent.ts'
 import { COMMON_PRINCIPLES_BLOCK, inChronologicalOrder, messageLine, type ChatMessageRecord } from './cornerCommon.ts'
 import { SWEET_WORDS_VALUE_RULES } from '../../../../src/engine/corners/valueChecks.ts'
+import { runContentChecks, type ContentTarget } from '../../../../src/engine/corners/contentChecks.ts'
+import { factsOf, recordDates, target } from './contentTargets.ts'
 
 export interface SweetWordsInput {
   /** 지면에 곁들이는 다정 지수(0~100) 또는 null. 산출식이 미결정이라 지금은 null이다(17-0-7). 그대로 주입한다. */
@@ -173,8 +175,8 @@ const CORNER_INSTRUCTION_BLOCK: PromptBlock = {
     '',
     '쓰는 것',
     '- 대화(main): 이어서 오간 대화를 메시지 id로 가리킨다. 서로 주고받은 2~3턴을 우선하고 최대 4턴까지다. 상대의 응답 없이 단발인 발화는 한 줄(sub)로 보낸다.',
-    '  context: 그 대화가 언제 어떤 상황에서 오갔는지 입력에서 드러나는 사실만 한 문장으로 쓴다. 시각대는 메시지의 at에서 알 수 있다. 대화 내용을 요약·재진술·해석하지 않고, 두 사람 중 한쪽을 주어로 삼지 않는다.',
-    '  좋은 예: "주말 아침에 오간 대화", "출근길에 오간 대화". 나쁜 예: "서로를 아끼는 마음이 느껴지는 대화"(감상), "고마움을 전하자 상대도 화답한 대화"(내용 재진술), "다툼 뒤에 마음이 풀린 대화"(금지된 맥락).',
+    '  context(라벨 칸): 그 대화가 언제 어떤 상황에서 오갔는지 입력에서 드러나는 사실만 한 문장으로 쓴다. 시각대는 메시지의 at에서 알 수 있다. 명사형("~오간 대화")으로 끝낸다. 대화 내용을 요약·재진술·해석하지 않고, 두 사람 중 한쪽을 주어로 삼지 않는다.',
+    '  좋은 예: "점심시간에 오간 대화", "출근길에 오간 대화". 나쁜 예: "서로를 아끼는 마음이 느껴지는 대화"(감상), "고마움을 전하자 상대도 화답한 대화"(내용 재진술), "다툼 뒤에 마음이 풀린 대화"(금지된 맥락).',
     '- 한 줄(sub): 대화로 묶지 않을 다정한 단문의 메시지 id. 같은 메시지를 main과 sub에 겹쳐 쓰지 않는다.',
     '- 메시지의 원문, 화자, 시각, 출처 표기는 쓰지 않는다. id만 쓴다.',
     '',
@@ -211,6 +213,25 @@ function buildRequest(input: SweetWordsInput, context: CornerContext): LlmReques
 // 코너 모듈
 // ---------------------------------------------------------------------------
 
+/** 84-c 내용 검사(R133-4 · R133-5). 정황 문장의 요일 낱말은 문장에 날짜가 없으면 그 대화 턴들의 날짜(하나일 때)로 본다. */
+function contentChecksFor(input: SweetWordsInput): (llm: SweetWordsLlmOutput) => string[] {
+  const byId = new Map(input.messages.map((m) => [m.id, m] as const))
+  const facts = factsOf(input.messages, [], [])
+  const known = [...facts.dates]
+  return (llm) => {
+    if (llm.kind !== 'excerpts') return []
+    const targets: ContentTarget[] = []
+    llm.main.forEach((m, i) => {
+      const ctx = m.turns.flatMap((t) => {
+        const rec = byId.get(t.messageId)
+        return rec === undefined ? [] : recordDates(rec)
+      })
+      targets.push(...target(`main[${i}].context`, 'label', m.context, facts, ctx, known))
+    })
+    return runContentChecks(targets)
+  }
+}
+
 function responseSpec(
   input: SweetWordsInput,
   context: CornerContext,
@@ -223,6 +244,8 @@ function responseSpec(
     storedSchema: sweetWordsStoredSchema(context.cadence),
     // 84-a(R124-4): AI 문장 칸의 길이 상한 · 금지 표현(`valueChecks.ts`).
     valueRules: SWEET_WORDS_VALUE_RULES,
+    // 84-c(R133-4 · R133-5): 칸별 말투 · 숫자/시각 · 요일(`contentChecks.ts`).
+    contentChecks: contentChecksFor(input),
   }
 }
 

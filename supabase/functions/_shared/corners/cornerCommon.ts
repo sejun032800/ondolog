@@ -19,6 +19,7 @@
 import type { ScopedRecord } from '../cornerPipeline.ts'
 import type { PromptBlock } from '../llmRequest.ts'
 import type { Attribution, PhotoRef, UserNote } from '../../../../src/types/corners/storedContent.ts'
+import { kstWeekdayOf, weekdayOf } from '../../../../src/engine/corners/contentChecks.ts'
 
 // ---------------------------------------------------------------------------
 // 입력 레코드
@@ -121,6 +122,18 @@ export const COMMON_PRINCIPLES_BLOCK: PromptBlock = {
     '- 쓰지 않는 것: 잘잘못 판정, 한쪽 편들기, 관계에 대한 진단·훈수, 특정인의 행동·태도를 문제 삼기, 데이터가 없는데 지어내기.',
     '- 쓰는 것: 입력에서 확인되는 사실의 서술, 두 사람 모두에게 해당하는 서술.',
     '- 쓰지 않는 문장의 예: "한쪽이 먼저 사과했어야 했습니다"(잘잘못 판정), "한쪽의 서운함이 이해되는 상황입니다"(편들기), "두 분은 대화가 부족합니다"(관계 진단), "답장에 소홀해졌습니다"(특정인의 태도 문제 삼기).',
+    '',
+    '말투 (칸마다 정해져 있다 - 코너 지시가 칸마다 어느 쪽인지 적는다)',
+    '- 글 칸(리드, 본문, 마무리): 모든 문장을 합니다체(~습니다, ~입니다)로 끝낸다.',
+    '- 라벨 칸(헤드라인, 제목, 신호 값, 캡션, 정황, 근거): 명사형("~한 날", "양평역 앞 시장")이나 연결형("~있어서")으로 끝낸다. ~다체(~했다, ~이다)와 반말은 쓰지 않는다.',
+    '- 질문 칸(맞춤 질문): 해요체(~요?, ~까요?, ~나요?)로 끝낸다.',
+    '- 반말은 어느 칸에도 쓰지 않는다. 원문을 따옴표로 인용한 부분은 말투 규칙의 대상이 아니다.',
+    '',
+    '숫자와 시각',
+    '- 시각은 입력의 시각 값 그대로 쓴다. 반올림하거나 어림하지 않는다(13:10을 "오후 1시"로 쓰지 않는다).',
+    '- 시각의 형식은 "오전 h시 m분" 또는 "오후 h시 m분"이다. 정각이면 "오후 4시"처럼 분을 뺀다. 12:00은 "정오", 00:00은 "자정"으로 써도 된다. "13시 10분", "13:10" 같은 24시 표기와 "반"은 쓰지 않는다. 예: 13:10 -> "오후 1시 10분", 11:20 -> "오전 11시 20분".',
+    '- 날짜와 개수(사진 n장 등)도 입력에 있는 값만 쓴다. 입력에 없는 숫자를 만들지 않는다.',
+    '- 요일은 입력 레코드의 weekday 칸에서만 가져다 쓴다. 메시지 문맥으로 요일을 짐작하지 않는다. 요일("토요일", "주말", "평일")을 쓸 때는 그 날짜를 같은 문장에 함께 쓴다.',
   ].join('\n'),
   cacheBreakpoint: true,
 }
@@ -132,7 +145,14 @@ export function jsonLine(value: unknown): string {
 
 /** 채팅 메시지를 프롬프트에 싣는 줄. LLM은 이 `id`로만 메시지를 가리킨다. */
 export function messageLine(record: ChatMessageRecord): string {
-  return jsonLine({ id: record.id, speaker: record.source.speaker, at: record.source.at, text: record.source.text })
+  // 84-c(R133-5 ③): 요일은 엔진이 KST로 계산해 싣는다 - 모델이 문맥으로 짐작하지 않게.
+  return jsonLine({
+    id: record.id,
+    speaker: record.source.speaker,
+    at: record.source.at,
+    weekday: kstWeekdayOf(record.source.at),
+    text: record.source.text,
+  })
 }
 
 /** 레코드를 시각 오름차순으로(같으면 id) - 프롬프트에 싣는 순서를 입력 순서와 무관하게 결정론으로 만든다. */
@@ -154,6 +174,7 @@ export function dateLine(record: DateRecord, includeRecalled: boolean, includeDa
   return jsonLine({
     id: record.id,
     dateOn: record.source.dateOn,
+    weekday: weekdayOf(record.source.dateOn),
     region: record.source.region,
     ...(includeRecalled ? { recalled: record.recalled === true } : {}),
     stops: record.source.stops.map((s) => ({

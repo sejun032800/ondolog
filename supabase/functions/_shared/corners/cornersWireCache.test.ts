@@ -45,7 +45,7 @@ const DATES = {
     dateId: d.id,
     title: `제목 ${d.id}`,
     stopCaptions: [],
-    tailoredQuestion: { text: '다음엔 어디 갈까?', basis: '그날의 동선' },
+    tailoredQuestion: { text: '다음엔 어디에 가볼까요?', basis: '그날의 동선' },
   })),
 }
 
@@ -53,15 +53,15 @@ const THEME = {
   kind: 'theme',
   theme: {
     headline: '새로운 동네를 다닌 달',
-    lead: '이번 달 기록이다.',
+    lead: '이번 달 기록입니다.',
     polarity: 'neutral',
     signals: [{ kind: 'place', value: '연남동', evidence: [{ type: 'date', dateId: 'd-1' }] }],
   },
   articles: [
-    { title: '하루', body: '본문', evidence: [{ type: 'photo', photoId: 'p-1' }] },
-    { title: '아침', body: '본문', evidence: [{ type: 'message', messageId: 'm-1' }] },
+    { title: '하루', body: '본문입니다.', evidence: [{ type: 'photo', photoId: 'p-1' }] },
+    { title: '아침', body: '본문입니다.', evidence: [{ type: 'message', messageId: 'm-1' }] },
   ],
-  closing: '다음 달에도.',
+  closing: '다음 달에도 이어집니다.',
 }
 
 function recordingCorners(): CornersTableClient & { updates: Array<Record<string, unknown>> } {

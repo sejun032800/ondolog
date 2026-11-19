@@ -36,7 +36,7 @@ const ARTICLE = (dateId: string) => ({
   dateId,
   title: '하루',
   stopCaptions: [],
-  tailoredQuestion: { text: '다음엔 어디 갈까?', basis: '입력의 장소' },
+  tailoredQuestion: { text: '다음엔 어디에 가볼까요?', basis: '입력의 장소' },
 })
 
 function output(featuredDateId: string, ids: readonly string[]) {

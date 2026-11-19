@@ -12,6 +12,8 @@
  *   `llmClient.ts`의 모델 식별자·키 경로는 건드리지 않는다.
  * - 문장의 질을 판정하지 않는다. 샘플은 스키마를 통과하는 **형식 검증용 문장**이다(입력의 사실만 담백하게 나열).
  *   저장 행의 `engine_version`이 `SAMPLE_ENGINE_VERSION`이라 실제 생성물과 구별된다.
+ * - 84-c(R133-4 · R133-5): 샘플도 같은 내용 검사를 통과한다 - 칸별 말투(글 칸 합니다체 · 질문 칸 해요체 · 라벨 칸 명사형)와
+ *   시각 형식("오전/오후 h시 m분")을 지킨다.
  * - 재료가 모자라면 코너의 빈 결과(`{"kind":"none"}`)를 낸다(억지로 채우지 않는다).
  */
 
@@ -48,6 +50,17 @@ export function createSampleLlmClient(responseText: string): SampleLlmClient {
 
 const NONE = { kind: 'none' } as const
 
+/** 'HH:MM' -> "오전/오후 h시 m분"(정각이면 "h시"). 84-c 시각 형식. */
+export function koreanClock(clock: string): string {
+  const m = /^(\d{1,2}):(\d{2})/.exec(clock)
+  if (m === null) return clock
+  const h = Number(m[1])
+  const min = Number(m[2])
+  const half = h < 12 ? '오전' : '오후'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return min === 0 ? `${half} ${h12}시` : `${half} ${h12}시 ${min}분`
+}
+
 /** 17-1 데이트 아카이브 - 입력의 데이트마다 기사 한 편. 대표 화보는 이번 기간 데이트 중 사진이 가장 많은 것. */
 export function sampleDateArchive(input: DateArchiveInput): unknown {
   if (input.dates.length === 0) return NONE
@@ -67,9 +80,9 @@ export function sampleDateArchive(input: DateArchiveInput): unknown {
         // 유저 기록이 없고 장소명이 있는 구간에만 - 장소명과 시각만 쓴다(없는 사실을 지어내지 않는다).
         stopCaptions: stops
           .filter((s) => s.userNotes.length === 0 && s.placeName !== null)
-          .map((s) => ({ seq: s.seq, caption: `${s.time} ${s.placeName}` })),
+          .map((s) => ({ seq: s.seq, caption: `${koreanClock(s.time)} ${s.placeName}` })),
         tailoredQuestion: {
-          text: firstNamed === undefined ? '다음 데이트에서 해보고 싶은 것은?' : `다음에 ${firstNamed.placeName}에 다시 간다면 무엇을 해보고 싶은가요?`,
+          text: firstNamed === undefined ? '다음 데이트에서 해보고 싶은 것이 있나요?' : `다음에 ${firstNamed.placeName}에 다시 간다면 무엇을 해보고 싶은가요?`,
           basis: firstNamed === undefined ? '입력의 데이트 기록에서' : `${d.source.dateOn} 기록에 ${firstNamed.placeName} 구간이 있어서`,
         },
       }
@@ -103,16 +116,16 @@ export function sampleThisMonth(input: ThisMonthInput): unknown {
 
   const pool: { readonly ref: EvidenceRef; readonly title: string; readonly body: string }[] = []
   if (message !== undefined) {
-    pool.push({ ref: { type: 'message', messageId: message.id }, title: '이 기간의 대화', body: '이 기간에 오간 메시지가 남아 있다.' })
+    pool.push({ ref: { type: 'message', messageId: message.id }, title: '이 기간의 대화', body: '이 기간에 오간 메시지가 남아 있습니다.' })
   }
   if (photo !== undefined) {
-    pool.push({ ref: { type: 'photo', photoId: photo.id }, title: '이 기간의 사진', body: '이 기간에 찍힌 사진이 남아 있다.' })
+    pool.push({ ref: { type: 'photo', photoId: photo.id }, title: '이 기간의 사진', body: '이 기간에 찍힌 사진이 남아 있습니다.' })
   }
   if (date !== undefined) {
     pool.push({
       ref: { type: 'date', dateId: date.id },
       title: `${date.source.region ?? date.source.dateOn} 데이트`,
-      body: `${date.source.dateOn}에 데이트가 기록되어 있다.`,
+      body: `${date.source.dateOn}에 데이트가 기록되어 있습니다.`,
     })
   }
   if (pool.length < 2) return NONE
@@ -126,11 +139,11 @@ export function sampleThisMonth(input: ThisMonthInput): unknown {
     kind: 'theme',
     theme: {
       headline: '이 기간의 기록',
-      lead: '이 기간에 남은 채팅, 사진, 데이트를 모았다.',
+      lead: '이 기간에 남은 채팅, 사진, 데이트를 모았습니다.',
       polarity: 'neutral',
       signals: [signal],
     },
     articles: pool.map((p) => ({ title: p.title, body: p.body, evidence: [p.ref] })),
-    closing: '이 기간의 기록은 여기까지다.',
+    closing: '이 기간의 기록은 여기까지입니다.',
   }
 }

@@ -11,8 +11,8 @@
  *
  * ── 결정 (17-0-7) ───────────────────────────────────────────────────────
  * - 코너 이름·지면 제목: 고정 상수(`cornerTitles.ts`). LLM이 쓰지 않는다.
- * - 고정 질문 둘(평점형·회상형) 문구: **상수.** LLM이 쓰지 않는다. 문구는 CORNER_CONTENT §2-3 예시를 쓰고,
- *   바꿀 때는 디자인이 정한다. 답변은 저장하지 않는다(응답 필드가 없다).
+ * - 고정 질문 둘(평점형·회상형) 문구: **상수.** LLM이 쓰지 않는다. 문구는 CORNER_CONTENT §2-3 예시에서 시작했고,
+ *   84-c(R133-4 ③)에서 같은 지면의 맞춤 질문과 말투를 맞춰 **해요체**로 바꿨다. 답변은 저장하지 않는다(응답 필드가 없다).
  * - 지도 `pins`: 파이프라인이 정거장에서 만든다(`derive`, 17-0-8 - 저장 스키마의 `transform`이 아니다). `label` = 장소명, `order` = 방문 순(1부터).
  *   `bounds`: 그 좌표의 최소·최대. **좌표가 없으면 지도 전체가 `null`이다.**
  * - 기사 순서: **이번 기간 데이트 날짜순 -> 재소환 데이트 날짜순.** 결정론. LLM이 정하지 않는다.
@@ -48,6 +48,8 @@ import {
 } from '../../../../src/types/corners/storedContent.ts'
 import { COMMON_PRINCIPLES_BLOCK, dateLine, inChronologicalOrder, type DateRecord } from './cornerCommon.ts'
 import { DATE_ARCHIVE_VALUE_RULES } from '../../../../src/engine/corners/valueChecks.ts'
+import { runContentChecks, type ContentTarget } from '../../../../src/engine/corners/contentChecks.ts'
+import { factsOf, factsOfDate, target } from './contentTargets.ts'
 
 export interface DateArchiveInput {
   /**
@@ -57,10 +59,13 @@ export interface DateArchiveInput {
   readonly dates: readonly DateRecord[]
 }
 
-/** 고정 질문 문구 - 상수. LLM이 쓰지 않는다(17-0-7). 바꿀 때는 디자인이 정한다. */
+/**
+ * 고정 질문 문구 - 상수. LLM이 쓰지 않는다(17-0-7). 84-c(R133-4 ③): 질문 칸은 해요체 - 같은 지면의 맞춤 질문과 맞춘다.
+ * 84-c 전: "이날의 데이트는 10점 만점에 몇 점?" · "이날 중 가장 기억에 남는 건?"
+ */
 export const DATE_ARCHIVE_FIXED_QUESTIONS = {
-  rating: '이날의 데이트는 10점 만점에 몇 점?',
-  recall: '이날 중 가장 기억에 남는 건?',
+  rating: '이날의 데이트는 10점 만점에 몇 점인가요?',
+  recall: '이날 중 가장 기억에 남는 건 무엇인가요?',
 } as const
 
 // ---------------------------------------------------------------------------
@@ -278,13 +283,14 @@ const CORNER_INSTRUCTION_BLOCK: PromptBlock = {
     'dateLevel은 구간에 속하지 않고 그 데이트 하루에 묶인 사진 장수와 유저 기록이다. 읽기 전용 맥락이다. 제목과 맞춤 질문을 만들 때 읽을 수는 있지만, 구간 번호가 없으므로 캡션의 대상으로 삼지 않고, 출력에 옮겨 적거나 요약하거나 평하지 않는다. dateLevel에 유저 기록이 있어도 구간의 캡션 규칙은 구간의 userNotes만 따른다.',
     '',
     '쓰는 것',
-    '- title: 그날의 장면이나 동선을 입력의 장소·시각 순서에 맞게 담는다. 20자 이내. 평가·감상·수식("완벽한", "행복한")을 붙이지 않고, 한 사람을 주어로 삼지 않는다.',
+    '- title(라벨 칸): 그날의 장면이나 동선을 입력의 장소·시각 순서에 맞게 담는다. 20자 이내. 명사형으로 끝낸다. 평가·감상·수식("완벽한", "행복한")을 붙이지 않고, 한 사람을 주어로 삼지 않는다.',
     '  좋은 예: "해변에서 시장으로 이어진 하루". 나쁜 예: "잊지 못할 완벽한 하루"(평가), "두 사람이 가장 행복했던 날"(감상).',
-    '- stopCaptions: userNotes가 없는 구간에만, 구간 번호(seq)와 정황 한 줄(caption). 장소명, 시각, 앞뒤 구간의 순서에서 알 수 있는 사실만 짧게 쓴다.',
+    '- stopCaptions(라벨 칸): userNotes가 없는 구간에만, 구간 번호(seq)와 정황 한 줄(caption). 장소명, 시각, 앞뒤 구간의 순서에서 알 수 있는 사실만 짧게 쓴다. 명사형으로 끝낸다. 시각을 쓰면 그 구간의 time 그대로("13:10"이면 "오후 1시 10분").',
     '  좋은 예: "영화 보고 이어서 저녁"(앞 구간 장소명이 영화관이고 이 구간 장소명이 식당일 때). 나쁜 예: "분위기 좋은 카페에서 여유로운 오후"(평가), "사진을 찍으며 즐거운 시간"(사진 내용과 기분을 짐작).',
     '  placeName이 null이면 장소나 활동을 짐작하지 말고 그 구간은 생략한다. 쓸 만한 사실이 없는 구간도 생략한다. 모든 구간에 달 필요는 없다.',
-    '- tailoredQuestion: 두 사람이 잡지를 함께 보며 이야기할 질문 하나(text)와, 입력의 어떤 사실에서 나온 질문인지(basis, 한 문장). 그날 데이터에서 이어지는, 다음에 함께 해볼 일을 가볍게 묻는 형태로 쓴다.',
-    '  좋은 예: text "다음에 롯데월드 갈 때 교복 데이트 해볼 의향은?", basis "롯데월드를 방문한 구간이 있어서".',
+    '- tailoredQuestion: 두 사람이 잡지를 함께 보며 이야기할 질문 하나(text, 질문 칸)와, 입력의 어떤 사실에서 나온 질문인지(basis, 라벨 칸 - 명사형이나 "~있어서" 같은 연결형으로 끝낸다). 그날 데이터에서 이어지는, 다음에 함께 해볼 일을 가볍게 묻는 형태로 쓴다.',
+    '  text는 두 사람에게 직접 건네는 해요체 질문으로 끝낸다("~해볼까요?", "~있나요?", "~인가요?"). 반말("~볼까?", "~의향은?", "~꼽는다면?")과 합니다체("~습니까?")는 쓰지 않는다. 같은 지면의 고정 질문 두 개도 해요체다.',
+    '  좋은 예: text "다음에 롯데월드 갈 때 교복 데이트 해볼까요?", basis "롯데월드를 방문한 구간이 있어서".',
     '  점수를 묻는 질문과 가장 기억에 남는 것을 묻는 질문은 고정 질문으로 이미 들어가므로 쓰지 않는다. 그날을 평가하는 질문, 한쪽의 행동을 짚는 질문, 원인을 묻는 질문, 입력에 없는 사실을 전제한 질문도 쓰지 않는다. 나쁜 예: "오늘은 왜 일찍 헤어졌을까요?"(원인 지목).',
     '- featuredDateId: 메인 화보로 삼을 데이트 하나의 id. 입력에 recalled가 false인 데이트가 하나라도 있으면 그중에서만 고른다. recalled가 true인 데이트는 recalled가 false인 데이트가 하나도 없을 때만 고를 수 있다. 고를 수 있는 데이트 안에서, 입력에서 확인되는 신호를 이 순서로 본다. 구간 사진 장수의 합이 큰 날, 유저 기록(글·그림)이 남은 구간이 많은 날, 첫 구간부터 마지막 구간까지 시각 폭이 넓은 날. 신호가 모자라도 반드시 하나를 고른다.',
     '- 날짜, 지역, 장소, 사진, 유저 기록은 출력의 키로 쓰지 않는다. 파이프라인이 id로 채운다. 데이트는 id로만 가리킨다. 제목과 캡션 문장 안에서 입력에 있는 장소명을 말하는 것은 괜찮다.',
@@ -310,6 +316,30 @@ function buildRequest(input: DateArchiveInput, context: CornerContext): LlmReque
 // 코너 모듈
 // ---------------------------------------------------------------------------
 
+/**
+ * 84-c 내용 검사(R133-4 · R133-5). 기사마다 **그 데이트의** 시각 · 날짜 · 사진 장수 · 메모 원문만 본다 - 다른 날의 시각으로
+ * 반올림이 가려지지 않게. 요일 낱말의 날짜는 문장에 날짜가 없으면 그 기사의 데이트 날짜다.
+ */
+function contentChecksFor(input: DateArchiveInput): (llm: DateArchiveLlmOutput) => string[] {
+  const byId = new Map(input.dates.map((d) => [d.id, d] as const))
+  const known = input.dates.map((d) => d.source.dateOn)
+  const all = factsOf([], [], input.dates)
+  return (llm) => {
+    const targets: ContentTarget[] = []
+    llm.articles.forEach((a, i) => {
+      const d = byId.get(a.dateId)
+      const facts = d !== undefined ? factsOfDate(d) : all
+      const ctx = d !== undefined ? [d.source.dateOn] : []
+      const f = `articles[${i}]`
+      targets.push(...target(`${f}.title`, 'label', a.title, facts, ctx, known))
+      a.stopCaptions.forEach((c, j) => targets.push(...target(`${f}.stopCaptions[${j}].caption`, 'label', c.caption, facts, ctx, known)))
+      targets.push(...target(`${f}.tailoredQuestion.text`, 'question', a.tailoredQuestion.text, facts, ctx, known))
+      targets.push(...target(`${f}.tailoredQuestion.basis`, 'label', a.tailoredQuestion.basis, facts, ctx, known))
+    })
+    return runContentChecks(targets)
+  }
+}
+
 function responseSpec(
   input: DateArchiveInput,
   context: CornerContext,
@@ -323,6 +353,8 @@ function responseSpec(
     storedSchema: DateArchiveStoredSchema,
     // 84-a(R124-4): AI 문장 칸의 길이 상한 · 금지 표현(`valueChecks.ts`).
     valueRules: DATE_ARCHIVE_VALUE_RULES,
+    // 84-c(R133-4 · R133-5): 칸별 말투 · 숫자/시각 · 요일(`contentChecks.ts`).
+    contentChecks: contentChecksFor(input),
   }
 }
 

@@ -68,6 +68,7 @@ import { findForbiddenKeys } from '../../../src/engine/corners/forbiddenKeys.ts'
 import type { SkipReason } from '../../../src/engine/corners/pipelineContracts.ts'
 import { SKIP_REASON_RETRY_POLICY } from '../../../src/engine/corners/pipelineContracts.ts'
 import { findValueViolations, type ValueRule } from '../../../src/engine/corners/valueChecks.ts'
+import { retryHintText } from '../../../src/engine/corners/contentChecks.ts'
 import type { SafetyStop } from '../../../src/engine/corners/llmSafety.ts'
 import type { LlmClient } from './llmClient.ts'
 import type { LlmRequest } from './llmRequest.ts'
@@ -248,7 +249,16 @@ export type CornerResponseFailureReason = 'schema_invalid' | 'forbidden_content'
 
 export type CornerResponseResult<T> =
   | { readonly ok: true; readonly content: ValidatedContent<T> }
-  | { readonly ok: false; readonly reason: CornerResponseFailureReason; readonly detail: string }
+  | {
+      readonly ok: false
+      readonly reason: CornerResponseFailureReason
+      readonly detail: string
+      /**
+       * 84-c: 값 검사 · 내용 검사(말투 · 숫자/시각 · 요일)에 걸렸을 때만 - 재요청 프롬프트에 붙일 블록(칸 · 규칙만, 문장 0).
+       * 다른 `schema_invalid`(JSON · Zod · ID · 파생값)는 없음 = 같은 요청을 다시 보낸다(84-a까지와 같다).
+       */
+      readonly retryHint?: string
+    }
 
 /**
  * ID 필드 하나의 선언(17-0-4 r43) — "출력의 어느 필드가 어떤 종류의 ID인가"와, 그 레코드의
@@ -316,6 +326,11 @@ export interface CornerResponseSpec<TLlm, TStored> {
    * 걸리면 `schema_invalid`(기존 1회 재요청 정책). 없으면 검사 0(코너 3종은 `valueChecks.ts`의 표를 넘긴다).
    */
   readonly valueRules?: readonly ValueRule[]
+  /**
+   * 84-c(R133-4 · R133-5) 내용 검사 - 칸별 말투 · 숫자/시각 · 요일(`contentChecks.ts`). 코너가 입력으로 만든 함수이고 위반 목록
+   * (칸 · 규칙, 문장 0)을 돌려준다. 저장 스키마까지 통과한 뒤(7단계)에 보고(값 검사에 걸리면 그때 함께 알린다), 걸리면 `schema_invalid` + 재요청 안내(`retryHint`).
+   */
+  readonly contentChecks?: (llm: TLlm) => readonly string[]
 }
 
 interface FoundReference {
@@ -509,7 +524,8 @@ function brandValidated<T>(value: T): ValidatedContent<T> {
  *   3. Zod 파싱(LLM 출력 스키마)                → `schema_invalid`
  *   4. 명시적 빈 결과                            → `insufficient_input`
  *   5. ID 해석                                  → `schema_invalid`
- *   6. 원문 채우기 → 파생값 채우기 → 저장 스키마(모양만) → 브랜드
+ *   6. 원문 채우기 → 파생값 채우기 → 저장 스키마(모양만)
+ *   7. 84-c 내용 검사(칸별 말투 · 숫자/시각 · 요일)          → `schema_invalid` + 재요청 안내 → 브랜드
  *
  * 2가 3보다 앞인 이유: Zod는 스키마에 없는 키를 지운다. LLM이 시키지 않은 판정을
  * 담으려고 스스로 만든 키는 Zod를 거치면 사라져 영원히 걸리지 않는다(r38). 그렇다고
@@ -548,10 +564,17 @@ export function validateCornerResponse<TLlm, TStored>(
   const llm = parsed.data
 
   // 3-b. 84-a(R124-4) 값 검사 - AI 문장 칸의 길이 상한 · 금지 표현(유저 원문은 대상 아님). 상세에는 칸 · 길이 · 표현만(문장 0).
-  if (spec.valueRules !== undefined) {
-    const valueViolations = findValueViolations(llm, spec.valueRules)
-    if (valueViolations.length > 0) {
-      return { ok: false, reason: 'schema_invalid', detail: `값 검사: ${valueViolations.join(', ')}` }
+  // 84-c: 값 검사에 걸리면 내용 검사(7단계) 결과도 함께 알린다 - 재요청 1회 안에서 다 고치게.
+  const valueViolations = spec.valueRules !== undefined ? findValueViolations(llm, spec.valueRules) : []
+  if (valueViolations.length > 0) {
+    const contentViolations = spec.contentChecks !== undefined ? spec.contentChecks(llm) : []
+    const parts = [`값 검사: ${valueViolations.join(', ')}`]
+    if (contentViolations.length > 0) parts.push(`내용 검사: ${contentViolations.join(', ')}`)
+    return {
+      ok: false,
+      reason: 'schema_invalid',
+      detail: parts.join(' / '),
+      retryHint: retryHintText([...valueViolations, ...contentViolations]),
     }
   }
 
@@ -581,6 +604,18 @@ export function validateCornerResponse<TLlm, TStored>(
     return { ok: false, reason: 'schema_invalid', detail: stored.error.message }
   }
 
+  // 7. 84-c(R133-4 · R133-5) 내용 검사 - 칸별 말투 · 숫자/시각 · 요일. 모양 · ID가 다 맞은 출력에만 본다(구조 오류가 먼저 보이게).
+  // 걸리면 `schema_invalid` + 재요청 안내(칸 · 규칙만). 기존 1회 재요청 한도 안에서 센다.
+  const contentViolations = spec.contentChecks !== undefined ? spec.contentChecks(llm) : []
+  if (contentViolations.length > 0) {
+    return {
+      ok: false,
+      reason: 'schema_invalid',
+      detail: `내용 검사: ${contentViolations.join(', ')}`,
+      retryHint: retryHintText(contentViolations),
+    }
+  }
+
   return { ok: true, content: brandValidated(stored.data) }
 }
 
@@ -599,6 +634,8 @@ export interface CornerResponseHooks<TLlm, TStored = TLlm> {
   readonly storedSchema: ZodType<TStored>
   /** 84-a 값 검사(선택). */
   readonly valueRules?: readonly ValueRule[]
+  /** 84-c 내용 검사(선택). */
+  readonly contentChecks?: CornerResponseSpec<TLlm, TStored>['contentChecks']
 }
 
 export interface CornerPipelineParams<TInput, TLlm, TStored = TLlm> {
@@ -736,16 +773,19 @@ export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
     derive: hooks.derive,
     storedSchema: hooks.storedSchema,
     valueRules: hooks.valueRules,
+    contentChecks: hooks.contentChecks,
   }
 
   let llmCallAttempts = 0
+  /** 84-c: 재요청 때 보낼 요청 - 값 · 내용 검사에 걸렸으면 원래 요청 끝에 안내 블록 하나를 붙인다(앞부분 · 캐시 지점은 그대로). */
+  let nextRequest: LlmRequest = request
   let schemaRetryUsed = false
 
   for (;;) {
     llmCallAttempts += 1
 
     // ③ LLM 호출 — 전송 재시도는 llmClient 내부 책임(위 docblock).
-    const callResult = await llmClient.call(request)
+    const callResult = await llmClient.call(nextRequest)
     if (!callResult.ok && callResult.stop !== undefined) {
       // 84-a: 시간 · 비용 상한으로 시도 전에 멈췄다 - 생성 실패가 아니라 안전 정지.
       return { outcome: 'halted', haltedFor: callResult.stop, detail: callResult.detail, llmCallAttempts: llmCallAttempts - 1 }
@@ -766,6 +806,9 @@ export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
     const retryPolicy = SKIP_REASON_RETRY_POLICY[validation.reason]
     if (retryPolicy.pipelineRetriesOnFailure && !schemaRetryUsed) {
       schemaRetryUsed = true
+      if (!validation.ok && validation.retryHint !== undefined) {
+        nextRequest = { system: request.system, user: [...request.user, { text: validation.retryHint }] }
+      }
       continue
     }
     return { outcome: 'failure', reason: validation.reason, detail: validation.detail, llmCallAttempts }
@@ -840,6 +883,7 @@ export function runCornerModule<TInput, TLlm, TStored>(
       derive: spec.derive,
       storedSchema: spec.storedSchema,
       valueRules: spec.valueRules,
+      contentChecks: spec.contentChecks,
     },
     llmClient: params.llmClient,
     lookupCoeffBundle: params.lookupCoeffBundle,

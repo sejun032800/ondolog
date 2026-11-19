@@ -12,8 +12,11 @@ import { HARNESS_BUDGET_USD, formatUsd, isAllowedModel, usageCostUsd } from '../
 export const CORNERS = ['date_archive', 'sweet_words', 'this_month'] as const
 export type CornerKey = (typeof CORNERS)[number]
 
-/** 다툰 날 - 지면에 이 날의 원문이 실렸는지 기계적으로 표시한다(판정은 사람이 한다). */
-export const ARGUMENT_DAYS = ['2026-09-16', '2026-09-17']
+/**
+ * 다툰 날(월-일) - 지면에 이 날의 원문이 실렸는지 기계적으로 표시한다(판정은 사람이 한다). 84-c: 데이터 연도가 2026 → 2025로
+ * 바뀌어 연도 없이 월-일로 본다(2차 · 3차 실행을 같은 review에서 읽는다).
+ */
+export const ARGUMENT_DAYS = ['09-16', '09-17']
 
 // ---------------------------------------------------------------------------
 // 저장 형식
@@ -72,6 +75,8 @@ export interface RunRecord {
   readonly r19_2Violations?: number
   /** 84-a: 이 회차 비용(USD, 동기 가격). */
   readonly costUsd?: number
+  /** 84-c: 합성 데이터셋 연도(없으면 84-c 전 실행 = 2026). `recheck`가 같은 입력을 다시 만들 때 쓴다. */
+  readonly fixtureYear?: number
 }
 
 export function safeName(s: string): string {
@@ -92,7 +97,7 @@ export function cell(s: string): string {
 }
 
 export function isArgumentDay(at: unknown): boolean {
-  return typeof at === 'string' && ARGUMENT_DAYS.some((d) => at.startsWith(d))
+  return typeof at === 'string' && ARGUMENT_DAYS.some((d) => at.slice(5, 10) === d)
 }
 
 /** 지면 문장(AI가 쓴 것)과 원문을 나란히 놓을 행들을 만든다. 왼쪽 = 지면, 오른쪽 = 원문(유저 기록). */
@@ -170,7 +175,7 @@ export function renderReview(input: readonly RunRecord[]): { readonly review: st
   out.push('# M1 품질 판정 자료', '')
   out.push('코너 3종의 실제 모델 출력. 각 회차마다 **지면에 실릴 문장(왼쪽)** 과 **원문(오른쪽)** 을 나란히 놓았다.')
   out.push('판정 칸은 비워 두었다. 맨 끝 체크리스트는 MASTER 3-7의 판단 기준이다.', '')
-  out.push('입력: 합성 데이터셋(`scripts/ops/fixtures/m1-month/`), 가상 커플 세준·서영의 2026년 9월. 다툰 날 = 09-16(본 다툼), 09-17 오전(뒤끝).')
+  out.push('입력: 합성 데이터셋(`scripts/ops/fixtures/m1-month/`), 가상 커플 세준·서영의 9월(84-b 2차까지 2026년 · 84-c 뒤 2025년 - 실행 json의 `fixtureYear`). 다툰 날 = 09-16(본 다툼), 09-17 오전(뒤끝).')
   out.push('`[다툰 날 원문 포함]` 표시는 기계적 표시일 뿐이다 - 그 날의 원문이 지면에 실렸다는 뜻이지 위반이라는 뜻이 아니다.', '')
 
   for (const corner of CORNERS) {

@@ -11,7 +11,7 @@ import { assembleCornerInput } from '../../supabase/functions/_shared/inputAssem
 import { createLlmClient } from '../../supabase/functions/_shared/llmClient.ts'
 import { ENTRIES_BUCKET } from '../../supabase/functions/_shared/mediaPath.ts'
 import { usageCostUsd } from '../../src/engine/corners/llmSafety.ts'
-import { COUPLE_ID, SEJUN_ID, SEOYOUNG_ID, buildTables } from './fixtures/m1-month/dataset.ts'
+import { COUPLE_ID, FIXTURE_YEAR, SEJUN_ID, SEOYOUNG_ID, buildTables, periodOf } from './fixtures/m1-month/dataset.ts'
 import {
   CORNER_TABLE,
   LIVE_ENGINE_VERSION_PREFIX,
@@ -23,7 +23,8 @@ import { memoryMedia, memoryStore } from './opsMemoryStore.ts'
 import { OpsStopError } from './opsGuards.ts'
 
 const AGREED = '2026-01-01T00:00:00+09:00'
-const PARAMS: GenerateParams = { coupleId: COUPLE_ID, periodStart: '2026-09-01', periodEndExclusive: '2026-10-01', cadence: 'monthly' }
+// 84-c: 합성 데이터셋 연도(`FIXTURE_YEAR`, 2026 -> 2025)를 따른다.
+const PARAMS: GenerateParams = { coupleId: COUPLE_ID, periodStart: `${FIXTURE_YEAR}-09-01`, periodEndExclusive: `${FIXTURE_YEAR}-10-01`, cadence: 'monthly' }
 const LIVE: GenerateParams = { ...PARAMS, mode: 'live' }
 const SONNET = { provider: 'anthropic', model: 'claude-sonnet-5-5' }
 const USAGE = { input_tokens: 1000, output_tokens: 200, cache_creation_input_tokens: 300, cache_read_input_tokens: 400 }
@@ -50,7 +51,7 @@ async function sampleTexts(tables: ReturnType<typeof buildTables>): Promise<stri
   const context = {
     coupleId: COUPLE_ID,
     cadence: 'monthly' as const,
-    period: { start: new Date('2026-09-01T00:00:00+09:00'), end: new Date('2026-10-01T00:00:00+09:00') },
+    period: periodOf(),
   }
   const assembled = await assembleCornerInput(memoryStore({ tables, couple: couple() }).assemblyClient, context, 'issue-1')
   return CORNER_TABLE.map((e) => JSON.stringify(e.sampleOf(e.inputOf(assembled))))

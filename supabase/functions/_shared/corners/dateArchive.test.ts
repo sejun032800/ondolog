@@ -42,23 +42,23 @@ const GOOD_OUTPUT = {
     {
       dateId: 'd-old',
       title: '합정 산책',
-      stopCaptions: [{ seq: 0, caption: '오전에 공원을 걸었다' }],
-      tailoredQuestion: question('올해도 합정에 가볼까?', '1년 전 오늘 합정 공원 방문'),
+      stopCaptions: [{ seq: 0, caption: '오전에 공원 산책' }],
+      tailoredQuestion: question('올해도 합정에 가볼까요?', '1년 전 오늘 합정 공원 방문'),
     },
     {
       dateId: 'd-2',
       title: '성수동 카페',
       stopCaptions: [
-        { seq: 0, caption: '점심 무렵 카페에 들렀다' },
-        { seq: 1, caption: '이어서 근처를 걸었다' },
+        { seq: 0, caption: '점심 무렵 카페' },
+        { seq: 1, caption: '이어서 근처 산책' },
       ],
-      tailoredQuestion: question('다음엔 성수동에서 저녁을 먹어볼까?', '낮 시간 카페 방문'),
+      tailoredQuestion: question('다음엔 성수동에서 저녁을 먹어볼까요?', '낮 시간 카페 방문'),
     },
     {
       dateId: 'd-1',
       title: '스파이더맨과 케이크 사이',
       stopCaptions: [{ seq: 1, caption: '영화가 끝나고 근처에서 저녁' }],
-      tailoredQuestion: question('다음에 또 영화 보러 간다면, 이번엔 조조로 가볼까?', '오후 영화 관람 후 저녁 식사로 이어진 동선'),
+      tailoredQuestion: question('다음에 또 영화 보러 간다면, 이번엔 조조로 가볼까요?', '오후 영화 관람 후 저녁 식사로 이어진 동선'),
     },
   ],
 }
@@ -84,8 +84,8 @@ describe('17-1 코너 상수 (r41)', () => {
 
   it('고정 질문 문구는 CORNER_CONTENT 예시의 상수다', () => {
     expect(DATE_ARCHIVE_FIXED_QUESTIONS).toEqual({
-      rating: '이날의 데이트는 10점 만점에 몇 점?',
-      recall: '이날 중 가장 기억에 남는 건?',
+      rating: '이날의 데이트는 10점 만점에 몇 점인가요?',
+      recall: '이날 중 가장 기억에 남는 건 무엇인가요?',
     })
   })
 })
@@ -200,11 +200,11 @@ describe('17-1 응답 처리 - 저장 내용', () => {
     if (!result.ok) throw new Error('정상 응답이 실패')
     const q = result.content.payload.articles[0].closingQuestions
     expect(q).toEqual([
-      { type: 'rating', text: '이날의 데이트는 10점 만점에 몇 점?' },
-      { type: 'recall', text: '이날 중 가장 기억에 남는 건?' },
+      { type: 'rating', text: '이날의 데이트는 10점 만점에 몇 점인가요?' },
+      { type: 'recall', text: '이날 중 가장 기억에 남는 건 무엇인가요?' },
       {
         type: 'suggestion',
-        text: '다음에 또 영화 보러 간다면, 이번엔 조조로 가볼까?',
+        text: '다음에 또 영화 보러 간다면, 이번엔 조조로 가볼까요?',
         basis: '오후 영화 관람 후 저녁 식사로 이어진 동선',
       },
     ])
@@ -248,7 +248,7 @@ describe('17-1 응답 처리 - 저장 내용', () => {
       {
         kind: 'articles',
         featuredDateId: 'n-1',
-        articles: [{ dateId: 'n-1', title: '제목', stopCaptions: [], tailoredQuestion: question('질문?', '근거') }],
+        articles: [{ dateId: 'n-1', title: '제목', stopCaptions: [], tailoredQuestion: question('질문인가요?', '근거') }],
       },
       input,
     )

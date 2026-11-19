@@ -11,7 +11,7 @@ import { assembleCornerInput } from '../../supabase/functions/_shared/inputAssem
 import { MAGAZINE_BUCKET, ENTRIES_BUCKET, parseMagazineMediaPath } from '../../supabase/functions/_shared/mediaPath.ts'
 import { thisMonthModule } from '../../supabase/functions/_shared/corners/thisMonth.ts'
 import { sweetWordsModule } from '../../supabase/functions/_shared/corners/sweetWords.ts'
-import { COUPLE_ID, PERIOD, SEJUN_ID, SEOYOUNG_ID, buildTables } from './fixtures/m1-month/dataset.ts'
+import { COUPLE_ID, FIXTURE_YEAR, PERIOD, SEJUN_ID, SEOYOUNG_ID, buildTables } from './fixtures/m1-month/dataset.ts'
 import { CORNER_TABLE, generateSampleIssue, inclusiveEndDate, type GenerateParams } from './generateIssue.ts'
 import { mediaPathsOf } from './mediaCopy.ts'
 import { memoryMedia, memoryStore } from './opsMemoryStore.ts'
@@ -28,8 +28,9 @@ import { SAMPLE_ENGINE_VERSION } from './sampleOutputs.ts'
 const AGREED = '2026-01-01T00:00:00+09:00'
 const PARAMS: GenerateParams = {
   coupleId: COUPLE_ID,
-  periodStart: '2026-09-01',
-  periodEndExclusive: '2026-10-01',
+  // 84-c: 합성 데이터셋 연도(`FIXTURE_YEAR`, 2026 -> 2025)를 따른다.
+  periodStart: `${FIXTURE_YEAR}-09-01`,
+  periodEndExclusive: `${FIXTURE_YEAR}-10-01`,
   cadence: 'monthly',
 }
 
@@ -66,7 +67,7 @@ describe('생성 - 샘플 출력 모드, 기존 검증기 그대로', () => {
     ])
     // P0: 초안 행, 압축 모드, 번호 없음 / 기간의 끝은 포함 날짜
     expect(store.issues).toHaveLength(1)
-    expect(store.issues[0]).toMatchObject({ publish_mode: 'compressed', published_at: null, issue_number: null, period_end: '2026-09-30' })
+    expect(store.issues[0]).toMatchObject({ publish_mode: 'compressed', published_at: null, issue_number: null, period_end: `${FIXTURE_YEAR}-09-30` })
     // 저장: 샘플 표시와 요청 수 0
     for (const c of store.corners) {
       expect(c.status).toBe('ready')
@@ -179,7 +180,7 @@ describe('시험 커플·P0 조건 확인 (R13-7, 17-0-10-B)', () => {
   it('기간 인수가 틀리면 멈춘다', async () => {
     const { store, media } = datasetWorld()
     await expect(generateSampleIssue({ store, media }, { ...PARAMS, periodStart: '2026-9-1' })).rejects.toThrow(OpsStopError)
-    await expect(generateSampleIssue({ store, media }, { ...PARAMS, periodEndExclusive: '2026-09-01' })).rejects.toThrow(/시작이 끝/)
+    await expect(generateSampleIssue({ store, media }, { ...PARAMS, periodEndExclusive: `${FIXTURE_YEAR}-09-01` })).rejects.toThrow(/시작이 끝/)
     expect(inclusiveEndDate('2026-10-01')).toBe('2026-09-30')
     expect(inclusiveEndDate('2026-03-01')).toBe('2026-02-28')
   })
@@ -193,7 +194,7 @@ function chatOf(n: number): Record<string, unknown>[] {
     couple_id: COUPLE_ID,
     sender_id: i % 2 === 0 ? SEJUN_ID : SEOYOUNG_ID,
     body,
-    sent_at: `2026-09-${String(1 + (i % 28)).padStart(2, '0')}T${String(8 + Math.floor(i / 28) % 12).padStart(2, '0')}:${String((i * 7) % 60).padStart(2, '0')}:00+09:00`,
+    sent_at: `${FIXTURE_YEAR}-09-${String(1 + (i % 28)).padStart(2, '0')}T${String(8 + Math.floor(i / 28) % 12).padStart(2, '0')}:${String((i * 7) % 60).padStart(2, '0')}:00+09:00`,
     deleted_at: null,
   }))
 }

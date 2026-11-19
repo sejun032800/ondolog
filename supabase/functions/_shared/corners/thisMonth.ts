@@ -55,6 +55,8 @@ import {
   type PhotoRecord,
 } from './cornerCommon.ts'
 import { THIS_MONTH_VALUE_RULES } from '../../../../src/engine/corners/valueChecks.ts'
+import { kstWeekdayOf, runContentChecks, type ContentTarget } from '../../../../src/engine/corners/contentChecks.ts'
+import { factsOf, recordDates, target } from './contentTargets.ts'
 
 export interface ThisMonthInput {
   readonly messages: readonly ChatMessageRecord[]
@@ -254,13 +256,14 @@ const CORNER_INSTRUCTION_BLOCK: PromptBlock = {
     '- 부정을 긍정으로 포장하지 않는다. 다툼을 "성장의 계기"처럼 다른 이야기로 바꾸지 않는다. 다툼·갈등이 오간 대화는 테마 후보에서 빼고, 소기사로도 근거로도 쓰지 않는다. 그 기간 갔던 장소, 나눈 대화 주제 같은 다른 소재로 테마를 잡는다.',
     '',
     '쓰는 것',
-    '- theme.headline: 그 기간을 한 문장으로. 16자 이내. 소재를 이름 붙이는 말로 쓰고 관계를 평가하는 말은 쓰지 않는다. 좋은 예: "이사 준비의 한 달", "새로운 곳을 많이 간 달". 나쁜 예: "서로에게 더 가까워진 한 달"(관계 진단), "행복으로 가득한 한 달"(감상).',
-    '- theme.lead: 왜 이 테마가 뽑혔는지 입력의 사실로 담백하게. 평가·감상 없이.',
-    '- theme.signals: 테마를 뽑은 신호. kind는 place·keyword·activity 중 하나. value는 근거 레코드에서 실제로 확인되는 장소·말·활동이다(place는 데이트의 장소명, keyword는 메시지에 나온 말). evidence에는 그 value를 직접 보여주는 레코드만 단다.',
-    '- articles: 테마를 여러 각도로 쪼갠 소기사 2~4편. 편수는 재료에 맞게 네가 정한다. 각 편은 title(20자 이내), body, evidence(근거 1개 이상). 각 편은 서로 다른 각도를 다룬다.',
+    '- theme.headline(라벨 칸): 그 기간을 한 문장으로. 16자 이내. 명사형으로 끝낸다. 소재를 이름 붙이는 말로 쓰고 관계를 평가하는 말은 쓰지 않는다. 좋은 예: "이사 준비의 한 달", "새로운 곳을 많이 간 달". 나쁜 예: "서로에게 더 가까워진 한 달"(관계 진단), "행복으로 가득한 한 달"(감상).',
+    '- theme.lead(글 칸): 왜 이 테마가 뽑혔는지 입력의 사실로 담백하게. 평가·감상 없이. 모든 문장을 합니다체(~습니다, ~입니다)로 끝낸다.',
+    '- theme.signals(라벨 칸): 테마를 뽑은 신호. kind는 place·keyword·activity 중 하나. value는 근거 레코드에서 실제로 확인되는 장소·말·활동이다(place는 데이트의 장소명, keyword는 메시지에 나온 말). evidence에는 그 value를 직접 보여주는 레코드만 단다.',
+    '  지면의 숫자 칸은 기록에서 셀 수 있는 신호에만 붙는다. 셀 수 있는 신호는 place 하나다 - value를 데이트의 지역(region) 이름이나 구간의 장소명(placeName) 그대로 쓴 것. 셀 수 없는 신호(keyword·activity, 입력에 없는 지역·장소)는 지면에서 숨겨진다. 그래서 신호는 셀 수 있는 place를 먼저 고른다.',
+    '- articles: 테마를 여러 각도로 쪼갠 소기사 2~4편. 편수는 재료에 맞게 네가 정한다. 각 편은 title(라벨 칸, 20자 이내, 명사형으로 끝냄), body(글 칸, 모든 문장을 합니다체로 끝냄), evidence(근거 1개 이상). 각 편은 서로 다른 각도를 다룬다.',
     '  body는 그 편의 근거에서 확인되는 사실만 서술한다. 근거 메시지의 말은 옮겨 적거나 풀어 쓰지 않는다. 원문은 근거로 붙어서 지면에 실리므로 body는 그 원문이 놓일 정황을 잇는 역할이다. 횟수나 건수는 헤아려 쓰지 않는다. 개수는 파이프라인이 근거로 센다.',
     '  나쁜 body의 예: "서로를 향한 배려가 돋보인 한 달이었다"(평가), "바쁜 탓에 만남이 줄었다"(근거 없는 원인 추측).',
-    '- closing: 다음 기간으로 이어지는 한 줄. 입력에 드러난 앞으로의 일정이나 약속이 있으면 그 사실을 쓰고, 없으면 이 기간의 소재를 담백하게 짚는다. 기원, 덕담, 예측은 쓰지 않는다. 좋은 예: "다음 달 초에는 전시 관람 약속이 남아 있습니다." 나쁜 예: "다음 달에도 지금처럼 행복하길 바랍니다"(기원), "더 깊어질 두 분의 관계"(예측).',
+    '- closing(글 칸): 다음 기간으로 이어지는 한 줄. 공백과 부호를 포함해 42자 이내, 합니다체 한 문장으로 끝낸다. 입력에 드러난 앞으로의 일정이나 약속이 있으면 그 사실을 쓰고, 없으면 이 기간의 소재를 담백하게 짚는다. 기원, 덕담, 예측은 쓰지 않는다. 좋은 예: "다음 달 초에는 전시 관람 약속이 남아 있습니다." 나쁜 예: "다음 달에도 지금처럼 행복하길 바랍니다"(기원), "더 깊어질 두 분의 관계"(예측).',
     '',
     '근거(evidence)',
     '- 메시지는 {"type":"message","messageId":"입력의 id"}, 사진은 {"type":"photo","photoId":"입력의 id"}, 데이트는 {"type":"date","dateId":"입력의 id"}로만 가리킨다.',
@@ -286,7 +289,7 @@ function buildRequest(input: ThisMonthInput, context: CornerContext): LlmRequest
       {
         text: [
           '사진(한 줄이 한 건, 시각 순):',
-          ...inChronologicalOrder(input.photos).map((p) => jsonLine({ id: p.id, at: p.source.at })),
+          ...inChronologicalOrder(input.photos).map((p) => jsonLine({ id: p.id, at: p.source.at, weekday: kstWeekdayOf(p.source.at) })),
         ].join('\n'),
       },
       { text: ['데이트(한 줄이 한 건, 날짜 순):', ...inChronologicalOrder(input.dates).map((d) => dateLine(d, false))].join('\n') },
@@ -298,8 +301,37 @@ function buildRequest(input: ThisMonthInput, context: CornerContext): LlmRequest
 // 코너 모듈
 // ---------------------------------------------------------------------------
 
+/**
+ * 84-c 내용 검사(R133-4 · R133-5). 시각 · 날짜 · 숫자는 입력 전체에서 본다. 요일 낱말의 날짜는 문장에 날짜가 없으면 그 소기사
+ * 근거의 날짜(하나일 때)다. 헤드라인 · 리드 · 신호 · 마무리는 근거 날짜가 없으므로 요일을 쓰려면 같은 문장에 날짜가 있어야 한다.
+ */
+function contentChecksFor(input: ThisMonthInput): (llm: ThisMonthLlmOutput) => string[] {
+  const records = new Map<string, ChatMessageRecord | PhotoRecord | DateRecord>()
+  for (const r of [...input.messages, ...input.photos, ...input.dates]) records.set(`${r.kind}:${r.id}`, r)
+  const facts = factsOf(input.messages, input.photos, input.dates)
+  const known = [...facts.dates]
+  return (llm) => {
+    if (llm.kind !== 'theme') return []
+    const t: ContentTarget[] = []
+    t.push(...target('theme.headline', 'label', llm.theme.headline, facts, [], known))
+    t.push(...target('theme.lead', 'text', llm.theme.lead, facts, [], known))
+    llm.theme.signals.forEach((s, i) => t.push(...target(`theme.signals[${i}].value`, 'label', s.value, facts, [], known)))
+    llm.articles.forEach((a, i) => {
+      const ctx = a.evidence.flatMap((e) => {
+        const key = e.type === 'message' ? `message:${e.messageId}` : e.type === 'photo' ? `photo:${e.photoId}` : `date:${e.dateId}`
+        const rec = records.get(key)
+        return rec === undefined ? [] : recordDates(rec)
+      })
+      t.push(...target(`articles[${i}].title`, 'label', a.title, facts, ctx, known))
+      t.push(...target(`articles[${i}].body`, 'text', a.body, facts, ctx, known))
+    })
+    t.push(...target('closing', 'text', llm.closing, facts, [], known))
+    return runContentChecks(t)
+  }
+}
+
 function responseSpec(
-  _input: ThisMonthInput,
+  input: ThisMonthInput,
   context: CornerContext,
 ): CornerResponseSpec<ThisMonthLlmOutput, ThisMonthStored> {
   return {
@@ -310,6 +342,8 @@ function responseSpec(
     storedSchema: ThisMonthStoredSchema,
     // 84-a(R124-4): AI 문장 칸의 길이 상한 · 금지 표현(`valueChecks.ts`).
     valueRules: THIS_MONTH_VALUE_RULES,
+    // 84-c(R133-4 · R133-5): 칸별 말투 · 숫자/시각 · 요일(`contentChecks.ts`).
+    contentChecks: contentChecksFor(input),
   }
 }
 

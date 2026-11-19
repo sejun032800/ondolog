@@ -27,10 +27,13 @@
  *     scripts/ops/m1QualityRun.ts dry          # 입력 조립만(네트워크·키 불필요)
  *   deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-write=scripts/ops/out \
  *     scripts/ops/m1QualityRun.ts review       # out/runs/*.json -> out/review.md, out/summary.md
+ *   deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-write=scripts/ops/out \
+ *     scripts/ops/m1QualityRun.ts recheck      # 84-c: out/runs/*.json의 모든 시도를 새 내용 검사로 -> out/recheck.md (네트워크 · 키 0)
+ *
+ * 84-c(R133-5): 합성 데이터셋 연도는 `FIXTURE_YEAR`(2025). 실행 json에 `fixtureYear`를 남긴다 - `recheck`가 같은 입력을 다시 만든다.
  */
 
-import { assembleCornerInput, type AssembledInput } from '../../supabase/functions/_shared/inputAssembly.ts'
-import { fakeClient } from '../../supabase/functions/_shared/testFixtures/inputAssemblyFake.ts'
+import type { AssembledInput } from '../../supabase/functions/_shared/inputAssembly.ts'
 import {
   processCornerResponse,
   runCornerModule,
@@ -53,11 +56,12 @@ import {
   type Deadline,
 } from '../../src/engine/corners/llmSafety.ts'
 import type { LlmRequest } from '../../supabase/functions/_shared/llmRequest.ts'
+import { assembleFixture, recheckRecords, renderRecheck } from './m1Recheck.ts'
 import { CORNERS, renderReview, safeName, sentCalls, type AttemptRecord, type CornerKey, type HttpCall, type RunRecord, type Usage } from './m1Review.ts'
 import { dateArchiveModule } from '../../supabase/functions/_shared/corners/dateArchive.ts'
 import { sweetWordsModule } from '../../supabase/functions/_shared/corners/sweetWords.ts'
 import { thisMonthModule } from '../../supabase/functions/_shared/corners/thisMonth.ts'
-import { COUPLE_ID, PERIOD, buildTables } from './fixtures/m1-month/dataset.ts'
+import { COUPLE_ID, FIXTURE_YEAR, PERIOD } from './fixtures/m1-month/dataset.ts'
 import {
   CAP_CANDIDATES,
   SELECT_CANDIDATES,
@@ -124,7 +128,8 @@ function corners(): Record<CornerKey, { module: CornerModule<any, any, any>; inp
 
 async function assemble(): Promise<AssembledInput> {
   // 호 ID는 합성 값이다 - 사진 경로가 목적지 경로(§17-0-10-D) 모양을 갖게 하려는 것뿐이고 DB에 쓰지 않는다(`54-`).
-  return await assembleCornerInput(fakeClient(buildTables()), CONTEXT, 'issue-m1')
+  // 84-c: 조립은 `m1Recheck.ts`와 같은 함수(데이터 연도 `FIXTURE_YEAR`).
+  return await assembleFixture(FIXTURE_YEAR)
 }
 
 function requestText(req: LlmRequest): string {
@@ -384,6 +389,7 @@ async function run(flags: Map<string, string>): Promise<void> {
         haltedFor: pipeline.outcome === 'halted' ? pipeline.haltedFor : null,
         r19_2Violations: attempts.filter((a) => !a.validation.ok && a.validation.detail.includes(R19_2_MARK)).length,
         costUsd: usageCostUsd(model, usageTotal),
+        fixtureYear: FIXTURE_YEAR,
       }
       const file = `${RUNS_DIR}/${safeName(model)}__${cornerKey}__${tag}__r${r}.json`
       await Deno.writeTextFile(file, redact(JSON.stringify(record, null, 2)))
@@ -413,8 +419,24 @@ async function review(): Promise<void> {
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// recheck: 저장된 실행 -> 새 내용 검사(84-c) -> recheck.md (LLM 호출 0)
+// ---------------------------------------------------------------------------
+
+async function recheck(): Promise<void> {
+  const records: RunRecord[] = []
+  for await (const e of Deno.readDir(RUNS_DIR)) {
+    if (e.isFile && e.name.endsWith('.json')) records.push(JSON.parse(await Deno.readTextFile(`${RUNS_DIR}/${e.name}`)))
+  }
+  const rows = await recheckRecords(records)
+  const text = renderRecheck(rows)
+  await Deno.writeTextFile(`${OUT_DIR}/recheck.md`, text)
+  console.log(text)
+}
+
 const { cmd, flags } = parseArgs(Deno.args)
 if (cmd === 'dry') await dry(flags)
 else if (cmd === 'run') await run(flags)
 else if (cmd === 'review') await review()
-else throw new Error('사용: dry | run --model <id> | review')
+else if (cmd === 'recheck') await recheck()
+else throw new Error('사용: dry | run --model <id> | review | recheck')

@@ -16,6 +16,10 @@
 
 import type { ChatMessageRecord } from '../../supabase/functions/_shared/corners/cornerCommon.ts'
 import { isTrivialMessageText } from '../../supabase/functions/_shared/inputPrefilter.ts'
+import { FIXTURE_YEAR } from './fixtures/m1-month/dataset.ts'
+
+/** 84-c: 합성 데이터셋 연도를 따른다(`FIXTURE_YEAR`). */
+const Y = FIXTURE_YEAR
 
 // ---------------------------------------------------------------------------
 // 토큰 추정 - API를 부르지 않는다. 운영 경로의 안전 정지(`52r2-`)가 같은 추정을 쓰므로 원본은
@@ -182,19 +186,19 @@ export interface Landmark {
 
 /** 다정한 구간 - 다정한 말들이 실려야 할 자리(사람이 읽고 붙인 라벨). */
 export const WARM_LANDMARKS: readonly Landmark[] = [
-  { label: '09-05 같은 하늘', day: '2026-09-05', from: '19:50', to: '19:56' },
-  { label: '09-05 치킨 뒤 인사', day: '2026-09-05', from: '23:15', to: '23:16' },
-  { label: '09-12 요즘 많이 웃어', day: '2026-09-12', from: '12:15', to: '12:21' },
-  { label: '09-13 생일 저녁', day: '2026-09-13', from: '13:50', to: '18:46' },
-  { label: '09-20 파스타 뒤', day: '2026-09-20', from: '20:40', to: '20:48' },
-  { label: '09-28 작은 날들', day: '2026-09-28', from: '11:50', to: '12:00' },
+  { label: '09-05 같은 하늘', day: `${Y}-09-05`, from: '19:50', to: '19:56' },
+  { label: '09-05 치킨 뒤 인사', day: `${Y}-09-05`, from: '23:15', to: '23:16' },
+  { label: '09-12 요즘 많이 웃어', day: `${Y}-09-12`, from: '12:15', to: '12:21' },
+  { label: '09-13 생일 저녁', day: `${Y}-09-13`, from: '13:50', to: '18:46' },
+  { label: '09-20 파스타 뒤', day: `${Y}-09-20`, from: '20:40', to: '20:48' },
+  { label: '09-28 작은 날들', day: `${Y}-09-28`, from: '11:50', to: '12:00' },
 ]
 
 /** 다툰 날 - 17-4가 싣지 않아야 하는 날. 09-16 본 다툼, 09-17 뒤끝·화해. */
-export const ARGUMENT_DAYS = ['2026-09-16', '2026-09-17'] as const
+export const ARGUMENT_DAYS = [`${Y}-09-16`, `${Y}-09-17`] as const
 
 /** 대화가 거의 없는 날. */
-export const QUIET_DAYS = ['2026-09-08', '2026-09-09', '2026-09-10', '2026-09-23', '2026-09-24'] as const
+export const QUIET_DAYS = [`${Y}-09-08`, `${Y}-09-09`, `${Y}-09-10`, `${Y}-09-23`, `${Y}-09-24`] as const
 
 function inLandmark(m: ChatMessageRecord, lm: Landmark): boolean {
   const hhmm = m.source.at.slice(11, 16)

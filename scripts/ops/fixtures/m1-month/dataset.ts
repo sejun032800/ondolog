@@ -1,14 +1,14 @@
 /**
- * M1 합성 데이터셋 - 가상 커플 세준·서영의 2026년 9월(KST). 전부 지어낸 값이다.
+ * M1 합성 데이터셋 - 가상 커플 세준·서영의 2025년 9월(KST). 전부 지어낸 값이다. (84-c 전에는 2026년이었다 - `FIXTURE_YEAR`)
  *
  * DB 행 모양(messages·dates·date_stops·data_entries·profiles·couples)으로 만든다. 입력 레코드 변환은
  * 기존 입력 조립(`assembleCornerInput`)이 한다 - 이 파일이 레코드를 직접 만들지 않는다.
  *
  * 데이트 구성 (입력 조립의 재소환 규칙 §17-0-9-C: 재소환 건수 = max(0, 3 - 이번 기간 데이트 수))
- * - 2026-09-13 성수 (이번 기간): 정거장 3, 사진·유저 메모(서영)·그림(세준) 있음
- * - 2026-09-27 양평 (이번 기간): 정거장 3, 사진 한 장뿐 / 유저 메모 없음 / 이름·좌표 없는 정거장 포함
- * - 2025-09-20 강릉 (재소환 후보, 기념일 근접 1년 전): 사진·메모 있음
- * - 2026-03-08 근교 (재소환 탈락 후보): 사진이 없어 후보 4번 조건에 걸려 빠진다
+ * - 2025-09-13 성수 (이번 기간): 정거장 3, 사진·유저 메모(서영)·그림(세준) 있음
+ * - 2025-09-27 양평 (이번 기간): 정거장 3, 사진 한 장뿐 / 유저 메모 없음 / 이름·좌표 없는 정거장 포함
+ * - 2024-09-20 강릉 (재소환 후보, 기념일 근접 1년 전): 사진·메모 있음
+ * - 2025-03-08 근교 (재소환 탈락 후보): 사진이 없어 후보 4번 조건에 걸려 빠진다
  */
 
 import { CHAT_SCRIPT } from './chat.ts'
@@ -17,11 +17,22 @@ export const COUPLE_ID = 'couple-m1'
 export const SEJUN_ID = 'user-sejun'
 export const SEOYOUNG_ID = 'user-seoyoung'
 
-/** 생성 기간: 2026-09-01 00:00 ~ 2026-10-01 00:00 (KST, 반열린 구간). */
-export const PERIOD = {
-  start: new Date('2026-09-01T00:00:00+09:00'),
-  end: new Date('2026-10-01T00:00:00+09:00'),
+/**
+ * 84-c(R133-5 ④): 데이터의 연도. 메시지 문구의 요일(22건)과 추석 대화가 **2025년 달력**에 맞춰져 있어 날짜를 2025년으로 정정했다
+ * (문구는 그대로 - 날짜만). 84-b 2차까지의 실행(2026년)을 다시 검사할 때는 `buildTables(2026)` · `periodOf(2026)`으로 1년 옮긴다.
+ */
+export const FIXTURE_YEAR = 2025
+
+/** 생성 기간: {year}-09-01 00:00 ~ {year}-10-01 00:00 (KST, 반열린 구간). */
+export function periodOf(year: number = FIXTURE_YEAR): { readonly start: Date; readonly end: Date } {
+  return {
+    start: new Date(`${year}-09-01T00:00:00+09:00`),
+    end: new Date(`${year}-10-01T00:00:00+09:00`),
+  }
 }
+
+/** 생성 기간(데이터 연도): 2025-09-01 00:00 ~ 2025-10-01 00:00 (KST, 반열린 구간). */
+export const PERIOD = periodOf()
 
 type Row = Record<string, unknown>
 
@@ -34,7 +45,7 @@ function parseChat(): Row[] {
     if (line.trim() === '') continue
     const header = /^## (\d{2})-(\d{2})$/.exec(line)
     if (header !== null) {
-      day = `2026-${header[1]}-${header[2]}`
+      day = `${FIXTURE_YEAR}-${header[1]}-${header[2]}`
       continue
     }
     const m = /^(\d{2}:\d{2}) (준|영) (.+)$/.exec(line)
@@ -74,7 +85,7 @@ function photo(
     text_content: null,
     drawing_path: null,
     captured_at: at,
-    created_at: at ?? '2026-09-30T23:00:00+09:00',
+    created_at: at ?? '2025-09-30T23:00:00+09:00',
     deleted_at: null,
     access_locked: false,
   }
@@ -126,51 +137,72 @@ function stop(id: string, dateId: string, seq: number, at: string, name: string 
   return { id, couple_id: COUPLE_ID, date_id: dateId, seq, arrived_at: at, place_name: name, lat, lng }
 }
 
-export function buildTables(): Record<string, readonly Row[]> {
+/** 값 안의 'YYYY-MM-DD'(시각 포함) 연도를 `delta`만큼 옮긴다. 다른 문자열은 그대로. */
+function shiftYear(value: unknown, delta: number): unknown {
+  if (delta === 0 || typeof value !== 'string') return value
+  return value.replace(/^(\d{4})(-\d{2}-\d{2})/, (_m, y: string, rest: string) => `${Number(y) + delta}${rest}`)
+}
+
+/**
+ * 표 전체. `year`를 주면 날짜 · 시각을 그 해로 옮긴다(재소환 후보도 같은 만큼 - 상대 관계 그대로). 기본은 데이터 연도.
+ * 84-b 2차 실행을 다시 검사하는 하네스 `recheck`만 2026을 준다.
+ */
+export function buildTables(year: number = FIXTURE_YEAR): Record<string, readonly Row[]> {
+  const tables = buildTablesAtFixtureYear()
+  const delta = year - FIXTURE_YEAR
+  if (delta === 0) return tables
+  const out: Record<string, readonly Row[]> = {}
+  for (const [name, rows] of Object.entries(tables)) {
+    out[name] = rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, shiftYear(v, delta)])))
+  }
+  return out
+}
+
+function buildTablesAtFixtureYear(): Record<string, readonly Row[]> {
   const dates: Row[] = [
-    { id: 'date-0913', couple_id: COUPLE_ID, date_on: '2026-09-13', region: '성수', photo_count: 4, last_featured_at: null, deleted_at: null },
-    { id: 'date-0927', couple_id: COUPLE_ID, date_on: '2026-09-27', region: '양평', photo_count: 1, last_featured_at: null, deleted_at: null },
+    { id: 'date-0913', couple_id: COUPLE_ID, date_on: '2025-09-13', region: '성수', photo_count: 4, last_featured_at: null, deleted_at: null },
+    { id: 'date-0927', couple_id: COUPLE_ID, date_on: '2025-09-27', region: '양평', photo_count: 1, last_featured_at: null, deleted_at: null },
     // 재소환 후보: 이번 기간을 정확히 1년 과거로 옮긴 구간 안(기념일 근접), 한 번도 실리지 않음.
-    { id: 'date-2025-0920', couple_id: COUPLE_ID, date_on: '2025-09-20', region: '강릉', photo_count: 3, last_featured_at: null, deleted_at: null },
+    { id: 'date-2025-0920', couple_id: COUPLE_ID, date_on: '2024-09-20', region: '강릉', photo_count: 3, last_featured_at: null, deleted_at: null },
     // 재소환 탈락: 사진 없음(후보 4번 조건).
-    { id: 'date-2026-0308', couple_id: COUPLE_ID, date_on: '2026-03-08', region: '파주', photo_count: 0, last_featured_at: null, deleted_at: null },
+    { id: 'date-2026-0308', couple_id: COUPLE_ID, date_on: '2025-03-08', region: '파주', photo_count: 0, last_featured_at: null, deleted_at: null },
   ]
 
   const stops: Row[] = [
-    stop('stop-0913-1', 'date-0913', 1, '2026-09-13T11:00:00+09:00', '성수동 카페 모퉁이', 37.5446, 127.0557),
-    stop('stop-0913-2', 'date-0913', 2, '2026-09-13T13:10:00+09:00', '서울숲', 37.5444, 127.0374),
-    stop('stop-0913-3', 'date-0913', 3, '2026-09-13T17:30:00+09:00', '뚝섬 저녁집', 37.5473, 127.0447),
-    stop('stop-0927-1', 'date-0927', 1, '2026-09-27T11:20:00+09:00', '양평 두물머리', 37.5446, 127.3086),
-    stop('stop-0927-2', 'date-0927', 2, '2026-09-27T13:40:00+09:00', null, null, null),
-    stop('stop-0927-3', 'date-0927', 3, '2026-09-27T16:00:00+09:00', '양평역 앞 시장', 37.4921, 127.4876),
-    stop('stop-2025-1', 'date-2025-0920', 1, '2025-09-20T10:30:00+09:00', '안목해변', 37.7727, 128.9478),
-    stop('stop-2025-2', 'date-2025-0920', 2, '2025-09-20T15:00:00+09:00', '강릉 중앙시장', 37.7515, 128.8997),
-    stop('stop-0308-1', 'date-2026-0308', 1, '2026-03-08T13:00:00+09:00', '헤이리 마을', 37.7924, 126.6955),
+    stop('stop-0913-1', 'date-0913', 1, '2025-09-13T11:00:00+09:00', '성수동 카페 모퉁이', 37.5446, 127.0557),
+    stop('stop-0913-2', 'date-0913', 2, '2025-09-13T13:10:00+09:00', '서울숲', 37.5444, 127.0374),
+    stop('stop-0913-3', 'date-0913', 3, '2025-09-13T17:30:00+09:00', '뚝섬 저녁집', 37.5473, 127.0447),
+    stop('stop-0927-1', 'date-0927', 1, '2025-09-27T11:20:00+09:00', '양평 두물머리', 37.5446, 127.3086),
+    stop('stop-0927-2', 'date-0927', 2, '2025-09-27T13:40:00+09:00', null, null, null),
+    stop('stop-0927-3', 'date-0927', 3, '2025-09-27T16:00:00+09:00', '양평역 앞 시장', 37.4921, 127.4876),
+    stop('stop-2025-1', 'date-2025-0920', 1, '2024-09-20T10:30:00+09:00', '안목해변', 37.7727, 128.9478),
+    stop('stop-2025-2', 'date-2025-0920', 2, '2024-09-20T15:00:00+09:00', '강릉 중앙시장', 37.7515, 128.8997),
+    stop('stop-0308-1', 'date-2026-0308', 1, '2025-03-08T13:00:00+09:00', '헤이리 마을', 37.7924, 126.6955),
   ]
 
   const entries: Row[] = [
     // 09-13 성수: 사진 + 서영 메모(첫 정거장) + 세준 그림(셋째 정거장) + 데이트 단위 메모
-    photo('ph-0913-1', 'date-0913', 'stop-0913-1', '2026-09-13T11:20:00+09:00', SEOYOUNG_ID),
-    photo('ph-0913-2', 'date-0913', 'stop-0913-1', '2026-09-13T11:35:00+09:00', SEJUN_ID),
-    photo('ph-0913-3', 'date-0913', 'stop-0913-2', '2026-09-13T14:00:00+09:00', SEJUN_ID),
-    photo('ph-0913-4', 'date-0913', null, '2026-09-13T20:05:00+09:00', SEOYOUNG_ID),
-    memo('memo-0913-1', 'date-0913', 'stop-0913-1', SEOYOUNG_ID, '창가 자리에서 케이크 사진을 오래 찍었다. 촛불은 하나만 꽂았다.', '2026-09-13T21:30:00+09:00'),
-    drawing('draw-0913-1', 'date-0913', 'stop-0913-3', SEJUN_ID, '2026-09-13T22:10:00+09:00'),
-    memo('memo-0913-2', 'date-0913', null, SEJUN_ID, '생일 계획 성공.', '2026-09-13T23:00:00+09:00'),
+    photo('ph-0913-1', 'date-0913', 'stop-0913-1', '2025-09-13T11:20:00+09:00', SEOYOUNG_ID),
+    photo('ph-0913-2', 'date-0913', 'stop-0913-1', '2025-09-13T11:35:00+09:00', SEJUN_ID),
+    photo('ph-0913-3', 'date-0913', 'stop-0913-2', '2025-09-13T14:00:00+09:00', SEJUN_ID),
+    photo('ph-0913-4', 'date-0913', null, '2025-09-13T20:05:00+09:00', SEOYOUNG_ID),
+    memo('memo-0913-1', 'date-0913', 'stop-0913-1', SEOYOUNG_ID, '창가 자리에서 케이크 사진을 오래 찍었다. 촛불은 하나만 꽂았다.', '2025-09-13T21:30:00+09:00'),
+    drawing('draw-0913-1', 'date-0913', 'stop-0913-3', SEJUN_ID, '2025-09-13T22:10:00+09:00'),
+    memo('memo-0913-2', 'date-0913', null, SEJUN_ID, '생일 계획 성공.', '2025-09-13T23:00:00+09:00'),
     // 09-27 양평: 사진 한 장, 메모 없음
-    photo('ph-0927-1', 'date-0927', 'stop-0927-1', '2026-09-27T12:30:00+09:00', SEOYOUNG_ID),
-    // 2025-09-20 강릉(재소환)
-    photo('ph-2025-1', 'date-2025-0920', 'stop-2025-1', '2025-09-20T10:50:00+09:00', SEJUN_ID),
-    photo('ph-2025-2', 'date-2025-0920', 'stop-2025-1', '2025-09-20T11:10:00+09:00', SEOYOUNG_ID),
-    photo('ph-2025-3', 'date-2025-0920', 'stop-2025-2', '2025-09-20T15:20:00+09:00', SEJUN_ID),
-    memo('memo-2025-1', 'date-2025-0920', 'stop-2025-1', SEOYOUNG_ID, '바람이 너무 세서 머리가 엉망이었다. 그래도 파도 소리가 좋았다.', '2025-09-20T22:00:00+09:00'),
+    photo('ph-0927-1', 'date-0927', 'stop-0927-1', '2025-09-27T12:30:00+09:00', SEOYOUNG_ID),
+    // 2024-09-20 강릉(재소환)
+    photo('ph-2025-1', 'date-2025-0920', 'stop-2025-1', '2024-09-20T10:50:00+09:00', SEJUN_ID),
+    photo('ph-2025-2', 'date-2025-0920', 'stop-2025-1', '2024-09-20T11:10:00+09:00', SEOYOUNG_ID),
+    photo('ph-2025-3', 'date-2025-0920', 'stop-2025-2', '2024-09-20T15:20:00+09:00', SEJUN_ID),
+    memo('memo-2025-1', 'date-2025-0920', 'stop-2025-1', SEOYOUNG_ID, '바람이 너무 세서 머리가 엉망이었다. 그래도 파도 소리가 좋았다.', '2024-09-20T22:00:00+09:00'),
     // 독립 사진(데이트에 묶이지 않음): 17-5 사진 근거 재료
-    photo('ph-solo-0905', null, null, '2026-09-05T19:48:00+09:00', SEOYOUNG_ID, [4032, 3024]),
-    photo('ph-solo-0905b', null, null, '2026-09-05T19:51:00+09:00', SEJUN_ID, [4032, 3024]),
-    photo('ph-solo-0911', null, null, '2026-09-11T19:20:00+09:00', SEOYOUNG_ID),
-    photo('ph-solo-0914', null, null, '2026-09-14T18:40:00+09:00', SEJUN_ID),
-    photo('ph-solo-0920', null, null, '2026-09-20T18:15:00+09:00', SEOYOUNG_ID),
-    photo('ph-solo-0928', null, null, '2026-09-28T14:30:00+09:00', SEJUN_ID),
+    photo('ph-solo-0905', null, null, '2025-09-05T19:48:00+09:00', SEOYOUNG_ID, [4032, 3024]),
+    photo('ph-solo-0905b', null, null, '2025-09-05T19:51:00+09:00', SEJUN_ID, [4032, 3024]),
+    photo('ph-solo-0911', null, null, '2025-09-11T19:20:00+09:00', SEOYOUNG_ID),
+    photo('ph-solo-0914', null, null, '2025-09-14T18:40:00+09:00', SEJUN_ID),
+    photo('ph-solo-0920', null, null, '2025-09-20T18:15:00+09:00', SEOYOUNG_ID),
+    photo('ph-solo-0928', null, null, '2025-09-28T14:30:00+09:00', SEJUN_ID),
   ]
 
   return {

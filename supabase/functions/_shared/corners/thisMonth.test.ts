@@ -33,7 +33,7 @@ const GOOD_OUTPUT = {
   kind: 'theme',
   theme: {
     headline: '새로운 동네를 다닌 달',
-    lead: '이번 달에는 연남동과 성수동에 다녀온 기록이 남았다.',
+    lead: '이번 달에는 연남동과 성수동에 다녀온 기록이 남았습니다.',
     polarity: 'positive',
     signals: [
       {
@@ -48,16 +48,16 @@ const GOOD_OUTPUT = {
   articles: [
     {
       title: '연남동의 하루',
-      body: '8월 19일에는 연남동에서 영화를 보고 저녁을 먹었다.',
+      body: '8월 19일에는 연남동에서 영화를 보고 저녁을 먹었습니다.',
       evidence: [{ type: 'date', dateId: 'd-1' }, { type: 'photo', photoId: 'p-1' }],
     },
     {
       title: '아침 인사',
-      body: '비가 오던 아침에 오간 대화가 있었다.',
+      body: '비가 오던 아침에 오간 대화가 있었습니다.',
       evidence: [{ type: 'message', messageId: 'm-1' }, { type: 'message', messageId: 'm-2' }],
     },
   ],
-  closing: '다음 달에도 새로운 곳을 찾아가 본다.',
+  closing: '다음 달에도 새로운 곳을 찾아가 봅니다.',
 }
 
 function run(output: unknown, input: ThisMonthInput = INPUT, context: CornerContext = MONTHLY_CONTEXT) {
