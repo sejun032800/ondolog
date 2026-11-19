@@ -10,6 +10,7 @@
 | `audit.py` | **지면 감사기.** 종이 밖 넘침 · **판면 초과**(`overset`) · 형제 겹침 · 저대비 · 과소 활자 |
 | `preview.py` | 13지면 × 6테마 미리보기 PNG |
 | `sweep.py` | 변형과 배열 길이를 바꿔 가며 쓸어보는 검사 |
+| `measure.py` | **높이 실측(v1.2.3).** 틀을 개발의 `render/slot_fill.py`로 채워 줄 수 표 · 상자 식을 재고 `measure.json`을 쓴다. 렌더러가 이 파일을 읽는다 — 틀의 활자 · 폭을 바꾸면 다시 돌린다(README §12). **저장소 경로에서 그대로 돈다**(`render/issue/tools/measure.py`) |
 
 ## 꼭 보셔야 할 두 가지
 
@@ -27,6 +28,7 @@
 python3 tools/audit.py     # 13지면 × 6테마
 python3 tools/sweep.py     # 변형·배열 길이 쓸기
 python3 tools/preview.py   # 미리보기 PNG
+python3 tools/measure.py   # 높이 실측 → measure.json (저장소 루트에서 render/issue/tools/measure.py)
 ```
 
 경로는 `/home/claude/render/issue` 기준으로 박혀 있다. 저장소에서 돌리려면 `R` 값만 바꾼다.

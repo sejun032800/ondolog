@@ -25,19 +25,19 @@ for m in (1,2):
 CASES += [("da-opener",{"variant":"with-photo"}),
           ("da-opener",{"variant":"type-only"}),
           ("sw-opener",{"variant":"type-only","src":{}}),
-("da-article",{"ifs":["payload.articles[i].recalled"],"repeat":{"@da.articlePhotos":3},"noReason":True}),  # recall-none
+("da-article",{"variant":"hero-photo","ifs":["payload.articles[i].recalled"],"repeat":{"@da.articlePhotos":3},"noReason":True}),  # recall-none
 ("sw-opener",{"variant":"type-only"}),
           ("sw-opener",{"variant":"with-photo"}),
           ("contents",{"repeat":{"@toc":5},"src":{}}),
           ("back",{"src":{}}),
-          ("da-article",{"src":{}}),
+          ("da-article",{"variant":"hero-none","ifs":[".userNotes"],"repeat":{"@da.articleStops":3},"src":{}}),
 ("contents",{"repeat":{"@toc":5}}), ("contents",{"repeat":{"@toc":2}}),
           ("note",{"repeat":{"@note.materials":4,"@note.notUsed":4,"@note.emptyCorners":3}}),
           ("da-places",{"repeat":{"@da.places":8,"payload.articles[featured].closingQuestions":3}}),
           ("da-places",{"repeat":{"@da.places":2,"payload.articles[featured].closingQuestions":3}}),
           ("tm-lead",{"repeat":{"payload.theme.signals":2}}),
-          ("da-article",{"ifs":["payload.articles[i].recalled"],"repeat":{"@da.articlePhotos":2}}),
-          ("da-article",{"repeat":{"@da.articlePhotos":3}})]
+          ("da-article",{"variant":"hero-photo","ifs":["payload.articles[i].recalled"],"repeat":{"@da.articlePhotos":2}}),
+          ("da-article",{"variant":"hero-photo","repeat":{"@da.articlePhotos":3}})]
 async def main():
     bad=[]
     async with async_playwright() as pw:
