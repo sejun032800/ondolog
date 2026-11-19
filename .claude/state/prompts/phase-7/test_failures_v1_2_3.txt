@@ -1,0 +1,46 @@
+tests/test_a23_real_usage.py::Compose::test_photoless_date_is_left_out_and_photoless_stops_stay_in_the_timeline
+tests/test_compose.py::Lead::test_places_questions_and_article_values
+tests/test_compose.py::PhotoSets::test_contents_back_and_sweet_words_opener_photos
+tests/test_compose.py::ThisMonth::test_no_photo_is_bound_to_tm_articles
+tests/test_compose.py::Timeline::test_compose_makes_two_timeline_pages_for_the_photo_scenario
+tests/test_compose.py::Timeline::test_drawing_only_notes_are_not_memos_on_the_page
+tests/test_compose.py::Timeline::test_existing_p5_composition_stays_on_one_page
+tests/test_compose.py::Timeline::test_table_heights - AssertionError: ...
+tests/test_compose.py::Timeline::test_three_stops_with_photos_split_into_two_pages
+tests/test_facts.py::ArticleCell::test_ai_caption_cell_is_removed_whole_when_none_is_on_the_page
+tests/test_facts.py::ArticleCell::test_ai_captions_counted_only_where_the_page_shows_them
+tests/test_facts.py::ArticleCell::test_article_memo_sits_under_the_first_photo_with_the_authors_name
+tests/test_facts.py::DesignEditsAreMarked::test_each_edited_page_carries_the_marker_comment
+tests/test_facts.py::NoteEquation::test_every_local_volume_balances - ...
+tests/test_facts.py::SourceDateAndBack::test_back_cover_has_no_next_issue_line
+tests/test_h5_hero.py::DropPhotoless::test_a_date_without_photos_is_left_out_of_the_pages_toc_and_totals
+tests/test_h5_hero.py::DropPhotoless::test_featured_article_without_photos_stays_with_the_type_only_opener
+tests/test_h5_hero.py::DropPhotoless::test_featured_index_follows_the_kept_articles
+tests/test_h5_hero.py::DropPhotoless::test_left_out_memos_are_counted_as_not_used_in_the_note
+tests/test_h5_hero.py::DropPhotoless::test_photoless_recalled_article_is_left_out_too
+tests/test_r51.py::OpenerTypeVariant::test_the_template_edit_is_marked
+tests/test_r51.py::PrintedOriginalsAreRecords::test_local_volumes_too
+tests/test_r51.py::RecalledPhotosLine::test_period_plus_recalled_equals_every_photo_on_the_pages
+tests/test_r51.py::RecalledPhotosLine::test_the_line_is_added_to_the_note_only
+tests/test_r51.py::RecalledPhotosLine::test_with_the_line_the_two_blocks_below_move_down_together
+tests/test_r51.py::RecalledPhotosLine::test_without_a_recalled_article_there_is_no_line
+tests/test_r51.py::ZeroCells::test_article_without_a_memo_has_no_memo_cell
+tests/test_render_issue.py::Render::test_a_conversation_over_one_page_stops_the_render
+tests/test_render_issue.py::WholeRender::test_an_overlong_conversation_stops_before_anything_is_written
+tests/test_v122.py::Bindings::test_photo_note_on_the_page_and_the_block_is_deleted_without_photos
+tests/test_v122.py::Browser::test_data_width_extra_cases - AssertionEr...
+tests/test_v122.py::Browser::test_data_width_six_cases_match_the_designs_resolve_js
+tests/test_v122.py::DataWidthStrings::test_note_page_bars_come_from_numbers_not_from_the_percent_text
+tests/test_v122.py::OriginalOversetGate::test_timeline_overflow_volume_stops_the_render
+tests/test_v122.py::Quotes::test_conversation_height_matches_the_readme_table
+tests/test_v122.py::Quotes::test_conversations_are_never_split_across_pages
+tests/test_v122.py::Quotes::test_overlong_conversation_failure_names_issue_conversation_and_height
+tests/test_v122.py::Quotes::test_pack_boundary_781_with_three_or_more_short_quotes
+tests/test_v122.py::Quotes::test_pack_boundary_844 - compose.ComposeEr...
+tests/test_v122.py::R48Temporary::test_article_without_any_photo_is_left_out_and_no_blank_frame_is_ever_made
+tests/test_v122.py::R48Temporary::test_caption_is_the_users_memo_never_the_ai_caption
+tests/test_v122.py::TimelineMemo::test_a_long_memo_moves_the_stop_to_the_next_page
+tests/test_v122.py::TimelineMemo::test_each_50_chars_beyond_adds_29px
+tests/test_v122.py::TimelineMemo::test_memo_up_to_50_chars_is_the_table_value
+tests/test_v122.py::Width::test_no_sentences_means_no_ratio_and_no_bars
+tests/test_v122.py::Width::test_note_page_bars_follow_the_data - TypeE...
