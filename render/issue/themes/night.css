@@ -1,0 +1,7 @@
+/* night — 기존 발행물 실측(ONDOLOG_Corners_night_digital.pdf p11)
+   6테마 중 유일하게 바탕이 어두운 테마. */
+html[data-theme="night"]{
+  --bg:#111527; --ink:#EDEAE2; --sub:#8D93A8; --acc:#B9AE8C;
+  --hair:#8D93A8; --rule:#242A40;
+  --onPhoto:#EDEAE2;
+}

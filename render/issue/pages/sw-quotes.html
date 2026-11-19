@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 다정한 말들 인용면</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="sw-quotes">
+  <div class="ab col run">
+    <span class="kk-ko">다정한 말들</span>
+    <span class="kk-ko">원문 그대로</span>
+  </div>
+  <!-- 인용 조판 12.5pt/175% · 한 대화 40~55mm · 판면 261mm에 최대 2개(§3-3)
+       블록 폭 118mm(68%). 디스플레이 서체·사진·액센트를 쓰지 않는다
+       turns[].text는 원문 그대로 — 요약·교정·이모지 제거 금지(§6-2) -->
+  <div class="ab" style="left:var(--mX);top:66px;width:var(--quoteW)" data-repeat="payload.main">
+    <div style="padding-bottom:54px">
+      <p class="body-sub" style="margin:0;font-size:9.5px;line-height:1.6"
+         data-slot=".context">아침 출근길에 오간 대화</p>
+      <span style="display:block;margin-top:7px;font-size:7.4px;color:var(--sub);opacity:.72">— <span
+            data-slot=".attribution.display">2026.08.22 09:20, 아침 대화 중</span></span>
+
+      <div style="margin-top:28px" data-repeat=".turns">
+        <!-- 들여쓰기로 주고받음을 표현한다. 말풍선·따옴표 그래픽 금지 -->
+        <div style="margin-bottom:26px">
+          <span style="display:block;font-size:7.6px;letter-spacing:.06em;color:var(--sub)"
+                data-slot=".speaker">세준</span>
+          <p class="mb" style="margin:7px 0 0;font-size:12.5px;line-height:1.75"
+             data-slot=".text">오늘 비 온대. 우산 챙겼어?</p>
+        </div>
+      </div>
+      <div class="rule" style="margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- 단문 그리드 — 마지막 인용면에만 들어간다 -->
+  <div class="ab col" style="bottom:118px" data-optional>
+    <span class="lbl" style="display:block;margin-bottom:18px">그 밖의 짧은 말들</span>
+    <div style="display:flex;flex-wrap:wrap;gap:22px 34px" data-repeat="payload.sub">
+      <div style="width:190px">
+        <p class="mb" style="margin:0;font-size:12px;line-height:1.5">&ldquo;<span
+           data-slot=".text">오늘 고생했어 진짜</span>&rdquo;</p>
+        <span class="note" style="display:block;margin-top:6px"><span data-slot=".speaker">서영</span>
+          · <span data-slot=".attribution.at">08.11 23:40</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ab col" style="bottom:62px">
+    <span class="note">인용은 모두 원문 그대로입니다. 요약하거나 다듬지 않았습니다.</span>
+  </div>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">0 4</div>
+</body>
+</html>
