@@ -283,14 +283,19 @@ class Bindings(unittest.TestCase):
 # 원문 불변 (범위 4)
 # ---------------------------------------------------------------------------
 
-README_QUOTE_TABLE = {   # README v1.2.3 §12 "요청한 격자" - 턴 수 -> {글자 수: 새 식 높이}(정황 한 줄)
-    1: {12: 182, 30: 182, 60: 204, 100: 225, 160: 247, 240: 269, 320: 312, 400: 356},
-    2: {12: 248, 30: 248, 60: 291, 100: 335, 160: 378, 240: 444, 320: 531, 400: 596},
-    3: {12: 314, 30: 314, 60: 379, 100: 444, 160: 510, 240: 597, 320: 728, 400: 837},
-    4: {12: 379, 30: 379, 60: 467, 100: 554, 160: 641, 240: 772, 320: 946, 400: 1077},
-    5: {12: 445, 30: 445, 60: 554, 100: 663, 160: 772, 240: 925, 320: 1143, 400: 1317},
-    6: {12: 511, 30: 511, 60: 642, 100: 773, 160: 904, 240: 1100, 320: 1361, 400: 1558},
-}
+def formula_conversation(turns, chars):
+    """README v1.2.3 §12 '인용 대화 하나' 식을 `measure.json` 값으로 시험이 따로 계산한 값(정황 없음 = 한 줄 · 홀수 턴 446px 표 · 짝수 턴 404px 표 · 올림).
+    84-d2(R138-2) - 표는 이 환경에서 잰 값이라 README 격자(디자인 환경)의 숫자를 박지 않는다."""
+    import math
+    q = heights.QUOTES
+    c = q['conversation']
+
+    def lines(table, n):
+        return next(l for ch, l in zip(table['chars'], table['lines']) if ch >= n)
+    h = c['base'] + c['contextLine'] * 1
+    for i in range(turns):
+        h += c['perTurn'] + c['turnLine'] * (lines(q['turnLines']['odd' if i % 2 == 0 else 'even'], chars) - 1)
+    return math.ceil(h - 1e-9)
 
 
 def main_of(turns, chars):
@@ -311,51 +316,55 @@ class Quotes(unittest.TestCase):
         self.assertEqual(heights.table_lines(odd, ''), 1)
         self.assertGreaterEqual(heights.table_lines(odd, '가' * 2000), odd['lines'][-1])   # 표 끝을 넘어도 작게 잡지 않는다
 
-    def test_conversation_height_matches_the_readme_table(self):
-        for turns, row in README_QUOTE_TABLE.items():
-            for chars, want in row.items():
-                got = conversation_height(main_of(turns, chars))
-                # README 격자는 반올림 값이다. 렌더러는 올림이라 같거나 몇 px 크다 - 작게 잡지는 않는다(넘치는 지면을 통과시키지 않는다)
-                self.assertGreaterEqual(got, want - 1, (turns, chars))
-                self.assertLessEqual(got, want + 6, (turns, chars))
+    def test_conversation_height_follows_the_measure_formula(self):
+        # 84-d2: README 격자(디자인 환경 값) 대신 이 환경 표로 같은 식을 따로 계산해 맞댄다 - 턴 1~6 x 8가지 길이, 같아야 한다
+        for turns in range(1, 7):
+            for chars in (12, 30, 60, 100, 160, 240, 320, 400):
+                self.assertEqual(conversation_height(main_of(turns, chars)), formula_conversation(turns, chars), (turns, chars))
 
-    def test_pack_boundary_940_without_short_quotes(self):
+    def test_quote_capacities_come_from_the_table_and_narrow_with_short_quotes(self):
         cap = heights.QUOTE_CAPACITY
-        self.assertEqual((cap['sub0'], cap['sub1-3'], cap['sub4-6']), (940, 841, 778))   # README v1.2.3 §12 표
-        self.assertEqual(pack_quotes([940], 0), [[0]])
-        with self.assertRaises(ComposeError) as ctx:
-            pack_quotes([941], 0)
-        self.assertIn('940px', str(ctx.exception))
+        self.assertGreater(cap['sub0'], cap['sub1-3'])
+        self.assertGreater(cap['sub1-3'], cap['sub4-6'])                   # 단문이 많을수록 인용 자리가 좁다(README §12 3단)
+        self.assertEqual([heights.quote_capacity(n) for n in (0, 1, 3, 4, 6)], [cap['sub0'], cap['sub1-3'], cap['sub1-3'], cap['sub4-6'], cap['sub4-6']])
 
-    def test_pack_boundary_841_with_one_to_three_and_778_with_four_or_more_short_quotes(self):
+    def test_pack_boundary_without_short_quotes(self):
+        c0 = heights.QUOTE_CAPACITY['sub0']
+        self.assertEqual(pack_quotes([c0], 0), [[0]])
+        with self.assertRaises(ComposeError) as ctx:
+            pack_quotes([c0 + 1], 0)
+        self.assertIn(f'{c0}px', str(ctx.exception))
+
+    def test_pack_boundary_with_one_to_three_and_four_or_more_short_quotes(self):
+        c13, c46 = heights.QUOTE_CAPACITY['sub1-3'], heights.QUOTE_CAPACITY['sub4-6']
         for subs in (1, 2, 3):
-            self.assertEqual(pack_quotes([841], subs), [[0]])
+            self.assertEqual(pack_quotes([c13], subs), [[0]])
             with self.assertRaises(ComposeError) as ctx:
-                pack_quotes([842], subs)
-            self.assertIn('841px', str(ctx.exception))
+                pack_quotes([c13 + 1], subs)
+            self.assertIn(f'{c13}px', str(ctx.exception))
         for subs in (4, 6):
-            self.assertEqual(pack_quotes([778], subs), [[0]])
+            self.assertEqual(pack_quotes([c46], subs), [[0]])
             with self.assertRaises(ComposeError) as ctx:
-                pack_quotes([779], subs)
-            self.assertIn('778px', str(ctx.exception))
-        self.assertEqual(pack_quotes([779], 3), [[0]])
-        self.assertEqual(pack_quotes([900], 0), [[0]])
+                pack_quotes([c46 + 1], subs)
+            self.assertIn(f'{c46}px', str(ctx.exception))
+        self.assertEqual(pack_quotes([c46 + 1], 3), [[0]])
 
     def test_conversations_are_never_split_across_pages(self):
-        self.assertEqual(pack_quotes([400, 540], 0), [[0, 1]])      # 940 정확히(단문 없는 면)
-        self.assertEqual(pack_quotes([400, 541], 0), [[0], [1]])
-        self.assertEqual(pack_quotes([400, 400], 4), [[0], [1]])    # 800 > 778 - 단문과 함께 실리는 마지막 면만 좁다
-        self.assertEqual(pack_quotes([400, 400], 3), [[0, 1]])      # 800 <= 841
-        self.assertEqual(pack_quotes([500, 400, 400], 2), [[0, 1], [2]])   # 앞 면은 단문이 없어 940 기준(900 > 841이어도 앞 면에 든다)
+        c0, c13, c46 = (heights.QUOTE_CAPACITY[k] for k in ('sub0', 'sub1-3', 'sub4-6'))
+        self.assertEqual(pack_quotes([400, c0 - 400], 0), [[0, 1]])        # 단문 없는 면 가용 높이 정확히
+        self.assertEqual(pack_quotes([400, c0 - 399], 0), [[0], [1]])
+        self.assertEqual(pack_quotes([400, c46 - 399], 4), [[0], [1]])     # 단문과 함께 실리는 마지막 면만 좁다
+        self.assertEqual(pack_quotes([400, c13 - 400], 3), [[0, 1]])
+        self.assertEqual(pack_quotes([c13 - 400, 401, 400], 2), [[0, 1], [2]])   # 앞 면은 단문이 없어 단문 0 기준(c13 + 1 > c13이어도 앞 면에 든다)
         self.assertEqual(pack_quotes([700, 700, 700], 0), [[0], [1], [2]])
         self.assertEqual(pack_quotes([300, 300, 300, 300], 0), [[0, 1, 2], [3]])
-        for sizes in ([100] * 12, [300, 500, 200, 800, 100], [940, 1, 841]):
+        for sizes in ([100] * 12, [300, 500, 200, 800, 100], [c0, 1, c13]):
             groups = pack_quotes(sizes, 1)
             self.assertEqual([i for g in groups for i in g], list(range(len(sizes))))   # 순서 그대로, 하나도 빠지지 않는다
 
     def test_two_conversations_of_four_turns_x_160_chars_do_not_fit_on_one_page(self):
         h = conversation_height(main_of(4, 160))
-        self.assertGreater(2 * h, heights.QUOTE_CAPACITY['sub0'])   # README v1.2.3 §12 - 2 x 641 = 1282 > 940
+        self.assertGreater(2 * h, heights.QUOTE_CAPACITY['sub0'])
         self.assertEqual(pack_quotes([h, h], 0), [[0], [1]])
 
     def test_overlong_conversation_failure_names_issue_conversation_and_height(self):
@@ -365,7 +374,7 @@ class Quotes(unittest.TestCase):
         self.assertIn(fx.ISSUE, msg)
         self.assertIn('3번째 대화(밤새 이어진 가장 긴 대화)', msg)
         self.assertIn(f"{conversation_height(fx.long_original_scenario(with_overlong=True)['corners'][1]['content']['payload']['main'][2])}px", msg)
-        self.assertIn('940px', msg)                                 # v1.2.3 - 단문 없는 면의 가용 높이(어느 면에도 들어가지 않는다)
+        self.assertIn(f"{heights.QUOTE_CAPACITY['sub0']}px", msg)   # 단문 없는 면의 가용 높이(어느 면에도 들어가지 않는다)
 
     def test_the_same_issue_passes_without_that_conversation_and_the_text_is_untouched(self):
         sc = fx.long_original_scenario()
@@ -396,11 +405,18 @@ def stop_of(photos, memo_chars=None, caption='캡션'):
 
 class TimelineMemo(unittest.TestCase):
     def test_stop_height_follows_the_measure_table(self):
-        # README v1.2.3 §12 "타임라인 구간 하나"(장소 한 줄, 줄바꿈 없는 견본) - 사진 1장: 20자 361 · 50자 390 · 100자 419 · 150자 448 · 200자 477(반올림)
-        got = [stop_height(stop_of(1, n)) for n in (20, 50, 100, 150, 200)]
-        for g, want in zip(got, [361, 390, 419, 448, 477]):
-            self.assertIn(g - want, (0, 1))                                  # 올림
-        self.assertEqual(stop_height(stop_of(0, None, caption=None)), 76)    # 사진 0 · 메모 없음 · 캡션 없음(옛 표 101)
+        # README v1.2.3 §12 "타임라인 구간 하나" 식 - 84-d2부터 표는 이 환경에서 잰 값이라 README 격자 숫자 대신 같은 식을 따로 계산해 맞댄다
+        import math
+        tl = heights.TIMELINE
+
+        def lines(n):
+            return next(l for ch, l in zip(tl['memoLines']['chars'], tl['memoLines']['lines']) if ch >= n)
+        for n in (20, 50, 100, 150, 200):
+            r_ = tl['right']['photos-1']['memo']
+            want = math.ceil(max(tl['left']['placeLabel'], r_['base'] + r_['perLine'] * lines(n)) + tl['stopPadding'])
+            self.assertEqual(stop_height(stop_of(1, n)), want, n)
+        want0 = math.ceil(max(tl['left']['placeNoLabel'], tl['right']['photos-0']['none']) + tl['stopPadding'])
+        self.assertEqual(stop_height(stop_of(0, None, caption=None)), want0)   # 사진 0 · 메모 없음 · 캡션 없음(옛 표 101)
 
     def test_line_breaks_and_long_place_names_are_counted(self):
         one = stop_height(stop_of(0, None) | {'userNotes': [fx.memo('한 줄로 쓴 메모 한 줄로 쓴 메모')], 'aiCaption': None})
@@ -642,11 +658,9 @@ class OriginalOversetGate(unittest.TestCase):
         else:
             self.assertIsNone(r.gate_failure(audit, fx.ISSUE))
 
-    @unittest.expectedFailure
     def test_timeline_overflow_volume_passes_and_no_estimate_is_below_the_actual(self):
-        # v1.2.3(D13): vol4는 통과하는 권이어야 한다(디자인 실측 944px). **84-d 멈춤 항목** - 이 저장소 환경에서 `measure.py`를 다시 돌리면
-        # `measure.json`의 줄 수가 한 줄씩 커진다(이 권의 384 · 394자 메모: 표 9줄 / 실제 10줄 -> 실제 1003px > 953px). 표는 디자인 몫이라 고치지 않았다.
-        # 디자인이 표를 다시 재 넘기면 이 시험이 통과하고, 그때 `expectedFailure`를 뗀다(뜻밖의 통과로 알린다).
+        # v1.2.3(D13): vol4는 통과하는 권이다. 84-d에서는 디자인 환경 표(384 · 394자 메모 9줄 / 이 환경 실제 10줄)로 넘쳐 기대 실패로 두었고,
+        # 84-d2(R138-2)에서 표를 이 환경에서 디자인 도구 그대로 다시 재(`measure.json` + `measure.env.json`) 기대 실패 표시를 뗐다
         audit, timeline, lv = self.vol4()
         self.assertIsNone(r.gate_failure(audit, fx.ISSUE))
         self.assertEqual(audit['originalOverset'], [])

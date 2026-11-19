@@ -184,6 +184,7 @@ def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, A
     couple = {**fx.COUPLE_ROW, 'magazine_theme': scenario['theme']}
     comp = compose_issue(fx.ISSUE_ROW, couple, NAMES, scenario['corners'], scenario.get('materials', MATERIALS))
     templates = r.load_templates()
+    env_warn = r.note_measure_env(comp, say)   # 84-d2 R138-2 ① - 높이 표를 잰 환경과 다르면 경고(멈춤 아님)
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp) / 'work'
         r.prepare_work(work)
@@ -219,6 +220,7 @@ def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, A
              f'지면 순서: ' + ' '.join(f"{i}:{p.stem}" for i, p in enumerate(comp.pages, 1)),
              f"표지: {comp.report['cover']}  표제 출처: {comp.report['coverHeadlineFrom']}  이 달의 말 줄 삭제: {cover['quoteRemoved']}",
              f"타임라인 {comp.report['timelinePages']}면 · 인용 {comp.report['quotePages']}면 · 못 실은 구간 {comp.report['timelineDroppedStops']}",
+             f"높이 표 환경 경고 {len(env_warn)}건" + ''.join(f'\n  {w}' for w in env_warn),
              '', '쪽 | 지면 | 개발 검사(종류별 수) | 5항목: 개발 N / 디자인 audit.py N | 같음']
     for page in audit['pages']:
         kinds: dict = {}
@@ -247,7 +249,7 @@ def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, A
     say('\n'.join(lines))
     return {'name': name, 'pages': len(results), 'totals': audit['totals'], 'originalClipped': len(audit['originalClipped']), 'originalOverset': len(audit['originalOverset']),
             'designSame': audit['designAuditSame'], 'safe': safe_rows, 'facts': facts, 'pdf': str(out / 'issue.pdf'),
-            'timeline': timeline, 'audit': audit, 'composition': comp}
+            'timeline': timeline, 'audit': audit, 'composition': comp, 'measureEnvWarnings': env_warn}
 
 
 def timeline_under(timeline: list) -> list:

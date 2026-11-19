@@ -476,15 +476,16 @@ class SeedOriginalsAreWholeAndDistinct(unittest.TestCase):
         with self.assertRaises(ValueError):
             fx.whole_memo(fx.MEMO_SENTENCES_WINDOW, 5000)                    # 모자라면 같은 문장을 되풀이하지 않고 멈춘다
 
-    def test_the_overflow_volume_still_fits_one_page_by_the_estimate(self):
-        # vol4 - 긴 메모(351~400자) 둘이 어림으로 한 면에 든다. v1.2.2에서는 '실제는 넘친다'는 뜻이었고, v1.2.3 실측 표로는 통과 권이어야 한다(D13 - 84-d 멈춤 항목은 test_v122)
+    def test_the_overflow_volume_is_split_into_two_pages_by_the_estimate(self):
+        # vol4 - 긴 메모(351~400자) 둘. 디자인 환경 표로는 어림 한 면(실제는 넘침, 84-d 멈춤)이었고, 84-d2 이 환경 표로는 어림이 실제(이 환경 10줄)를
+        # 덮어 두 면으로 나뉜다 - 넘치는 지면이 나가지 않는 쪽(README §12). 실제 렌더 확인은 test_v122 `test_timeline_overflow_volume_passes...`
         from compose import split_timeline, stop_height
         sc = fx.timeline_overflow_scenario()
         stops = date_archive_of(sc)['payload']['articles'][0]['stops']
         lengths = [len(s['userNotes'][0]['text']) for s in stops]
         self.assertTrue(all(351 <= n <= 400 for n in lengths), lengths)
-        self.assertLessEqual(sum(stop_height(s) for s in stops), 953)
-        self.assertEqual([len(p) for p in split_timeline(stops)[0]], [2])
+        self.assertGreater(sum(stop_height(s) for s in stops), 953)
+        self.assertEqual([len(p) for p in split_timeline(stops)[0]], [1, 1])
 
     def test_no_two_messages_of_a_scenario_overlap(self):
         for name, build in SCENARIOS.items():

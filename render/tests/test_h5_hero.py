@@ -174,7 +174,7 @@ class KeepPhotoless(unittest.TestCase):
 class SeedRegression(unittest.TestCase):
     """기존 시드 모양은 바뀌지 않는다 - 빠지는 기사 0, 지면 순서 · 쪽 수는 아래 고정값 그대로 (74-h5 전 스냅샷)."""
     PAGE_COUNTS = {'long_original_scenario': 15, 'many_photos_scenario': 14, 'opener_fallback_scenario': 12, 'opener_type_only_scenario': 12,
-                   'photo_scenario': 14, 'skipped_scenario': 12, 'timeline_overflow_scenario': 13, 'type_scenario': 15}
+                   'photo_scenario': 14, 'skipped_scenario': 12, 'timeline_overflow_scenario': 14, 'type_scenario': 15}   # vol4 14 - 84-d2 이 환경 표로 타임라인 2면(긴 메모 10줄)
 
     def test_seed_scenarios_keep_their_pages(self):
         for name, n in self.PAGE_COUNTS.items():

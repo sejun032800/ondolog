@@ -31,7 +31,7 @@ import heights  # noqa: E402  (README v1.2.3 §12 - 높이의 원본은 실측 �
 from facts import (  # noqa: E402  (호의 사실 - 지면의 수치 · 목록은 모두 여기서 한 번 계산한다. 아래 이름은 compose에서도 쓸 수 있게 다시 내보낸다)
     ARTICLE_PHOTOS, PHOTOS_PER_STOP, PLACES_CAP, UNNAMED_PLACE, FactsError, IssueFacts, article_photo_view, article_photos, article_stops_view,
     as_dict, as_list, build_facts, caption_memo_count, first_photo_any, first_photo_path, has_photo, hero_photo_path, hero_stop_index, is_blank,
-    memo_notes, mmdd_dot, ratio_label, shown_photos_of_stop, stop_photo_counts, this_month_photo, valid_photos, ymd_dot,
+    memo_notes, mmdd_dot, place_label, ratio_label, shown_photos_of_stop, stop_photo_counts, this_month_photo, valid_photos, ymd_dot,
 )
 
 THEMES = ('basic', 'hip', 'neon', 'lovely', 'night', 'ondol')
@@ -393,6 +393,9 @@ class _Builder:
         for s in stops:
             v = copy.deepcopy(s)
             v['userNotes'] = memo_notes(s)
+            # 84-d2(R138-4) - 이름 없는 경유지 = "이름을 남기지 않은 곳"(README v1.2.3 §10 ① 확정 - 타임라인 · 장소 목록 · 경로 모두 같은 말).
+            # 틀의 장소 줄은 data-optional이라 빈 값이면 줄째 빠졌다. 구간 높이도 이 글자로 잰다(`stop_height`가 보기 사본을 잰다)
+            v['placeName'] = place_label(s)
             v['time'] = hhmm(v.get('time'))
             shown_n, total_n = stop_photo_counts(s)
             v['photoLabel'] = ratio_label(shown_n, total_n) if total_n > 0 else ''   # 사진이 0이면 라벨 값이 비고 지면이 라벨째 뺀다 (R51-5)

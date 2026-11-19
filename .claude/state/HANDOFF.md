@@ -11,6 +11,66 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `84-d2` 높이 표 환경 실측 · 이름 없는 경유지 (메인 세션, 2026-11-20, 위임문 `phase-7/84-d2-dispatch-measure-env-unnamed-stop.md` · 출처 ROADMAP r138 R138-1~6) - 완료 · 멈춤 0 (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-20-r138` · 84-d 2묶음 커밋 들어감(`render/heights.py` · `valueChecks.ts` 30자 추적 중, 작업 트리 깨끗) - 통과. LLM 0 · 원격 0(허용 질의 없음) · 마이그레이션 0 · 새 패키지 0 · `web/` 0 · 엔진 0 · 커밋 0 · **디자인 도구 변경 0**(`render/issue/tools/measure.py` 해시 `66e6a79` 그대로, 실행만) · `render/issue/` 다른 틀 파일 0 · **여유 줄 0** · `docs/design/nocturne/render/issue/` 사본 0(디자인 원본 그대로).
+
+### ① 환경 실측 (`render/.venv/Scripts/python.exe -B render/issue/tools/measure.py`, README §12 방법 그대로)
+- 결과는 84-d 시험 실행 때와 **바이트 단위로 같음**(결정적) → `render/issue/measure.json` 갱신.
+- 전 → 후: 줄 수 표 칸 **308개**(타임라인 메모 41/84 · AI 캡션 28/84 · 장소 9/20 · 인용 턴 홀수 48/84 · 짝수 52/84 · 정황 3/32 · 글만 있는 기사 메모 46/84 · 사진 아래 메모 10 · 22 · 26/60, 대부분 한 줄 크게) + 값 **21개**.
+- 대표 값: 인용 가용 높이 **940 / 841 / 778 → 938 / 843 / 780** · 사진 아래 메모 칸 104 → 106px · 타임라인 왼쪽 단 67/40/41/14 → 68/43/42/17 · 대화 고정 100.6 → 99.6 · 턴 65.9 → 64.9 · 글만 있는 기사 AI 캡션 상자 직선 아님(잰 값 그대로 씀 - `heights.box`).
+
+### ② 환경 기록 · 경고
+- 기록 파일: **`render/issue/measure.env.json`**(`measure.py` 출력 형식은 그대로 - 옆 파일). 칸: OS `Windows` · OS 판 `10` · Chromium(Playwright) `156.0.8078.4` · 글꼴 7개 sha256 · `measure.json` sha256(줄끝 무관) · 참고 `Windows-10-10.0.26200-SP0` · Playwright 1.64.0.
+- 쓰기 · 비교: 새 `render/measure_env.py`(`env_warnings` :74 · `write_env` :95 · 명령 `render/.venv/Scripts/python.exe -B render/measure_env.py --write`). 브라우저를 띄우지 않음(Chromium 판은 Playwright `browsers.json`).
+- 렌더러: `render_issue.py:483` `note_measure_env` - 렌더 시작(지면 짠 직후, `:760`)에 다르면 **경고만**: 로그 `경고: 높이 표를 잰 환경과 {OS · OS 판 · Chromium(Playwright) 판 · 글꼴 파일 · 높이 표 파일(measure.json)}이(가) 다르다 (…) - 줄 수 어림이 실제와 다를 수 있다(넘친 지면은 지면 검사가 막는다)` · `compose.json`의 `report.measureEnvWarnings` · 렌더 결과 요약 `measureEnvWarnings`(`:834`). 기록 파일이 없으면 "기록이 없다" 한 줄. 로컬 권도 같은 함수(`local_volumes.py:187` · report.txt 줄 · summary).
+- 시험 `render/tests/test_d2_env_unnamed.py` `MeasureEnv` 4건: 같은 환경 경고 0 · 글꼴 해시 하나 바꾼 가짜 환경 경고 1 · Chromium 판 다름 경고 1 · 기록 없음 경고 1 · 렌더러는 경고만(멈춤 0).
+
+### ③ 과소 예측 0 다시 확인
+- `measure.py`의 무작위 견본 확인(README §12) = 타임라인 40 + 인용 대화 30 = **70개 · 실제보다 작게 예측 0** · 가장 큰 과대 **타임라인 +29.0px · 인용 +44.7px**(최소 -0.0 · +0.2). 디자인 환경 값은 +29.0 · +56.6.
+- 시드 6권 타임라인 어림 - 실제: 전부 0 이상(+1~+4px).
+
+### ④ vol4
+- 새 표로 384 · 394자 메모 = 10줄(실제와 같음) → 구간 623 · 381px 어림(실제 622 · 380) → 타임라인 **2면**, 렌더 통과 **14쪽 · safe 0**. `test_v122.py:661` `test_timeline_overflow_volume_passes_and_no_estimate_is_below_the_actual`의 `@unittest.expectedFailure` **뗌**.
+
+### ⑤ 이름 없는 경유지(R138-4) - README 345줄 정본 · 282줄 `@da.route` "null stop 건너뜀"은 옛 줄
+| 곳 | 84-d까지 | 84-d2 | 시험 |
+|---|---|---|---|
+| 타임라인 | 보기 사본이 `placeName: null` 그대로 → 틀의 장소 줄(`da-timeline.html:25` data-optional)째 빠짐(`compose.py:395` 보기 사본 만들기, 84-d 커밋) | 보기 사본 `placeName = place_label(s)`(`compose.py:398`) - 구간 높이도 그 글자로 잰다(`stop_height`가 보기 사본을 잼) | `UnnamedStop.test_timeline_prints_the_line_with_its_other_cells`(시각 19:00 · 사진 칸 "2" · AI 캡션 그대로) |
+| 장소 목록 | 이미 `UNNAMED_PLACE`(`facts.py:352` `place_label`) | 그대로 | `test_places_list_and_routes_use_the_same_words` |
+| 경로(`@da.route` · `@da.articleRoute`) | 이미 `UNNAMED_PLACE`(같은 사실 `route`) | 그대로 | 같은 시험(경로 · 장소 수 5) |
+| (함께) 글만 있는 기사 구간 목록 | 84-d 새 지면 - `placeName: null` → 장소 줄 빠짐(`facts.py:208`, 84-d 커밋) | `place = place_label(s)`(`facts.py:203`) · 높이도 그 글자 | `test_hero_none_stop_list_uses_the_same_words`(18:20 · AI 캡션 그대로) |
+"함께" 줄은 위임서 세 곳 밖이지만 README 345줄 "모두 같은 말" · R136-2 "기록은 글로라도 싣는다"와 같은 자리(구간 목록)라 맞췄다 - PE가 보고 아니라면 되돌리기는 한 줄.
+
+### ⑥ D14
+- README §10 ③ D14 = 단위 시험 → 84-d 절 ⑤가 D14 목록의 실패 46건 전부 "옛 → 새" · 지운 2건(규칙 없어짐) · 새 `test_v123.py` 18건으로 덮었고, 84-d2에서 남아 있던 기대 실패 1건(vol4)이 풀려 **D14 = D1~D13 + 시험으로 다 덮였다.**
+
+### 시험 갱신 (표가 이 환경 값이 되어 디자인 환경 숫자를 박았던 것만 - 기댓값을 느슨하게 한 것 0)
+- `test_v122` Quotes: `test_conversation_height_matches_the_readme_table` → `test_conversation_height_follows_the_measure_formula`(README 격자 ±px 비교 → 같은 식을 시험이 `measure.json`으로 따로 계산해 **같음**) · `test_pack_boundary_940_...` / `..._841_..._778_...` → `test_pack_boundary_without_short_quotes` / `test_pack_boundary_with_one_to_three_and_four_or_more_short_quotes`(박은 숫자 → 표의 가용 높이, 경계 정확히 · +1) · 새 `test_quote_capacities_come_from_the_table_and_narrow_with_short_quotes` · `test_conversations_are_never_split_across_pages` · `test_overlong_...`(940 → 표 값) · TimelineMemo `test_stop_height_follows_the_measure_table`(README 격자 → 같은 식).
+- `test_r51` `test_the_overflow_volume_still_fits_one_page_by_the_estimate` → `test_the_overflow_volume_is_split_into_two_pages_by_the_estimate`(vol4 어림 한 면 → 두 면).
+- `test_h5_hero` `SeedRegression` vol4 13 → 14쪽 · `test_render_issue` 넘침 대화 1081px · 940px → 표 식 값(이 환경 1185px · 938px).
+- 시험 수: Python 348(기대 실패 1) → **356 OK · 기대 실패 0** · jest 124/2211 그대로.
+
+### 시드 6권 렌더 (`render/local_volumes.py`, 출력은 저장소 밖 스크래치)
+| 권 | 쪽 | safe | 원문 잘림 · 넘침 | 사실 어긋남 | 디자인 audit 같음 | 환경 경고 | 시간 |
+|---|---|---|---|---|---|---|---|
+| vol1-photos | 14 | 0 | 0 · 0 | 0 | 같음 | 0 | 32.7초 |
+| vol2-opener-fallback | 12 | 0 | 0 · 0 | 0 | 같음 | 0 | 21.4초 |
+| vol2b-opener-typeonly | 12 | 0 | 0 · 0 | 0 | 같음 | 0 | 19.3초 |
+| vol3-long-original | 15 | 0 | 0 · 0 | 0 | 같음 | 0 | 32.9초 |
+| vol4-timeline-overflow | 14 | 0 | 0 · 0 | 0 | 같음 | 0 | 26.5초 |
+| vol5-batch2 | 15 | 0 | 0 · 0 | 0 | 같음 | 0 | 29.0초 |
+| (vol3-fail) | - | - | 렌더 실패가 기대(대화 1185px > 938px) | | | | |
+
+### 결정 기록 (출처 R138-1~6)
+- 높이 표 = 렌더가 실제로 도는 환경(이 PC)에서 디자인 `measure.py`를 그대로 돌린 값(R138-2 (나)). 측정 도구 · 방법 · 칸 정의는 디자인 것 - 바꾼 것 0. 여유 줄 0.
+- **`render/issue/measure.json`(환경 실측판)과 `docs/design/nocturne/render/issue/measure.json`(디자인이 넘긴 판 보관본)은 일부러 다르다.**
+- **렌더가 서버로 옮겨 가면 그 환경에서 `measure.py`를 다시 돌리고 `render/measure_env.py --write`로 기록을 다시 쓴다(R138-2 ③ · M4).** 그 전에 렌더하면 환경 경고가 뜬다(멈춤 아님 - 넘침은 지면 검사가 막는다).
+- 이름 없는 경유지 = "이름을 남기지 않은 곳"(README 345줄 정본, R138-4) - 타임라인 · 장소 목록 · 경로 · 글만 있는 기사 구간 목록.
+- **디자인에 알릴 한 줄(전달은 PM)**: "`render/issue/measure.json`을 렌더 환경(Windows 10.0.26200 · Chromium 156.0.8078.4 · Playwright 1.64.0 · 글꼴 render/issue/fonts 7개)에서 `measure.py` 그대로 다시 잰 환경 실측판으로 갱신했습니다 - 줄 수가 대체로 한 줄 크고 인용 가용 938/843/780 · 견본 70개 과소 0. 잰 환경은 `measure.env.json`. 그리고 README 282줄 `@da.route` 'null stop 건너뜀'은 345줄(이름을 남기지 않은 곳)과 어긋나 정정 부탁드립니다."
+
+검증: 루트 tsc 0 · jest **124/2211** · Python **356 OK**(423초, 기대 실패 0) · `npm run gate` **1회 통과 126.5초**(smoke 32/32 · `web/` 변경 0). 키 · 주소 · id · 생성 문장 0 · 새 파일 이름 ASCII(`render/measure_env.py` · `render/issue/measure.env.json` · `render/tests/test_d2_env_unnamed.py`) · `__pycache__` 0.
+
 ## `84-d` 조판 v1.2.3 반입 + 렌더러 D1~D14 + 이달의 우리 사진(R44-9) (메인 세션, 2026-11-19~20, 위임문 `phase-7/84-d-dispatch-render-v1_2_3.md` · 출처 ROADMAP r136 R136-1~7 · r137) - 완료 · **멈춤 1(⑥ 실측 표 · vol4)** (미커밋)
 
 시작 확인: `DOC_REVISION: 2026-11-19-r137` · 첨부 2개(`phase-7/dev_reference_v1_2_3.diff` · `test_failures_v1_2_3.txt` - 저장소에 이미 커밋돼 있음 `ce84e72`) · 새 `render/issue/README.md` v1.2.3 - 통과. LLM 호출 0 · 원격 0(허용 질의 없음) · 마이그레이션 0 · 함수 배포 0 · 새 패키지 0 · `web/` 0 · `consent.ts` 0 · `demo_responses` 0 · 실제 데이터 0 · 커밋 0. **틀(`render/issue/`) 변경 0**(git 깨끗 - `measure.py` 시험 실행 뒤 `measure.json`을 원래 바이트로 되돌림).

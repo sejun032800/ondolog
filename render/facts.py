@@ -200,12 +200,13 @@ def article_stops_view(article: dict) -> tuple:
         if dropped:
             dropped.append(s)
             continue
-        h = article_stop_height(memos[0]['text'] if memos else None, caption, s.get('placeName'))
+        place = place_label(s)   # 84-d2(R138-4) - 이름 없는 경유지도 줄을 빼지 않고 UNNAMED_PLACE로 싣는다(README v1.2.3 §10 ① 확정). 높이도 그 글자로 잰다
+        h = article_stop_height(memos[0]['text'] if memos else None, caption, place)
         if used + h > ARTICLE_STOPS_CAPACITY:
             dropped.append(s)
             continue
         used += h
-        shown.append({'time': hhmm_of(s.get('time')), 'placeName': s.get('placeName'), 'userNotes': memos,
+        shown.append({'time': hhmm_of(s.get('time')), 'placeName': place, 'userNotes': memos,
                       'aiCaption': caption or None})
     return shown, dropped
 

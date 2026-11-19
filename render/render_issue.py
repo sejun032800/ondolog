@@ -50,6 +50,7 @@ from page_audit import (  # noqa: E402
     audit_page, compare_with_design, design_audit_js, mark_original_overset, original_clipped, original_overset, recorded_clipped,
 )
 from slot_fill import fill  # noqa: E402
+from measure_env import env_warnings  # noqa: E402
 from photo_fit import PhotoFitError, fit_photo, load_config as load_render_config, metadata_found, summarize  # noqa: E402
 
 from bs4 import BeautifulSoup  # noqa: E402
@@ -479,6 +480,16 @@ def settle_cover(composition: Composition, templates: dict[str, str], work: Path
     return outcome
 
 
+def note_measure_env(composition: Composition, say: Callable[[str], None] = print) -> list:
+    """84-d2(R138-2 ①) - 높이 표(`measure.json`)를 잰 환경과 지금 환경이 다르면 **경고만** 남긴다(로그 + `composition.report['measureEnvWarnings']`
+    -> compose.json · 렌더 결과 요약). 멈추지 않는다 - 넘친 지면은 렌더 뒤 지면 검사(`gate_failure`)가 따로 막는다."""
+    warnings = env_warnings()
+    for w in warnings:
+        say(f'경고: {w}')
+    composition.report['measureEnvWarnings'] = warnings
+    return warnings
+
+
 def build_pages(composition: Composition, templates: dict[str, str], work: Path, issue: dict[str, Any],
                 fetch: Callable[[str], Optional[bytes]]) -> list[Path]:
     """채운 지면을 `work/pages/NN-<stem>.html`로 쓴다. 사진은 목적지 사본을 받아 `work/photos/`에 두고 상대 경로로 잇는다."""
@@ -746,6 +757,7 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
         composition = compose_issue(issue, couple, couple_names(api, couple), corners, collect_materials(api, issue, couple))
     except ComposeError as e:
         raise StopError(f'지면을 짤 수 없다: {e}') from None
+    note_measure_env(composition, say)
 
     out = OUT_ROOT / issue_id
     work = out / 'work'
@@ -819,6 +831,7 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
                     # R84-1 · R84-2 - 숫자만(날짜 · id · 파일 이름 없음): 뺀 기사 수 · 대표 사진을 대체 규칙으로 정한 기사 수
                     'droppedArticles': composition.report['droppedArticles'],
                     'heroFallbackArticles': composition.report['heroFallbackArticles']},
+        'measureEnvWarnings': composition.report.get('measureEnvWarnings', []),   # 84-d2 R138-2 ① - 높이 표를 잰 환경과 다르면 경고(멈춤 아님)
         'sizes': sizes,
         'bucketPaths': [f'{folder}/{pdf_name}'] + [f'{folder}/{n}' for n in image_names],
         'issuesFields': {k: updated[0][k] for k in ('pdf_digital_path', 'page_count', 'cover_path')},
