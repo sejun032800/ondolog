@@ -1,10 +1,9 @@
 /// <reference types="jest" />
 /**
- * 84-a 안전장치 - llmClient(temperature · 호출 120초 · 시도 직전 판정 · 사용량)와 골격(값 검사 재요청 · 안전 정지).
+ * 84-a 안전장치 - llmClient(요청 본문 · 호출 120초 · 시도 직전 판정 · 사용량)와 골격(값 검사 재요청 · 안전 정지).
  * 위임: .claude/state/prompts/phase-7/84-a-dispatch-llm-safety.md (ROADMAP r124 R124-2 · R124-3 · R124-4)
  * 실제 네트워크 · 실제 시계 0: fetch · 타이머 · 시계를 모두 주입한다(76-j 교훈). LLM 호출 0.
  */
-import { LLM_TEMPERATURE } from '../../../src/engine/corners/llmSafety.ts'
 import { createLlmClient, CORNER_LLM_CALL_BUDGET } from './llmClient.ts'
 import type { LlmRequest } from './llmRequest.ts'
 import { runCornerModule } from './cornerPipeline.ts'
@@ -30,8 +29,8 @@ function manualTimers() {
   }
 }
 
-describe('84-a llmClient - temperature · 호출 시간 상한 · 시도 직전 판정 · 사용량', () => {
-  it('요청 본문에 temperature 0.5와 모델이 실린다', async () => {
+describe('84-a llmClient - 요청 본문 · 호출 시간 상한 · 시도 직전 판정 · 사용량', () => {
+  it('요청 본문에 모델이 실리고 temperature는 없다(R131-1 철회 - 84-a2 고정 시험은 llmRequest84a2.test.ts)', async () => {
     const bodies: Record<string, unknown>[] = []
     const fetchImpl = jest.fn(async (_u: unknown, init?: RequestInit) => {
       bodies.push(JSON.parse(String(init?.body)))
@@ -40,8 +39,8 @@ describe('84-a llmClient - temperature · 호출 시간 상한 · 시도 직전 
     const t = manualTimers()
     const client = createLlmClient({ apiKey: 'k', model: 'claude-sonnet-5-5', fetchImpl, sleepImpl: noSleep, ...t })
     await client.call(req())
-    expect(LLM_TEMPERATURE).toBe(0.5)
-    expect(bodies[0]).toMatchObject({ model: 'claude-sonnet-5-5', temperature: 0.5 })
+    expect(bodies[0]).toMatchObject({ model: 'claude-sonnet-5-5' })
+    expect(bodies[0]).not.toHaveProperty('temperature')
   })
 
   it('호출 1번 상한(120초)에 닿으면 중단 신호 -> 전송 실패로 보고 기존 재시도(대기 뒤 다시) -> 둘째 시도 성공', async () => {

@@ -14,12 +14,14 @@ import {
   ISSUE_BUDGET_USD,
   ISSUE_TIME_LIMIT_MS,
   LLM_CALL_TIMEOUT_MS,
+  LLM_MAX_TOKENS,
   MODEL_REJECT_CODE,
   SAFETY_STOP,
   callBudgetMs,
   resolveHarnessModel,
   resolveLlmModel,
   usageCostUsd,
+  WORST_OUTPUT_TOKENS,
   worstCallCostUsd,
 } from '../../../src/engine/corners/llmSafety'
 import {
@@ -82,8 +84,12 @@ describe('84-a 비용 (R124-3)', () => {
     expect(usageCostUsd('claude-opus-5-5', usage)).toBeCloseTo(7.6, 10)
   })
 
-  it('최악 비용 = 입력 추정 상한 × 캐시 쓰기 단가 + 출력 4096 × 출력 단가', () => {
-    expect(worstCallCostUsd('claude-sonnet-5-5', 10_000)).toBeCloseTo((10_000 * 2.5 + 4096 * 10) / 1e6, 12)
+  it('최악 비용 = 입력 추정 상한 × 캐시 쓰기 단가 + 출력 max_tokens(84-a2: 16,000 - 생각 포함) × 출력 단가', () => {
+    expect(WORST_OUTPUT_TOKENS).toBe(LLM_MAX_TOKENS)
+    expect(LLM_MAX_TOKENS).toBe(16_000)
+    expect(worstCallCostUsd('claude-sonnet-5-5', 10_000)).toBeCloseTo((10_000 * 2.5 + 16_000 * 10) / 1e6, 12)
+    // Opus 5.5: 출력만 16,000 × $20/MTok = $0.32
+    expect(worstCallCostUsd('claude-opus-5-5', 0)).toBeCloseTo(0.32, 12)
   })
 
   it('상한 직전 호출은 허용 · 넘을 호출은 거부(같으면 허용)', () => {

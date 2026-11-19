@@ -62,6 +62,8 @@ interface Script {
   usage?: (corner: number) => Record<string, number>
   /** 응답 직전에 시계를 얼마나 움직일지(ms). */
   advance?: (corner: number, attempt: number) => number
+  /** 84-a2: HTTP 상태(없으면 200). 200이 아니면 오류 본문(요청 id 포함)을 돌려준다. */
+  status?: (corner: number, attempt: number) => number
 }
 
 /** 진짜 `createLlmClient` + 가짜 fetch · 시계 · 타이머. */
@@ -88,6 +90,11 @@ function liveDeps(samples: string[], script: Script = {}) {
           const attempt = attemptsByCorner[corner]++
           bodies.push(JSON.parse(String(init?.body)))
           clock += script.advance?.(corner, attempt) ?? 1000
+          const status = script.status?.(corner, attempt) ?? 200
+          if (status !== 200) {
+            const err = { type: 'error', error: { type: 'invalid_request_error', message: 'bad' }, request_id: 'req_fake84a2' }
+            return { ok: false, status, text: async () => JSON.stringify(err), json: async () => err } as unknown as Response
+          }
           const text = script.text?.(corner, attempt) ?? samples[corner]
           const body = { content: [{ type: 'text', text }], stop_reason: 'end_turn', usage: script.usage?.(corner) ?? USAGE }
           return { ok: true, status: 200, text: async () => JSON.stringify(body), json: async () => body } as unknown as Response
@@ -154,7 +161,7 @@ describe('84-a 모델 fail-closed (R21-1 완료 기준) - 호 행을 만들기 �
 })
 
 describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라이언트(가짜 fetch)', () => {
-  it('코너 3개 ready · 클라이언트는 허용 모델로 3번 · 본문 temperature 0.5 · llm_usage(숫자 · 코드만) · 비용 합', async () => {
+  it('코너 3개 ready · 클라이언트는 허용 모델로 3번 · 본문에 샘플링 값 0(84-a2) · llm_usage(숫자 · 코드만) · 비용 합', async () => {
     const { store, media, tables } = world({ provider: 'anthropic', model: 'claude-opus-5-5' })
     const live = liveDeps(await sampleTexts(tables))
     const report = await generateIssue({ store, media, live: live.deps }, LIVE)
@@ -169,7 +176,7 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
       ['this_month', 'ready', 1],
     ])
     expect(live.created).toEqual(['claude-opus-5-5', 'claude-opus-5-5', 'claude-opus-5-5'])
-    expect(live.bodies.every((b) => b.temperature === 0.5 && b.model === 'claude-opus-5-5')).toBe(true)
+    expect(live.bodies.every((b) => !('temperature' in b) && !('top_p' in b) && !('top_k' in b) && b.model === 'claude-opus-5-5')).toBe(true)
 
     const one = { input: 1000, output: 200, cacheWrite: 300, cacheRead: 400 }
     const each = usageCostUsd('claude-opus-5-5', one)
@@ -183,7 +190,7 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
 
   it('1호 비용 $2: 첫 코너 사용량이 커서 다음 호출의 최악을 더하면 넘침 -> 남은 코너는 호출 0 · 안전 정지 · 경보', async () => {
     const { store, media, tables } = world()
-    // Sonnet 출력 10 USD/MTok - 199,000 출력 = $1.99. 다음 호출 최악(출력 4096만 해도 $0.04)을 더하면 $2를 넘는다.
+    // Sonnet 출력 10 USD/MTok - 199,000 출력 = $1.99. 다음 호출 최악(출력 16,000만 해도 $0.16)을 더하면 $2를 넘는다.
     const live = liveDeps(await sampleTexts(tables), {
       usage: () => ({ input_tokens: 0, output_tokens: 199_000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }),
     })
@@ -231,5 +238,39 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
       ['halted_pending', 'issue_time_limit'],
     ])
     expect(store.alerts.map((a) => a.detail.stage)).toEqual(['issue_time_limit', 'issue_time_limit'])
+  })
+})
+
+describe('84-a2 실제 모드 - 기록되는 호출 수 = 실제로 보낸 수 (R131-2 ②)', () => {
+  it('400이면 다시 보내지 않음: 코너마다 fetch 1 · generation_attempts · llm_usage.attempts · realApiCalls 모두 1 · 요청 id 0', async () => {
+    const { store, media, tables } = world()
+    const live = liveDeps(await sampleTexts(tables), { status: () => 400 })
+    const report = await generateIssue({ store, media, live: live.deps }, LIVE)
+    expect(live.fetchCount()).toBe(3)
+    expect(report.realApiCalls).toBe(3)
+    expect(report.corners.map((c) => [c.outcome, c.realApiCalls])).toEqual([
+      ['failed', 1],
+      ['failed', 1],
+      ['failed', 1],
+    ])
+    for (const c of store.corners) {
+      expect(c.generation_attempts).toBe(1)
+      expect(c.llm_usage).toMatchObject({ attempts: 1, failure: 'generation_failed' })
+    }
+    expect(JSON.stringify(report)).not.toContain('req_fake84a2')
+    expect(JSON.stringify(store.corners)).not.toContain('req_fake84a2')
+  })
+
+  it('429 다음 성공: 보낸 수 2 = realApiCalls 2 = llm_usage.attempts 2', async () => {
+    const { store, media, tables } = world()
+    const live = liveDeps(await sampleTexts(tables), { status: (corner, attempt) => (corner === 0 && attempt === 0 ? 429 : 200) })
+    const report = await generateIssue({ store, media, live: live.deps }, LIVE)
+    expect(report.corners.map((c) => [c.outcome, c.realApiCalls])).toEqual([
+      ['ready', 2],
+      ['ready', 1],
+      ['ready', 1],
+    ])
+    expect(live.fetchCount()).toBe(4)
+    expect(store.corners.find((c) => c.corner_type === 'date_archive')?.llm_usage).toMatchObject({ attempts: 2, failure: null })
   })
 })

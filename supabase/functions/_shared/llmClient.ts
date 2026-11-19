@@ -50,16 +50,28 @@
  * 캐시 최소 길이·유효 시간 같은 수치는 여기서 정하지 않는다(API 기본 동작에 맡긴다).
  *
  * ── 84-a 안전장치 (ROADMAP r124 R124-2 · R124-3) ───────────────────────
- * - temperature를 요청에 **명시**한다(기본 `LLM_TEMPERATURE` 0.5).
+ * - ~~temperature 명시~~ - R131-1로 철회(84-a2). 아래 "84-a2" 참고.
  * - 호출 1번의 시간 상한(기본 120초): 중단 신호로 끊고 **전송 실패**로 본다 - 기존 재시도·대기 그대로.
  * - `beforeAttempt`: HTTP 시도 **직전마다** 호출부가 시간(코너 8분 · 1호 20분)과 비용(누적 + 이번 최악)을 본다.
  *   막히면 네트워크 요청 없이 `generation_failed` + `stop`(정지 사유 코드)로 돌려준다. 예산(3회)은 쓰지 않는다.
  * - `onResponse`: HTTP 응답마다 상태 · 사용량(`usage`) · `stop_reason` · 지연을 알린다(비용 누적 · `llm_usage` 기록용). 문장은 넘기지 않는다.
  * - 시계 · 타이머는 주입할 수 있다(시험은 실제 시계 0).
+ *
+ * ── 84-a2 요청 · 재요청 · 응답 읽기 (ROADMAP r131 R131-1~2) ─────────────
+ * 근거: https://platform.claude.com/docs/en/models/opus-5-5/migration-guide ·
+ *       https://platform.claude.com/docs/en/build-with-claude/thinking
+ * - 요청 본문 키는 `REQUEST_BODY_KEYS` 넷뿐: model · max_tokens · system(있을 때) · messages(user 하나).
+ *   샘플링 값(`temperature` · `top_p` · `top_k`) 0 · 끝의 assistant prefill 0 · `thinking` 0(기본 adaptive) ·
+ *   effort(`output_config`) 0(기본값 - 바꿀지는 PM). 형식은 시스템 프롬프트 지시 + 파이프라인의 형식 검사가 맡는다.
+ * - 재요청: 응답 없음(시간 초과 · 네트워크 예외) · 408 · 429 · 5xx만 기존 규칙(대기 뒤 다시). 그 밖의 비성공 상태
+ *   (400 · 401 · 403 · 404 등)는 **다시 보내지 않고 바로 실패** - 같은 요청은 같은 거절을 받는다.
+ * - 응답: `type === "text"` 블록만 순서대로 이어 붙인다(앞에 `thinking` 블록이 올 수 있음 - 첫 블록 가정 0).
+ *   text 블록이 없거나 `stop_reason`이 `max_tokens`(잘림)이면 빈 텍스트 = 형식 오류(`schema_invalid`, 지면에 싣지 않음).
+ * - 오류 본문은 `error.type` · `error.message`만 남긴다(요청 id 등은 버림 - 파일 · 로그 · 보고에 넣지 않음).
  */
 
 import type { LlmRequest, PromptBlock } from './llmRequest.ts'
-import { LLM_CALL_TIMEOUT_MS, LLM_TEMPERATURE, type LlmUsage, type SafetyStop } from '../../../src/engine/corners/llmSafety.ts'
+import { LLM_CALL_TIMEOUT_MS, LLM_MAX_TOKENS, type LlmUsage, type SafetyStop } from '../../../src/engine/corners/llmSafety.ts'
 
 /** 이 모듈 안에만 있는 엔드포인트 상수 (정적 규칙 C가 지키는 값). */
 const LLM_ENDPOINT_HOST = 'api.anthropic.com'
@@ -128,8 +140,6 @@ export interface LlmClientConfig {
   fetchImpl?: typeof fetch
   /** 테스트 주입용 지연 함수. 기본은 실제 `setTimeout` 기반 대기. */
   sleepImpl?: (ms: number) => Promise<void>
-  /** 84-a: 요청의 temperature. 기본 `LLM_TEMPERATURE`(0.5). */
-  temperature?: number
   /** 84-a: 호출 1번의 시간 상한(ms). 기본 `LLM_CALL_TIMEOUT_MS`(120초). */
   callTimeoutMs?: number
   /** 84-a: HTTP 시도 직전마다 - 시간 · 비용 상한. 없으면 늘 통과. */
@@ -172,7 +182,50 @@ function assertValidRequest(request: LlmRequest): void {
   }
 }
 
-/** 응답 `usage` -> 네 값(없으면 null). 숫자가 아닌 칸은 0. */
+/** 84-a2: 요청 본문에 들어가도 되는 키 전부(시험이 이 목록 밖의 키가 없음을 단언한다). */
+export const REQUEST_BODY_KEYS = ['model', 'max_tokens', 'system', 'messages'] as const
+
+/**
+ * 84-a2: 다시 보내도 되는 HTTP 상태인가 - 408(시간 초과) · 429 · 5xx만. 그 밖(400 · 401 · 403 · 404 등)은 같은
+ * 요청이 같은 거절을 받으므로 바로 실패한다.
+ */
+export function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500
+}
+
+/**
+ * 84-a2: 응답 content에서 `type === "text"` 블록만 순서대로 이어 붙인다. 블록 순서를 가정하지 않는다(앞에 `thinking`
+ * 블록이 올 수 있음). text 블록이 하나도 없으면 null.
+ */
+export function extractResponseText(content: unknown): string | null {
+  if (!Array.isArray(content)) return null
+  const parts: string[] = []
+  for (const block of content) {
+    if (block !== null && typeof block === 'object' && (block as { type?: unknown }).type === 'text') {
+      const text = (block as { text?: unknown }).text
+      if (typeof text === 'string') parts.push(text)
+    }
+  }
+  return parts.length > 0 ? parts.join('') : null
+}
+
+/**
+ * 84-a2: 오류 응답 본문 -> `error.type: error.message`만. 요청 id 등 나머지 칸은 버린다. JSON이 아니면 요청 id 모양을
+ * 지우고 앞 200자만.
+ */
+export function summarizeErrorBody(bodyText: string): string {
+  try {
+    const j = JSON.parse(bodyText) as { error?: { type?: unknown; message?: unknown } }
+    const type = typeof j?.error?.type === 'string' ? j.error.type : null
+    const message = typeof j?.error?.message === 'string' ? j.error.message : null
+    if (type !== null || message !== null) return [type, message].filter((s) => s !== null).join(': ')
+  } catch {
+    // JSON이 아니면 아래
+  }
+  return bodyText.replace(/req_[A-Za-z0-9]+/g, 'req_[지움]').slice(0, 200)
+}
+
+/** 응답 `usage` -> 네 값(없으면 null). 숫자가 아닌 칸은 0. `output`은 생각 토큰을 포함한 청구 출력 수 그대로(84-a2 ④-b). */
 function usageOf(raw: Record<string, unknown> | undefined): LlmUsage | null {
   if (raw === undefined || raw === null || typeof raw !== 'object') return null
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
@@ -194,10 +247,13 @@ function backoffDelayMs(consecutiveTransportFailures: number): number {
   return 500 * 2 ** (consecutiveTransportFailures - 1)
 }
 
-/** 시도 하나의 결과. `transport`: 실패가 전송 수준(예외·비성공 HTTP 상태)인가 - 대기 여부를 정한다. */
+/**
+ * 시도 하나의 결과. `transport`: 실패가 전송 수준(예외·비성공 HTTP 상태)인가 - 대기 여부를 정한다.
+ * `retryable`(84-a2): 다시 보내도 되는가 - 아니면 남은 예산과 상관없이 바로 실패한다.
+ */
 type AttemptResult =
   | { readonly ok: true; readonly text: string }
-  | { readonly ok: false; readonly detail: string; readonly transport: boolean }
+  | { readonly ok: false; readonly detail: string; readonly transport: boolean; readonly retryable: boolean }
 
 /**
  * 코너 1건에 묶이는 LLM 클라이언트를 만든다. 반환된 인스턴스가 호출
@@ -207,8 +263,7 @@ type AttemptResult =
 export function createLlmClient(config: LlmClientConfig): LlmClient {
   const fetchFn = config.fetchImpl ?? fetch
   const sleepFn = config.sleepImpl ?? defaultSleep
-  const maxTokens = config.maxTokens ?? 4096
-  const temperature = config.temperature ?? LLM_TEMPERATURE
+  const maxTokens = config.maxTokens ?? LLM_MAX_TOKENS
   const callTimeoutMs = config.callTimeoutMs ?? LLM_CALL_TIMEOUT_MS
   const now = config.nowImpl ?? (() => Date.now())
   const setTimer = config.setTimerImpl ?? ((fn: () => void, ms: number) => setTimeout(fn, ms))
@@ -236,10 +291,10 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
           'x-api-key': config.apiKey,
           'anthropic-version': '2023-06-01',
         },
+        // 84-a2: 키는 `REQUEST_BODY_KEYS` 안의 것만. 샘플링 값 · thinking · effort · assistant prefill 0.
         body: JSON.stringify({
           model: config.model,
           max_tokens: maxTokens,
-          temperature,
           ...(request.system.length > 0 ? { system: toWireBlocks(request.system) } : {}),
           messages: [{ role: 'user', content: toWireBlocks(request.user) }],
         }),
@@ -248,28 +303,37 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
       if (!response.ok) {
         const bodyText = await response.text().catch(() => '')
         config.onResponse?.({ status: response.status, latencyMs: now() - startedAt, usage: null, stopReason: null })
-        return { ok: false, detail: `HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''}`, transport: true }
+        const summary = bodyText ? summarizeErrorBody(bodyText) : ''
+        return {
+          ok: false,
+          detail: `HTTP ${response.status}${summary ? `: ${summary}` : ''}`,
+          transport: true,
+          retryable: isRetryableStatus(response.status),
+        }
       }
 
       const json = (await response.json()) as {
-        content?: Array<{ type?: string; text?: string }>
+        content?: unknown
         stop_reason?: unknown
         usage?: Record<string, unknown>
       }
+      const stopReason = typeof json.stop_reason === 'string' ? json.stop_reason : null
       config.onResponse?.({
         status: response.status,
         latencyMs: now() - startedAt,
         usage: usageOf(json.usage),
-        stopReason: typeof json.stop_reason === 'string' ? json.stop_reason : null,
+        stopReason,
       })
-      const text = json.content?.find((block) => block.type === 'text')?.text
-      // HTTP 2xx인데 텍스트 블록이 없으면 빈 문자열로 돌려준다 - 파싱할 것이 없는 응답이고, 파이프라인의
+      // 84-a2: text 블록만 이어 붙인다(thinking 블록은 건너뜀). 잘린 응답(`stop_reason=max_tokens`)은 글이 있어도 버린다.
+      const text = stopReason === 'max_tokens' ? null : extractResponseText(json.content)
+      // HTTP 2xx인데 텍스트 블록이 없거나 잘렸으면 빈 문자열로 돌려준다 - 파싱할 것이 없는 응답이고, 파이프라인의
       // 1단계(`JSON.parse`)가 실패해 `schema_invalid`가 된다(17-0-8, r47). 전송은 성공했으므로 대기는 없고,
       // 이 호출은 예산 한 번을 쓴다. 재호출 여부는 파이프라인의 정책표가 정한다(여기서 안으로 돌지 않는다).
-      return { ok: true, text: typeof text === 'string' ? text : '' }
+      return { ok: true, text: text ?? '' }
     } catch (err) {
-      if (timedOut) return { ok: false, detail: `시간 상한 ${timeoutMs}ms 초과(중단)`, transport: true }
-      return { ok: false, detail: err instanceof Error ? err.message : String(err), transport: true }
+      // 응답이 없는 실패(시간 초과 · 네트워크 예외)는 다시 보낼 수 있다.
+      if (timedOut) return { ok: false, detail: `시간 상한 ${timeoutMs}ms 초과(중단)`, transport: true, retryable: true }
+      return { ok: false, detail: err instanceof Error ? err.message : String(err), transport: true, retryable: true }
     } finally {
       clearTimer(timer)
     }
@@ -303,6 +367,8 @@ export function createLlmClient(config: LlmClientConfig): LlmClient {
           return { ok: true, text: result.text }
         }
         lastDetail = result.detail
+        // 84-a2: 다시 보내도 같은 거절(400 · 401 · 403 · 404 등) - 남은 예산을 쓰지 않고 바로 실패.
+        if (!result.retryable) break
       }
 
       return { ok: false, reason: 'generation_failed', detail: lastDetail }

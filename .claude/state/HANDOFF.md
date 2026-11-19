@@ -11,6 +11,59 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `84-a2` LLM 요청 고치기 - 샘플링 값 · prefill · 재요청 · 사고 블록 (메인 세션, 2026-11-19, 위임문 `phase-7/84-a2-dispatch-llm-request-fix.md` · 출처 ROADMAP r131 R131-1~4) - 완료 (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-19-r131`(ROADMAP 15줄) - 통과. 멈춤 0. **LLM 호출 0**(시험은 가짜 fetch) · 원격 0(허용 질의 없음 - 실행 0) · 마이그레이션 0 · 함수 배포 0 · 새 패키지 0 · `web/` 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 0 · 커밋 0.
+
+### 바꾼 파일
+| 파일 | 내용 |
+|---|---|
+| `supabase/functions/_shared/llmClient.ts` | 본문에서 `temperature` 뺌(허용 키 `REQUEST_BODY_KEYS` = model · max_tokens · system · messages) · 재요청은 408 · 429 · 5xx · 응답 없음(시간 초과 · 네트워크 예외)만(`isRetryableStatus`) · 응답은 text 블록만 이어 붙임(`extractResponseText`) · `stop_reason=max_tokens`면 빈 텍스트(형식 오류) · 오류 본문은 `error.type: error.message`만(`summarizeErrorBody` - 요청 id 버림) · 기본 `max_tokens` = `LLM_MAX_TOKENS` |
+| `src/engine/corners/llmSafety.ts` | `LLM_TEMPERATURE` 지움 · `LLM_MAX_TOKENS` 16,000 새로 · `WORST_OUTPUT_TOKENS` = 그 값(옛 4096). 위임서 편집 범위의 "비용 계산"이 실제로 이 파일에 있어 고침(84-a 결정 기록 1과 같은 사정) |
+| `scripts/ops/m1QualityRun.ts` | 기본 `--max-tokens` 16000 · 오류 본문 요약 저장 · 잘린 회차는 잘린 text 블록을 판정 자료로 · runs json의 `llmCallAttempts` = 보낸 HTTP 수 · review 부분을 도우미로 뺌 |
+| `scripts/ops/m1Review.ts`(신규 · 도우미) | 저장 형식 · `renderReview`(순수) · `sentCalls` = `httpCalls.length` - review · summary 호출 칸이 이 값 하나 · 말투 칸 "합니다체 밖"(회차 칸 · 모델별 집계 기준 문단) |
+| 시험 | 새 `supabase/functions/_shared/llmRequest84a2.test.ts`(25) · 새 `scripts/ops/m1Review84a2.test.ts`(4) · `safety84a.test.ts`(temperature 단언 → 없음 단언) · `__tests__/engine/corners/llmSafety84a.test.ts`(최악값 16,000) · `scripts/ops/liveMode84a.test.ts`(샘플링 값 0 단언 · 400/429 보낸 수 = `llm_usage.attempts` 2건) |
+
+### ①~④ 지금(고치기 전, HEAD 기준 파일:줄) → 고친 것
+| # | 고치기 전 | 고친 것 · 시험 |
+|---|---|---|
+| ① | `llmClient.ts:242` 본문에 `temperature`(값 `llmSafety.ts:24` 0.5). prefill · `thinking` · effort · top_p/top_k는 원래 0(`llmClient.ts:239-245` - messages는 user 하나) | temperature 뺌 · 허용 키 목록. `llmRequest84a2.test.ts` "① 요청 본문 고정 - 두 모델 각각"(키 집합 = 허용 목록 · 금지 키 8개 없음 · user 하나) |
+| ② | `llmClient.ts:248-251` 2xx 아니면 모두 "전송 실패" → `:284-306`에서 예산 3번까지 다시 보냄(400도 3번) | 408 · 429 · 5xx · 응답 없음만 다시. 그 밖은 1번에 실패. "② 재요청 - 상태 코드별 보낸 횟수"(400 · 401 · 403 · 404 = 1 / 429 · 500 · 503 · 529 = 3 / 시간 초과 → 2 / 429 → 400 = 2) · `liveMode84a` "84-a2 … 보낸 수"(llm_usage.attempts = fetch 수) · `m1Review84a2` "② 호출 수" |
+| ③ | `m1QualityRun.ts:573` 회차 칸 "말투 위반(해요체 밖)" · `:581` 기준 문단 "해요체 밖 말투" | "합니다체 밖"(두 곳). 판정 자료 생성 코드의 "해요체" 0. `m1Review84a2` "③ review.md 말투 칸" |
+| ④-a | `llmClient.ts:265` `find(type === 'text')` - type으로 고르긴 했으나 **첫 text 블록 하나만** | text 블록 전부 순서대로 이어 붙임 · 없으면 빈 텍스트 → 파이프라인 `schema_invalid`(기존 재요청 규칙). "④-a"(thinking 앞 · thinking만 · text 여러 개 · 파이프라인까지) |
+| ④-b | `llmClient.ts:176-185` `usage.output_tokens` 그대로 - 생각 토큰을 따로 세지 않음(이미 맞음) | 코드 동작 그대로 · 주석과 시험만. "④-b"(`thinking_tokens` 같은 칸이 와도 더하지 않음 · 비용 = 출력 단가 × output_tokens) |
+| ④-c | `stop_reason=max_tokens`여도 `llmClient.ts:265-269`가 잘린 글을 돌려줌 → 골격 JSON 검사가 보통 `schema_invalid`(생성 경로는 재요청) · 하네스만 `m1QualityRun.ts:382-391`에서 재요청 막고 표시. 잘린 글이 우연히 검사를 통과하면 실릴 길이 있었음 | 잘리면 글이 있어도 빈 텍스트 = 형식 오류(지면 0). 하네스 잘림 표시 · 재요청 막기는 그대로. "④-c"(빈 텍스트 · 파이프라인 실패) |
+
+### 결정 기록 (출처 R131-1~4 · 공식 문서)
+1. 근거 문서(2026-11-19 확인): https://platform.claude.com/docs/en/models/opus-5-5/migration-guide · https://platform.claude.com/docs/en/build-with-claude/thinking
+   - Opus 5.5: "Omit `temperature`, `top_p`, and `top_k`." / "Don't end `messages` with a prefilled assistant turn: it is rejected." / effort "the default is `medium`" / "`max_tokens` remains a hard limit on total output, thinking plus response text" / "Thinking tokens are billed as output tokens even when the thinking text is not returned to you" / "A response can start with one or more `thinking` blocks before the first `text` block … Select content blocks by their `type` field".
+   - Sonnet 5.5(thinking 문서 표): 요청에 `thinking` 없음 = "Adaptive thinking" · `budget_tokens` = 400 · `disabled` = 400. "non-default `temperature`, `top_p`, or `top_k` values return a 400 error on every request"(Sonnet 5.5 포함 목록) · "Claude 4.6 and later models … reject a prefilled final assistant turn with a 400 error" · 모든 모델 공통 "the tokens Claude spends reasoning are billed as output tokens … and they count toward `max_tokens` alongside the response text" · "`max_tokens`, which includes all thinking Claude generates in the current turn, is enforced as a strict limit".
+   - `usage.output_tokens`에 생각 토큰 포함: 직접 문장은 "The progress update counts toward `usage.output_tokens` at its full length" · "The billed output token count does not match the count of tokens you see in the response" - **청구 = output_tokens**로 읽음(생각만 따로 적은 문장은 못 찾음 → 이 한 칸은 "간접 근거").
+2. effort는 보내지 않음(Opus 기본 medium · Sonnet 기본 high) - 바꿀지는 PM.
+3. 재요청 허용 = 응답 없음 · 408 · 429 · 5xx. 위임서의 "시간 초과"에 네트워크 예외(응답 없음)와 408을 함께 넣었다. 그 밖 4xx(409 · 413 · 422 등)도 바로 실패.
+4. `max_tokens` 4096 → **16,000**. 이유: 두 모델 다 생각이 늘 켜져 있고 한도는 생각 + 답 합계 - 4096은 생각 없던 때 크기(MASTER §17-0-10-H)라 이달의 우리처럼 입력이 큰 코너(추정 상한 약 2.2만 토큰)에서 생각에 먹혀 잘릴 수 있다. 16,000은 스트리밍 없는 요청의 공식 권장 기본. 잘리면 형식 오류.
+5. 호출 120초 상한은 그대로(R124-3). 16,000 토큰을 다 쓰면 120초를 넘을 수 있어, 실제 상한은 시간 쪽이 먼저 걸릴 수 있다(시간 초과 = 전송 실패 → 기존 재시도). **PM 판단 항목**: 120초 유지 · effort 낮추기 · 스트리밍 중 하나가 필요한지 84-b 2차 지연 숫자로 판단.
+6. 84-b 1차 `calls=3` 대 "호출 1": 하네스 화면 줄은 HTTP 수(`m1QualityRun.ts:449` `httpCalls.length`), review · summary는 골격의 `llmClient.call()` 횟수(`:550` · `:630` `rec.llmCallAttempts` ← `cornerPipeline.ts:745`). 400이 `llmClient.ts:284-306` 안에서 3번 보내졌지만 골격은 call() 1번으로 셌다. 지금은 넷(화면 · runs json · review · summary) 모두 보낸 HTTP 수. 생성 경로 `llm_usage.attempts`는 원래 시도 직전 판정 통과 수(= 보낸 수, `generateIssue.ts:367-368`) - 그대로.
+7. 오류 본문의 요청 id: 84-b 1차 `scripts/ops/out/review.md` · `runs/*.json`(추적 안 함)에 요청 id가 들어가 있다 - 이번 코드부터는 저장 0. 옛 파일은 2차를 같은 `--tag 84b`로 돌리면 18개 json이 덮이고 review가 다시 만들어진다(지우기는 사람 판단).
+
+### CostMeter 최악값 (상한 그대로: 1호 $2 · 하네스 명령 1회 $10)
+입력 추정 상한(`estimateRequestTokens(…, 'high')`, 1차 dry 요청 기준): 데이트 3,882 · 다정한 말들 20,616 · 이달의 우리 22,359 토큰. 1회 최악 = 입력 × max(입력, 캐시 쓰기 단가) + max_tokens × 출력 단가.
+
+| 모델 | max_tokens | 1회 최악(데이트 / 다정 / 이달) | 1호 이론 최악(3코너 × 3번) |
+|---|---|---|---|
+| Sonnet 5.5 | 4096 | $0.051 / $0.093 / $0.097 | $0.72 |
+| Sonnet 5.5 | **16,000** | $0.170 / $0.212 / $0.216 | **$1.79** |
+| Opus 5.5 | 4096 | $0.101 / $0.185 / $0.194 | $1.44 |
+| Opus 5.5 | **16,000** | $0.339 / $0.423 / $0.432 | **$3.58** |
+
+- 계량기는 "지금까지 실제 + **이번 1회** 최악"으로 시도마다 본다 → Opus 첫 시도 최악 $0.43 < $2라 **미리 막히지 않음**(멈춤 조건 해당 없음). 실제 지출이 약 $1.57을 넘은 뒤의 시도만 막힌다(안전 정지 · 코너 pending).
+- Opus 1호 이론 최악($3.58)은 $2를 넘는다 - 아홉 번 모두 16,000을 다 쓰는 경우에만. 하네스(명령 1회 9코너-실행 × 최대 3번 = 27번)도 이론 최악 약 $11.6로 $10을 넘지만 같은 방식이라 미리 막히지 않음. **PM 판단 항목**(상한 올리기 · 재시도 줄이기 아님 - 정보만).
+
+### 84-b 실행 명령 (84-a2 뒤) - 1차와 **그대로**
+84-a 절 "84-b 실행 명령"의 키 넣기 · 세 줄 · 창 닫기 그대로. 달라진 것은 명령 줄이 아니라 기본값뿐: `max_tokens` 16,000(인자 `--max-tokens` 안 줌) · 샘플링 값 0. 같은 `--tag 84b`면 1차 json 18개를 덮는다.
+
+검증: 루트 tsc 0 · jest **121/2089**(이전 119/2060 · 새 파일 2개 29건) · PGlite(jest 안) · deno check(`m1QualityRun.ts` · `m1Review.ts` · `generateIssueCli.ts` · `publishIssueCli.ts` · `push-send/index.ts`) 통과 · Python **324 OK**(331.6초) · `npm run gate` **1회 통과 152초**(Vitest 69/1181 + 1 건너뜀 · 법무 8/8 · smoke 32/32 · `web/` 변경 0). 하네스 인자 검사 실행(키 없이 `run`)은 이 세션 권한에서 막혀 못 돌림 - deno check만. 키 · 주소 · 요청 id · 생성 문장 0 · 새 파일 이름 ASCII.
+
 ## `86-b` 시험 안정화 4바퀴째 (메인 세션, 2026-11-19, 위임문 `phase-7/86-b-dispatch-round4.md` · 출처 ROADMAP r129 R129-1~5 · R128-4) - **20회 연속 통과로 86- 닫힘 · 게이트 통과 1회는 못 받음(기기 느림)** (미커밋)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님

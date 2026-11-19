@@ -6,7 +6,8 @@
  *
  * - 모델 fail-closed: `app_config.llm_provider` 값이 **허용 목록** 안의 모델일 때만 생성한다. 그 밖(값 없음 · `tbd` ·
  *   모르는 모델 · 형식 오류)은 거부 + 숫자 코드.
- * - temperature 0.5 명시(R124-2, 84-b 결과로 조정).
+ * - ~~temperature 0.5 명시~~ - R131-1로 철회. 샘플링 값(`temperature` · `top_p` · `top_k`)은 보내지 않는다(84-a2).
+ * - 출력 상한 `LLM_MAX_TOKENS` 16,000: 생각 토큰 + 답 글자를 합친 한도라서 4096에서 올렸다(84-a2 · R131-2 ④).
  * - 시간 상한: 호출 1번 120초 · 코너 합계 8분 · 1호 합계 20분(R124-3).
  * - 비용 상한: 응답의 실제 사용량으로 누적하고, **다음 호출 전에** "지금까지 + 이번 호출 최악"이 상한을 넘으면 부르지 않는다.
  *   하네스 1회 $10 · 1호 생성 $2(R124-3). 84- 전체 $30은 PE가 하네스 출력으로 집계한다(코드 0).
@@ -20,9 +21,6 @@ export const DEFAULT_LLM_MODEL: AllowedLlmModel = 'claude-sonnet-5-5'
 /** `app_config.llm_provider.provider`로 받는 값. 엔드포인트는 `llmClient.ts`의 것 하나뿐이다. */
 export const ALLOWED_LLM_PROVIDER = 'anthropic'
 
-/** 요청에 실어 보내는 temperature(R124-2). */
-export const LLM_TEMPERATURE = 0.5
-
 /** 시간 상한(ms, R124-3). */
 export const LLM_CALL_TIMEOUT_MS = 120_000
 export const CORNER_TIME_LIMIT_MS = 8 * 60_000
@@ -32,8 +30,18 @@ export const ISSUE_TIME_LIMIT_MS = 20 * 60_000
 export const HARNESS_BUDGET_USD = 10
 export const ISSUE_BUDGET_USD = 2
 
-/** 출력 토큰 최악값 - `llmClient`의 `max_tokens` 기본값과 같다(MASTER §17-0-10-H "maxTokens 4096"). */
-export const WORST_OUTPUT_TOKENS = 4096
+/**
+ * 요청의 `max_tokens`(84-a2 · R131-2 ④). 두 허용 모델은 생각이 늘 켜져 있고(요청에 `thinking`이 없으면 adaptive),
+ * `max_tokens`는 **생각 + 답 글자**를 합친 한도다. 공식 문서:
+ * https://platform.claude.com/docs/en/models/opus-5-5/migration-guide - "`max_tokens` remains a hard limit on total output,
+ * thinking plus response text" / https://platform.claude.com/docs/en/build-with-claude/thinking - "they count toward
+ * `max_tokens` alongside the response text". 옛 값 4096(MASTER §17-0-10-H)은 생각이 없던 때 크기라 답이 잘릴 수 있다.
+ * 16,000 = 스트리밍 없는 요청에 공식 안내가 권하는 기본 크기. 잘리면(`stop_reason=max_tokens`) 형식 오류로 처리한다.
+ */
+export const LLM_MAX_TOKENS = 16_000
+
+/** 출력 토큰 최악값 - 요청의 `max_tokens`와 같다(생각 토큰도 출력으로 청구되므로 이 값 전부가 최악). */
+export const WORST_OUTPUT_TOKENS = LLM_MAX_TOKENS
 
 /**
  * 모델 거부 사유 숫자 코드. 보고·기록에는 이 숫자만 쓴다.
@@ -91,7 +99,10 @@ export const LLM_PRICES_USD_PER_MTOK: Readonly<Record<AllowedLlmModel, { readonl
   'claude-opus-5-5': { input: 4.0, output: 20.0, cacheWrite: 5.0, cacheRead: 0.2 },
 }
 
-/** 응답 한 번의 사용량(공급자 `usage`의 네 값). */
+/**
+ * 응답 한 번의 사용량(공급자 `usage`의 네 값). `output` = `usage.output_tokens` 그대로 - 생각 토큰은 출력으로 청구되고
+ * 청구되는 출력 수가 이 값이다(84-a2 ④-b). 생각 토큰을 따로 세어 더하지 않는다(두 번 더하기 금지).
+ */
 export interface LlmUsage {
   readonly input: number
   readonly output: number
