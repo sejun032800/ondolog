@@ -47,11 +47,14 @@ window.__resolve = (cfg) => {
     if (v != null) el.textContent = v;
   });
 
-  // 4. width — 값(0~100)을 width:% 로. optional 다음에 적용한다
+  // 4. width — 값(0~100)을 width:% 로. optional 다음에 적용한다.
+  //    값이 없거나(null·undefined) 숫자가 아니거나 범위 밖이면 **그 요소를 지운다**.
+  //    박힌 폭을 남기면 안 된다 — 그게 v1.2가 고친 결함이다(R29-1).
   document.querySelectorAll("[data-width]").forEach(el => {
-    const v = (cfg.width || {})[el.dataset.width];
-    if (v == null) return;
-    el.style.width = Math.max(0, Math.min(100, Number(v))) + "%";
+    const raw = (cfg.width || {})[el.dataset.width];
+    const v = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
+    if (!Number.isFinite(v) || v < 0 || v > 100) { el.remove(); return; }
+    el.style.width = v + "%";
     el.style.flex = "none";
   });
 

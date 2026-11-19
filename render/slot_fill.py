@@ -264,9 +264,11 @@ class SlotFiller:
                 empty += e
 
         # 4. optional: 안의 슬롯 값이 전부 비면 요소째 지운다. 슬롯이 하나도 없으면 판정하지 않는다.
+        #    지운 요소의 빈 슬롯은 부모에게 그대로 올린다 - 디자인 `resolve.js`는 바깥 optional을 **안의 모든 슬롯**으로 판정한다.
+        #    v1.2.3 틀의 겹친 optional("줄의 두 칸이 다 빠지면 줄도 빠진다", 84-d)이 이 규칙으로 선다. 0, 0을 돌려주면 빈 줄 틀이 남는다.
         if el.has_attr('data-optional') and empty > 0 and filled == 0:
             el.decompose()
-            return 0, 0
+            return 0, empty
 
         # 5. width: optional 다음이다 - 지워질 요소의 폭을 계산할 이유가 없다. 값이 없으면 그 요소를 지운다(실패 아님).
         #    지운 요소 안의 슬롯은 부모의 optional 판정에 이미 세어졌다(`resolve.js`도 optional 다음에 지운다).

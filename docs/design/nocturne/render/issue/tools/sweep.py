@@ -9,7 +9,8 @@ THEMES=["basic","night"]   # 밝은 테마 대표 + 유일한 어두운 테마
 CASES=[]
 # tm-articles: 2·3·4편
 for v,n in [("grid-2",2),("grid-3",3),("grid-4",4)]:
-    CASES.append(("tm-articles",{"variant":v,"repeat":{"payload.articles":n}}))
+    CASES.append(("tm-articles",{"variant":v,"repeat":{"payload.articles":n}}))        # 사진 없음 tm-photo
+    CASES.append(("tm-articles",{"variant":v,"repeat":{"payload.articles":n},"src":{".photo":1}}))  # 사진 있음
 # da-timeline: 사진 0·1·2·3장 × stop 1~3
 for v in ["photos-0","photos-1","photos-2","photos-3"]:
     for st in (1,2,3):
@@ -24,19 +25,19 @@ for m in (1,2):
 CASES += [("da-opener",{"variant":"with-photo"}),
           ("da-opener",{"variant":"type-only"}),
           ("sw-opener",{"variant":"type-only","src":{}}),
-("da-article",{"ifs":["payload.articles[i].recalled"],"repeat":{"@da.articlePhotos":3},"noReason":True}),  # recall-none
+("da-article",{"variant":"hero-photo","ifs":["payload.articles[i].recalled"],"repeat":{"@da.articlePhotos":3},"noReason":True}),  # recall-none
 ("sw-opener",{"variant":"type-only"}),
           ("sw-opener",{"variant":"with-photo"}),
           ("contents",{"repeat":{"@toc":5},"src":{}}),
           ("back",{"src":{}}),
-          ("da-article",{"src":{}}),
+          ("da-article",{"variant":"hero-none","ifs":[".userNotes"],"repeat":{"@da.articleStops":3},"src":{}}),
 ("contents",{"repeat":{"@toc":5}}), ("contents",{"repeat":{"@toc":2}}),
           ("note",{"repeat":{"@note.materials":4,"@note.notUsed":4,"@note.emptyCorners":3}}),
           ("da-places",{"repeat":{"@da.places":8,"payload.articles[featured].closingQuestions":3}}),
           ("da-places",{"repeat":{"@da.places":2,"payload.articles[featured].closingQuestions":3}}),
           ("tm-lead",{"repeat":{"payload.theme.signals":2}}),
-          ("da-article",{"ifs":["payload.articles[i].recalled"],"repeat":{"@da.articlePhotos":2}}),
-          ("da-article",{"repeat":{"@da.articlePhotos":3}})]
+          ("da-article",{"variant":"hero-photo","ifs":["payload.articles[i].recalled"],"repeat":{"@da.articlePhotos":2}}),
+          ("da-article",{"variant":"hero-photo","repeat":{"@da.articlePhotos":3}})]
 async def main():
     bad=[]
     async with async_playwright() as pw:

@@ -199,6 +199,7 @@ interface ClosingQuestion {
 | 규칙 | 내용 |
 |---|---|
 | `aiCaption` 배타 | `userNotes.length > 0`이면 `aiCaption`은 반드시 `null`. AI가 물러나는 지점 |
+| `aiCaption` 길이 | **30자 이내**(코드포인트, 공백 · 부호 포함). 생성 단계 값 검사(`valueChecks.ts` `DATE_ARCHIVE_VALUE_RULES`)가 넘으면 재요청 1회 → 빠짐. 출처 ROADMAP R136-3 · 디자인 v1.2.3 README §10 ①(이달의 우리 사진 위 한 줄 · 기사 사진 캡션 3줄). 이전 50자(84-a) |
 | `featured` 유일성 | `articles` 중 `featured: true`는 정확히 1개 |
 | 질문 3종 고정 | `closingQuestions`는 `rating` 1 + `recall` 1 + `suggestion` 1 |
 | 답변 미저장 | 질문에 대한 **응답 필드를 만들지 않는다.** 대화 유도가 목적 |

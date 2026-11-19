@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(HERE, '..'))
 sys.path.insert(0, HERE)
 
 import fixtures as fx  # noqa: E402
+import heights  # noqa: E402
 import render_issue as r  # noqa: E402
 from compose import (  # noqa: E402
     ComposeError, PageSpec, _Builder, choose_variant, compose_issue, count_sentences, split_headline, split_timeline, stop_height,
@@ -39,23 +40,29 @@ def stop_of(photos, notes=None, caption='캡션'):
     return fx.stop(0, '10:00', '장소', [fx.photo(f'x{i}') for i in range(photos)], [fx.memo('메모')] if notes else [], caption)
 
 
+def measured_stop(photos, memo):
+    """README v1.2.3 §12 식을 `measure.json` 값으로 따로 계산한 기대값 - 장소 '장소'(한 줄) · 메모 '메모' 또는 AI 캡션 '캡션'(한 줄)."""
+    import math
+    tl = heights.TIMELINE
+    r_ = tl['right'][f'photos-{photos}']
+    right = (r_['memo']['base'] + r_['memo']['perLine']) if memo else (r_['caption']['base'] + r_['caption']['perLine'])
+    left = tl['left']['placeLabel' if photos else 'placeNoLabel']
+    return math.ceil(max(left, right) + tl['stopPadding'])
+
+
 class Timeline(unittest.TestCase):
-    """README §5 - stop 높이를 더해 953px을 넘으면 2면. 실측표 그대로."""
+    """README v1.2.3 §5 · §12 - 구간 높이(실측 표 `measure.json`)를 더해 953px을 넘으면 2면. 두 면이면 높이 차가 가장 작게 다시 나눈다(#9)."""
 
     def test_table_heights(self):
-        self.assertEqual(stop_height(stop_of(0, True)), 148)
-        self.assertEqual(stop_height(stop_of(0)), 101)
-        self.assertEqual(stop_height(stop_of(1, True)), 390)
-        self.assertEqual(stop_height(stop_of(1)), 338)
-        self.assertEqual(stop_height(stop_of(2, True)), 378)
-        self.assertEqual(stop_height(stop_of(2)), 326)
-        self.assertEqual(stop_height(stop_of(3, True)), 453)
-        self.assertEqual(stop_height(stop_of(3)), 401)
-        self.assertEqual(stop_height(stop_of(7, True)), 453)  # 4장 이상은 3장과 같다
+        # v1.2.3(D10): 옛 고정표(148 · 101 · 390 · 338 · 378 · 326 · 453 · 401)는 폐기 - 식(고정 + 줄 높이 x 줄 수, 왼쪽 단과 큰 쪽 + 여백)으로 센다
+        for n in (0, 1, 2, 3):
+            for memo in (True, False):
+                self.assertEqual(stop_height(stop_of(n, memo)), measured_stop(n, memo), (n, memo))
+        self.assertEqual(stop_height(stop_of(7, True)), stop_height(stop_of(3, True)))  # 4장 이상은 3장과 같다
 
     def test_three_stops_with_photos_split_into_two_pages(self):
         pages, dropped = split_timeline([stop_of(1), stop_of(1), stop_of(1)])
-        self.assertEqual([len(p) for p in pages], [2, 1])
+        self.assertEqual([len(p) for p in pages], [1, 2])     # D11 - 두 면 높이 차가 같으면 앞에서 처음 찾은 나눔(순서는 그대로)
         self.assertEqual(dropped, [])
         # 사진이 있는 stop 3개는 모든 조합이 넘는다(README §5)
         for n in (1, 2, 3):
@@ -64,8 +71,8 @@ class Timeline(unittest.TestCase):
                 self.assertEqual(len(pages), 2, (n, note))
 
     def test_existing_p5_composition_stays_on_one_page(self):
-        stops = [stop_of(1, True), stop_of(0), stop_of(3, True)]  # 390 + 101 + 453 = 944 (README의 945px)
-        self.assertEqual(sum(stop_height(s) for s in stops), 944)
+        stops = [stop_of(1, True), stop_of(0), stop_of(3, True)]  # v1.2.2 표로 944px - 실측 식으로는 더 작다
+        self.assertLessEqual(sum(stop_height(s) for s in stops), heights.TIMELINE_CAPACITY_PX)
         pages, dropped = split_timeline(stops)
         self.assertEqual(len(pages), 1)
         self.assertEqual(dropped, [])
@@ -88,13 +95,14 @@ class Timeline(unittest.TestCase):
         comp = compose(fx.photo_scenario())
         self.assertEqual(stems(comp).count('da-timeline'), 2)
         first, second = [p for p in comp.pages if p.stem == 'da-timeline']
-        self.assertEqual(len(first.corner['payload']['articles'][0]['stops']), 2)
-        self.assertEqual(len(second.corner['payload']['articles'][0]['stops']), 1)
+        # v1.2.3 #9 · D11 - 앞에서부터 채우면 2 + 1이지만 두 면 높이 차가 가장 작게 다시 나누면 1 + 2(362 / 454 + 328)
+        self.assertEqual(len(first.corner['payload']['articles'][0]['stops']), 1)
+        self.assertEqual(len(second.corner['payload']['articles'][0]['stops']), 2)
 
     def test_drawing_only_notes_are_not_memos_on_the_page(self):
         s = fx.stop(0, '10:00', 'A', [], [], '캡션')
         s['userNotes'] = [{'authorId': 'u', 'authorName': 'x', 'type': 'drawing', 'path': 'p'}]
-        self.assertEqual(stop_height(s), 101)
+        self.assertEqual(stop_height(s), stop_height(fx.stop(0, '10:00', 'A', [], [], '캡션')))   # 그림 메모는 메모로 세지 않는다 - 이 구간은 'AI 캡션' 칸 높이
 
 
 class Cover(unittest.TestCase):
@@ -350,13 +358,12 @@ class Lead(unittest.TestCase):
         self.assertEqual(art['articlePhotoCount'], 3)
         self.assertEqual(art['articleNoteCount'], 1)
         self.assertEqual(art['articleStopCount'], 2)
-        self.assertEqual(art['articleCaptionCount'], '')   # 지면에 실린 AI 캡션이 없다 -> 칸째 뺀다 (R50-4)
+        self.assertEqual(art['articleCaptionCount'], 1)    # v1.2.3(D4) - 사진 캡션 칸에 실린 AI 캡션 1 (R50-4: 실린 수)
         self.assertEqual([p['path'] for p in art['articlePhotos']], [fx.dest('e08'), fx.dest('e09'), fx.dest('e10')])
-        # R48-3 ② · R50-4 - 캡션은 유저 메모만(AI 캡션 '서점에서 책을 골랐다'는 싣지 않는다). 메모는 기사의 첫 사진 아래 하나, 쓴 사람과 함께
-        self.assertEqual(art['articlePhotos'][0]['caption'], '오래 걸었다.')
-        self.assertEqual(art['articlePhotos'][0]['authorName'], fx.A)
-        self.assertEqual(art['articlePhotos'][1]['caption'], '')
-        self.assertEqual(art['articlePhotos'][2]['caption'], '')
+        # v1.2.3(D4) - 구간의 첫 사진에만 그 구간의 메모 또는 AI 캡션. e08 = 성수동 서점 구간(메모 없음 -> AI 캡션) · e09 = 다음 구간 첫 사진(메모) · e10 = 같은 구간 둘째 사진(빈 칸)
+        self.assertEqual([(p['caption'], p['aiCaption']) for p in art['articlePhotos']],
+                         [('', '서점에서 책을 골랐다'), ('오래 걸었다.', ''), ('', '')])
+        self.assertEqual(art['articlePhotos'][1]['authorName'], fx.A)
 
     def test_places_are_capped_and_the_rest_is_reported_as_not_posted(self):
         stops = [fx.stop(i, f'{10 + i}:00', f'장소{i}', [fx.photo(f'z{i}')], [], '캡션') for i in range(12)]
@@ -418,8 +425,9 @@ class Note(unittest.TestCase):
         comp = compose(fx.photo_scenario(), {'messages': 0, 'photos': 14, 'dates': 3, 'memos': 0})
         rows = page(comp, 'note').computed['note']['materials']
         self.assertEqual([r_['label'] for r_ in rows], ['데이트', '사진'])
-        # 이번 기간 기사로 실린 사진만 센다 - 재소환 기사의 사진은 따로다 (R50-2)
-        self.assertEqual(rows[1], {'label': '사진', 'collected': '14장', 'used': f'{len(comp.report["leadPhotoPaths"])}장'})
+        # 이번 기간에 실린 사진만 센다 - 재소환 기사의 사진은 따로다 (R50-2). v1.2.3(D6) - 이달의 우리 소기사에만 실린 사진(e12)도 호 전체 게재에 든다
+        self.assertEqual(rows[1], {'label': '사진', 'collected': '14장', 'used': f'{len(comp.report["leadPhotoPaths"]) + 1}장'})
+        self.assertEqual(comp.report['facts']['photosShownIssuePeriod'], len(comp.report['leadPhotoPaths']) + 1)
         self.assertEqual(rows[0]['used'], '2번')  # 재소환을 뺀 이번 기간 데이트
 
     def test_without_materials_there_is_no_row(self):
@@ -479,9 +487,11 @@ class ThisMonth(unittest.TestCase):
         self.assertEqual(len(page(comp, 'tm-lead').corner['payload']['theme']['signals']), 3)
         self.assertEqual([a['seq'] for a in page(comp, 'tm-articles').corner['payload']['articles']], ['01', '02', '03'])
 
-    def test_no_photo_is_bound_to_tm_articles(self):
-        for a in page(compose(fx.photo_scenario()), 'tm-articles').corner['payload']['articles']:
-            self.assertNotIn('photo', a)
+    def test_photo_is_bound_only_where_the_evidence_is_a_photo(self):
+        # v1.2.3 #18 · D6 = R44-9(R124-7): 근거가 사진인 소기사에만 그 사진(`photoPath`). 남는 사진으로 채우지 않는다
+        arts = page(compose(fx.photo_scenario()), 'tm-articles').corner['payload']['articles']
+        self.assertEqual([a['photo'] for a in arts], ['', fx.dest('e12'), ''])
+        self.assertEqual([a['photoAiCaption'] for a in arts], ['', '', ''])     # e12는 데이트 아카이브 구간의 사진이 아니라 그 구간의 AI 캡션이 없다
 
 
 class Back(unittest.TestCase):

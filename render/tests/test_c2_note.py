@@ -1,8 +1,8 @@
-"""발행 노트 AI 안내 한 줄 시험 (위임: 84-c2, ROADMAP R134-5 ②).
+"""발행 노트 AI 안내 한 줄 시험 (위임: 84-c2, ROADMAP R134-5 ② - 84-d에서 디자인 v1.2.3 #19 슬롯으로 갱신).
 
-  C1  발행 노트 끝(정정 요청 줄 바로 뒤)에 고정 문장이 한 번 - 문장은 `compose.NOTE_AI_NOTICE` 한 곳에서 온다
-  C2  다른 지면에는 0번 · 지면 HTML 파일(틀)은 그대로(렌더러가 끼우는 개발 임시 수정)
-  C3  정정 요청 문단이 틀에 하나가 아니면 자리를 짐작하지 않고 멈춘다
+  C1  발행 노트 끝(정정 요청 위 · 괘선 위, 디자인 #19)에 고정 문장이 한 번 - 문장은 `compose.NOTE_AI_NOTICE` 한 곳에서 온다
+  C2  다른 지면에는 0번 · 자리는 디자인 틀의 슬롯 `@note.aiNotice`(렌더러가 끼우던 84-c2 임시 처리는 디자인 판으로 대체됨)
+  C3  빈 값이면 줄째 빠진다(틀의 data-optional)
   C4  판면 검사 - 줄을 끼운 노트 쪽에 새 위반(safe · overlap · text-overlap · overflow · overset · clipped) 0 (사진 많은 호 포함)
   C5  고정 질문(84-c 해요체 정본)이 렌더 시험 자료와 같다
 """
@@ -48,29 +48,32 @@ class NoticeLine(unittest.TestCase):
         comp = compose(fx.photo_scenario())
         html = r.fill_page(note_spec(comp), comp.theme, TEMPLATES)
         self.assertEqual(html.count(NOTICE), 1)
-        self.assertGreater(html.index(NOTICE), html.index('정정 요청'))                   # 정정 요청 줄 뒤
-        self.assertGreater(html.index('data-slot="@page"'), html.index(NOTICE))           # 쪽 번호 · 워드마크보다 앞(본문의 끝)
-        tail = html[html.index('정정 요청'):html.index(NOTICE)]
-        self.assertEqual(tail.count('</p>'), 1)                                          # 정정 요청 문단 바로 다음 문단
+        self.assertLess(html.index(NOTICE), html.index('정정 요청 —'))                    # v1.2.3 #19 - 정정 요청 문단 위(괘선 위). 틀 주석에도 '정정 요청' 글자가 있어 문단 머리로 찾는다
+        self.assertGreater(html.index(NOTICE), html.index('data-repeat="@note.notUsed"'))  # 본문(싣지 않은 것) 뒤 - 발행 노트 끝 묶음
+        self.assertGreater(html.index('data-slot="@page"'), html.index(NOTICE))           # 쪽 번호 · 워드마크보다 앞
 
     def test_no_other_page_and_template_unchanged(self):
         comp = compose(fx.photo_scenario())
         for spec in comp.pages:
             if spec.stem != 'note':
                 self.assertNotIn(NOTICE, r.fill_page(spec, comp.theme, TEMPLATES), spec.stem)
-        self.assertNotIn('aiNotice', TEMPLATES['note'])                                   # 틀 파일은 그대로 - 렌더러가 끼운다
-        self.assertNotIn(NOTICE, TEMPLATES['note'])
+        for stem, html in TEMPLATES.items():                                              # 자리는 디자인 틀의 슬롯 하나(v1.2.3 #19 · D7)
+            self.assertEqual(html.count('data-slot="@note.aiNotice"'), 1 if stem == 'note' else 0, stem)
+        self.assertFalse(hasattr(r, 'add_note_ai_notice'))                                 # 렌더러가 끼우던 임시 처리는 없앴다
 
-    def test_stops_when_the_anchor_is_not_unique(self):
-        with self.assertRaises(r.StopError):
-            r.add_note_ai_notice(TEMPLATES['note'].replace('정정 요청', '문의'))
-        with self.assertRaises(r.StopError):
-            r.add_note_ai_notice(TEMPLATES['note'] + '<p>정정 요청</p>')
-        self.assertEqual(r.add_note_ai_notice(TEMPLATES['note']).count('@note.aiNotice'), 1)
+    def test_empty_value_removes_the_line(self):
+        comp = compose(fx.photo_scenario())
+        spec = note_spec(comp)
+        spec.computed['note']['aiNotice'] = ''
+        html = r.fill_page(spec, comp.theme, TEMPLATES)
+        self.assertNotIn(NOTICE, html)
+        self.assertNotIn('data-slot="@note.aiNotice"', html)
+        self.assertIn('정정 요청', html)
 
     def test_fixed_questions_match_the_engine(self):
         qs = fx.questions('근거')
         self.assertEqual([q['text'] for q in qs[:2]], ['이날의 데이트는 10점 만점에 몇 점인가요?', '이날 중 가장 기억에 남는 건 무엇인가요?'])
+        self.assertTrue(qs[2]['text'].endswith('요?'))                                     # 맞춤 질문 견본도 해요체(R133-4)
 
 
 class NoticeLayout(unittest.TestCase):

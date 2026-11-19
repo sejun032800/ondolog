@@ -347,83 +347,10 @@ def load_templates(pages_dir: Path = PAGES_DIR) -> dict[str, str]:
     return {p.stem: p.read_text(encoding='utf-8') for p in sorted(pages_dir.glob('*.html'))}
 
 
-COUNT_CELL_SLOTS = ('@da.articleCaptionCount', '@da.articlePhotoCount', '@da.articleNoteCount', '@da.photoCount')   # 마지막은 오프너 `이날의 기록`의 사진 칸
-
-
-def drop_empty_count_cells(html: str) -> str:
-    """기사 칸(오프너 `이날의 기록` 포함)의 숫자 칸 중 값이 빈 것을 라벨째 뺀다 (R50-4 AI 캡션 · R51-5 사진 · 메모 0) + 타임라인의 `사진 0` 라벨.
-
-    값이 빈 것은 호출부가 0을 빈 값으로 건넨 칸이다(`compose`) - 사실이지만 빈칸 · 고장으로 읽히는 `0`을 싣지 않는다.
-    지면 HTML에 이 칸을 뺄 표시(`data-optional`)가 없다 - 디자인 v1.2.3 전 임시로 렌더러가 뺀다(R50-6의 허용 자리 밖이라 HTML은 고치지 않았다).
-      - `COUNT_CELL_SLOTS` 칸: 슬롯의 부모 `<span>`(숫자 + 라벨)을 지운다. 그 줄에 칸이 남지 않으면 줄도 지운다.
-      - `.photoLabel`: 슬롯이 빈 `.lbl`(`사진 <값>`)을 지운다.
-    채운 값이 있으면 아무것도 하지 않는다.
-    """
-    if not any(name in html for name in (*COUNT_CELL_SLOTS, '.photoLabel')):
-        return html
-    soup = BeautifulSoup(html, 'html.parser')
-    changed = False
-    for name in COUNT_CELL_SLOTS:
-        for el in soup.select(f'[data-slot="{name}"]'):
-            if el.get_text(strip=True) == '' and el.parent is not None and el.parent.name == 'span':
-                row = el.parent.parent
-                el.parent.decompose()
-                changed = True
-                if row is not None and row.name == 'div' and not row.find(True):
-                    row.decompose()
-    for el in soup.select('[data-slot=".photoLabel"]'):
-        if el.get_text(strip=True) == '' and el.parent is not None and 'lbl' in (el.parent.get('class') or []):
-            el.parent.decompose()
-            changed = True
-    return str(soup) if changed else html
-
-
-drop_empty_caption_cell = drop_empty_count_cells   # 이전 이름 - 같은 함수다
-
-
-# R51-2 - 발행 노트 이번 기간 표 아래에 따로 놓는 한 줄. 지면 HTML에 자리가 없다 - 디자인 v1.2.3 전 임시로 렌더러가 표 뒤에 끼운다(R50-6의 허용 자리 밖이라 HTML은 고치지 않았다).
-# 표(수집한 재료)는 네 줄이면 아래 블록(문장의 출처 `top:520px`)에 바짝 닿아 있어 줄이 들어갈 틈이 없다 - 줄을 끼울 때만 그 아래 두 블록(`520px` · `650px`)을 같은 만큼 내린다.
-# 재소환 사진이 0이면 이 함수는 아무것도 하지 않는다(틀 그대로 - 줄도 이동도 없다).
-NOTE_RECALLED_LINE = ('<span class="note" style="display:block;margin-top:14px">'
-                      '<span data-slot="@note.recalledPhotosLine"></span></span>')
-NOTE_BLOCK_TOPS = ((520, 556), (650, 686))   # (원래 top, 줄을 끼웠을 때 top) - 줄 높이 약 16px + 위 여백 14px에 숨 쉴 틈을 더한 36px
-
-
-def add_note_recalled_line(template: str) -> str:
-    """`note` 지면 틀의 수집 재료 표(`</table>`) 바로 뒤에 재소환 사진 줄을 끼우고 그 아래 두 블록을 내린다. 표나 블록이 틀에 하나씩 없으면 StopError - 자리를 짐작하지 않는다."""
-    if template.count('</table>') != 1:
-        raise StopError('발행 노트 틀에 표(</table>)가 하나가 아니다 - 재소환 사진 줄 자리를 정할 수 없다')
-    for old, _ in NOTE_BLOCK_TOPS:
-        if template.count(f'top:{old}px') != 1:
-            raise StopError(f'발행 노트 틀에 top:{old}px 블록이 하나가 아니다 - 재소환 사진 줄 때문에 내릴 블록을 정할 수 없다')
-    out = template.replace('</table>', '</table>' + NOTE_RECALLED_LINE, 1)
-    for old, new in NOTE_BLOCK_TOPS:
-        out = out.replace(f'top:{old}px', f'top:{new}px', 1)
-    return out
-
-
-# 84-c2(R134-5 ②) - 발행 노트 **끝**(정정 요청 줄 바로 아래)에 AI 안내 한 줄. 지면 HTML 파일은 고치지 않고 렌더러가 끼운다(R51-2와 같은 방식 -
-# **개발 임시 수정**, 디자인 19번 · v1.2.3이 자리를 정하면 디자인이 이긴다). 문장은 `compose.NOTE_AI_NOTICE` 한 곳 -> 슬롯 `@note.aiNotice`.
-# 아래 블록은 `bottom:118px`로 붙어 있어 줄이 늘면 위로 자란다(판면 아래 경계는 그대로).
-NOTE_AI_NOTICE_LINE = '<p class="note" style="margin:6px 0 0"><span data-slot="@note.aiNotice"></span></p>'
-NOTE_CORRECTION_MARK = '정정 요청'
-
-
-def add_note_ai_notice(template: str) -> str:
-    """`note` 틀의 정정 요청 문단(`정정 요청 … </p>`) 바로 뒤에 AI 안내 줄을 끼운다. 그 문단이 틀에 하나가 아니면 StopError - 자리를 짐작하지 않는다."""
-    if template.count(NOTE_CORRECTION_MARK) != 1:
-        raise StopError('발행 노트 틀에 정정 요청 문단이 하나가 아니다 - AI 안내 줄 자리를 정할 수 없다')
-    at = template.index(NOTE_CORRECTION_MARK)
-    end = template.find('</p>', at)
-    if end < 0:
-        raise StopError('발행 노트 틀의 정정 요청 문단이 </p>로 닫히지 않는다 - AI 안내 줄 자리를 정할 수 없다')
-    end += len('</p>')
-    return template[:end] + NOTE_AI_NOTICE_LINE + template[end:]
-
-
-def as_dict_note(spec: PageSpec) -> dict:
-    note = (spec.computed or {}).get('note')
-    return note if isinstance(note, dict) else {}
+# 디자인 v1.2.3에서 틀이 맡게 된 개발 임시 처리 - 렌더러에서 없앴다(README §10 ① · D7 · D8):
+#   - `drop_empty_count_cells`(R50-4 · R51-5, 55-3b/c): 0인 숫자 칸 · `사진 0` 라벨 -> 틀의 칸마다 `data-optional`
+#   - `add_note_recalled_line`(R51-2, 55-3c): 발행 노트 재소환 사진 줄 + 블록 36px 내리기 -> 틀의 `@note.recalledPhotosLine` 자리 + 흐르는 한 단
+#   - `add_note_ai_notice`(84-c2 R134-5 ②): 발행 노트 끝 AI 안내 줄 끼우기 -> 틀의 `@note.aiNotice` 슬롯(#19). 문장은 그대로 `compose.NOTE_AI_NOTICE` 한 곳
 
 
 def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
@@ -431,13 +358,8 @@ def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
     if spec.stem not in templates:
         raise StopError(f'지면 HTML이 없다 ({spec.stem})')
     template = templates[spec.stem]
-    if spec.stem == 'note' and as_dict_note(spec).get('recalledPhotosLine'):
-        template = add_note_recalled_line(template)
-    if spec.stem == 'note' and as_dict_note(spec).get('aiNotice'):
-        template = add_note_ai_notice(template)
     html = fill(template, spec.corner, spec.computed, spec.bind,
                 chooser=lambda names, scope: choose_variant(spec, names, scope), widths=spec.widths)
-    html = drop_empty_count_cells(html)
     html, n = re.subn(r'(<html\b[^>]*\bdata-theme=")[^"]*(")', rf'\g<1>{theme}\g<2>', html, count=1)
     if n != 1:
         raise StopError(f'지면에 <html data-theme>가 없다 ({spec.stem})')
@@ -458,6 +380,7 @@ def prepare_work(work: Path) -> None:
             shutil.copy2(src, work / name)
 
 
+COVER_QUOTE_MAX_LINES = 2   # README v1.2.3 §11 ⑫ - 표지 이 달의 말은 두 줄까지(넘으면 줄째 지운다 - 원문을 자르지 않는다, R136-2 ③)
 COVER_PROBE_JS = r"""
 () => {
   const SAFE = {left: 68 - 0.5, right: 794 - 68 + 0.5, top: 60 - 0.5, bottom: 1123 - 76 + 0.5};
@@ -466,6 +389,16 @@ COVER_PROBE_JS = r"""
   if (h) out.headlineClipped = h.scrollHeight - h.clientHeight > 1;
   const q = document.querySelector('[data-slot="@cover.quote"]');
   if (!q) return out;
+  // README v1.2.3 §11 ⑫ - 이 달의 말은 두 줄까지. 판정은 글자 수 어림이 아니라 렌더 결과의 줄 수(인용 글자의 줄 상자 윗변을 센다)
+  const tops = [];
+  {
+    const rg = document.createRange();
+    rg.selectNodeContents(q);
+    for (const r of rg.getClientRects()) {
+      if (r.width < 1 || r.height < 1) continue;
+      if (!tops.some(t => Math.abs(t - r.top) < r.height / 2)) tops.push(r.top);
+    }
+  }
   const row = q.closest('[data-optional]') || q;
   let box = null;
   const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
@@ -482,6 +415,7 @@ COVER_PROBE_JS = r"""
   if (!box) return out;
   const reasons = [];
   if (box.left < SAFE.left || box.right > SAFE.right || box.top < SAFE.top || box.bottom > SAFE.bottom) reasons.push('safe');
+  if (tops.length > COVER_QUOTE_MAX_LINES) reasons.push('lines:' + tops.length);
   const host = row.closest('body > .ab');
   for (const o of document.querySelectorAll('body > .ab')) {
     if (o === host || o.contains(row) || !o.textContent.trim()) continue;
@@ -490,7 +424,7 @@ COVER_PROBE_JS = r"""
     const oy = Math.min(box.bottom, r.bottom) - Math.max(box.top, r.top);
     if (ox > 2 && oy > 2) reasons.push('overlap:' + (o.className || '?'));
   }
-  out.quote = {fits: reasons.length === 0, reasons: reasons, box: [Math.round(box.left), Math.round(box.top), Math.round(box.right), Math.round(box.bottom)]};
+  out.quote = {fits: reasons.length === 0, reasons: reasons, lines: tops.length, box: [Math.round(box.left), Math.round(box.top), Math.round(box.right), Math.round(box.bottom)]};
   return out;
 }
 """
@@ -499,7 +433,7 @@ COVER_PROBE_JS = r"""
 def settle_cover(composition: Composition, templates: dict[str, str], work: Path, say: Callable[[str], None] = lambda s: None) -> dict[str, Any]:
     """표지를 한 번 열어 보고 원문이 잘리거나 규격에 안 들어가는 자리를 정리한다 (55-3 범위 4-④, README §12). 작업 폴더가 준비된 뒤에 부른다.
 
-    - **이 달의 말**: 자리를 그대로 두고, 판면 밖이거나 다른 글자와 겹치면 **줄째 지운다**(`computed.cover.quote`·`quoteBy`를 비운다 -> `data-optional`이 줄을 지운다).
+    - **이 달의 말**: 자리를 그대로 두고, 판면 밖이거나 다른 글자와 겹치거나 **두 줄을 넘으면**(README v1.2.3 §11 ⑫ · D12) **줄째 지운다**(`computed.cover.quote`·`quoteBy`를 비운다 -> `data-optional`이 줄을 지운다).
     - **표제가 이 달의 말로 바뀐 표지**(표제를 3줄·6자로 못 나눴을 때): 표제 칸이 `clamp`라 원문이 잘리면, 원문을 자르지 않고 나뉘지 않은 `theme.headline`로 되돌린다
       (그것도 없으면 표제를 비운다). 온도록이 쓴 표제는 잘려도 기록이다.
     결과는 `composition.report`에 남긴다(`coverQuoteRemoved` · `coverHeadlineFrom`).
@@ -517,7 +451,7 @@ def settle_cover(composition: Composition, templates: dict[str, str], work: Path
         probe_file.write_text(fill_page(spec, composition.theme, templates), encoding='utf-8', newline='\n')
         page.goto(probe_file.as_uri(), wait_until='networkidle')
         page.evaluate('document.fonts.ready.then(() => true)')
-        return page.evaluate(COVER_PROBE_JS)
+        return page.evaluate(COVER_PROBE_JS.replace('COVER_QUOTE_MAX_LINES', str(COVER_QUOTE_MAX_LINES)))
 
     with sync_playwright() as p:
         browser = p.chromium.launch()

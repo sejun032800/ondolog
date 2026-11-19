@@ -15,29 +15,31 @@
   <!-- @da.openerPhoto = 대표 기사 전체 stop 중 첫 사진(§3-1 폴백).
        그래도 없으면 렌더러가 type-only 를 남긴다 -->
   <div data-variant="with-photo">
-    <div class="ab ph" style="left:0;right:0;top:0;height:491px">
+    <!-- v1.2.3 — 사진 491→560px. 아래 블록이 판면 아래 1/3을 비우던 것을 함께 내려 받는다(#9) -->
+    <div class="ab ph" style="left:0;right:0;top:0;height:560px">
       <img data-src="@da.openerPhoto" src="../images/sample/da_open.jpg" alt="">
+    </div>
+    <!-- v1.2.3 확정(55-3b) — "Date Archive / 지역 · 월" 작은 줄은 사진 변형에만 둔다. 활자 변형은 큰 활자가 같은 글자를 이미 보인다 -->
+    <div class="ab col" style="top:591px;display:flex;justify-content:space-between;align-items:baseline">
+      <span class="kk">Date Archive</span>
+      <span class="lbl" data-slot="@da.regionLine">연남동, 성수동 · 2026년 8월</span>
     </div>
   </div>
   <div data-variant="type-only">
-    <div class="ab" style="left:0;right:0;top:0;height:491px;
+    <div class="ab" style="left:0;right:0;top:0;height:560px;
          background:linear-gradient(180deg,var(--rule),var(--bg) 78%)"></div>
-    <div class="ab col" style="top:300px">
+    <div class="ab col" style="top:350px">
       <span class="kk" style="color:var(--acc)">Date Archive</span>
       <div class="h-display" style="margin-top:22px;font-size:46px;line-height:62px;
            font-weight:200;color:var(--ink)" data-slot="@da.regionLine">연남동, 성수동<br>2026년 8월</div>
     </div>
   </div>
 
-  <div class="ab col" style="top:522px;display:flex;justify-content:space-between;align-items:baseline">
-    <span class="kk">Date Archive</span>
-    <span class="lbl" data-slot="@da.regionLine">연남동, 성수동 · 2026년 8월</span>
-  </div>
-  <div class="ab col" style="top:575px">
+  <div class="ab col" style="top:644px">
     <p class="body clamp2" style="margin:0;width:var(--bodyW)" data-slot="@da.lead">8월에 두 사람이 함께 보낸 날은 두 번이었습니다. 연남동과 성수동, 세 곳을 거치며 남긴 열한 장의 사진과 두 개의 메모를 그대로 실었습니다.</p>
   </div>
 
-  <div class="ab" style="left:var(--mX);top:658px;width:380px">
+  <div class="ab" style="left:var(--mX);top:727px;width:380px">
     <span class="kk" style="font-size:9.1px;display:block">Article <span data-slot="@da.featuredOrdinalEn">One</span> · <span data-slot="@da.featuredDate">2026.08.19</span></span>
     <span class="kk" style="font-size:17.3px;letter-spacing:.18em;color:var(--acc);
           display:block;margin-top:22px" data-optional><span data-slot="@da.regionEn">Yeonnam-dong</span></span>
@@ -45,7 +47,7 @@
         data-slot="payload.articles[featured].title">스파이더맨과<br>케이크 사이</h1>
   </div>
 
-  <div class="ab" style="left:491px;right:var(--mX);top:658px">
+  <div class="ab" style="left:491px;right:var(--mX);top:727px">
     <span class="lbl" style="display:block">이날의 기록</span>
     <div style="display:flex;gap:40px;margin-top:22px">
       <span style="flex:1"><span class="num" data-slot="@da.startTime">14:20</span>
@@ -56,7 +58,7 @@
     <div style="display:flex;gap:40px;margin-top:28px">
       <span style="flex:1"><span class="num" data-slot="@da.stopCount">3</span>
         <span class="lbl" style="display:block;margin-top:9px">경유지</span></span>
-      <span style="flex:1"><span class="num" data-slot="@da.photoCount">11</span>
+      <span style="flex:1" data-optional><span class="num" data-slot="@da.photoCount">11</span>
         <span class="lbl" style="display:block;margin-top:9px">사진</span></span>
     </div>
     <div class="rule" style="margin:30px 0 16px"></div>

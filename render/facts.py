@@ -23,6 +23,8 @@ from typing import Any, Optional
 
 sys.dont_write_bytecode = True
 
+from heights import ARTICLE_STOPS_CAPACITY, article_stop_height, photo_caption_fits  # noqa: E402
+
 UNNAMED_PLACE = '이름을 남기지 않은 곳'   # R50-3
 PHOTOS_PER_STOP = 3                       # CORNER_LAYOUT §3-1 "4 이상은 상위 3장만"
 ARTICLE_PHOTOS = 3                        # README §9-② `@da.articlePhotos` 상위 3장
@@ -135,35 +137,99 @@ def first_photo_any(article: dict) -> Optional[str]:
     return None
 
 
-def article_photos(article: dict) -> list:
-    """README §9 `@da.articlePhotos` - 그 기사의 사진을 편 뒤 상위 3장. 항목: path · caption · authorName.
+def _caption_of(stop: dict) -> str:
+    """구간의 AI 캡션 - 그 구간에 글 있는 메모가 있으면 빈 값(메모와 AI 캡션은 함께 싣지 않는다, README §5)."""
+    c = stop.get('aiCaption')
+    return c.strip() if (not memo_notes(stop) and isinstance(c, str) and c.strip()) else ''
 
-    **임시 규칙 R48-3 ② + R50-4(디자인 v1.2.3 전까지)**: 캡션에는 AI 캡션을 싣지 않고 유저 메모만 싣는다. 메모는 **기사의 첫 사진 아래 하나**,
-    기사의 첫 유저 메모(구간 순서대로 처음 나오는 글 있는 메모) 원문 그대로이고, 쓴 사람 이름을 같이 건넨다(지면이 `— ○○의 메모`로 적는다). 메모가 없으면 빈 값.
+
+def article_photo_view(article: dict) -> tuple:
+    """README v1.2.3 §10 ① · §9-② `@da.articlePhotos` - 그 기사의 사진을 구간 순서대로 편 뒤 상위 3장과, 칸에 들어가지 않아 싣지 않은 메모 수.
+
+    캡션 칸은 사진마다 하나다. **그 사진이 속한 구간의 첫 사진**에만 그 구간의 첫 메모(원문 · 쓴 사람 이름) 또는 메모가 없으면 그 구간의 AI 캡션.
+    다른 구간의 메모를 끌어오지 않는다(D4). 메모는 사진 아래 칸(README §12 `article.photoCaption`)에 들어가는지 미리 재고,
+    넘으면 싣지 않는다 - 원문을 자르지 않는다(D5). 그 메모는 발행 노트 '싣지 않은 것'에 적힌다(`build_facts`).
+    항목: path · caption · authorName · aiCaption. 반환: (항목 목록, 칸에 들어가지 않은 메모 수).
     """
-    first_memo = None
-    for stop in as_list(article.get('stops')):
-        if isinstance(stop, dict):
-            memos = memo_notes(stop)
-            if memos:
-                first_memo = memos[0]
-                break
     out = []
     for stop in as_list(article.get('stops')):
-        if isinstance(stop, dict):
-            for photo in valid_photos(stop):
-                out.append({'path': photo['path'], 'caption': '', 'authorName': ''})
+        if not isinstance(stop, dict):
+            continue
+        memos = memo_notes(stop)
+        caption = _caption_of(stop)
+        for k, photo in enumerate(valid_photos(stop)):
+            item = {'path': photo['path'], 'caption': '', 'authorName': '', 'aiCaption': '', '_memo': None}
+            if k == 0 and memos:
+                item['_memo'] = memos[0]
+            elif k == 0 and caption:
+                item['aiCaption'] = caption
+            out.append(item)
     out = out[:ARTICLE_PHOTOS]
-    if out and first_memo is not None:
-        out[0]['caption'] = first_memo['text']
-        author = first_memo.get('authorName')
-        out[0]['authorName'] = author if isinstance(author, str) else ''
-    return out
+    overflow = 0
+    for item in out:
+        memo = item.pop('_memo')
+        if memo is None:
+            continue
+        if photo_caption_fits(memo['text'], len(out)):
+            item['caption'] = memo['text']
+            author = memo.get('authorName')
+            item['authorName'] = author if isinstance(author, str) else ''
+        else:
+            overflow += 1
+    return out, overflow
+
+
+def article_photos(article: dict) -> list:
+    """`article_photo_view`의 항목 목록 - 지면이 받는 `@da.articlePhotos`."""
+    return article_photo_view(article)[0]
+
+
+def article_stops_view(article: dict) -> tuple:
+    """README v1.2.3 `@da.articleStops` - 사진이 0인 기사(`hero-none`)의 구간 목록과 싣지 못한 구간 (D2).
+
+    항목: time(`14:20`) · placeName · userNotes(글 있는 메모, 원문 그대로) · aiCaption(메모가 없을 때만).
+    §12 `article.stopsCapacity`에 들어가는 데까지 **구간 순서대로** 싣는다. 하나라도 들어가지 않으면 그 뒤 구간은 모두 싣지 않는다(순서를 건너뛰지 않는다).
+    반환: (실린 구간 보기 목록, 싣지 못한 원본 구간 목록).
+    """
+    shown, dropped, used = [], [], 0.0
+    for s in as_list(article.get('stops')):
+        if not isinstance(s, dict):
+            continue
+        memos = memo_notes(s)
+        caption = _caption_of(s)
+        if dropped:
+            dropped.append(s)
+            continue
+        h = article_stop_height(memos[0]['text'] if memos else None, caption, s.get('placeName'))
+        if used + h > ARTICLE_STOPS_CAPACITY:
+            dropped.append(s)
+            continue
+        used += h
+        shown.append({'time': hhmm_of(s.get('time')), 'placeName': s.get('placeName'), 'userNotes': memos,
+                      'aiCaption': caption or None})
+    return shown, dropped
+
+
+def hhmm_of(value: Any) -> Any:
+    """시각 표기(README §11 ③) `14:20` - compose.hhmm과 같은 규칙. 모양이 아니면 있는 그대로."""
+    if isinstance(value, str):
+        m = re.match(r'^\s*(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*$', value) or re.match(r'^\d{4}-\d{2}-\d{2}T(\d{2}):(\d{2})', value)
+        if m and int(m.group(1)) < 24 and int(m.group(2)) < 60:
+            return f'{int(m.group(1)):02d}:{m.group(2)}'
+    return value
 
 
 def caption_memo_count(articles: list) -> int:
     """기사들의 사진 아래에 실린 유저 메모 수."""
     return sum(1 for a in articles for p in article_photos(a) if p['caption'])
+
+
+def this_month_photo(evidence: list) -> str:
+    """README v1.2.3 §11 ② - 이달의 우리 소기사의 사진 = evidence 중 `type: 'photo'`인 **첫 항목의 `photoPath`**. 없으면 빈 값(남는 사진으로 채우지 않는다)."""
+    for ev in as_list(evidence):
+        if isinstance(ev, dict) and ev.get('type') == 'photo' and isinstance(ev.get('photoPath'), str) and ev['photoPath'].strip():
+            return ev['photoPath']
+    return ''
 
 
 def _distinct(paths: list) -> list:
@@ -190,6 +256,9 @@ class ArticleFacts:
     memos_shown: int
     ai_captions_shown: int       # 지면에 실린 AI 캡션 (R50-4)
     timeline_photos_shown: int = 0   # 대표 기사만 - 타임라인에 실린 구간들의 사진
+    caption_overflow_memos: int = 0  # 대표가 아닌 기사 - 사진 아래 칸에 들어가지 않아 싣지 않은 메모 (v1.2.3 D5)
+    dropped_stops: int = 0           # 대표가 아닌 글만 있는 기사(hero-none) - 한 면에 들어가지 않아 싣지 않은 구간 (v1.2.3 D2)
+    dropped_stop_memos: int = 0      # 그 구간들의 글 있는 메모
 
     @property
     def photos_shown(self) -> int:
@@ -213,7 +282,9 @@ class IssueFacts:
     memos_shown_period: int
     chat_used: int
     this_month_articles: int
-    photos_shown_recalled: list = field(default_factory=list)   # 재소환 기사로 실린 사진(경로) - 이번 기간 게재와 겹치지 않는다 (R51-2)
+    photos_shown_recalled: list = field(default_factory=list)   # 재소환 기사로 실린 사진(경로) - 이번 기간 게재와 겹치지 않는다 (R51-2). 이달의 우리 소기사 사진 중 재소환 기사의 것도 여기
+    this_month_photos: list = field(default_factory=list)       # 이달의 우리 소기사에 실린 사진(경로, 중복 없음) - 근거가 사진인 소기사만 (v1.2.3 D6 · R44-9)
+    photos_shown_issue_period: list = field(default_factory=list)   # 호 전체에 실린 이번 기간 사진 = 데이트 아카이브 기사 + 이달의 우리 소기사(재소환 제외). 발행 노트 '실제 게재'
     rows: list = field(default_factory=list)   # 발행 노트 표 - [{'key','collected','used','items','residual'}]
     info: list = field(default_factory=list)   # 줄에 묶이지 않는 안내 - [{'kind','n'}]
     dropped_stops: int = 0
@@ -257,6 +328,7 @@ class IssueFacts:
             'articlesPeriod': self.articles_period, 'articlesRecalled': self.articles_recalled,
             'placeCount': self.place_count, 'regionCount': self.region_count,
             'photosShownPeriod': len(self.photos_shown_period), 'photosShownRecalled': len(self.photos_shown_recalled),
+            'photosShownIssuePeriod': len(self.photos_shown_issue_period), 'thisMonthPhotos': len(self.this_month_photos),
             'memosShownPeriod': self.memos_shown_period,
             'chatUsed': self.chat_used,
             'noteRows': [{'key': r['key'], 'collected': r['collected'], 'used': r['used'],
@@ -280,6 +352,7 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
         photos_total = sum(len(valid_photos(s)) for s in stops)
         memos_total = sum(len(memo_notes(s)) for s in stops)
         timeline_shown = 0
+        overflow = dropped_n = dropped_memos = 0
         if i == fi:
             opener = first_photo_any(a)
             kept_paths = [p['path'] for s in kept_stops for p in shown_photos_of_stop(s)]
@@ -288,15 +361,24 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
             ai_shown = sum(1 for s in kept_stops if not is_blank(s.get('aiCaption')))
             timeline_shown = len(kept_paths)
         else:
-            hero = hero_photo_path(a)
-            shown_paths = _distinct(([hero] if hero else []) + [p['path'] for p in article_photos(a)])
-            memos_shown = caption_memo_count([a])
-            ai_shown = 0                     # 기사 지면은 AI 캡션을 싣지 않는다 (R48-3 ②)
+            if has_photo(a):                 # hero-photo - 사진 캡션 칸의 메모 / AI 캡션(라벨 줄) (v1.2.3 D4)
+                a_photos, overflow = article_photo_view(a)
+                hero = hero_photo_path(a)
+                shown_paths = _distinct(([hero] if hero else []) + [p['path'] for p in a_photos])
+                memos_shown = sum(1 for p in a_photos if p['caption'])
+                ai_shown = sum(1 for p in a_photos if p['aiCaption'])
+            else:                            # hero-none - 구간 목록이 메모 · AI 캡션을 싣는다 (v1.2.3 D2 · D3)
+                shown_v, dropped_v = article_stops_view(a)
+                shown_paths = []
+                memos_shown = sum(1 for v in shown_v if v['userNotes'])
+                ai_shown = sum(1 for v in shown_v if v['aiCaption'])
+                dropped_n, dropped_memos = len(dropped_v), sum(len(memo_notes(x)) for x in dropped_v)
         afs.append(ArticleFacts(
             index=i, recalled=a.get('recalled') is True, featured=(i == fi), date_on=str(a.get('dateOn') or ''),
             stop_count=len(stops), region=(a.get('region').strip() if isinstance(a.get('region'), str) else ''), place_names=names, route=' → '.join(names),
             photos_total=photos_total, photos_shown_paths=shown_paths, memos_total=memos_total, memos_shown=memos_shown,
-            ai_captions_shown=ai_shown, timeline_photos_shown=timeline_shown))
+            ai_captions_shown=ai_shown, timeline_photos_shown=timeline_shown,
+            caption_overflow_memos=overflow, dropped_stops=dropped_n, dropped_stop_memos=dropped_memos))
 
     period = [f for f in afs if not f.recalled]
     recalled = [f for f in afs if f.recalled]
@@ -321,7 +403,12 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
     region_count = summary.get('regionCount') if isinstance(summary.get('regionCount'), int) else len(regions)
 
     shown_period = _distinct([p for f in period for p in f.photos_shown_paths])
-    shown_recalled = [p for p in _distinct([p for f in recalled for p in f.photos_shown_paths]) if p not in set(shown_period)]
+    # 이달의 우리 소기사 사진(v1.2.3 D6) - 재소환 기사의 사진이면 재소환 줄로, 아니면 이번 기간으로 센다(호 전체 게재 = 이번 기간 + 재소환, R51-2)
+    tm_photos = _distinct([this_month_photo(as_dict(a).get('evidence')) for a in as_list(as_dict(this_month_payload).get('articles'))])
+    recalled_all = {p['path'] for f in recalled for s in as_list(articles[f.index].get('stops')) if isinstance(s, dict) for p in valid_photos(s)}
+    shown_issue_period = _distinct(shown_period + [p for p in tm_photos if p not in recalled_all])
+    shown_recalled = [p for p in _distinct([p for f in recalled for p in f.photos_shown_paths] + [p for p in tm_photos if p in recalled_all])
+                      if p not in set(shown_issue_period)]
     memos_shown_period = sum(f.memos_shown for f in period)
 
     sw = as_dict(sweet_payload)
@@ -334,6 +421,7 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
         articles_period=len(period), articles_recalled=len(recalled), recalled_days={f.date_on for f in recalled},
         places=places, place_count=len(places), regions=regions, region_count=region_count,
         photos_shown_period=shown_period, photos_shown_recalled=shown_recalled, memos_shown_period=memos_shown_period, chat_used=chat_used,
+        this_month_photos=tm_photos, photos_shown_issue_period=shown_issue_period,
         this_month_articles=len(tm_articles), dropped_stops=len(dropped_stops) if lead_in_period else 0)
 
     # --- 발행 노트 표 (R50-2) - 줄마다 모은 양 - 실제 게재 = 싣지 않은 것의 합
@@ -351,21 +439,26 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
 
     # 데이트 - 이번 기간 기사만 센다 (재소환은 따로)
     dates_row = row('dates', len(period), [])
-    # 사진
-    kept_over_cap = sum(len(valid_photos(s)) - len(shown_photos_of_stop(s)) for s in kept_stops) if lead_in_period else 0
-    lead_unshown = lead.photos_total - lead.photos_shown if lead_in_period else 0
-    dropped_unshown = lead_unshown - kept_over_cap
-    other_unshown = sum(f.photos_total - f.photos_shown for f in others)
-    photo_items = [{'kind': 'over_cap', 'n': kept_over_cap},
-                   {'kind': 'dropped_stops', 'n': dropped_unshown, 'stops': len(dropped_stops) if lead_in_period else 0},
-                   {'kind': 'other_cap', 'n': other_unshown}]
-    photos_row = row('photos', len(shown_period), photo_items)
+    # 사진 - 실린 것은 호 전체(데이트 아카이브 + 이달의 우리 소기사). 싣지 않은 것은 경로로 세고, 이달의 우리가 실은 사진은 빼고 센다
+    on_pages = set(shown_issue_period)
+    over_cap_paths = ({p['path'] for s in kept_stops for p in valid_photos(s)[PHOTOS_PER_STOP:]} - on_pages) if lead_in_period else set()
+    lead_all = {p['path'] for s in as_list(articles[fi].get('stops')) if isinstance(s, dict) for p in valid_photos(s)} if lead_in_period else set()
+    dropped_paths = lead_all - on_pages - over_cap_paths
+    other_paths = {p['path'] for f in others for s in as_list(articles[f.index].get('stops')) if isinstance(s, dict) for p in valid_photos(s)} - on_pages
+    photo_items = [{'kind': 'over_cap', 'n': len(over_cap_paths)},
+                   {'kind': 'dropped_stops', 'n': len(dropped_paths), 'stops': len(dropped_stops) if lead_in_period else 0},
+                   {'kind': 'other_cap', 'n': len(other_paths)}]
+    photos_row = row('photos', len(shown_issue_period), photo_items)
     # 메모
     lead_extra = sum(max(0, len(memo_notes(s)) - 1) for s in kept_stops) if lead_in_period else 0
     lead_dropped = sum(len(memo_notes(s)) for s in dropped_stops) if lead_in_period else 0
-    other_memos = sum(f.memos_total - f.memos_shown for f in others)
+    caption_overflow = sum(f.caption_overflow_memos for f in others)
+    article_dropped_memos = sum(f.dropped_stop_memos for f in others)
+    article_dropped_stops = sum(f.dropped_stops for f in others)
+    other_memos = sum(f.memos_total - f.memos_shown for f in others) - caption_overflow - article_dropped_memos
     memo_items = [{'kind': 'extra_in_stop', 'n': lead_extra}, {'kind': 'dropped_stops', 'n': lead_dropped},
-                  {'kind': 'other_cap', 'n': other_memos}]
+                  {'kind': 'other_cap', 'n': other_memos}, {'kind': 'caption_overflow', 'n': caption_overflow},
+                  {'kind': 'article_dropped_stops', 'n': article_dropped_memos, 'stops': article_dropped_stops}]
     memos_row = row('memos', memos_shown_period, memo_items)
     # 대화
     messages_row = row('messages', chat_used, [])
@@ -381,6 +474,9 @@ def build_facts(*, articles: list, fi: int, kept_stops: list, dropped_stops: lis
                    for n in as_list(s.get('userNotes')) if isinstance(n, dict) and n.get('type') == 'drawing')
     if drawings:
         facts.info.append({'kind': 'drawings', 'n': drawings})
+    # 글만 있는 기사에서 싣지 못한 구간(D2) - 메모 줄이 없는 호(모은 양 없음)에서도 구간 수는 '싣지 않은 것'에 남긴다
+    if article_dropped_stops and not any(r['key'] == 'memos' for r in facts.rows):
+        facts.info.append({'kind': 'article_dropped_stops', 'n': article_dropped_stops})
     omitted = max(0, len(places) - PLACES_CAP)
     if omitted:
         facts.info.append({'kind': 'omitted_places', 'n': omitted})

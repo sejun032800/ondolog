@@ -2,7 +2,7 @@
 
 실제 커플의 한 달에서 흔히 나오는 다섯 가지를 한 호에 담아, 지면을 짜고(compose) 실제 Chromium으로 끝까지 렌더한다.
   ① 폰 원본 크기 사진 - 4032x3024 · 3024x4032, EXIF 방향 · GPS · XMP · ICC를 단 JPEG
-  ② 사진 없는 구간 - 사진 있는 기사 안의 사진 없는 구간 + 사진이 하나도 없는 데이트(기사에서 빠진다, 임시 규칙 R84-2)
+  ② 사진 없는 구간 - 사진 있는 기사 안의 사진 없는 구간 + 사진이 하나도 없는 데이트(v1.2.3: 글만 있는 기사 hero-none으로 실린다 - R84-2 빼기는 없앴다)
   ③ 긴 대화 - 160자 안팎 4턴(`fixtures.LONG_CONVERSATION_TEXTS`)
   ④ 이모지 - 메모 · 대화 · 장소 이름에 단일 · 결합(ZWJ) · 변형 선택자 이모지
   ⑤ 자정 넘김 - 23:30 다음 구간이 00:40(seq 순서 그대로), 23:58에 시작해 다음 날 00:03까지 이어진 대화
@@ -123,9 +123,10 @@ class Compose(unittest.TestCase):
         cls.texts = page_texts(cls.comp)
         cls.all_text = '\n'.join(cls.texts)
 
-    def test_photoless_date_is_left_out_and_photoless_stops_stay_in_the_timeline(self):
-        self.assertEqual(self.comp.report['droppedArticles'], 1)                # 사진 없는 데이트 1편만 빠진다(R84-2)
-        self.assertNotIn('사진 없는 하루', self.all_text)
+    def test_photoless_date_is_printed_as_hero_none_and_photoless_stops_stay_in_the_timeline(self):
+        # v1.2.3(R136-2 ① · D3): R84-2 "사진 없는 데이트 빼기"는 없어졌다 - 글만 있는 기사(hero-none)로 싣는다
+        self.assertEqual(self.comp.report['droppedArticles'], 0)
+        self.assertIn('사진 없는 하루', self.all_text)
         self.assertIn('경의선숲길', self.all_text)                               # 사진 있는 기사 안의 사진 없는 구간은 남는다
         self.assertEqual(self.comp.report['heroFallbackArticles'], 0)
 

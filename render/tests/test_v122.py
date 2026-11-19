@@ -1,4 +1,4 @@
-"""디자인 v1.2.2 지면 맞춤 시험 (위임: 55-3). 네트워크 없음. 실제 Chromium을 쓰는 시험은 `Browser` 묶음뿐이다.
+"""디자인 v1.2.2 지면 맞춤 시험 (위임: 55-3) - 84-d에서 v1.2.3 규칙으로 갱신(높이 = `measure.json` 실측 표 · 기사 캡션 · hero-none · 막대 폭 경로). 네트워크 없음. 실제 Chromium을 쓰는 시험은 `Browser` 묶음뿐이다.
 
 실행 (저장소 루트에서): render/.venv/Scripts/python.exe -B -m unittest discover -s render/tests
 """
@@ -23,8 +23,9 @@ import render_issue as r  # noqa: E402
 import width_compare  # noqa: E402
 from compose import (  # noqa: E402
     ComposeError, caption_memo_count, compose_issue, conversation_height, hhmm, mmdd_hhmm, mmdd_or_ymd, ordinal_en, pack_quotes, photo_note,
-    split_timeline, stop_height, text_lines,
+    split_timeline, stop_height,
 )
+import heights  # noqa: E402
 from page_audit import mark_original_overset, original_clipped, original_overset  # noqa: E402
 from slot_fill import fill, parse_width  # noqa: E402
 
@@ -108,18 +109,20 @@ class Width(unittest.TestCase):
         note = pages(comp, 'note')[0].computed['note']
         soup = BeautifulSoup(filled(comp, 'note'), 'html.parser')
         people = int(note['ratioPeople'].rstrip('%'))
-        self.assertIn(f'width:{people}%', soup.find(attrs={'data-width': '@note.ratioPeople'})['style'])
-        self.assertIn(f"width:{100 - people}%", soup.find(attrs={'data-width': '@note.ratioOndolog'})['style'])
-        self.assertNotIn('42%', str(soup.find(attrs={'data-width': '@note.ratioPeople'})['style']))
+        self.assertIn(f'width:{people}%', soup.find(attrs={'data-width': '@note.ratioPeopleWidth'})['style'])     # v1.2.3 #6 - 폭은 숫자 경로
+        self.assertIn(f"width:{100 - people}%", soup.find(attrs={'data-width': '@note.ratioOndologWidth'})['style'])
+        self.assertNotIn('42%', str(soup.find(attrs={'data-width': '@note.ratioPeopleWidth'})['style']))
 
     def test_no_sentences_means_no_ratio_and_no_bars(self):
         comp = compose(fx.photo_scenario())
         spec = pages(comp, 'note')[0]
         spec.computed['note']['ratioPeople'] = ''
         spec.computed['note']['ratioOndolog'] = ''
+        spec.computed['note']['ratioPeopleWidth'] = ''
+        spec.computed['note']['ratioOndologWidth'] = ''
         spec.widths = {}
         html = r.fill_page(spec, comp.theme, TEMPLATES)
-        self.assertNotIn('data-width', html)
+        self.assertIsNone(BeautifulSoup(html, 'html.parser').find(attrs={'data-width': True}))   # v1.2.3 틀은 주석에 'data-width' 글자가 있다 - 속성으로 본다
         self.assertNotIn('두 사람 0%', html)
 
 
@@ -159,12 +162,12 @@ class Bindings(unittest.TestCase):
         art = pages(comp, 'da-article')[0].computed['da']
         self.assertEqual(art['articlePhotoNote'], '그날 남은 사진 6장 중 3장')
         self.assertIn('그날 남은 사진 6장 중 3장', filled(comp, 'da-article'))
-        # 사진이 하나도 없는 기사는 R48-3 ①로 지면을 짜지 않는다(`R48Temporary`). 여기서는 사진 목록이 빈 값일 때 블록이 지워지는 것만 본다
+        # 사진이 하나도 없는 기사는 v1.2.3 `hero-none`이다(`R48Temporary`). 여기서는 사진 목록이 빈 값일 때 블록이 지워지는 것만 본다
         spec = pages(comp, 'da-article')[0]
         spec.computed['da']['articlePhotos'] = []
         spec.computed['da']['articlePhotoNote'] = ''
         html = r.fill_page(spec, comp.theme, TEMPLATES)
-        self.assertNotIn('그날 남은 사진', html)
+        self.assertNotIn('그날 남은 사진', text_of(html))                     # v1.2.3 틀 주석에 같은 말이 있다 - 글자로 본다
         self.assertEqual(html.count(' src="'), 1)   # 히어로 사진 하나뿐 - 블록 안 사진이 없다
 
     def test_opener_photo_is_the_first_photo_of_all_stops(self):
@@ -262,7 +265,8 @@ class Bindings(unittest.TestCase):
         art = pages(compose(fx.photo_scenario()), 'da-article')[0].computed['da']['articlePhotos']
         self.assertFalse(any(p['caption'].startswith('AI 캡션') for p in art))
 
-    def test_tm_articles_gets_no_photo_and_falls_to_one_column(self):
+    def test_tm_articles_without_photo_evidence_gets_no_photo_and_falls_to_one_column(self):
+        # v1.2.3 #18(R44-9): 사진은 근거가 사진인 소기사에만. 여기 소기사는 모두 사진 근거가 없는 첫 기사의 사본이라 사진 0 -> 한 단(CSS)
         for n in (2, 3, 4):
             sc = fx.photo_scenario() if n == 3 else fx.type_scenario()
             tm = copy.deepcopy(sc['corners'][2]['content'])
@@ -279,11 +283,13 @@ class Bindings(unittest.TestCase):
 # 원문 불변 (범위 4)
 # ---------------------------------------------------------------------------
 
-README_QUOTE_TABLE = {   # README §12 - 턴 수 -> {글자 수: 높이}
-    1: {12: 177, 30: 177, 60: 199, 100: 221, 160: 243},
-    2: {12: 241, 30: 241, 60: 285, 100: 329, 160: 372},
-    3: {12: 305, 30: 305, 60: 371, 100: 436, 160: 502},
-    4: {12: 369, 30: 369, 60: 456, 100: 544, 160: 631},
+README_QUOTE_TABLE = {   # README v1.2.3 §12 "요청한 격자" - 턴 수 -> {글자 수: 새 식 높이}(정황 한 줄)
+    1: {12: 182, 30: 182, 60: 204, 100: 225, 160: 247, 240: 269, 320: 312, 400: 356},
+    2: {12: 248, 30: 248, 60: 291, 100: 335, 160: 378, 240: 444, 320: 531, 400: 596},
+    3: {12: 314, 30: 314, 60: 379, 100: 444, 160: 510, 240: 597, 320: 728, 400: 837},
+    4: {12: 379, 30: 379, 60: 467, 100: 554, 160: 641, 240: 772, 320: 946, 400: 1077},
+    5: {12: 445, 30: 445, 60: 554, 100: 663, 160: 772, 240: 925, 320: 1143, 400: 1317},
+    6: {12: 511, 30: 511, 60: 642, 100: 773, 160: 904, 240: 1100, 320: 1361, 400: 1558},
 }
 
 
@@ -297,49 +303,59 @@ class Quotes(unittest.TestCase):
             self.assertEqual(len(fx.exact_text(fx.LONG_SEED, n)), n)
 
     def test_lines(self):
-        self.assertEqual([text_lines('가' * n) for n in (1, 35, 36, 70, 71)], [1, 1, 2, 2, 3])
-        self.assertEqual(text_lines('한 줄\n둘째 줄'), 2)           # 원문의 줄바꿈마다 새 줄
-        self.assertEqual(text_lines(''), 1)
+        # v1.2.3 §12 줄 수 표 - 글자 수 이상인 첫 칸(보간 없음), 줄바꿈 조각마다 따로 센다(옛 '35자마다 한 줄'은 폐기)
+        odd = heights.QUOTES['turnLines']['odd']
+        for c, l in zip(odd['chars'], odd['lines']):
+            self.assertEqual(heights.table_lines(odd, '가' * c), l, c)
+        self.assertEqual(heights.table_lines(odd, '한 줄\n둘째 줄'), 2)           # 원문의 줄바꿈마다 새 줄
+        self.assertEqual(heights.table_lines(odd, ''), 1)
+        self.assertGreaterEqual(heights.table_lines(odd, '가' * 2000), odd['lines'][-1])   # 표 끝을 넘어도 작게 잡지 않는다
 
     def test_conversation_height_matches_the_readme_table(self):
         for turns, row in README_QUOTE_TABLE.items():
             for chars, want in row.items():
                 got = conversation_height(main_of(turns, chars))
-                if chars <= 100:
-                    self.assertAlmostEqual(got, want, delta=2, msg=(turns, chars))   # 표는 반올림한 실측이다
-                else:   # 160자는 한 줄을 35자로 잡아 5줄로 센다 - 표(4줄)보다 크게 잡는 쪽이다. 작게 잡지는 않는다
-                    self.assertGreaterEqual(got, want, (turns, chars))
-                    self.assertLessEqual(got, want + 22 * turns + 2, (turns, chars))
+                # README 격자는 반올림 값이다. 렌더러는 올림이라 같거나 몇 px 크다 - 작게 잡지는 않는다(넘치는 지면을 통과시키지 않는다)
+                self.assertGreaterEqual(got, want - 1, (turns, chars))
+                self.assertLessEqual(got, want + 6, (turns, chars))
 
-    def test_pack_boundary_844(self):
-        self.assertEqual(pack_quotes([844], 0), [[0]])
-        self.assertEqual(pack_quotes([844], 2), [[0]])
-        with self.assertRaises(ComposeError):
-            pack_quotes([845], 0)
-
-    def test_pack_boundary_781_with_three_or_more_short_quotes(self):
-        self.assertEqual(pack_quotes([781], 3), [[0]])
-        self.assertEqual(pack_quotes([781], 6), [[0]])
+    def test_pack_boundary_940_without_short_quotes(self):
+        cap = heights.QUOTE_CAPACITY
+        self.assertEqual((cap['sub0'], cap['sub1-3'], cap['sub4-6']), (940, 841, 778))   # README v1.2.3 §12 표
+        self.assertEqual(pack_quotes([940], 0), [[0]])
         with self.assertRaises(ComposeError) as ctx:
-            pack_quotes([782], 3)
-        self.assertIn('781px', str(ctx.exception))
-        self.assertEqual(pack_quotes([782], 2), [[0]])             # 단문 2개면 844
-        self.assertEqual(pack_quotes([782], 0), [[0]])
+            pack_quotes([941], 0)
+        self.assertIn('940px', str(ctx.exception))
+
+    def test_pack_boundary_841_with_one_to_three_and_778_with_four_or_more_short_quotes(self):
+        for subs in (1, 2, 3):
+            self.assertEqual(pack_quotes([841], subs), [[0]])
+            with self.assertRaises(ComposeError) as ctx:
+                pack_quotes([842], subs)
+            self.assertIn('841px', str(ctx.exception))
+        for subs in (4, 6):
+            self.assertEqual(pack_quotes([778], subs), [[0]])
+            with self.assertRaises(ComposeError) as ctx:
+                pack_quotes([779], subs)
+            self.assertIn('778px', str(ctx.exception))
+        self.assertEqual(pack_quotes([779], 3), [[0]])
+        self.assertEqual(pack_quotes([900], 0), [[0]])
 
     def test_conversations_are_never_split_across_pages(self):
-        self.assertEqual(pack_quotes([400, 444], 0), [[0, 1]])      # 844 정확히
-        self.assertEqual(pack_quotes([400, 445], 0), [[0], [1]])
-        self.assertEqual(pack_quotes([400, 400], 3), [[0], [1]])    # 800 > 781 - 단문과 함께 실리는 마지막 면만 좁다
-        self.assertEqual(pack_quotes([400, 400], 2), [[0, 1]])
+        self.assertEqual(pack_quotes([400, 540], 0), [[0, 1]])      # 940 정확히(단문 없는 면)
+        self.assertEqual(pack_quotes([400, 541], 0), [[0], [1]])
+        self.assertEqual(pack_quotes([400, 400], 4), [[0], [1]])    # 800 > 778 - 단문과 함께 실리는 마지막 면만 좁다
+        self.assertEqual(pack_quotes([400, 400], 3), [[0, 1]])      # 800 <= 841
+        self.assertEqual(pack_quotes([500, 400, 400], 2), [[0, 1], [2]])   # 앞 면은 단문이 없어 940 기준(900 > 841이어도 앞 면에 든다)
         self.assertEqual(pack_quotes([700, 700, 700], 0), [[0], [1], [2]])
-        self.assertEqual(pack_quotes([300, 300, 300, 300], 0), [[0, 1], [2, 3]])
-        for heights in ([100] * 9, [300, 500, 200, 800, 100], [844, 1, 844]):
-            groups = pack_quotes(heights, 1)
-            self.assertEqual([i for g in groups for i in g], list(range(len(heights))))   # 순서 그대로, 하나도 빠지지 않는다
+        self.assertEqual(pack_quotes([300, 300, 300, 300], 0), [[0, 1, 2], [3]])
+        for sizes in ([100] * 12, [300, 500, 200, 800, 100], [940, 1, 841]):
+            groups = pack_quotes(sizes, 1)
+            self.assertEqual([i for g in groups for i in g], list(range(len(sizes))))   # 순서 그대로, 하나도 빠지지 않는다
 
     def test_two_conversations_of_four_turns_x_160_chars_do_not_fit_on_one_page(self):
         h = conversation_height(main_of(4, 160))
-        self.assertGreater(2 * h, 844)                              # README §12 - 2 x 631 = 1262
+        self.assertGreater(2 * h, heights.QUOTE_CAPACITY['sub0'])   # README v1.2.3 §12 - 2 x 641 = 1282 > 940
         self.assertEqual(pack_quotes([h, h], 0), [[0], [1]])
 
     def test_overlong_conversation_failure_names_issue_conversation_and_height(self):
@@ -348,8 +364,8 @@ class Quotes(unittest.TestCase):
         msg = str(ctx.exception)
         self.assertIn(fx.ISSUE, msg)
         self.assertIn('3번째 대화(밤새 이어진 가장 긴 대화)', msg)
-        self.assertIn('1337px', msg)
-        self.assertIn('844px', msg)
+        self.assertIn(f"{conversation_height(fx.long_original_scenario(with_overlong=True)['corners'][1]['content']['payload']['main'][2])}px", msg)
+        self.assertIn('940px', msg)                                 # v1.2.3 - 단문 없는 면의 가용 높이(어느 면에도 들어가지 않는다)
 
     def test_the_same_issue_passes_without_that_conversation_and_the_text_is_untouched(self):
         sc = fx.long_original_scenario()
@@ -379,18 +395,29 @@ def stop_of(photos, memo_chars=None, caption='캡션'):
 
 
 class TimelineMemo(unittest.TestCase):
-    def test_memo_up_to_50_chars_is_the_table_value(self):
-        self.assertEqual([stop_height(stop_of(1, n)) for n in (1, 20, 50)], [390, 390, 390])
+    def test_stop_height_follows_the_measure_table(self):
+        # README v1.2.3 §12 "타임라인 구간 하나"(장소 한 줄, 줄바꿈 없는 견본) - 사진 1장: 20자 361 · 50자 390 · 100자 419 · 150자 448 · 200자 477(반올림)
+        got = [stop_height(stop_of(1, n)) for n in (20, 50, 100, 150, 200)]
+        for g, want in zip(got, [361, 390, 419, 448, 477]):
+            self.assertIn(g - want, (0, 1))                                  # 올림
+        self.assertEqual(stop_height(stop_of(0, None, caption=None)), 76)    # 사진 0 · 메모 없음 · 캡션 없음(옛 표 101)
 
-    def test_each_50_chars_beyond_adds_29px(self):
-        self.assertEqual([stop_height(stop_of(1, n)) for n in (51, 100, 101, 150, 200)], [419, 419, 448, 448, 477])
-        self.assertEqual(stop_height(stop_of(0, 100)), 148 + 29)
+    def test_line_breaks_and_long_place_names_are_counted(self):
+        one = stop_height(stop_of(0, None) | {'userNotes': [fx.memo('한 줄로 쓴 메모 한 줄로 쓴 메모')], 'aiCaption': None})
+        split = stop_height(stop_of(0, None) | {'userNotes': [fx.memo('한 줄로 쓴 메모\n한 줄로 쓴 메모')], 'aiCaption': None})
+        self.assertEqual(split - one, 29)                                    # 줄바꿈 조각은 따로 한 줄(옛 규칙은 세지 못했다)
+        short_place = stop_height(fx.stop(0, '10:00', '카페', [], [], None))
+        long_place = stop_height(fx.stop(0, '10:00', '서울특별시 마포구 연남동 골목 끝 작은 카페', [], [], None))
+        self.assertGreater(long_place, short_place)                          # 사진 없는 구간은 장소 이름이 높이를 정할 수 있다
 
-    def test_a_long_memo_moves_the_stop_to_the_next_page(self):
-        short = [stop_of(1, 50), stop_of(1, 50), stop_of(0, 50)]            # 390 + 390 + 148 = 928
+    def test_a_long_memo_moves_the_stop_to_the_next_page_and_two_pages_are_balanced(self):
+        short = [stop_of(1, 50), stop_of(1, 50), stop_of(0, 50)]
+        self.assertLessEqual(sum(map(stop_height, short)), heights.TIMELINE_CAPACITY_PX)
         self.assertEqual([len(p) for p in split_timeline(short)[0]], [3])
-        longer = [stop_of(1, 50), stop_of(1, 50), stop_of(0, 150)]          # 148 + 58 -> 986 > 953
-        self.assertEqual([len(p) for p in split_timeline(longer)[0]], [2, 1])
+        longer = [stop_of(1, 50), stop_of(1, 50), stop_of(0, 150)]
+        self.assertGreater(sum(map(stop_height, longer)), heights.TIMELINE_CAPACITY_PX)
+        # v1.2.3 #9 · D11 - 앞에서부터 채우면 [2, 1]이지만, 두 면이면 순서를 지켜 높이 차가 가장 작게 다시 나눈다 -> [1, 2]
+        self.assertEqual([len(p) for p in split_timeline(longer)[0]], [1, 2])
 
     def test_one_stop_over_a_page_stops_instead_of_cutting_the_memo(self):
         with self.assertRaises(ComposeError) as ctx:
@@ -435,8 +462,10 @@ class LeadEqualsNote(unittest.TestCase):
         self.assertEqual((lead_photos, lead_memos), (counts['photos'], counts['memos']))      # 문장의 숫자 = 세어 둔 집합
         rows = {m['label']: m['used'] for m in pages(comp, 'note')[0].computed['note']['materials']}
         note_photos, note_memos = int(rows['사진'].rstrip('장')), int(rows['메모'].rstrip('개'))
-        # R50-2 - 오프너 문장 = 발행 노트 게재 (같은 호의 사실에서 한 번 센다). 재소환 기사의 것은 둘 다에서 빠지고 따로 센다
-        self.assertEqual((lead_photos, lead_memos), (note_photos, note_memos))
+        # R50-2 - 오프너 문장 = 발행 노트 게재 (같은 호의 사실에서 한 번 센다). 재소환 기사의 것은 둘 다에서 빠지고 따로 센다.
+        # v1.2.3(D6 · README §11 ⑩): 노트는 호 전체 - 이달의 우리 소기사에만 실린 사진(데이트 아카이브 기사에 없는 것)이 더해진다
+        tm_only = comp.report['facts']['photosShownIssuePeriod'] - comp.report['facts']['photosShownPeriod']
+        self.assertEqual((lead_photos + tm_only, lead_memos), (note_photos, note_memos))
         shown = set(comp.shown_photos)
         self.assertTrue(set(comp.report['leadPhotoPaths']) <= shown)
         return lead_photos, lead_memos, len(shown - set(comp.report['leadPhotoPaths'])), note_photos, note_memos
@@ -475,34 +504,41 @@ class R48Temporary(unittest.TestCase):
         self.assertIn(fx.dest('c0').split('/')[-1], re.findall(r' src="([^"]+)"', html)[0])
         self.assertEqual(comp.report['heroFallbackArticles'], 1)
 
-    def test_article_without_any_photo_is_left_out_and_no_blank_frame_is_ever_made(self):
-        # R84-2: 사진이 하나도 없는 기사(재소환이어도)는 빈 틀로 싣지 않고 기사에서 뺀다
+    def test_article_without_any_photo_is_printed_as_hero_none_and_no_blank_frame_is_ever_made(self):
+        # v1.2.3(R136-2 ① · D1 · D3): R84-2 "사진 0 기사 빼기"는 없어졌다 - 사진이 하나도 없는 기사(재소환이어도)는 글만 있는 기사(hero-none)로 싣는다. 빈 사진 틀은 없다
         sc = two_articles([fx.stop(0, '12:00', 'B', [], [], '캡션')])
         sc['corners'][0]['content']['payload']['articles'][1].update(recalled=True, recallReason='anniversary')
         comp = compose(sc)
-        self.assertEqual(len(pages(comp, 'da-article')), 0)
-        self.assertEqual(comp.report['droppedArticles'], 1)
+        self.assertEqual(len(pages(comp, 'da-article')), 1)
+        self.assertEqual(comp.report['droppedArticles'], 0)
+        html = filled(comp, 'da-article')
+        self.assertIn('data-variant="hero-none"', html)
+        self.assertNotIn('data-variant="hero-photo"', html)
+        self.assertNotIn('<img', html)
+        self.assertIn('캡션', text_of(html))                                    # 구간 목록이 AI 캡션(라벨 줄)을 싣는다
 
     def test_featured_article_without_photos_is_not_affected(self):
         comp = compose(fx.opener_type_only_scenario())        # 대표 기사 사진 없음(type-only 오프너) - 히어로 규칙은 da-article에만 걸린다
         self.assertEqual(len(pages(comp, 'da-article')), 1)
 
-    def test_caption_is_the_users_memo_never_the_ai_caption(self):
+    def test_caption_is_the_stops_memo_or_its_ai_caption_on_the_stops_first_photo(self):
+        # v1.2.3(D4, README §10 ①): 사진마다 캡션 칸 하나. 그 사진이 속한 구간의 첫 사진에만 그 구간의 메모(라벨 없음) 또는 AI 캡션(라벨 줄)
         memo_text = '서점에서 책을 골랐다.\n둘이서 한 권씩.'
         sc = two_articles([fx.stop(0, '13:00', 'B', [fx.photo('b0'), fx.photo('b1')], [fx.memo(memo_text)], None),
                            fx.stop(1, '15:00', 'C', [fx.photo('c0')], [], '이 문장은 온도록 캡션')])
         comp = compose(sc)
         photos = pages(comp, 'da-article')[0].computed['da']['articlePhotos']
-        self.assertEqual([p['caption'] for p in photos], [memo_text, '', ''])      # 원문 그대로 · 기사의 첫 사진 아래 하나뿐 · AI 캡션은 싣지 않는다
-        self.assertEqual([p['authorName'] for p in photos], [fx.A, '', ''])         # 쓴 사람 (R50-4)
+        self.assertEqual([p['caption'] for p in photos], [memo_text, '', ''])        # 원문 그대로 · 구간의 첫 사진 아래
+        self.assertEqual([p['authorName'] for p in photos], [fx.A, '', ''])           # 쓴 사람 (R50-4)
+        self.assertEqual([p['aiCaption'] for p in photos], ['', '', '이 문장은 온도록 캡션'])   # 메모 없는 구간의 첫 사진 - AI 캡션
         html = filled(comp, 'da-article')
         self.assertIn('서점에서 책을 골랐다.', html)
-        self.assertNotIn('이 문장은 온도록 캡션', html)
-        self.assertNotIn('AI 캡션 ·', html)
-        self.assertEqual(html.count('class="cap"'), 1)                               # 메모 없는 사진의 캡션 줄은 지워진다
-        # 문장 출처: 사진 아래 메모는 두 사람의 문장이고 온도록 캡션 문장은 세지 않는다
+        self.assertIn('이 문장은 온도록 캡션', html)
+        self.assertEqual(text_of(html).count('AI 캡션'), 2)                           # 라벨 줄(사진 캡션 칸) + 숫자 칸 라벨
+        self.assertNotIn('AI 캡션 ·', html)                                            # 접두사 없음(§11 ⑥)
+        # 문장 출처: 사진 아래 메모는 두 사람의 문장, AI 캡션은 온도록 문장
         self.assertTrue(any(s['source'] == 'date_archive.article.photoCaption' and s['who'] == 'people' for s in comp.sentences))
-        self.assertFalse(any(s['source'] == 'date_archive.article.photoCaption' and s['who'] == 'ondolog' for s in comp.sentences))
+        self.assertTrue(any(s['source'] == 'date_archive.article.photoAiCaption' and s['who'] == 'ondolog' for s in comp.sentences))
 
     def test_a_drawing_note_is_not_a_caption(self):
         drawing = {'authorId': 'u1', 'authorName': fx.A, 'type': 'drawing', 'path': fx.dest('dr1')}
@@ -516,7 +552,7 @@ class R48Temporary(unittest.TestCase):
         self.assertEqual(comp.report['leadCounts']['memos'], 1)                      # 비대표 기사 사진 아래의 첫 메모 하나
         rows = {m['label']: m['used'] for m in pages(comp, 'note')[0].computed['note']['materials']}
         self.assertEqual(rows['메모'], '1개')
-        self.assertIn('메모 1개 — 대표가 아닌 기사에는 하나만 싣습니다', pages(comp, 'note')[0].computed['note']['notUsed'])   # 싣지 못한 둘째 메모
+        self.assertIn('메모 1개 — 대표가 아닌 기사에는 실린 사진 · 구간마다 메모 하나만 싣습니다', pages(comp, 'note')[0].computed['note']['notUsed'])   # 싣지 못한 둘째 메모
 
     def test_safe_findings_never_fail_the_render(self):
         # ③ bottom:62px 계열 safe 위반은 기록만 한다 - 렌더를 멈추는 건 잘린 원문(clipped)뿐이다
@@ -583,20 +619,38 @@ class OriginalOversetGate(unittest.TestCase):
             res = r.render_pages([f])[0]
         self.assertTrue(res['design'].get('same', True), res['design'])
 
-    def test_timeline_overflow_volume_stops_the_render(self):
-        sc = fx.timeline_overflow_scenario('basic')
-        comp = compose(sc)
+    @staticmethod
+    def vol4():
+        import local_volumes as lv
+        comp = compose(fx.timeline_overflow_scenario('basic'))
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp) / 'work'
             r.prepare_work(work)
             files = r.build_pages(comp, TEMPLATES, work, fx.ISSUE_ROW, lambda dest: fx.png(200, 300))
             results = r.render_pages(files)
-        audit = r.audit_summary(comp, results, fx.ISSUE)
-        why = r.gate_failure(audit, fx.ISSUE)
-        self.assertIsNotNone(why)
-        self.assertIn('da-timeline', why)
-        self.assertIn('.userNotes[0].text', why)
+            timeline = lv.measure_timeline(comp, files)
+        return r.audit_summary(comp, results, fx.ISSUE), timeline, lv
+
+    def test_timeline_overflow_volume_never_ships_an_overflowing_page(self):
+        # 넘친 지면은 나가지 않는다(README §12 "렌더 뒤 지면 검사가 마지막 방어") - 어림이 실제보다 작으면 관문이 원문 상자 넘침으로 멈춘다
+        audit, timeline, lv = self.vol4()
         self.assertEqual(audit['originalClipped'], [])
+        if lv.timeline_under(timeline):
+            why = r.gate_failure(audit, fx.ISSUE)
+            self.assertIsNotNone(why, timeline)
+            self.assertIn('.userNotes[0].text', why)
+        else:
+            self.assertIsNone(r.gate_failure(audit, fx.ISSUE))
+
+    @unittest.expectedFailure
+    def test_timeline_overflow_volume_passes_and_no_estimate_is_below_the_actual(self):
+        # v1.2.3(D13): vol4는 통과하는 권이어야 한다(디자인 실측 944px). **84-d 멈춤 항목** - 이 저장소 환경에서 `measure.py`를 다시 돌리면
+        # `measure.json`의 줄 수가 한 줄씩 커진다(이 권의 384 · 394자 메모: 표 9줄 / 실제 10줄 -> 실제 1003px > 953px). 표는 디자인 몫이라 고치지 않았다.
+        # 디자인이 표를 다시 재 넘기면 이 시험이 통과하고, 그때 `expectedFailure`를 뗀다(뜻밖의 통과로 알린다).
+        audit, timeline, lv = self.vol4()
+        self.assertIsNone(r.gate_failure(audit, fx.ISSUE))
+        self.assertEqual(audit['originalOverset'], [])
+        self.assertEqual(lv.timeline_under(timeline), [], timeline)
 
 
 class DataWidthStrings(unittest.TestCase):
@@ -617,9 +671,10 @@ class DataWidthStrings(unittest.TestCase):
         comp = compose(fx.photo_scenario(), ROOMY)
         spec = pages(comp, 'note')[0]
         people = int(spec.computed['note']['ratioPeople'].rstrip('%'))
-        self.assertEqual(spec.widths, {'@note.ratioPeople': people, '@note.ratioOndolog': 100 - people})
+        self.assertEqual(spec.widths, {'@note.ratioPeopleWidth': people, '@note.ratioOndologWidth': 100 - people})   # v1.2.3 #6 · D7
         spec.widths = {}                                                              # 숫자 폭을 빼면 `34%` 글자로는 막대를 세우지 않는다
-        self.assertNotIn('data-width', r.fill_page(spec, comp.theme, TEMPLATES))
+        spec.computed['note']['ratioPeopleWidth'] = spec.computed['note']['ratioOndologWidth'] = ''   # v1.2.3 - 숫자 폭 경로(@note.ratio*Width)도 비운다. 글자(`36%`)는 남는다
+        self.assertIsNone(BeautifulSoup(r.fill_page(spec, comp.theme, TEMPLATES), 'html.parser').find(attrs={'data-width': True}))
 
 
 # ---------------------------------------------------------------------------

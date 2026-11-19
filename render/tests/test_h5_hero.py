@@ -107,55 +107,68 @@ class Hero(unittest.TestCase):
             self.assertNotIn(fx.ISSUE, d)
 
 
-class DropPhotoless(unittest.TestCase):
-    def test_a_date_without_photos_is_left_out_of_the_pages_toc_and_totals(self):
+class KeepPhotoless(unittest.TestCase):
+    """v1.2.3(R136-2 ① · D1 · D3) - 임시 규칙 R84-2 "사진이 없는 데이트는 기사에서 뺀다"는 없어졌다. 사진 0인 기사는 `da-article` `hero-none`(글만 있는 기사)으로 싣는다.
+    (옛 시험 묶음 `DropPhotoless` 5건을 같은 입력으로 새 규칙에 맞춰 바꿨다 - 빼던 것이 이제 실리는지 · 목차 · 합계 · 노트가 실린 것을 세는지)"""
+
+    def test_a_date_without_photos_is_printed_as_hero_none_and_counted_in_toc_and_totals(self):
         empty = fx.article('2026-09-25', '사진 없는 날', '망원동', [fx.stop(0, '11:00', '망원시장', [], [fx.memo('사진은 없다')], None)])
         keep = second([fx.stop(0, '13:00', 'B', [fx.photo('b0')], [], '캡션')])
         base = compose([featured(), keep])
         comp = compose([featured(), keep, empty])
-        self.assertEqual(comp.report['droppedArticles'], 1)
-        self.assertEqual([p.stem for p in comp.pages], [p.stem for p in base.pages])
-        self.assertEqual(len(pages(comp, 'da-article')), 1)
-        self.assertEqual(comp.report['toc'], base.report['toc'])                     # 목차 '하루 2편' - 뺀 기사는 세지 않는다
-        self.assertIn('하루 2편', comp.report['toc'][0]['desc'])
-        self.assertEqual(comp.report['facts'], base.report['facts'])                 # 경로 · 장소 · 합계 모두 실린 기사만
-        self.assertNotIn('망원시장', [p['placeName'] for p in pages(comp, 'da-places')[0].computed['da']['places']])
-        self.assertEqual(comp.shown_photos, base.shown_photos)
+        self.assertEqual(comp.report['droppedArticles'], 0)
+        self.assertEqual(len(pages(comp, 'da-article')), 2)
+        self.assertEqual(len(comp.pages), len(base.pages) + 1)                         # 기사 한 면이 더해진다
+        self.assertIn('하루 3편', comp.report['toc'][0]['desc'])
+        self.assertIn('망원시장', [p['placeName'] for p in pages(comp, 'da-places')[0].computed['da']['places']])
+        self.assertEqual(comp.shown_photos, base.shown_photos)                         # 사진은 늘지 않는다
+        spec = pages(comp, 'da-article')[1]
+        self.assertEqual(spec.computed['da']['articleHero'], '')
+        self.assertEqual([(st['time'], st['placeName']) for st in spec.computed['da']['articleStops']], [('11:00', '망원시장')])
+        html = r.fill_page(spec, comp.theme, r.load_templates())
+        self.assertIn('data-variant="hero-none"', html)
+        self.assertNotIn('<img', html)
+        self.assertIn('사진은 없다', html)
 
-    def test_left_out_memos_are_counted_as_not_used_in_the_note(self):
+    def test_its_memos_are_counted_as_printed_in_the_note(self):
         empty = fx.article('2026-09-25', '사진 없는 날', '망원동', [fx.stop(0, '11:00', '망원시장', [], [fx.memo('사진은 없다')], None)])
         comp = compose([featured(), second([fx.stop(0, '13:00', 'B', [fx.photo('b0')], [], '캡션')]), empty],
-                       materials={'messages': 0, 'photos': 2, 'dates': 3, 'memos': 1})
+                       materials={'messages': 0, 'photos': 3, 'dates': 3, 'memos': 1})   # 사진 3 = 기사 a0 · b0 + 이달의 우리 소기사 사진 e12(v1.2.3 D6)
         rows = {row['key']: row for row in comp.report['facts']['noteRows']}
-        self.assertEqual((rows['dates']['used'], rows['dates']['notUsed']), (2, 1))   # 기사로 고르지 않은 날 1번
-        self.assertEqual((rows['memos']['used'], rows['memos']['notUsed']), (0, 1))
+        self.assertEqual((rows['photos']['used'], rows['photos']['notUsed']), (3, 0))
+        self.assertEqual((rows['dates']['used'], rows['dates']['notUsed']), (3, 0))   # 세 날 모두 기사로 실렸다
+        self.assertEqual((rows['memos']['used'], rows['memos']['notUsed']), (1, 0))   # 글만 있는 기사의 메모도 실렸다
 
-    def test_photoless_recalled_article_is_left_out_too(self):
+    def test_photoless_recalled_article_is_printed_too(self):
         old = fx.article('2025-09-20', '재소환', '합정동', [fx.stop(0, '12:00', 'R', [], [], '캡션')], recalled=True, reason='anniversary')
         comp = compose([featured(), old])
-        self.assertEqual(comp.report['droppedArticles'], 1)
-        self.assertEqual(comp.report['facts']['articlesRecalled'], 0)
-        self.assertNotIn('그때 그 시절', comp.report['toc'][0]['desc'])
+        self.assertEqual(comp.report['droppedArticles'], 0)
+        self.assertEqual(comp.report['facts']['articlesRecalled'], 1)
+        self.assertIn('그때 그 시절 1편', comp.report['toc'][0]['desc'])
+        html = r.fill_page(pages(comp, 'da-article')[0], comp.theme, r.load_templates())
+        self.assertIn('data-variant="hero-none"', html)
 
     def test_featured_article_without_photos_stays_with_the_type_only_opener(self):
         feat = featured([fx.stop(0, '14:20', 'A', [], [fx.memo('메모')], None)])
         empty = second([fx.stop(0, '13:00', 'B', [], [], '캡션')])
         comp = compose([feat, empty])
-        self.assertEqual(comp.report['droppedArticles'], 1)                           # 대표가 아닌 사진 없는 기사만 빠진다
+        self.assertEqual(comp.report['droppedArticles'], 0)
         self.assertEqual(len(pages(comp, 'da-opener')), 1)
-        self.assertEqual(pages(comp, 'da-opener')[0].computed['da']['openerPhoto'], '')
-        self.assertEqual(len(pages(comp, 'da-article')), 0)
-        self.assertIn('하루 1편', comp.report['toc'][0]['desc'])
+        self.assertEqual(pages(comp, 'da-opener')[0].computed['da']['openerPhoto'], '')   # 대표 기사는 그대로 활자 오프너
+        self.assertEqual(len(pages(comp, 'da-article')), 1)                               # 사진 없는 일반 기사는 글만 있는 기사로
+        self.assertIn('하루 2편', comp.report['toc'][0]['desc'])
 
-    def test_featured_index_follows_the_kept_articles(self):
+    def test_article_numbers_follow_the_corner_order(self):
         empty = fx.article('2026-09-05', '앞선 빈 날', '망원동', [fx.stop(0, '11:00', 'X', [], [], '캡션')])
         feat = featured([fx.stop(0, '10:00', 'A', [fx.photo('a0')], [], '캡션')])
         keep = second([fx.stop(0, '13:00', 'B', [fx.photo('b0')], [], '캡션')])
         comp = compose([empty, feat, keep])
-        self.assertEqual(comp.report['droppedArticles'], 1)
+        self.assertEqual(comp.report['droppedArticles'], 0)
         self.assertEqual(pages(comp, 'da-opener')[0].computed['da']['openerPhoto'], fx.dest('a0'))
-        self.assertTrue(hero_src(comp).endswith('b0.png'))
-        self.assertEqual(pages(comp, 'da-article')[0].computed['da']['articleNo'], '02')   # 실린 기사 순번
+        self.assertEqual(pages(comp, 'da-opener')[0].computed['da']['featuredOrdinalEn'], 'Two')
+        self.assertEqual([p.computed['da']['articleNo'] for p in pages(comp, 'da-article')], ['01', '03'])   # 코너 안 순번 그대로
+        self.assertIsNone(hero_src(comp, 0))                                             # 01 = 사진 없는 기사(hero-none)
+        self.assertTrue(hero_src(comp, 1).endswith('b0.png'))
 
 
 class SeedRegression(unittest.TestCase):

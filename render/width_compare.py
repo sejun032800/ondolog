@@ -1,6 +1,6 @@
 """`data-width` 대조 - 같은 입력을 개발 쪽 해석(`slot_fill`)과 디자인의 `render/issue/tools/resolve.js`에 넣어 결과를 나란히 낸다 (위임: 55-3 범위 1).
 
-지면은 발행 노트(`note.html`)의 출처 막대 두 칸(`data-width="@note.ratioPeople"` · `"@note.ratioOndolog"`)을 쓴다.
+지면은 발행 노트(`note.html`)의 출처 막대 두 칸(`data-width="@note.ratioPeopleWidth"` · `"@note.ratioOndologWidth"`, v1.2.3)을 쓴다.
 디자인 쪽은 Chromium에서 `resolve.js`의 `__resolve`를 그대로 돌린 결과(요소가 남았는가 · 인라인 `width`), 개발 쪽은 `slot_fill.fill` 결과다.
 
 사용 (저장소 루트에서):
@@ -26,7 +26,7 @@ from slot_fill import fill  # noqa: E402
 
 NOTE_HTML = HERE / 'issue' / 'pages' / 'note.html'
 RESOLVE_JS = HERE / 'issue' / 'tools' / 'resolve.js'
-PEOPLE, ONDOLOG = '@note.ratioPeople', '@note.ratioOndolog'
+PEOPLE, ONDOLOG = '@note.ratioPeopleWidth', '@note.ratioOndologWidth'   # v1.2.3 #6 - 막대 폭은 숫자 경로(글자 경로 `@note.ratioPeople` · `.ratioOndolog`와 따로)
 
 # (이름, 사람 쪽 입력, 온도록 쪽 입력) - 지시서의 여섯 경우. None = 값 없음.
 SIX_CASES: list = [

@@ -87,12 +87,13 @@ export function findValueViolations(llmOutput: unknown, rules: readonly ValueRul
 /**
  * 17-1 데이트 아카이브.
  * - title 20: MASTER §9-7-2(확정) - LLM 스키마에도 이미 있음(`dateArchive.ts:73`)
- * - caption 50: AI 캡션은 타임라인에서 유저 메모 자리에 대신 그려진다(README §3-1) · 그 칸의 높이 표는 메모 50자 기준(README §5 · §12, `compose.py:51`)
+ * - caption 30: R136-3(84-d) - 디자인 v1.2.3 README §10 ① "캡션 상한이 따로 있다면 30자 이하를 권한다"(이달의 우리 사진 위 한 줄 · 기사 사진 캡션 3줄).
+ *   이전 50(84-a)은 v1.2.2의 "메모 50자 기준 높이 표"에서 왔고, 그 표는 v1.2.3에서 실측 표로 바뀌었다
  * - tailoredQuestion.text 60 · basis 100: 문서 근거 없음 - **임시 상한**(da-places 3열 물음 칸, 84-b 실측 뒤 PM 확정)
  */
 export const DATE_ARCHIVE_VALUE_RULES: readonly ValueRule[] = [
   { path: 'articles[].title', maxLength: 20 },
-  { path: 'articles[].stopCaptions[].caption', maxLength: 50 },
+  { path: 'articles[].stopCaptions[].caption', maxLength: 30 },
   { path: 'articles[].tailoredQuestion.text', maxLength: 60 },
   { path: 'articles[].tailoredQuestion.basis', maxLength: 100 },
 ]

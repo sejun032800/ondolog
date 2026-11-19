@@ -160,5 +160,12 @@ describe('84-a 값 검사 최소판 (R124-4)', () => {
     expect(THIS_MONTH_VALUE_RULES).toContainEqual({ path: 'articles[].title', maxLength: 20 })
     expect(SWEET_WORDS_VALUE_RULES).toEqual([{ path: 'main[].context', maxLength: 70 }])
   })
+
+  it('84-d R136-3: AI 캡션 상한 30자(이전 50) - 30자는 통과, 31자는 걸린다', () => {
+    expect(DATE_ARCHIVE_VALUE_RULES).toContainEqual({ path: 'articles[].stopCaptions[].caption', maxLength: 30 })
+    const out = (caption: string) => ({ articles: [{ title: '제목', stopCaptions: [{ seq: 0, caption }] }] })
+    expect(findValueViolations(out('가'.repeat(30)), DATE_ARCHIVE_VALUE_RULES)).toEqual([])
+    expect(findValueViolations(out('가'.repeat(31)), DATE_ARCHIVE_VALUE_RULES)).toEqual(['articles[].stopCaptions[].caption: 길이 31 > 상한 30'])
+  })
 })
 

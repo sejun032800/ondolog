@@ -125,22 +125,24 @@ class RecalledPhotosLine(unittest.TestCase):
         self.assertEqual((recalled, note['recalledPhotosLine']), (0, ''))
         html = filled(pages(comp, 'note')[0], comp)
         self.assertNotIn('다시 실은 사진', html)
-        self.assertNotIn('recalledPhotosLine', html)
-        self.assertEqual(html.count('top:520px'), 1)                               # 줄이 없으면 아래 블록도 틀 그대로다
+        self.assertNotIn('data-slot="@note.recalledPhotosLine"', html)            # v1.2.3 - 빈 값이면 틀의 data-optional이 줄째 지운다(블록은 흐르는 한 단이라 자리를 고치지 않는다)
         self.assertEqual(used, len(photo_paths_on_pages(comp)))
 
-    def test_with_the_line_the_two_blocks_below_move_down_together(self):
+    def test_the_line_flows_in_the_column_and_the_blocks_below_are_not_moved_by_the_renderer(self):
+        # v1.2.3(D8): 세 블록은 틀의 흐르는 한 단(.note-flow)이라 줄이 생기면 저절로 내려간다 - 렌더러가 top을 고치던 처리(add_note_recalled_line)는 없앴다
         comp = compose(fx.photo_scenario())
-        html = filled(pages(comp, 'note')[0], comp)
-        self.assertNotIn('top:520px', html)
-        self.assertNotIn('top:650px', html)
-        self.assertEqual((html.count('top:556px'), html.count('top:686px')), (1, 1))
-        self.assertEqual(r.add_note_recalled_line(TEMPLATES['note']).count('@note.recalledPhotosLine'), 1)
+        soup = soup_of(pages(comp, 'note')[0], comp)
+        line = soup.find(attrs={'data-slot': '@note.recalledPhotosLine'})
+        self.assertIsNotNone(line)
+        self.assertIsNotNone(line.find_parent(class_='note-flow'))
+        html = str(soup)
+        for top in ('top:520px', 'top:650px', 'top:556px', 'top:686px'):
+            self.assertNotIn(top, html)
+        self.assertFalse(hasattr(r, 'add_note_recalled_line'))
 
-    def test_the_line_is_added_to_the_note_only(self):
-        self.assertIn('@note.recalledPhotosLine', r.add_note_recalled_line(TEMPLATES['note']))
+    def test_the_line_slot_is_in_the_note_template_only(self):
         for stem, html in TEMPLATES.items():
-            self.assertNotIn('recalledPhotosLine', html, stem)                  # 지면 HTML 파일은 그대로다
+            self.assertEqual(html.count('data-slot="@note.recalledPhotosLine"'), 1 if stem == 'note' else 0, stem)   # 자리는 디자인 틀이 가진다(v1.2.3)
 
 
 # ---------------------------------------------------------------------------
@@ -185,8 +187,6 @@ class OpenerTypeVariant(unittest.TestCase):
         slots, same, labels = self.region_line_count(comp)
         self.assertEqual((slots, same, labels), (1, True, 1))                    # 사진 변형은 작은 줄 하나 (큰 활자는 없다)
 
-    def test_the_template_edit_is_marked(self):
-        self.assertRegex(TEMPLATES['da-opener'], r'<!-- R50-6 임시 — 디자인 v1\.2\.3에서 확정 \(N3')
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +279,7 @@ class ZeroCells(unittest.TestCase):
 
     def test_article_without_a_memo_has_no_memo_cell(self):
         feat = fx.article('2026-09-12', '대표', '연남동', [fx.stop(0, '10:00', 'A', [fx.photo('a0')], [], '캡션')], featured=True)
-        sec = fx.article('2026-09-21', '둘째', '성수동', [fx.stop(0, '13:00', 'C', [fx.photo('c0'), fx.photo('c1')], [], '캡션')])
+        sec = fx.article('2026-09-21', '둘째', '성수동', [fx.stop(0, '13:00', 'C', [fx.photo('c0'), fx.photo('c1')], [], None)])   # 메모 · AI 캡션 둘 다 없는 구간(v1.2.3은 AI 캡션도 싣는다)
         comp = compose({'theme': 'basic', 'corners': [fx.corner_row('date_archive', fx.date_archive([feat, sec]))]})
         spec = pages(comp, 'da-article')[0]
         self.assertEqual(spec.computed['da']['articleNoteCount'], '')
@@ -296,13 +296,16 @@ class ZeroCells(unittest.TestCase):
         self.assertIn('메모', self.article_page_labels(comp))
 
     def test_empty_row_goes_with_its_last_cell(self):
-        cell = '<div><span style="flex:1"><span class="num" data-slot="@da.articlePhotoCount"></span><span class="lbl">사진</span></span></div>'
-        self.assertNotIn('사진', r.drop_empty_count_cells(cell))
-        both = ('<div class="r"><span><span class="num" data-slot="@da.articlePhotoCount"></span><span class="lbl">사진</span></span>'
-                '<span><span class="num" data-slot="@da.articleNoteCount">2</span><span class="lbl">메모</span></span></div>')
-        out = r.drop_empty_count_cells(both)
-        self.assertNotIn('사진', out)
-        self.assertIn('메모', out)
+        # v1.2.3(D8): 칸마다 · 줄마다 틀의 data-optional - 줄의 칸이 다 빠지면 줄도 빠진다(렌더러 drop_empty_count_cells는 없앴다)
+        feat = fx.article('2026-09-12', '대표', '연남동', [fx.stop(0, '10:00', 'A', [fx.photo('a0')], [], '캡션')], featured=True)
+        sec = fx.article('2026-09-21', '둘째', '성수동', [fx.stop(0, '13:00', 'C', [], [fx.memo('메모만')], None)])   # hero-none - 둘째 줄은 AI 캡션 칸 하나뿐
+        comp = compose({'theme': 'basic', 'corners': [fx.corner_row('date_archive', fx.date_archive([feat, sec]))]})
+        spec = pages(comp, 'da-article')[0]
+        self.assertEqual(spec.computed['da']['articleCaptionCount'], '')
+        rows = soup_of(spec, comp).select('[data-variant="hero-none"] .cells')
+        self.assertEqual(len(rows), 1)                                                   # AI 캡션 줄째 빠졌다
+        self.assertEqual([x.get_text(strip=True) for x in rows[0].select('.lbl')], ['경유지', '메모'])
+        self.assertFalse(hasattr(r, 'drop_empty_count_cells'))
 
     def test_timeline_stop_without_photos_has_no_photo_label(self):
         comp = compose(fx.opener_fallback_scenario())          # 대표 기사의 첫 구간에 사진이 없다
@@ -380,7 +383,7 @@ def printed_original_lines(comp):
 
 class PrintedOriginalsAreRecords(unittest.TestCase):
     def check(self, name, scenario):
-        comp = compose(scenario)
+        comp = compose(scenario, scenario.get('materials')) if scenario.get('materials') else compose(scenario)   # v1.2.3 - batch2 · edge 권은 제 모은 양을 가진다
         rows = scenario['corners']
         messages = {text for _, text, _ in seed.chat_messages(rows)}
         memos = set(seed.memo_texts(rows))
@@ -401,7 +404,7 @@ class PrintedOriginalsAreRecords(unittest.TestCase):
         self.assertEqual(seen, {'quote', 'short', 'memo', 'caption', 'evidence', 'cover'})   # 여섯 종류가 모두 시험에 들었다
 
     def test_local_volumes_too(self):
-        for name, build in [*lv.VOLUMES, lv.OVERFLOW_VOLUME]:
+        for name, build in [*lv.VOLUMES, ('edge', fx.edge_scenario)]:   # v1.2.3 - vol4 · vol5-batch2는 VOLUMES 안
             self.check(name, build())
 
     def test_every_record_line_of_the_conversations_is_printed_whole(self):
@@ -458,7 +461,7 @@ class SeedOriginalsAreWholeAndDistinct(unittest.TestCase):
     def test_overlong_conversation_turns_are_whole_and_keep_their_height(self):
         for group in fx.OVERLONG_CONVERSATION_SENTENCES:
             text = ' '.join(group)
-            self.assertTrue(386 <= len(text) <= 420, len(text))             # 12줄 -> 4턴 높이 1337px (README §12)
+            self.assertTrue(386 <= len(text) <= 420, len(text))             # v1.2.3 실측 식으로 4턴 1081px > 940px - 어느 면에도 들지 않는다(옛 어림 1337px)
             self.assertRegex(text, r'[.?!]$')
             for sentence in group:
                 self.assertRegex(sentence, r'[.?!]$')
@@ -474,7 +477,7 @@ class SeedOriginalsAreWholeAndDistinct(unittest.TestCase):
             fx.whole_memo(fx.MEMO_SENTENCES_WINDOW, 5000)                    # 모자라면 같은 문장을 되풀이하지 않고 멈춘다
 
     def test_the_overflow_volume_still_fits_one_page_by_the_estimate(self):
-        # vol4의 뜻 - 높이 어림(메모 50자마다 29px)으로는 한 면에 들지만 실제로는 넘친다. 문장 단위로 고친 메모가 이 조건을 깨지 않는다 (351~400자 = 어림 +203px)
+        # vol4 - 긴 메모(351~400자) 둘이 어림으로 한 면에 든다. v1.2.2에서는 '실제는 넘친다'는 뜻이었고, v1.2.3 실측 표로는 통과 권이어야 한다(D13 - 84-d 멈춤 항목은 test_v122)
         from compose import split_timeline, stop_height
         sc = fx.timeline_overflow_scenario()
         stops = date_archive_of(sc)['payload']['articles'][0]['stops']

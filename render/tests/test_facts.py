@@ -66,7 +66,7 @@ def note_equation(note):
     """발행 노트를 지면에 찍힌 글자만으로 읽어 줄마다 (모은 양, 게재, 싣지 않은 것의 합)을 돌려준다."""
     sums = {'데이트': 0, '사진': 0, '메모': 0, '대화': 0}
     patterns = (('데이트', r'^기사로 고르지 않은 날 (\d+)번$'), ('사진', r'^구간 \d+곳\(사진 (\d+)장\)'), ('사진', r'^사진 (\d+)장 — '),
-                ('메모', r'^메모 (\d+)개 — '), ('대화', r'^대화 (\d+)개 — '))
+                ('메모', r'^메모 (\d+)개 — '), ('메모', r'^구간 \d+곳\(메모 (\d+)개\)'), ('대화', r'^대화 (\d+)개 — '))   # v1.2.3 D2 - 글만 있는 기사에서 싣지 못한 구간
     for line in note['notUsed']:
         for label, pat in patterns:
             m = re.match(pat, line)
@@ -92,10 +92,10 @@ class NoteEquation(unittest.TestCase):
         return eq
 
     def test_every_local_volume_balances(self):
-        # 로컬 다섯 권(+ 긴 타임라인 권) 전부 - 숫자는 코너 content와 모은 양에서 나온다
-        for name, build in [*lv.VOLUMES, lv.OVERFLOW_VOLUME]:
+        # 로컬 권 전부(v1.2.3: vol4 · vol5-batch2는 통과 권으로 VOLUMES 안) + 84-d 가장자리 권 - 숫자는 코너 content와 모은 양에서 나온다
+        for name, build in [*lv.VOLUMES, ('edge', fx.edge_scenario)]:
             sc = build()
-            self.check(compose(sc, LOCAL), name)
+            self.check(compose(sc, sc.get('materials', LOCAL)), name)
 
     def test_every_scenario_balances_with_two_kinds_of_collected_amounts(self):
         for name, build in SCENARIOS.items():
@@ -206,8 +206,11 @@ class OpenerTocNoteShareOneSource(unittest.TestCase):
             lead = pages(comp, 'da-opener')[0].computed['da']['lead']
             said = re.search(r'남긴 (\d+)장의 사진과 (\d+)개의 메모', lead)
             self.assertEqual((int(said.group(1)), int(said.group(2))), (len(imgs), memo_lines), name)
+            # v1.2.3(D6 · README §11 ⑩) - 발행 노트 게재는 호 전체: 위 사진 + 이달의 우리 소기사 사진(재소환 기사의 사진은 따로)
+            recalled_paths = {ph['path'] for a in arts if a.get('recalled') is True for st in a['stops'] for ph in st['photos']}
+            tm_imgs = {i['src'] for spec in pages(comp, 'tm-articles') for i in soup_of(spec, comp).find_all('img') if i.get('src')}
             rows = {m['label']: m['used'] for m in pages(comp, 'note')[0].computed['note']['materials']}
-            self.assertEqual((rows['사진'], rows['메모']), (f'{len(imgs)}장', f'{memo_lines}개'), name)
+            self.assertEqual((rows['사진'], rows['메모']), (f'{len(imgs | (tm_imgs - recalled_paths))}장', f'{memo_lines}개'), name)
 
 
 # ---------------------------------------------------------------------------
@@ -260,49 +263,63 @@ class Places(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class ArticleCell(unittest.TestCase):
+    @staticmethod
+    def memo_only_second():
+        feat = fx.article('2026-09-12', '대표', '연남동', [fx.stop(0, '10:00', 'A', [fx.photo('a0')], [], '캡션')], featured=True)
+        sec = fx.article('2026-09-21', '둘째', '성수동', [fx.stop(0, '13:00', 'C', [fx.photo('c0')], [fx.memo('메모만 있는 구간')], None)])
+        return {'theme': 'basic', 'corners': [fx.corner_row('date_archive', fx.date_archive([feat, sec]))]}
+
     def test_ai_caption_cell_is_removed_whole_when_none_is_on_the_page(self):
-        comp = compose(fx.many_photos_scenario(), LOCAL)
-        for spec in pages(comp, 'da-article'):
-            self.assertEqual(spec.computed['da']['articleCaptionCount'], '')
-            html = filled(spec, comp)
-            self.assertNotIn('AI 캡션', html)
-            self.assertNotIn('articleCaptionCount', html)
-            self.assertIn('경유지', html)                                           # 같은 줄의 다른 칸은 남는다
+        # v1.2.3 - 0인 칸은 틀의 `data-optional`이 지운다(렌더러 `drop_empty_count_cells`는 없앴다, D8)
+        comp = compose(self.memo_only_second(), ROOMY)
+        spec = pages(comp, 'da-article')[0]
+        self.assertEqual(spec.computed['da']['articleCaptionCount'], '')
+        text = text_of(spec, comp)
+        self.assertNotIn('AI 캡션', text)
+        self.assertIn('경유지', text)                                               # 같은 줄의 다른 칸은 남는다
+        self.assertNotIn('data-slot="@da.articleCaptionCount"', filled(spec, comp))
 
     def test_cell_stays_when_a_caption_is_on_the_page(self):
-        cell = '<div><span style="flex:1"><span class="num" data-slot="@da.articleCaptionCount">2</span><span class="lbl">AI 캡션</span></span></div>'
-        self.assertEqual(r.drop_empty_caption_cell(cell), cell)
-        empty = cell.replace('>2<', '><')
-        self.assertNotIn('AI 캡션', r.drop_empty_caption_cell(empty))
+        comp = compose(fx.many_photos_scenario(), LOCAL)                         # 둘째 기사 첫 사진 = 메모 없는 구간 -> AI 캡션 1
+        spec = pages(comp, 'da-article')[0]
+        self.assertEqual(spec.computed['da']['articleCaptionCount'], 1)
+        cell = soup_of(spec, comp).find(attrs={'data-slot': '@da.articleCaptionCount'})
+        self.assertIsNotNone(cell)
+        self.assertEqual(cell.get_text(strip=True), '1')
+        self.assertIn('AI 캡션', cell.parent.get_text(' ', strip=True))
 
     def test_ai_captions_counted_only_where_the_page_shows_them(self):
-        # 대표 기사 타임라인은 AI 캡션을 싣는다(메모가 없는 구간) - 실린 구간만 센다. 기사 지면은 싣지 않으므로 0이다
+        # 대표 기사 타임라인은 AI 캡션을 싣는다(메모가 없는 구간) - 실린 구간만 센다. 기사 지면은 v1.2.3부터 사진 캡션 칸에 싣는다(D4) - 실린 칸만 센다
         comp = compose(fx.many_photos_scenario(), LOCAL)
         facts = build_facts(articles=date_archive_articles(fx.many_photos_scenario()), fi=0, kept_stops=[], dropped_stops=[])
         self.assertEqual(facts.lead.ai_captions_shown, 0)                          # 실린 구간이 없으면 0
-        self.assertEqual(facts.articles[1].ai_captions_shown, 0)
+        shown_ai = sum(1 for ph in article_photos(date_archive_articles(fx.many_photos_scenario())[1]) if ph['aiCaption'])
+        self.assertEqual(facts.articles[1].ai_captions_shown, shown_ai)
+        self.assertEqual(shown_ai, 1)
         timeline_ai = sum(1 for s in [s for sp in pages(comp, 'da-timeline') for s in sp.corner['payload']['articles'][0]['stops']] if s.get('aiCaption'))
         self.assertIn(f'AI 캡션 {timeline_ai}', pages(comp, 'da-opener')[0].computed['da']['records'])
 
-    def test_article_memo_sits_under_the_first_photo_with_the_authors_name(self):
+    def test_article_memo_sits_under_its_own_stops_first_photo_with_the_authors_name(self):
+        # v1.2.3(D4, README §10 ①): 기사의 첫 사진이 아니라 **그 메모가 남은 구간의 첫 사진** 아래. 다른 구간의 메모를 끌어오지 않는다(사진과 메모가 어긋나 보였다)
         sc = fx.many_photos_scenario()
         comp = compose(sc, LOCAL)
         spec = pages(comp, 'da-article')[0]
         photos = spec.computed['da']['articlePhotos']
-        arts = date_archive_articles(sc)
-        article = arts[spec.bind['i']]
-        first_memo = next(n for s in article['stops'] for n in s['userNotes'] if n['type'] == 'memo')
-        self.assertEqual(photos[0]['caption'], first_memo['text'])                  # 첫 사진 아래 - 둘째 사진이 아니다
-        self.assertEqual(photos[0]['authorName'], first_memo['authorName'])
-        self.assertTrue(all(p['caption'] == '' for p in photos[1:]))
+        article = date_archive_articles(sc)[spec.bind['i']]
+        memo_stop = next(st for st in article['stops'] if any(n['type'] == 'memo' for n in st['userNotes']))
+        memo = next(n for n in memo_stop['userNotes'] if n['type'] == 'memo')
+        k = [ph['path'] for ph in photos].index(memo_stop['photos'][0]['path'])
+        self.assertGreater(k, 0)                                                     # 이 기사에서는 첫 사진이 아니다(첫 구간은 메모가 없다)
+        self.assertEqual((photos[k]['caption'], photos[k]['authorName']), (memo['text'], memo['authorName']))
+        self.assertEqual([ph['caption'] for i, ph in enumerate(photos) if i != k], ['', ''])
         soup = soup_of(spec, comp)
-        caps = soup.select('.cap')
-        self.assertEqual(len(caps), 1)
-        self.assertIn(first_memo['text'], caps[0].get_text(' ', strip=True))
-        self.assertRegex(re.sub(r'\s+', '', caps[0].get_text(' ', strip=True)), r'—' + re.escape(first_memo['authorName']) + r'의메모')
         strip = soup.select('[data-repeat="@da.articlePhotos"] > div')
-        self.assertTrue(strip[0].select('.cap'))                                     # 첫 칸에 붙는다
-        self.assertFalse(any(d.select('.cap') for d in strip[1:]))
+        memo_caps = [d.select('.cap.memo') for d in strip]
+        self.assertTrue(memo_caps[k])
+        self.assertFalse(any(c for i, c in enumerate(memo_caps) if i != k))
+        self.assertIn(memo['text'], memo_caps[k][0].get_text(' ', strip=True))
+        self.assertRegex(re.sub(r'\s+', '', memo_caps[k][0].get_text(' ', strip=True)), r'—' + re.escape(memo['authorName']) + r'의메모')
+        self.assertTrue(strip[0].select('.cap.ai'))                                  # 첫 사진의 구간은 메모가 없어 AI 캡션(라벨 줄)
 
     def test_memo_without_author_prints_no_empty_author_line(self):
         a = fx.article('2026-09-21', '둘째', '성수동', [fx.stop(0, '13:00', 'C', [fx.photo('c0')], [{'type': 'memo', 'text': '이름 없는 메모'}], None)])
@@ -384,7 +401,7 @@ class SourceDateAndBack(unittest.TestCase):
             self.assertNotRegex(html, r'(?i)next\s*issue')
             self.assertNotRegex(html, r'(?i)\b(january|october|september)\b')
         template = TEMPLATES['back']
-        self.assertNotIn('nextMonth', template)
+        self.assertNotIn('nextMonth', re.sub(r'<!--.*?-->', '', template, flags=re.S))   # v1.2.3 틀은 '쓰지 않는다'는 주석에만 이름이 있다
         self.assertNotRegex(re.sub(r'<!--.*?-->', '', template, flags=re.S), r'(?i)next\s*issue')
 
 
@@ -393,11 +410,10 @@ class SourceDateAndBack(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class DesignEditsAreMarked(unittest.TestCase):
-    EDITED = {'contents': 'R50-6', 'da-article': 'R50-6', 'da-timeline': 'R50-6', 'back': 'R50-6', 'sw-opener': 'R50-6', 'da-opener': 'R50-6'}
-
-    def test_each_edited_page_carries_the_marker_comment(self):
-        for stem, mark in self.EDITED.items():
-            self.assertRegex(TEMPLATES[stem], r'<!-- R50-6 임시 — 디자인 v1\.2\.3에서 확정')
+    def test_no_development_temporary_edit_is_left_in_the_templates(self):
+        # v1.2.3 - 개발이 R50-6으로 틀에 넣던 임시 수정(주석 'R50-6 임시')은 디자인 판으로 확정돼 틀에 남지 않는다. 틀은 디자인 판 그대로다(84-d)
+        for stem, template in TEMPLATES.items():
+            self.assertNotIn('R50-6 임시', template, stem)
 
     def test_sw_opener_folio_is_light_only_on_the_photo(self):
         template = TEMPLATES['sw-opener']

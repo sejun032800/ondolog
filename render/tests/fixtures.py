@@ -66,7 +66,7 @@ def basis_of(stops: list) -> Optional[str]:
 
 
 def questions(basis: Optional[str] = None) -> list:
-    suggestion = {'type': 'suggestion', 'text': '다음에도 같은 동네에서 만난다면 어디에 가볼까?'}
+    suggestion = {'type': 'suggestion', 'text': '다음에도 같은 동네에서 만난다면 어디에 가 볼까요?'}   # 질문 칸 해요체(R133-4, 디자인 v1.2.3 대조 묶음과 같은 문구)
     if basis:
         suggestion['basis'] = basis
     return [
@@ -421,3 +421,82 @@ def timeline_overflow_scenario(theme: str = 'basic', memo_chars: int = 370) -> d
         stop(1, '19:10', '경의선숲길', [], [memo(whole_memo(MEMO_SENTENCES_ALLEY, memo_chars), B)], None),
     ]
     return {'theme': theme, 'corners': [corner_row('date_archive', da, seq=1), base['corners'][1], corner_row('this_month', standard_this_month(da), seq=3)]}
+
+
+# ---------------------------------------------------------------------------
+# 84-d - 디자인 v1.2.3 지면 시험 호. 모두 합성 시험 데이터이고 실제 사람의 기록이 아니다.
+# ---------------------------------------------------------------------------
+
+def batch2_scenario(theme: str = 'lovely') -> dict:
+    """디자인 v1.2.3 대조 권(README §10 ③ D13) - 사진 0인 일반 기사(hero-none) · 구간마다 다른 캡션(메모 / AI 캡션 라벨 줄) ·
+    이달의 우리 4편 중 2편만 사진 근거(섞인 지면) · 재소환 사진 줄 · 발행 노트 AI 한 줄. 디자인 대조 묶음의 같은 이름 권을 이 저장소 시험 데이터(2026년 9월호)로 옮겼다."""
+    w, h = 1200, 1600
+    featured = article('2026-09-12', '비 오는 날의 연남동', '연남동', [
+        stop(0, '14:20', '홍대입구역', [photo('e01', w, h)], [memo('역 앞에서 만났다. 우산이 하나뿐이었다.')], None),
+        stop(1, '16:10', '연남동 카페 오월', [photo('e02', w, h), photo('e03', w, h)], [memo('창가 자리가 비어 있었다.\n케이크를 반씩 나눠 먹었다.\n비가 그칠 때까지 기다렸다.', B)], None),
+        stop(2, '19:00', '연남동 식당', [photo('e06', w, h)], [], '저녁을 먹은 식당'),
+    ], featured=True)
+    second = article('2026-09-21', '성수동에서 걸은 하루', '성수동', [
+        stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [], '서점 앞에 오래 서 있던 오후'),
+        stop(1, '15:30', '서울숲', [photo('e09', w, h), photo('e10', w, h)], [memo('오래 걸었다. 다리가 아팠지만 좋았다.')], None),
+    ])
+    memo_only = article('2026-09-27', '메모만 남은 하루', '망원동', [
+        stop(0, '13:10', '망원시장', [], [memo('시장 끝까지 걸어가서 떡볶이를 먹었다. 생각보다 매웠다.', B)], None),
+        stop(1, '15:40', '망원한강공원', [], [memo('강바람이 차가워서 오래 있지는 못했다.\n그래도 노을은 끝까지 봤다.')], None),
+        stop(2, '18:20', None, [], [], '돌아오는 길에 들른 작은 가게'),
+    ])
+    recalled = article('2025-09-20', '일 년 전 이맘때', '합정동', [
+        stop(0, '12:00', '합정동 공원', [photo('e11', w, h)], [], '공원 벤치'),
+    ], recalled=True, reason='anniversary')
+    da = date_archive([featured, second, memo_only, recalled], ['연남동', '성수동', '망원동'])
+    sw = sweet_words([
+        excerpt('아침 출근길에 오간 대화', '22', [turn(A, '오늘 비 온대. 우산 챙겼어?', '2026-09-22T09:20:00+09:00'),
+                                          turn(B, '응 챙겼어. 너도 감기 조심해', '2026-09-22T09:21:30+09:00')]),
+    ], [sub(B, '오늘 고생했어 진짜'), sub(A, '집에 잘 들어갔어?', '2026-09-15T22:10:00+09:00')])
+    days, stops_n = days_in_region(da, '연남동'), stops_in_region(da, '연남동')
+    tm = this_month('연남동을 자주 걸은 달', [
+        tm_article(0, '같은 동네, 여러 곳', f'연남동에서 보낸 날은 이번 달 데이트 기록에 {days}번 있었고, 그 경유지는 {stops_n}곳이었습니다.', [ev_message('연남동 또 가자'), ev_date('2026-09-12')]),
+        tm_article(1, '비 오는 날의 기록', '비가 온 날의 대화와 사진이 함께 남았습니다.', [ev_message('우산 챙겼어? 오늘 정말 비가 많이 온대'), ev_photo('e06')]),
+        tm_article(2, '오래 걸은 날', '성수동에서 오래 걸은 날이 있었습니다.', [ev_date('2026-09-21')]),
+        tm_article(3, '서점 앞의 오후', '서점 앞에서 보낸 시간이 사진으로 남았습니다.', [ev_photo('e08')]),
+    ], signals=region_signals(da))
+    return {'theme': theme, 'materials': {'messages': 120, 'photos': 20, 'dates': 4, 'memos': 6},
+            'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2), corner_row('this_month', tm, seq=3)]}
+
+
+# 84-d 가장자리 - 디자인이 대조 렌더로 확인하지 못한 세 경우(README §10 ③ "D2의 '싣지 않은 것' 줄 · D5 · D12는 대조 렌더에 넣지 않았다")
+EDGE_LONG_PHOTO_MEMO = ('사진을 찍고 나서 한참 동안 그 자리에 앉아 있었다. 바람이 불 때마다 나뭇잎 소리가 났고 둘 다 아무 말도 하지 않았다. '
+                        '돌아오는 길에 그때 무슨 생각을 했는지 서로 물어봤는데 둘 다 같은 노래를 떠올리고 있었다. 그 노래 제목은 끝내 기억나지 않았다.')
+EDGE_COVER_QUOTE = ('오늘 하루도 정말 고생 많았어. 퇴근길에 비가 많이 온다고 해서 걱정했는데 우산 챙겨 갔다니 다행이다. '
+                    '집에 도착하면 따뜻한 물로 씻고 일찍 자. 내일 아침에 내가 먼저 연락할게.')
+
+
+def edge_scenario(theme: str = 'basic') -> dict:
+    """84-d 가장자리 권 - ① D2: 사진 0인 일반 기사의 구간이 글만 있는 기사 한 면(§12 가용 592.5px)을 넘는다 -> 뒤 구간은 싣지 않고 발행 노트 '싣지 않은 것'
+    ② D5: 사진 있는 일반 기사에서 한 구간의 메모가 사진 아래 칸(104px, 사진 3장 폭)을 넘는다 -> 그 메모는 싣지 않고 '싣지 않은 것'(원문을 자르지 않는다)
+    ③ D12: 표지 이 달의 말(다정한 말들 첫 대화의 첫 발화)이 두 줄을 넘는다 -> 표지에서 줄째 빠진다. 시험용 합성 문장이다."""
+    w, h = 1200, 1600
+    featured = article('2026-09-12', '비 오는 날의 연남동', '연남동', [
+        stop(0, '14:20', '홍대입구역', [photo('e01', w, h)], [memo('역 앞에서 만났다. 우산이 하나뿐이었다.')], None),
+        stop(1, '19:00', '연남동 식당', [photo('e06', w, h)], [], '저녁을 먹은 식당'),
+    ], featured=True)
+    long_memo = article('2026-09-21', '성수동에서 걸은 하루', '성수동', [
+        stop(0, '13:00', '성수동 서점', [photo('e08', w, h)], [memo('서점 앞에서 오래 서 있었다.')], None),
+        stop(1, '15:30', '서울숲', [photo('e09', w, h), photo('e10', w, h)], [memo(EDGE_LONG_PHOTO_MEMO, B)], None),   # 사진 3장 -> 칸 폭 208px: 142자 = 6줄 > 5줄
+    ])
+    many_stops = article('2026-09-27', '메모만 남은 하루', '망원동', [
+        stop(0, '11:10', '망원역', [], [memo('역에서 만나서 시장 쪽으로 천천히 걸었다.\n아침을 못 먹어서 둘 다 배가 고팠다.')], None),
+        stop(1, '12:00', '망원시장', [], [memo('시장 끝까지 걸어가서 떡볶이를 먹었다.\n생각보다 매웠다.\n물을 두 병이나 마셨다.', B)], None),
+        stop(2, '13:30', '골목 카페', [], [memo('창가에 앉아서 지난주 이야기를 했다.\n커피가 식을 때까지 일어나지 않았다.')], None),
+        stop(3, '15:40', '망원한강공원', [], [memo('강바람이 차가워서 오래 있지는 못했다.\n그래도 노을은 끝까지 봤다.\n사진은 찍지 않았다.', B)], None),
+        stop(4, '18:20', '작은 가게', [], [memo('돌아오는 길에 들른 가게에서 엽서를 두 장 샀다.')], None),
+        stop(5, '19:10', None, [], [], '집으로 돌아가는 길'),
+    ])
+    da = date_archive([featured, long_memo, many_stops], ['연남동', '성수동', '망원동'])
+    sw = sweet_words([
+        excerpt('퇴근길에 오간 대화', '22', [turn(A, EDGE_COVER_QUOTE, '2026-09-22T19:20:00+09:00'),
+                                       turn(B, '응 고마워. 너도 조심히 들어가', '2026-09-22T19:21:30+09:00')]),
+    ], [sub(B, '오늘 고생했어 진짜')])
+    tm = standard_this_month(da)
+    return {'theme': theme, 'materials': {'messages': 120, 'photos': 20, 'dates': 3, 'memos': 10},
+            'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2), corner_row('this_month', tm, seq=3)]}

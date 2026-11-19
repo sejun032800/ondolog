@@ -139,7 +139,8 @@ class WholeRender(unittest.TestCase):
         self.assertEqual(audit['originalClipped'], [])
         self.assertTrue(audit['designAuditSame'])
         self.assertEqual(compose['report']['quotePages'], 2)
-        self.assertFalse(compose['report']['coverQuoteRemoved'])
+        # v1.2.3 §11 ⑫ · D12(R136-2 ③) - 이 호의 이 달의 말(첫 대화 첫 발화 160자 안팎)은 표지에서 네 줄이라 줄째 빠진다(원문은 인용면에 그대로)
+        self.assertTrue(compose['report']['coverQuoteRemoved'])
         self.assertEqual(len(api.puts), 16)                                     # PDF 1 + 쪽 이미지 15
         self.assertEqual(api.updates[0], {'pdf_digital_path': None, 'page_count': None, 'cover_path': None})   # 먼저 비우고
         self.assertEqual(api.updates[-1]['page_count'], 15)                      # 마지막에 채운다
@@ -155,7 +156,7 @@ class WholeRender(unittest.TestCase):
             finally:
                 r.OUT_ROOT = old
         self.assertIn('지면을 짤 수 없다', str(ctx.exception))
-        self.assertIn('1337px', str(ctx.exception))
+        self.assertIn('1081px', str(ctx.exception))                             # v1.2.3 실측 식의 높이(옛 어림 1337px)
         self.assertEqual(api.puts, [])
         self.assertEqual(api.updates, [])                                       # 원격에는 아무것도 쓰지 않았다
 
@@ -381,8 +382,8 @@ class Render(unittest.TestCase):
         msg = str(ctx.exception)
         self.assertIn(fx.ISSUE, msg)
         self.assertIn('3번째 대화', msg)
-        self.assertIn('1337px', msg)
-        self.assertIn('844px', msg)
+        self.assertIn('1081px', msg)                                            # v1.2.3 실측 식(`measure.json`) - 옛 어림 1337px
+        self.assertIn('940px', msg)                                             # 단문 없는 면의 가용 높이(옛 844px)
         ok = compose_issue(fx.ISSUE_ROW, {**fx.COUPLE_ROW}, NAMES, fx.long_original_scenario()['corners'], None)
         self.assertEqual(len([p for p in ok.pages if p.stem == 'sw-quotes']), 2)
 

@@ -11,6 +11,123 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `84-d` 조판 v1.2.3 반입 + 렌더러 D1~D14 + 이달의 우리 사진(R44-9) (메인 세션, 2026-11-19~20, 위임문 `phase-7/84-d-dispatch-render-v1_2_3.md` · 출처 ROADMAP r136 R136-1~7 · r137) - 완료 · **멈춤 1(⑥ 실측 표 · vol4)** (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-19-r137` · 첨부 2개(`phase-7/dev_reference_v1_2_3.diff` · `test_failures_v1_2_3.txt` - 저장소에 이미 커밋돼 있음 `ce84e72`) · 새 `render/issue/README.md` v1.2.3 - 통과. LLM 호출 0 · 원격 0(허용 질의 없음) · 마이그레이션 0 · 함수 배포 0 · 새 패키지 0 · `web/` 0 · `consent.ts` 0 · `demo_responses` 0 · 실제 데이터 0 · 커밋 0. **틀(`render/issue/`) 변경 0**(git 깨끗 - `measure.py` 시험 실행 뒤 `measure.json`을 원래 바이트로 되돌림).
+
+### 멈춘 것 - ⑥ `measure.json`이 이 저장소 환경에서 다시 재면 바뀐다 (표는 디자인 몫)
+- `render/.venv/Scripts/python.exe render/issue/tools/measure.py`(Chromium · Playwright 1.64.0 · Windows) 결과가 넘겨받은 표와 다름: 줄 수 표가 거의 모든 활자 칸에서 **한 줄씩 크게**(예 `timeline.memoLines` 84칸 중 41칸 · `quotes.turnLines.odd` 48칸 · `even` 52칸 · `article.stopMemoLines` 46칸 · 기사 사진 메모 칸 10/22/26칸) · 상자 고정값 ±1~3px · 인용 가용 940/841/778 → 938/843/780 · 사진 아래 칸 104 → 106 · `article.stopCaption.straight` true → false. 다시 잰 파일은 저장소 밖(스크래치)에만 두었다 - **틀은 그대로**.
+- 결과: **vol4(긴 메모 384 · 394자) 렌더가 지면 검사에서 멈춘다** - 표는 9줄, 이 환경 Chromium은 10줄(290px) → 타임라인 실제 1003px > 953px(`render_issue.gate_failure` - "넘친 지면은 나가지 않는다" 그대로 작동). 다른 5권은 어림 ≥ 실제(1~4px 크게).
+- 렌더러는 표를 그대로 읽는다(값을 코드에 옮기지 않음 - README §12). 디자인이 이 환경(또는 렌더가 실제로 도는 환경)에서 표를 다시 재 넘기면 풀린다. 표시: `render/tests/test_v122.py` `test_timeline_overflow_volume_passes_and_no_estimate_is_below_the_actual`(`@unittest.expectedFailure` - 표가 고쳐지면 "뜻밖의 통과"로 알린다 → 표시를 뗀다) + 대신 지키는 시험 `test_timeline_overflow_volume_never_ships_an_overflowing_page`.
+- PE에게: 표를 누가 · 어느 환경에서 다시 잴지(디자인 환경 = 렌더 환경이어야 한다) 결정 필요.
+
+### ① 틀 반입 대조 (README §8 50파일)
+| | 결과 |
+|---|---|
+| `render/issue/` | 50 = §8 목록 그대로(루트 4 · pages 13 · themes 6 · tools 6 · fonts 8 · images/sample 13). 빠짐 0 · 남는 옛 파일 0 · `__pycache__` 0 → **정리한 옛 파일 없음** |
+| `docs/design/nocturne/render/issue/` 사본 | 반입 전 47(`.gitignore` · `measure.json` · `tools/measure.py` 없음, 16파일 내용 옛 판) → 50파일 복사 후 **sha1 50/50 일치** · 남는 파일 0 |
+
+### ② D1~D14 (11/15 사본 diff를 그대로 붙이지 않고 지금 렌더러 위에 뜻대로)
+| D | 뜻 | 고친 곳 | 시험 | 84-c2까지 임시 수정 |
+|---|---|---|---|---|
+| D1 | `hero-photo` / `hero-none` | `render/compose.py:1009-1012` `choose_variant` | `test_v123` `Rendered.test_batch2_passes_the_page_checks` · `test_h5_hero.KeepPhotoless` | - |
+| D2 | `@da.articleHero` · `@da.articleStops`(가용 592.5px까지, 넘친 구간은 노트 "싣지 않은 것") · 히어로 구간 앞당기기 삭제 | `compose.py:519-549` · `facts.py:187` `article_stops_view` · `facts.py:455-470`(노트 줄) · `compose.py` `not_used_text` `article_dropped_stops` | `test_v123.Edge.test_d2_...` | R84-1 보기 사본 구간 순서 바꾸기 → **디자인 판으로 대체됨**(삭제) |
+| D3 | 사진 0 일반 기사도 싣는다 | `compose.py:375-378`(`droppedArticles` 늘 0) | `test_h5_hero.KeepPhotoless` 5건 · `test_v122` `..._printed_as_hero_none...` | R84-2 빼기 → **대체됨**(삭제) |
+| D4 | 사진 캡션 = 그 구간 첫 사진에만 그 구간 메모 / AI 캡션 · 항목 `aiCaption` · 기사 지면 메모 · AI 캡션 수 · 사진 AI 캡션은 온도록 문장 | `facts.py:146` `article_photo_view` · `facts.py:363-375`(기사 사실) · `compose.py:541-548`(문장 출처) | `test_compose.Lead` · `test_facts.ArticleCell` · `test_v122` `test_caption_is_the_stops_memo_or_its_ai_caption...` | R48-3 ② "기사 첫 사진 아래 기사 첫 메모 · AI 캡션 0" → **대체됨** |
+| D5 | 사진 아래 메모가 칸(104px, 5줄)에 안 들면 싣지 않고 노트에 | `render/heights.py` `photo_caption_fits` · `facts.py:146-176` · 노트 줄 `caption_overflow` | `test_v123.Edge.test_d5_...` · `Heights.test_photo_caption_room_holds_five_lines` | - |
+| D6 | R44-9 이달의 우리 사진(③) | `compose.py:622-628` · `compose.py:639` `photo_ai_caption` · `compose.py:715-719`(실린 사진) · `facts.py:227` `this_month_photo` · `facts.py:407-412`(노트 셈) | `test_v123.ThisMonthPhotos` 4건 · `test_compose.ThisMonth` | R44-9 `a.pop('photo')` → **대체됨** |
+| D7 | 막대 폭 경로 `@note.ratio*Width` · `aiNotice` 슬롯 | `compose.py:956-985` · `width_compare.py:29` · `local_volumes.py` 사실 확인 | `test_v122.Width` · `DataWidthStrings` · `Browser` 2건 · `test_c2_note` | 84-c2 `add_note_ai_notice`(렌더러가 끼움) → **대체됨**(삭제). 문장은 **`compose.NOTE_AI_NOTICE` 한 곳 그대로**(`compose.py:936`) → 틀 슬롯 `@note.aiNotice` |
+| D8 | `add_note_recalled_line` · `drop_empty_count_cells` 호출 삭제 | `render_issue.py:350-354`(함수 삭제 · 대체 주석) | `test_r51.RecalledPhotosLine` · `ZeroCells` | R51-2 · R50-4/R51-5(55-3b/c) → **대체됨**(틀 `data-optional` · 흐르는 한 단) |
+| D9 | safe에서 `[data-margin]` 뺌 | `page_audit.py:127` · `:134` | 6권 safe 0 | - |
+| D10 | 높이 = `measure.json` | 새 `render/heights.py`(표만 읽음) · `compose.py:186-246`(대화 · 인용 3단 · 구간) | `test_v122.Quotes` · `TimelineMemo` · `test_compose.Timeline` · `test_v123.Heights` | 옛 고정표 · 50자/29px · 35자/22px · 844/781 → **대체됨** |
+| D11 | 두 면이면 높이 차 최소로 다시 나눔 | `compose.py:277-287` | `test_compose.Timeline` · `test_v122` `..._two_pages_are_balanced` | - |
+| D12 | 표지 이 달의 말 두 줄 넘으면 줄째 삭제 | `render_issue.py:383` `COVER_QUOTE_MAX_LINES` · `:405-418`(줄 윗변 셈) | `test_v123.Rendered.test_d12_...` · `test_a_short_cover_quote_stays` | - |
+| D13 | `local_volumes` 경로 · vol4 통과 권 · 어림 ≥ 실제 · `batch2` | `local_volumes.py:12-18` · `:55` · `:253` `timeline_under` · `:293-296`(safe도 실패 기준) · 권마다 걸린 시간 | 6권 렌더(아래) | `OVERFLOW_VOLUME` · `overflow_verdict`("멈춰야 통과") → 삭제 |
+| D14 | 시험 갱신 | 아래 ⑤ | | |
+| 함께 | **겹친 `data-optional`** - 안쪽 optional을 지울 때 빈 슬롯을 부모에 올린다(디자인 `resolve.js`는 바깥을 안의 모든 슬롯으로 판정) - 이것이 없으면 "줄의 칸이 다 빠지면 줄도 빠진다"가 서지 않고 빈 줄 틀이 남았다 | `render/slot_fill.py:266-271` | `test_v123.NestedOptional` · `test_r51.ZeroCells.test_empty_row_goes_with_its_last_cell` | - |
+| 함께 | 목차 사진은 데이트 아카이브 사진 중 첫 사진(소기사 사진 제외) · 데이트 아카이브 없는 호도 소기사 사진을 받아 온다(발견한 결함 - 사진 경로 멈춤) | `compose.py:715-732` `_da_paths` | `test_v123.BackAndContentsPhoto` | - |
+84-c2 개발 임시 수정 중 **남은 것 0**(고정 질문 해요체는 디자인 확정 - 시험 자료 맞춤 질문 견본도 해요체로 `tests/fixtures.py` `questions`).
+
+### ③ ④ 결과
+- ③ R44-9: 근거가 사진인 소기사에만(`photoPath` 첫 항목) · 사진 위 한 줄 = 그 구간 AI 캡션(메모 있는 구간이면 빈 값) · 섞인 지면 `grid-4`(사진 2 · 큰 순번 2) · 근거 없는 소기사에 사진 0 · 소기사 사진은 실린 사진(뒤표지 집합 · 노트 게재)으로 센다.
+- ④ R136-2: ① 사진 0 기사 = `hero-none`(대표 기사는 활자 오프너 그대로) ② 뒤표지 = 실린 사진 중 마지막 - vol1 · 시드 대부분에서 소기사 사진 `e12`(`test_v123.BackAndContentsPhoto`) ③ 표지 이 달의 말 두 줄: 시험 `edge` 권 3줄 → 삭제 · vol3 160자 첫 발화 4줄 → 삭제(원문은 인용면 그대로).
+
+### ⑤ 시험 - 46건 "옛 규칙 → 새 규칙" (이름이 바뀐 것은 → 새 이름)
+| # | 시험 | 옛 → 새 |
+|---|---|---|
+| 1 | a23 `Compose.test_photoless_date_is_left_out...` → `..._printed_as_hero_none_...` | R84-2 빼기 → hero-none로 싣기 |
+| 2 | compose `Lead.test_places_questions_and_article_values` | 캡션 메모만 · AI 캡션 칸 빈 값 → 구간 첫 사진에 메모 / AI 캡션 · AI 캡션 칸 1 |
+| 3 | compose `PhotoSets.test_contents_back_and_sweet_words_opener_photos` | 실린 사진 = 데이트 아카이브 → + 소기사 사진(정의 그대로, 시험 고침 없이 통과) |
+| 4 | compose `ThisMonth.test_no_photo_is_bound_to_tm_articles` → `test_photo_is_bound_only_where_the_evidence_is_a_photo` | 소기사 사진 0 → 사진 근거만 |
+| 5 | compose `Timeline.test_compose_makes_two_timeline_pages...` | 2+1 → 균형 1+2 |
+| 6 | compose `Timeline.test_drawing_only_notes...` | 101(표) → AI 캡션 칸 식 높이 |
+| 7 | compose `Timeline.test_existing_p5...` | 합 944 고정 → 953 이하 |
+| 8 | compose `Timeline.test_table_heights` | 고정표 8값 → `measure.json` 식 |
+| 9 | compose `Timeline.test_three_stops_with_photos...` | [2,1] → [1,2] |
+| 10 | facts `ArticleCell.test_ai_caption_cell_is_removed_whole...` | 렌더러 칸 삭제 · 기사 AI 캡션 0 → 틀 data-optional, 메모만 있는 기사로 |
+| 11 | facts `ArticleCell.test_ai_captions_counted_only...` | 기사 지면 AI 캡션 0 → 실린 칸 수 1 |
+| 12 | facts `ArticleCell.test_article_memo_sits_under_the_first_photo...` → `..._its_own_stops_first_photo...` | 기사 첫 사진 아래 기사 첫 메모 → 그 구간 첫 사진 아래 |
+| 13 | facts `DesignEditsAreMarked.test_each_edited_page_carries_the_marker_comment` → `test_no_development_temporary_edit_is_left_in_the_templates` | 틀에 "R50-6 임시" 주석 → 틀은 디자인 판(임시 주석 0) |
+| 14 | facts `NoteEquation.test_every_local_volume_balances` | `OVERFLOW_VOLUME` → VOLUMES(vol4 · vol5) + edge, 권의 모은 양 |
+| 15 | facts `SourceDateAndBack.test_back_cover_has_no_next_issue_line` | 틀에 `nextMonth` 글자 0 → 주석 밖 0 |
+| 16~20 | h5_hero `DropPhotoless` 5건 → `KeepPhotoless`(이름 3건 바뀜) | 빼고 세지 않음 → 싣고 셈(목차 · 경로 · 노트) |
+| 21 | r51 `OpenerTypeVariant.test_the_template_edit_is_marked` | **삭제** - 개발 임시 주석 규칙이 없어짐(13번이 대신) |
+| 22 | r51 `PrintedOriginalsAreRecords.test_local_volumes_too` | `OVERFLOW_VOLUME` → VOLUMES + edge |
+| 23 | r51 `RecalledPhotosLine.test_period_plus_recalled...` | 노트 = 기사 → + 소기사(고침 없이 통과) |
+| 24 | r51 `RecalledPhotosLine.test_the_line_is_added_to_the_note_only` → `test_the_line_slot_is_in_the_note_template_only` | 렌더러가 끼움 → 틀 슬롯 |
+| 25 | r51 `RecalledPhotosLine.test_with_the_line_the_two_blocks_below_move_down_together` → `test_the_line_flows_in_the_column...` | top 36px 내림 → 흐르는 한 단 |
+| 26 | r51 `RecalledPhotosLine.test_without_a_recalled_article_there_is_no_line` | top:520 그대로 → 슬롯째 빠짐 |
+| 27 | r51 `ZeroCells.test_article_without_a_memo_has_no_memo_cell` | 시험 자료 캡션 None(AI 캡션이 이제 실림) |
+| 28 | render_issue `Render.test_a_conversation_over_one_page...` | 1337px · 844px → 1081px · 940px |
+| 29 | render_issue `WholeRender.test_an_overlong_conversation...` | 1337px → 1081px |
+| 30 | v122 `Bindings.test_photo_note_on_the_page...` | HTML 글자 → 보이는 글자(틀 주석) |
+| 31 · 32 | v122 `Browser.test_data_width_*` | `@note.ratioPeople` → `@note.ratioPeopleWidth`(`width_compare.py`) |
+| 33 | v122 `DataWidthStrings.test_note_page_bars_come_from_numbers...` | widths 키 → `*Width` + 숫자 경로 비움 |
+| 34 | v122 `OriginalOversetGate.test_timeline_overflow_volume_stops_the_render` → 둘로 | "멈춰야" → 통과 권(`expectedFailure` - 멈춤 항목) + "넘친 지면은 안 나감" |
+| 35 | v122 `Quotes.test_conversation_height_matches_the_readme_table` | 옛 표 4×5 → v1.2.3 격자 6×8(올림 +0~6px) |
+| 36 | v122 `Quotes.test_conversations_are_never_split...` | 844/781 → 940/841/778 |
+| 37 | v122 `Quotes.test_overlong_conversation_failure...` | 1337/844 → 계산값/940 |
+| 38 | v122 `Quotes.test_pack_boundary_781...` → `test_pack_boundary_841_..._778_...` | 단문 3개 이상 781 → 1~3개 841 · 4개 이상 778 |
+| 39 | v122 `Quotes.test_pack_boundary_844` → `test_pack_boundary_940_without_short_quotes` | 844 → 940 |
+| 40 | v122 `R48Temporary.test_article_without_any_photo_is_left_out...` → `..._printed_as_hero_none...` | 빼기 → hero-none |
+| 41 | v122 `R48Temporary.test_caption_is_the_users_memo_never_the_ai_caption` → `test_caption_is_the_stops_memo_or_its_ai_caption...` | 메모만 → 메모 / AI 캡션(라벨 줄) |
+| 42 | v122 `TimelineMemo.test_a_long_memo_moves...` → `..._and_two_pages_are_balanced` | [2,1] → [1,2] |
+| 43 | v122 `TimelineMemo.test_each_50_chars_beyond_adds_29px` → `test_line_breaks_and_long_place_names_are_counted` | 50자/29px **규칙 없어짐** → 줄바꿈 조각 · 긴 장소 |
+| 44 | v122 `TimelineMemo.test_memo_up_to_50_chars_is_the_table_value` → `test_stop_height_follows_the_measure_table` | 50자 표값 → README 격자(20~200자) |
+| 45 | v122 `Width.test_no_sentences_means_no_ratio_and_no_bars` | 글자 속 `data-width` → 속성 · 숫자 경로 |
+| 46 | v122 `Width.test_note_page_bars_follow_the_data` | 막대 경로 → `*Width` |
+- 46건 밖에서 같이 고친 것: v122 `Quotes.test_lines`(`text_lines` 없어짐 → `heights.table_lines`) · `test_two_conversations...`(844 → 940) · `test_tm_articles_...one_column` 이름 · `LeadEqualsNote.check`(노트 = 기사 + 소기사 사진) · compose `Note.test_material_rows...`(+ 소기사 사진) · facts `test_cell_stays...`(렌더러 함수 → 틀) · r51 `test_empty_row_goes_with_its_last_cell`(렌더러 함수 → 틀) · render_issue `WholeRender.test_a_clean_issue...`(표지 이 달의 말 4줄 → 삭제가 맞음) · c2_note 3건(줄 위치 정정 요청 **위** · 틀 슬롯 · `test_stops_when_the_anchor_is_not_unique` **삭제** → `test_empty_value_removes_the_line`) · h5_hero 사진 모은 양 3(소기사 사진).
+- **지운 시험(규칙이 없어진 것만)**: r51 `OpenerTypeVariant.test_the_template_edit_is_marked`(개발 임시 주석) · c2_note `NoticeLine.test_stops_when_the_anchor_is_not_unique`(렌더러가 줄을 끼우던 자리 찾기). 나머지는 같은 자리에서 새 규칙으로 바뀜.
+- 새 시험: `render/tests/test_v123.py` 18건(높이 표 · 겹친 optional · R44-9 · 뒤표지/목차 사진 · D2 · D5 · D12 렌더 · batch2 렌더) · jest `llmSafety84a.test.ts` 1건(캡션 30자).
+- 시험 수: Python 324(틀만 v1.2.3로 바뀐 상태, 60 실패/오류) → **348 OK(기대 실패 1 = 멈춤 항목)** · jest 124/2210 → **124/2211**.
+
+### ⑥ ⑦ ⑧
+- ⑥ `measure.json`: **바뀐다 → 멈춤**(위). 렌더러는 규칙 문장이 아니라 표를 읽는다(`render/heights.py` - 표 끝 너머만 표의 마지막 칸 비율로 늘림, 보간 없음).
+- ⑦ AI 캡션 상한 50 → **30**: 엔진 `src/engine/corners/valueChecks.ts:90-96` · 프롬프트 `supabase/functions/_shared/corners/dateArchive.ts:288`("공백과 부호를 포함해 30자 이내") · `docs/ONDOLOG_CORNER_CONTENT.md` §2-2 길이 줄 · 하네스 길이 표는 같은 `DATE_ARCHIVE_VALUE_RULES`를 읽음(따로 표 없음). 프롬프트 캡션 예문 최장 18자 - 고칠 것 0. **2차 결과(84b json, date_archive 6시도) AI 캡션 24개 중 30자 초과 0**(최장 30자). `recheck` 다시 실행 = **시도 20 · 위반 34(84-c2와 같음, 파일 동일)**.
+- ⑧ R136-5 판정: **이 저장소의 vol1에서는 "4곳"이 맞다.** vol1 = `many_photos_scenario`, 연남동 이번 기간 경유지 4곳(홍대입구역 · 연남동 카페 · 연남동 식당 · 경의선숲길) - 11/15 사본(`b2a849a`)부터 지금까지 같음 · 본문 숫자는 기록에서 센 값(`fixtures.stops_in_region` = `facts.signal` 정의) · 이번 렌더 vol1 13쪽 "경유지는 4곳". "3곳"은 대표 기사 경유지가 3곳인 권(`photo_scenario` · `batch2`)의 값 - 디자인 대조 그림이 다른 권(또는 디자인 쪽에서 고친 재료)을 vol1로 적은 것으로 보임, 시험 권 데이터가 바뀐 것은 아님. 84-c 숫자 검사는 LLM 출력 대상이라 이 시험 문장에는 걸리지 않음(시험 문장 숫자는 기록에서 셈).
+
+### 시드 6권 렌더 (`render/local_volumes.py` - 출력은 저장소 밖 스크래치)
+| 권 | 테마 | 쪽 | safe | 원문 잘림 · 넘침 | 사실 어긋남 | 디자인 audit 같음 | 시간 |
+|---|---|---|---|---|---|---|---|
+| vol1-photos | basic | 14 | 0 | 0 · 0 | 0 | 같음 | 91.1초(첫 Chromium 포함) |
+| vol2-opener-fallback | night | 12 | 0 | 0 · 0 | 0 | 같음 | 43.8초 |
+| vol2b-opener-typeonly | hip | 12 | 0 | 0 · 0 | 0 | 같음 | 23.7초 |
+| vol3-long-original | ondol | 15 | 0 | 0 · 0 | 0 | 같음 | 40.0초 |
+| vol4-timeline-overflow | basic | - | - | **멈춤**(5쪽 da-timeline 내용 1003 / 상자 953px · 원문 `.userNotes[0].text`) | - | - | - |
+| vol5-batch2 | lovely | 15 | 0 | 0 · 0 | 0 | 같음 | 38.9초 |
+| (vol3-fail) | ondol | - | - | 렌더 실패가 기대(대화 1081px > 940px) | | | |
+타임라인 어림 - 실제(5권): +1~+4px(작게 어림 0). 전체 4분 37초.
+
+### 결정 기록 (출처 R136-1~7)
+- 높이 표는 `render/heights.py` 한 곳에서 읽는다(`compose` · `facts`가 같이 씀) - 값 복사 0.
+- 노트 "실제 게재" 사진 = 데이트 아카이브 기사 + 이달의 우리 소기사(재소환 기사 사진은 표 아래 줄) · 오프너 리드 사진 수 = 기사에 실린 것만(README §11 ⑩).
+- 노트 "싣지 않은 것" 새 줄 3: `메모 n개 — 대표가 아닌 기사에는 실린 사진 · 구간마다 메모 하나만 싣습니다`(옛 "하나만") · `메모 n개 — 사진 아래 칸에 들어가지 않아 줄이지 않고 뺐습니다`(D5) · `구간 n곳(메모 m개) — 글만 있는 기사 한 면에 들어가지 않았습니다`(D2, 메모 0이면 괄호 없음).
+- 글만 있는 기사의 구간은 순서대로 - 하나가 안 들어가면 그 뒤는 모두 싣지 않음(건너뛰어 채우지 않음).
+- 표지 이 달의 말 줄 수 = 인용 글자 줄 상자 윗변 개수(렌더 결과).
+- 열린 것(PE): ① 위 멈춤 ② README §10 ② #7은 "발행 노트는 호 전체(재소환 포함)를 센다"고 적었지만 지금 렌더러는 R51-2대로 표에서 재소환을 빼고 표 아래 줄로 따로 둔다 - 바꾸지 않음(지시 범위 밖) ③ README §10 ① "이름 없는 경유지 → '이름을 남기지 않은 곳' 타임라인 · 장소 목록 · 경로 모두"인데 타임라인 구간은 지금도 장소 줄째 빠짐(`da-timeline.html:25` data-optional) - 경로 · 장소 목록은 그 말로 실림. 바꾸지 않음.
+
+검증: 루트 tsc 0 · jest **124/2211** · deno check(`m1QualityRun.ts` · `m1Recheck.ts` · `m1Review.ts` · `generateIssueCli.ts` · `publishIssueCli.ts` · `push-send/index.ts`) 통과 · `recheck` 시도 20 · 위반 34(변화 0) · Python **348 OK(기대 실패 1)** 551초 · `npm run gate` **1회 통과 124.5초**(Vitest 69 파일 · 법무 · smoke 32/32 · `web/` 변경 0). 키 · 주소 · id · 생성 문장 0 · 새 파일 이름 ASCII(`render/heights.py` · `render/tests/test_v123.py`).
+
 ## `84-d0` 유성 후보 풀 조사 (메인 세션, 2026-11-19, 위임문 `phase-7/84-d0-meteor-pool-audit.md` · 출처 ROADMAP r135 R135-3 ③) - 조사만 · 멈춤 0
 
 시작 확인: `DOC_REVISION: 2026-11-19-r135` - 통과. 코드 · 시험 · 설정 · 마이그레이션 · 문서 변경 0(이 절 · PROGRESS 한 줄만) · LLM 호출 0 · 원격 0(허용 질의 없음 - 표 구조는 마이그레이션 파일로 읽음) · 커밋 0. 메시지 원문 · 생성 문장 0.

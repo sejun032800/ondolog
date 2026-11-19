@@ -3,7 +3,7 @@
 네트워크·파일을 모른다. 입력은 이미 읽어 온 호·커플·코너 행이고, 출력은 `Composition`이다. 채움은 `slot_fill`, 렌더는 `render_issue`가 한다.
 
 원본
-  - 지면·슬롯·코너 밖 값의 이름과 계산: `render/issue/README.md` v1.2.2 §2·§3·§5·§9·§10·§11·§12
+  - 지면·슬롯·코너 밖 값의 이름과 계산: `render/issue/README.md` v1.2.3 §2·§3·§5·§9·§10·§11·§12 (높이는 `render/issue/measure.json` - `heights.py`)
   - 지면 순서·폴백·스킵: `docs/ONDOLOG_CORNER_LAYOUT.md` §3-0·§3-3·§4·§6
   - 표지: `docs/ONDOLOG_MASTER.md` 9-5 r64 · ROADMAP R22-3
   - 결정: R25-3(목차·목차/뒤표지 사진) · R26-4(재소환 사유) · R26-5(`@da.lead` 숫자 · 고정 틀 문장) · R26-6(`@sw.openerPhoto`)
@@ -27,37 +27,23 @@ from typing import Any, Optional
 sys.dont_write_bytecode = True
 
 from romanize import romanize_place  # noqa: E402
+import heights  # noqa: E402  (README v1.2.3 §12 - 높이의 원본은 실측 표 `measure.json`이다. 값을 여기 옮겨 적지 않는다)
 from facts import (  # noqa: E402  (호의 사실 - 지면의 수치 · 목록은 모두 여기서 한 번 계산한다. 아래 이름은 compose에서도 쓸 수 있게 다시 내보낸다)
-    ARTICLE_PHOTOS, PHOTOS_PER_STOP, PLACES_CAP, UNNAMED_PLACE, FactsError, IssueFacts, article_photos, as_dict, as_list, build_facts,
-    caption_memo_count, first_photo_any, first_photo_path, has_photo, hero_photo_path, hero_stop_index, is_blank, memo_notes, mmdd_dot,
-    ratio_label, shown_photos_of_stop, stop_photo_counts, ymd_dot,
+    ARTICLE_PHOTOS, PHOTOS_PER_STOP, PLACES_CAP, UNNAMED_PLACE, FactsError, IssueFacts, article_photo_view, article_photos, article_stops_view,
+    as_dict, as_list, build_facts, caption_memo_count, first_photo_any, first_photo_path, has_photo, hero_photo_path, hero_stop_index, is_blank,
+    memo_notes, mmdd_dot, ratio_label, shown_photos_of_stop, stop_photo_counts, this_month_photo, valid_photos, ymd_dot,
 )
 
 THEMES = ('basic', 'hip', 'neon', 'lovely', 'night', 'ondol')
 CORNER_ORDER = ('date_archive', 'sweet_words', 'this_month')  # CORNER_LAYOUT §6 (연애 DNA·연애리그 없음)
 CORNER_LABELS = {'date_archive': '데이트 아카이브', 'sweet_words': '다정한 말들', 'this_month': '이달의 우리'}
 
-# README §5 - 판면 가용 높이와 stop 높이 실측표. (사진 장수(3 = 3장 이상), 유저 메모 있음) -> px
-# 표는 메모 50자 안팎 기준이다. 메모가 더 길면 50자마다 29px을 더한다(README §5·§12, 55-3).
-TIMELINE_CAPACITY_PX = 953
-STOP_HEIGHT_PX = {
-    (0, True): 148, (0, False): 101,
-    (1, True): 390, (1, False): 338,
-    (2, True): 378, (2, False): 326,
-    (3, True): 453, (3, False): 401,
-}
-TIMELINE_MEMO_BASE_CHARS = 50   # README §12 - §5 표는 메모 50자 안팎을 기준으로 잰 값
-TIMELINE_MEMO_STEP_PX = 29      # README §12 - 메모 50자마다 약 29px
+# README v1.2.3 §5 · §12 - 판면 가용 높이 · 구간 높이 · 인용 가용 높이는 실측 표(`render/issue/measure.json`)에서 읽는다(`heights.py`).
+# v1.2.2의 규칙 문장(stop 높이표 + 메모 50자마다 29px, 대화 113 + 64 x 턴 + 35자마다 22px, 844 / 781)은 디자인이 폐기했다(D10).
+TIMELINE_CAPACITY_PX = heights.TIMELINE_CAPACITY_PX
 TIMELINE_MAX_PAGES = 2          # CORNER_LAYOUT §3-1 "타임라인 1~2면", §4 "배열이 예상보다 김: 상한까지만"
 SIGNALS_CAP = 3                 # CORNER_LAYOUT §3-4 "요약 수치 3개"
-# README §12 - 다정한 말들 인용 블록의 가용 높이(그 면의 단문 개수에 따라)와 대화 하나의 높이. 대화 단위로 면을 나눈다.
-QUOTE_CAPACITY_PX = 844         # 단문 0~2개
-QUOTE_CAPACITY_WITH_SUB_PX = 781  # 단문 3개 이상
-QUOTE_SUB_CROWDED = 3
-QUOTE_BASE_PX = 113             # 대화 높이 = 113 + 64 x 턴 수 (표의 12자 열: 177 · 241 · 305 · 369) + 줄 늘어남
-QUOTE_TURN_PX = 64
-QUOTE_LINE_PX = 22              # "35자마다 22px씩 늘어난다고 보면 된다"
-QUOTE_LINE_CHARS = 35
+QUOTE_MAX_CAPACITY_PX = heights.quote_capacity(0)   # 단문이 없는 면의 인용 가용 높이 - 한 대화가 이보다 크면 어느 면에도 들어가지 않는다
 COVER_MIN_SHORT_SIDE_PX = 1170  # MASTER 9-5 r64 - 페이지 이미지 가로 폭
 COVER_MAX_LINES = 3             # MASTER 9-5 r64 - 표제 3줄
 COVER_LINE_CHARS = 6            # MASTER 9-5 r64 - 줄당 6자
@@ -197,43 +183,35 @@ def ordinal_en(number: int) -> str:
     return ORDINALS_EN[number - 1] if 1 <= number <= len(ORDINALS_EN) else str(number)
 
 
-def text_lines(text: Any, chars_per_line: int = QUOTE_LINE_CHARS) -> int:
-    """글자가 차지하는 줄 수 추정 - 원문의 줄바꿈마다 새 줄, 한 줄은 약 35자(README §12). 비어 있어도 1줄."""
-    if not isinstance(text, str):
-        return 1
-    return sum(max(1, -(-code_points(seg) // chars_per_line)) for seg in text.replace('\r\n', '\n').split('\n'))
-
-
 def conversation_height(main: dict) -> int:
-    """대화 하나(정황 + 출처 + 턴들)의 높이 추정(README §12 표). 높이 = 113 + 64 x 턴 수, 35자를 넘는 줄마다 22px."""
+    """대화 하나(정황 + 출처 + 턴들)의 높이(README v1.2.3 §12 식 - `measure.json`). 줄 수는 표의 '글자 수 이상인 첫 칸', 줄바꿈 조각마다 따로."""
     turns = [t for t in as_list(main.get('turns')) if isinstance(t, dict)]
-    extra = sum(QUOTE_LINE_PX * (text_lines(t.get('text')) - 1) for t in turns)
-    return QUOTE_BASE_PX + QUOTE_TURN_PX * len(turns) + extra
+    return heights.conversation_height(main.get('context'), [t.get('text') for t in turns])
 
 
-def pack_quotes(heights: list, sub_count: int, names: Optional[list] = None) -> list:
+def pack_quotes(sizes: list, sub_count: int, names: Optional[list] = None) -> list:
     """대화 높이 목록 -> 면별 대화 번호 목록(README §12). **대화 단위**로 앞에서부터 채우고 한 대화를 두 면에 쪼개지 않는다.
 
-    가용 높이는 단문 0~2개면 844px, 3개 이상이면 781px이다. 단문은 마지막 면에만 실리므로 781은 마지막 면에만 건다.
-    한 대화가 가용 높이를 넘으면 `ComposeError`(어느 대화 · 높이 · 가용 높이) - 자르지 않는다(R29-3).
+    가용 높이(README v1.2.3 §12)는 그 면의 단문 수가 정한다 - 0개 940 · 1~3개 841 · 4개 이상 778(`measure.json`). 단문은 마지막 면에만 실리므로
+    앞 면은 단문 0개 기준, 마지막 면만 단문 수 기준이다. 한 대화가 가용 높이를 넘으면 `ComposeError`(어느 대화 · 높이 · 가용 높이) - 자르지 않는다(R29-3).
     """
-    names = names or [f'{i + 1}번째 대화' for i in range(len(heights))]
-    for i, h in enumerate(heights):
-        if h > QUOTE_CAPACITY_PX:
-            raise ComposeError(f'{names[i]}이(가) 한 면을 넘는다 (높이 {h}px, 가용 {QUOTE_CAPACITY_PX}px) - 한 대화를 두 면에 쪼개지 않는다')
+    names = names or [f'{i + 1}번째 대화' for i in range(len(sizes))]
+    for i, h in enumerate(sizes):
+        if h > QUOTE_MAX_CAPACITY_PX:
+            raise ComposeError(f'{names[i]}이(가) 한 면을 넘는다 (높이 {h}px, 가용 {QUOTE_MAX_CAPACITY_PX}px) - 한 대화를 두 면에 쪼개지 않는다')
     pages: list = [[]]
     used = 0
-    for i, h in enumerate(heights):
-        if pages[-1] and used + h > QUOTE_CAPACITY_PX:
+    for i, h in enumerate(sizes):
+        if pages[-1] and used + h > QUOTE_MAX_CAPACITY_PX:
             pages.append([])
             used = 0
         pages[-1].append(i)
         used += h
-    last_cap = QUOTE_CAPACITY_WITH_SUB_PX if sub_count >= QUOTE_SUB_CROWDED else QUOTE_CAPACITY_PX
-    if sum(heights[i] for i in pages[-1]) > last_cap:
+    last_cap = heights.quote_capacity(sub_count)
+    if sum(sizes[i] for i in pages[-1]) > last_cap:
         moved = pages[-1].pop()      # 단문과 함께 실리는 마지막 면이 넘치면 마지막 대화만 따로 한 면에 둔다
-        if heights[moved] > last_cap:
-            raise ComposeError(f'{names[moved]}이(가) 한 면을 넘는다 (높이 {heights[moved]}px, 가용 {last_cap}px - 단문 {sub_count}개와 함께 실리는 면)')
+        if sizes[moved] > last_cap:
+            raise ComposeError(f'{names[moved]}이(가) 한 면을 넘는다 (높이 {sizes[moved]}px, 가용 {last_cap}px - 단문 {sub_count}개와 함께 실리는 면)')
         if not pages[-1]:
             pages.pop()
         pages.append([moved])
@@ -266,15 +244,12 @@ def split_headline(text: Any) -> Optional[list]:
 # ---------------------------------------------------------------------------
 
 def stop_height(stop: dict) -> int:
-    """README §5 표 + 메모 보정 - 메모가 50자를 넘으면 50자마다 29px을 더한다(§12). 지면이 그리는 메모는 첫 메모 하나다."""
-    photos = min(len(as_list(stop.get('photos'))), PHOTOS_PER_STOP)
+    """타임라인 구간 하나의 높이(README v1.2.3 §12 식 - `measure.json`) = max(왼쪽 단, 오른쪽 단) + 여백.
+    지면이 그리는 메모는 첫 메모 하나이고, 메모가 없을 때만 AI 캡션을 그린다. 장소 이름이 길면 왼쪽 단이 높이를 정할 수 있다."""
+    photos = min(len(valid_photos(stop)), PHOTOS_PER_STOP)
     memos = memo_notes(stop)
-    height = STOP_HEIGHT_PX[(photos, len(memos) > 0)]
-    if memos:
-        over = code_points(memos[0]['text']) - TIMELINE_MEMO_BASE_CHARS
-        if over > 0:
-            height += TIMELINE_MEMO_STEP_PX * -(-over // TIMELINE_MEMO_BASE_CHARS)
-    return height
+    return heights.timeline_stop_height(photos, memos[0]['text'] if memos else None,
+                                        None if memos else stop.get('aiCaption'), stop.get('placeName'))
 
 
 def split_timeline(stops: list) -> tuple:
@@ -298,7 +273,18 @@ def split_timeline(stops: list) -> tuple:
             used = 0
         pages[-1].append(stop)
         used += h
-    return [p for p in pages if p], dropped
+    pages = [p for p in pages if p]
+    if len(pages) == 2:   # v1.2.3 #9 · D11 - 두 면이면 순서를 지킨 채 두 면 높이 차가 가장 작게 다시 나눈다(둘째 면 아래 절반이 비던 것)
+        seq = pages[0] + pages[1]
+        hs = [stop_height(s) for s in seq]
+        best = None
+        for k in range(1, len(seq)):
+            a, b = sum(hs[:k]), sum(hs[k:])
+            if a <= TIMELINE_CAPACITY_PX and b <= TIMELINE_CAPACITY_PX and (best is None or abs(a - b) < best[0]):
+                best = (abs(a - b), k)
+        if best:
+            pages = [seq[:best[1]], seq[best[1]:]]
+    return pages, dropped
 
 
 def photo_note(total: int, shown: int) -> str:
@@ -387,21 +373,9 @@ class _Builder:
         if len(featured) != 1:
             raise ComposeError(f'date_archive의 featured 기사가 정확히 1개가 아니다 ({len(featured)})')
 
-        # 임시 규칙 R84-2(디자인 v1.2.3의 글만 있는 기사 지면이 오면 그쪽이 우선한다): 사진이 하나도 없는 데이트는 기사에서 뺀다.
-        # 뺀 뒤의 content로 지면 · 목차 · 타임라인 · 합계 · 발행 노트를 모두 짠다 - 실린 기사만 센다(R50-4). 원본 content(DB 행)는 건드리지 않는다.
-        # 대표 기사(featured)는 빼지 않는다 - 사진 없는 대표 기사는 기존 type-only 오프너로 싣는다(README §10 · `opener_type_only_scenario`).
-        # 그래서 대표 기사가 늘 남고, 데이트 아카이브 코너가 이 규칙 때문에 비는 일은 없다.
-        kept = [a for i, a in enumerate(articles) if i == featured[0] or has_photo(a)]
-        dropped = len(articles) - len(kept)
-        if dropped:
-            content = copy.deepcopy(content)
-            content['payload']['articles'] = copy.deepcopy(kept)
-            self.ready['date_archive'] = content
-            payload = content['payload']
-            articles = list(payload['articles'])
-            featured = [i for i, a in enumerate(articles) if a.get('featured') is True]
-            self.decide(f'사진이 없는 데이트 {dropped}편을 기사에서 뺐다 (임시 규칙 R84-2)')
-        self.report['droppedArticles'] = dropped
+        # v1.2.3(R136-2 ① · D3): 임시 규칙 R84-2 "사진 0 기사 빼기"는 없앴다 - 사진이 없는 일반 기사는 `da-article` `hero-none`(글만 있는 기사)으로 싣는다.
+        # 사진 없는 대표 기사는 그대로 활자 오프너(`type-only`)다. 보고 칸 `droppedArticles`는 늘 0이다(지난 보고와 맞대기 위해 남긴다).
+        self.report['droppedArticles'] = 0
         fi = featured[0]
         art = articles[fi]
         self.da = {'articles': articles, 'fi': fi}
@@ -429,8 +403,8 @@ class _Builder:
             raise ComposeError(f"호 {self.issue.get('id')}: {e}") from None
         kept_stops = [s for p in tl_pages for s in p]
 
-        # 히어로(R84-1, R48-3 ①을 바꿈): 대표 · 일반 기사 모두 사진이 있는 첫 구간의 첫 사진(`hero_photo_path`). 기사 하나 때문에 호를 멈추지 않는다(R84-3) -
-        # 사진 없는 일반 기사는 위에서 이미 빠졌다. 첫 구간에 사진이 없어 뒤 구간 사진을 쓴 기사 수만 보고한다.
+        # 히어로(R84-1, R48-3 ①을 바꿈): 대표 · 일반 기사 모두 사진이 있는 첫 구간의 첫 사진(`hero_photo_path` -> `@da.articleHero`). 기사 하나 때문에 호를 멈추지 않는다(R84-3) -
+        # 사진 없는 일반 기사는 `hero-none`. 첫 구간에 사진이 없어 뒤 구간 사진을 쓴 기사 수만 보고한다.
         self.report['heroFallbackArticles'] = sum(1 for a in articles if has_photo(a) and first_photo_path(a) is None)
 
         # 호의 사실 - 이 아래의 모든 수치 · 목록은 여기서 읽는다 (R50-2)
@@ -542,16 +516,14 @@ class _Builder:
         for i, a in others:
             v = view_copy()
             va = v['payload']['articles'][i]
-            # 지면 HTML은 히어로를 `stops[0].photos[0].path`로 읽는다(R23-2 - 지면 구조는 고치지 않는다). 보기 사본에서만 히어로 구간을 맨 앞에 둔다.
-            # 이 지면에서 구간 목록을 읽는 칸은 히어로 하나뿐이다 - 경로 · 구간 수 · 사진 수는 호의 사실(원래 순서)에서 온다.
-            h = hero_stop_index(a)
-            if h:
-                va['stops'] = [va['stops'][h]] + [s for k, s in enumerate(va['stops']) if k != h]
+            # v1.2.3(D2): 히어로는 `@da.articleHero`로 받는다 - 보기 사본에서 히어로 구간을 맨 앞으로 옮기던 처리(R84-1 임시)는 없앴다.
             years =self.end_year - int(str(a.get('dateOn') or '0000')[0:4]) if re.match(r'^\d{4}', str(a.get('dateOn') or '')) else 0
             # R26-4: anniversary만 "N년 전 이맘때". 나머지 사유는 빈 값(줄 삭제)
             va['recallReason'] = f'{years}년 전 이맘때' if (a.get('recalled') is True and a.get('recallReason') == 'anniversary' and years > 0) else None
             af = facts.article(i)
-            a_photos = article_photos(a)
+            a_photos = article_photos(a) if has_photo(a) else []
+            # hero-none(사진 0) - 구간 목록. §12 가용 높이에 들어가는 데까지, 나머지 구간은 발행 노트 '싣지 않은 것'(호의 사실이 같은 함수로 센다)
+            a_stops = [] if has_photo(a) else article_stops_view(a)[0]
             computed = {'da': {
                 'articleNo': f'{i + 1:02d}',
                 'articleOrdinalEn': ordinal_en(i + 1),
@@ -563,12 +535,21 @@ class _Builder:
                 'articleStopCount': af.stop_count,
                 'articleCaptionCount': af.ai_captions_shown if af.ai_captions_shown > 0 else '',   # 실린 수만, 0이면 빈 값 -> 칸째 뺀다 (R50-4)
                 'articlePhotos': a_photos,
+                'articleHero': hero_photo_path(a) or '',
+                'articleStops': a_stops,
             }}
             pages.append(PageSpec('da-article', v, computed, {'featured': fi, 'i': i}, 'date_archive'))
             self.say('ondolog', 'headline', 'date_archive.article.title', a.get('title'))
-            for p in a_photos:   # R48-3 ②: 사진 아래 캡션은 유저 메모다(AI 캡션은 싣지 않는다)
+            for p in a_photos:   # v1.2.3(D4): 사진 캡션 칸 = 그 구간의 메모(원문) 또는 AI 캡션(라벨 줄, 온도록 문장)
                 if p['caption']:
                     self.say('people', 'userNotes', 'date_archive.article.photoCaption', p['caption'])
+                elif p['aiCaption']:
+                    self.say('ondolog', 'aiCaption', 'date_archive.article.photoAiCaption', p['aiCaption'])
+            for st in a_stops:
+                if st['userNotes']:
+                    self.say('people', 'userNotes', 'date_archive.article.stop.userNotes[0].text', st['userNotes'][0]['text'])
+                elif st['aiCaption']:
+                    self.say('ondolog', 'aiCaption', 'date_archive.article.stop.aiCaption', st['aiCaption'])
         return pages
 
     # -- 다정한 말들 -----------------------------------------------------------
@@ -600,7 +581,7 @@ class _Builder:
             return v
 
         pages = [PageSpec('sw-opener', copy.deepcopy(content), dict(sw_computed), {}, 'sweet_words')]
-        # 인용면 나눔(README §12) - 대화 높이를 더해 가용 높이(844 / 단문 3개 이상 781)를 넘으면 **대화 단위로** 다음 면. 단문은 마지막 면에만.
+        # 인용면 나눔(README v1.2.3 §12) - 대화 높이를 더해 가용 높이(단문 0개 940 · 1~3개 841 · 4개 이상 778)를 넘으면 **대화 단위로** 다음 면. 단문은 마지막 면에만.
         names = [f"{i + 1}번째 대화({str(m.get('context') or '')[:20]})" for i, m in enumerate(mains)]
         try:
             groups = pack_quotes([conversation_height(m) for m in mains], len(subs), names)
@@ -637,8 +618,12 @@ class _Builder:
         seq_shift = 1 if seqs and min(seqs) == 0 else 0
         for a in view['payload']['articles']:
             a['seq'] = f"{a['seq'] + seq_shift:02d}" if isinstance(a.get('seq'), int) else None
+            # v1.2.3 #18 · D6 = R44-9(R124-7): 근거가 사진인 소기사에만 그 사진(evidence를 한 줄로 바꾸기 **전에** 읽는다). 남는 사진으로 채우지 않는다
+            a['photo'] = this_month_photo(as_list(a.get('evidence')))
+            a['photoAiCaption'] = self.photo_ai_caption(a['photo'])
             a['evidence'] = self.evidence_line(as_list(a.get('evidence')), self.end_year, recalled_days)
-            a.pop('photo', None)  # R44-9 - `Evidence.path`가 생기기 전까지 소기사에 사진을 붙이지 않는다. 사진 틀은 비어 삭제된다
+            if a['photoAiCaption']:
+                self.say('ondolog', 'aiCaption', 'this_month.article.photoAiCaption', a['photoAiCaption'])
         self.say('ondolog', 'headline', 'this_month.theme.headline', theme.get('headline'))
         self.say('ondolog', 'lead', 'this_month.theme.lead', theme.get('lead'))
         for a in articles:
@@ -650,6 +635,17 @@ class _Builder:
                     self.say('people', 'evidenceExcerpt', 'this_month.evidence.excerpt', ev['excerpt'])
         self.say('ondolog', 'closing', 'this_month.closing', payload.get('closing'))
         return [PageSpec('tm-lead', lead, {}, {}, 'this_month'), PageSpec('tm-articles', view, {}, {}, 'this_month')]
+
+    def photo_ai_caption(self, path: str) -> str:
+        """이달의 우리 사진 위 한 줄(README v1.2.3 §11 ②) - 그 사진이 속한 데이트 아카이브 구간의 AI 캡션. 그 구간에 메모가 있으면(메모는 원문이라 한 줄 칸에 싣지 않는다) 빈 값."""
+        if not path:
+            return ''
+        for a in (getattr(self, 'da', None) or {}).get('articles', []):
+            for s in as_list(a.get('stops')):
+                if isinstance(s, dict) and any(p['path'] == path for p in valid_photos(s)):
+                    c = s.get('aiCaption')
+                    return c.strip() if (not memo_notes(s) and isinstance(c, str)) else ''
+        return ''
 
     def signal_cells(self, signals: list) -> list:
         """이달의 우리 리드의 숫자 칸 (R51-4) - 생성 콘텐츠는 **어떤 칸을 보일지**(`kind` · `value`와 순서)만 정한다.
@@ -716,6 +712,11 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
 
     # 코너별 지면 (대체 지면을 만들지 않는다 - skipped·미완 코너는 지면과 목차에서 빠진다, §4)
     da_pages = b.date_archive_pages() if 'date_archive' in b.ready else []
+    # 이달의 우리 소기사 사진(v1.2.3 D6) - 지면 순서상 데이트 아카이브 뒤(다정한 말들은 사진이 없다). 뒤표지 사진의 집합(실린 사진)에 든다(R136-2 ②).
+    # 데이트 아카이브가 없는 호도 같다 - 근거가 사진인 소기사의 사진은 실린 사진이다
+    if 'this_month' in b.ready:
+        for ta in as_list(as_dict(b.ready['this_month'].get('payload')).get('articles')):
+            b.show(this_month_photo(as_dict(ta).get('evidence')) or None)
     cover_ref = _cover_photo_ref(b)
     cover_photo = cover_ref['path'] if cover_ref else None
     # 표지 사진이 실린 사진에 든다(표지가 쓰는 사진도 지면에 실린 것이다)
@@ -725,8 +726,10 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     if cover_photo_used:
         b.show(cover_photo_used)
 
-    pool = [p for p in shown_date if p != cover_photo_used]        # README §2 `@contents.photo`·`@back.photo`의 집합
-    contents_photo = pool[0] if pool else None
+    # README §2 `@contents.photo` = 데이트 아카이브에 실린 사진 중 표지가 아닌 첫 사진 · `@back.photo` = 실린 사진 중 마지막(R136-2 ② - 이달의 우리 소기사 사진일 수 있다)
+    pool = [p for p in shown_date if p != cover_photo_used]
+    da_pool = [p for p in pool if p in set(_da_paths(b))]
+    contents_photo = da_pool[0] if da_pool else None
     back_photo = pool[-1] if pool else None
     used_up = {contents_photo, back_photo, cover_photo_used}
     sw_opener_photo = next((p for p in b.shown if p not in used_up), None)  # README §9 `@sw.openerPhoto`
@@ -803,6 +806,13 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
         'sentences': _sentence_summary(b.sentences),
     })
     return Composition(pages, b.theme, list(b.shown), b.sentences, report)
+
+
+def _da_paths(b: _Builder) -> list:
+    """데이트 아카이브 지면에 실린 사진(오프너 · 타임라인 · 기사) - 이달의 우리 소기사 사진은 빼고."""
+    if not b.facts:
+        return []
+    return [p for f in b.facts.articles for p in f.photos_shown_paths]
 
 
 def toc_desc(b: _Builder, corner_type: str, payload: dict, header: dict) -> str:
@@ -910,20 +920,25 @@ def not_used_text(row_key: str, item: dict, timeline_max_pages: int) -> str:
         ('photos', 'unpicked'): f'사진 {n}장 — 기사에 담기지 않았습니다',
         ('memos', 'extra_in_stop'): f'메모 {n}개 — 한 구간에 하나만 싣습니다',
         ('memos', 'dropped_stops'): f'메모 {n}개 — 타임라인 {timeline_max_pages}면에 들어가지 않은 구간의 것입니다',
-        ('memos', 'other_cap'): f'메모 {n}개 — 대표가 아닌 기사에는 하나만 싣습니다',
+        ('memos', 'other_cap'): f'메모 {n}개 — 대표가 아닌 기사에는 실린 사진 · 구간마다 메모 하나만 싣습니다',
+        ('memos', 'caption_overflow'): f'메모 {n}개 — 사진 아래 칸에 들어가지 않아 줄이지 않고 뺐습니다',
+        ('memos', 'article_dropped_stops'): (f"구간 {item.get('stops', 0)}곳(메모 {n}개) — 글만 있는 기사 한 면에 들어가지 않았습니다" if n
+                                             else f"구간 {item.get('stops', 0)}곳 — 글만 있는 기사 한 면에 들어가지 않았습니다"),
         ('memos', 'unpicked'): f'메모 {n}개 — 기사에 담기지 않았습니다',
         ('messages', 'unpicked'): f'대화 {n}개 — 인용으로 고르지 않았습니다',
     }
     return texts[(row_key, kind)]
 
 
-# 84-c2(ROADMAP R134-5 ②) - 발행 노트 끝 AI 안내 한 줄(합니다체). **이 상수 한 곳에서만** 받는다 - 법무 검토(M4-7)에서 문장이 바뀌거나
-# 디자인 19번이 자리 · 크기를 정하면 여기와 슬롯(`@note.aiNotice`)만 옮긴다. 틀 문구처럼 '온도록이 쓴 문장' 수에는 넣지 않는다(결정 기록).
+# 84-c2(ROADMAP R134-5 ②) - 발행 노트 끝 AI 안내 한 줄(합니다체). **이 상수 한 곳에서만** 받는다 - 법무 검토(M4-7)에서 문장이 바뀌면 여기만 고친다.
+# 자리 · 크기는 디자인 v1.2.3 #19(`note.html` 슬롯 `@note.aiNotice`)가 정했다 - 렌더러가 줄을 끼우던 84-c2 임시 처리는 없앴다(D7).
+# 틀 문구처럼 '온도록이 쓴 문장' 수에는 넣지 않는다(결정 기록).
 NOTE_AI_NOTICE = '온도록이 쓴 문장은 두 분의 기록을 바탕으로 AI가 만들었습니다. 두 분이 남긴 말과 사진은 고치지 않았습니다.'
 
 INFO_TEXTS = {
     'drawings': lambda n: f'그림 {n}개 — 이 호의 지면에는 그림 자리가 없습니다',
     'omitted_places': lambda n: f'장소 {n}곳 — 목록에 {PLACES_CAP}곳까지 싣습니다',
+    'article_dropped_stops': lambda n: f'구간 {n}곳 — 글만 있는 기사 한 면에 들어가지 않았습니다',
 }
 
 
@@ -938,7 +953,8 @@ def _note_values(b: _Builder, pages: list) -> dict:
     # 반올림은 .5를 올린다(파이썬 `round`의 은행가 반올림을 쓰지 않는다)
     ratio_people = int(people * 100 / total + 0.5) if total > 0 else None   # 문장이 하나도 없으면 비율도 없다(막대는 지면에서 지워진다)
     # 막대 폭은 글자(`34%`)와 따로 숫자로 맡긴다 - `data-width`는 `34%` 글자를 받지 않는다(R48-6, 디자인 resolve.js와 같다)
-    b.note_widths = ({'@note.ratioPeople': ratio_people, '@note.ratioOndolog': 100 - ratio_people} if ratio_people is not None else {})
+    # v1.2.3 #6 · D7 - 막대 폭 경로는 `@note.ratioPeopleWidth` · `@note.ratioOndologWidth`(숫자), 글자 경로 `@note.ratioPeople` · `.ratioOndolog`(`34%`)와 섞지 않는다
+    b.note_widths = ({'@note.ratioPeopleWidth': ratio_people, '@note.ratioOndologWidth': 100 - ratio_people} if ratio_people is not None else {})
 
     facts = b.facts
     rows = []
@@ -965,6 +981,8 @@ def _note_values(b: _Builder, pages: list) -> dict:
         'materials': rows,
         'ratioPeople': f'{ratio_people}%' if ratio_people is not None else '',
         'ratioOndolog': f'{100 - ratio_people}%' if ratio_people is not None else '',
+        'ratioPeopleWidth': ratio_people if ratio_people is not None else '',
+        'ratioOndologWidth': (100 - ratio_people) if ratio_people is not None else '',
         'sentencesPeople': f'{people}개',
         'sentencesOndolog': f'{ondolog}개',
         'notUsed': not_used,
@@ -972,7 +990,7 @@ def _note_values(b: _Builder, pages: list) -> dict:
         # R51-2 - 이번 기간 표와 따로 한 줄. 재소환이 0이면 빈 글자(줄 없음). 숫자는 호의 사실(`photos_shown_recalled`)에서 온다
         'recalledPhotos': len(facts.photos_shown_recalled),
         'recalledPhotosLine': (f'그때 그 시절 · 지난 기록에서 다시 실은 사진 {len(facts.photos_shown_recalled)}장' if facts.photos_shown_recalled else ''),
-        # 84-c2(R134-5) - 발행 노트 끝 AI 안내 한 줄. 문장은 `NOTE_AI_NOTICE` 한 곳.
+        # 84-c2(R134-5) - 발행 노트 끝 AI 안내 한 줄. 문장은 `NOTE_AI_NOTICE` 한 곳 -> 디자인 v1.2.3 슬롯 `@note.aiNotice`(#19 · D7, 틀이 자리를 가진다)
         'aiNotice': NOTE_AI_NOTICE,
     }
 
@@ -988,6 +1006,10 @@ def choose_variant(page: PageSpec, names: frozenset, scope: Any) -> Optional[str
     if names == frozenset({'grid-2', 'grid-3', 'grid-4'}):
         n = len(as_list(as_dict(as_dict(page.corner).get('payload')).get('articles')))
         return f'grid-{min(max(n, 2), 4)}'
+    if names == frozenset({'hero-photo', 'hero-none'}):   # v1.2.3 da-article (D1) - 그 기사(`bind.i`)에 사진이 하나라도 있으면 hero-photo
+        i = as_dict(page.bind).get('i')
+        arts = as_list(as_dict(as_dict(page.corner).get('payload')).get('articles'))
+        return 'hero-photo' if isinstance(i, int) and 0 <= i < len(arts) and has_photo(as_dict(arts[i])) else 'hero-none'
     if names == frozenset({'with-photo', 'type-only'}):
         # 오프너 사진은 지면마다 원천이 다르다 - 데이트 아카이브는 대표 기사 전체 stop의 첫 사진, 다정한 말들은 쓰지 않은 첫 사진(README §3)
         group = 'da' if page.stem == 'da-opener' else 'sw'

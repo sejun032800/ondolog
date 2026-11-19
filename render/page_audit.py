@@ -124,14 +124,14 @@ EXTRA_JS = r"""
   };
   const SAFE = {left: 68 - 0.5, right: 794 - 68 + 0.5, top: 60 - 0.5, bottom: 1123 - 76 + 0.5};
 
-  // safe - 판면 이탈(글자). 러닝헤드(.run)·폴리오(.folio)는 판면 밖이 정위치다.
+  // safe - 판면 이탈(글자). 러닝헤드(.run)·폴리오(.folio)·사진 위 글자(.ph)·판면 밖이 정위치인 표시([data-margin], 디자인 v1.2.3 README §6 · D9)는 뺀다.
   const leaves = [];
   document.querySelectorAll('body *').forEach(el => {
     if (el.tagName === 'BR' || el.tagName === 'STYLE') return;
     const rects = lineRects(el);
     if (!rects.length) return;
     leaves.push([el, rects]);
-    if (el.closest('.run, .folio, .ph')) return;
+    if (el.closest('.run, .folio, .ph, [data-margin]')) return;
     const box = rects.reduce((u, r) => ({
       left: Math.min(u.left, r.left), top: Math.min(u.top, r.top),
       right: Math.max(u.right, r.right), bottom: Math.max(u.bottom, r.bottom)}),
