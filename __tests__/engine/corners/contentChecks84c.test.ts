@@ -138,9 +138,8 @@ describe('84-c ② 숫자 · 시각 - 입력값 그대로 · 오전/오후 형�
     expect(numberViolations('자정에 오간 대화', g)).toEqual([])
     expect(numberViolations('오전 12시', g)).toEqual([])
   })
-  it('오전/오후 없는 시각 · "반"은 형식 위반', () => {
-    expect(numberViolations('7시에 만났습니다.', f)).toEqual(['시각 형식 「7시」(오전/오후 없음)'])
-    expect(numberViolations('낮 12시 30분 사진', f)).toEqual(['시각 형식 「낮 12시 30분」(오전/오후 없음)'])
+  it('앞말 없는 시각 · "반"은 형식 위반(84-c2 R134-3: 앞말 없음은 실패 유지)', () => {
+    expect(numberViolations('7시에 만났습니다.', f)).toEqual(['시각 형식 「7시」(앞말 없음 - 오전/오후 · 새벽/아침/낮/저녁/밤)'])
     expect(numberViolations('오후 12시 반', f)[0]).toContain('"반" 대신 30분')
   })
   it('입력에 없는 날짜 · 달은 실패', () => {
@@ -202,10 +201,86 @@ describe('84-c ③ 요일 - 날짜의 실제 요일과 맞는가', () => {
   })
   it('날짜를 하나로 정할 수 없는 요일 낱말은 실패', () => {
     expect(weekdayViolations('금요일 저녁에 식사했습니다.', [], known)).toEqual(['요일 「금요일」의 날짜를 정할 수 없음'])
-    expect(weekdayViolations('평일 사이의 한 끼', ['2025-09-05', '2025-09-13'], known)).toEqual(['요일 「평일」의 날짜를 정할 수 없음'])
+    expect(weekdayViolations('토요일 오후', ['2025-09-05', '2025-09-13'], known)).toEqual(['요일 「토요일」의 날짜를 정할 수 없음'])
   })
   it('메시지 인용 안의 요일은 검사 제외', () => {
     expect(weekdayViolations("9월 7일 대화에 '다음 주 토요일'이라는 말이 남았습니다.", [], known)).toEqual([])
+  })
+})
+
+describe('84-c2 ① 시각 앞말 구간(R134-2) - 12시간제 · 앞말이 구간과 어긋나면 실패', () => {
+  const at = (...clocks: string[]) => facts((b) => clocks.forEach((c) => b.addClock(c)))
+  it.each([
+    ['아침 10시 59분', '10:59'],
+    ['낮 11시', '11:00'],
+    ['낮 12시 30분', '12:30'],
+    ['낮 4시 59분', '16:59'],
+    ['저녁 5시', '17:00'],
+    ['저녁 8시 59분', '20:59'],
+    ['밤 9시', '21:00'],
+    ['밤 11시 59분', '23:59'],
+    ['밤 12시', '00:00'],
+    ['밤 12시 30분', '00:30'],
+    ['새벽 12시 30분', '00:30'],
+    ['밤 2시 59분', '02:59'],
+    ['새벽 2시 59분', '02:59'],
+    ['새벽 5시 59분', '05:59'],
+    ['아침 6시', '06:00'],
+  ])('통과: %s (%s)', (text, clock) => {
+    expect(numberViolations(text, at(clock))).toEqual([])
+  })
+
+  it.each([
+    ['아침 11시', '11:00', '아침'],
+    ['낮 5시', '17:00', '낮'],
+    ['저녁 9시', '21:00', '저녁'],
+    ['밤 3시', '03:00', '밤'],
+    ['새벽 6시', '06:00', '새벽'],
+    ['밤 8시', '20:00', '밤'],
+  ])('실패(구간 어긋남): %s (%s)', (text, clock, band) => {
+    expect(numberViolations(text, at(clock))).toEqual([expect.stringContaining(`시각 앞말 「${text}」이 시간대와 어긋남(${band} `)])
+  })
+
+  it('24시 숫자에 앞말("저녁 19시")은 실패 · 값 검사(반올림)는 그대로', () => {
+    expect(numberViolations('저녁 19시', at('19:00'))).toEqual(['시각 24시 표기 「저녁 19시」'])
+    expect(numberViolations('저녁 7시', at('19:10'))).toEqual(['입력에 없는 시각 「저녁 7시」(19:00)'])
+  })
+})
+
+describe('84-c2 ② 앞말 없는 시각 - 실패 · 따옴표 안 원문은 검사 밖(R134-3)', () => {
+  const f = facts((b) => b.addClock('19:00'))
+  it('"7시" 실패', () => {
+    expect(numberViolations('7시에 만났습니다.', f)).toEqual([expect.stringContaining('앞말 없음')])
+  })
+  it("'7시에 거기서 보자'라는 말 - 통과", () => {
+    expect(numberViolations("'7시에 거기서 보자'라는 말이 남았습니다.", f)).toEqual([])
+    expect(numberViolations('"7시에 거기서 보자"라는 말이 남았습니다.', f)).toEqual([])
+  })
+})
+
+describe('84-c2 ③ 요일 묶음(R134-4) - 근거 날짜가 모두 맞아야 통과', () => {
+  // 2025-09-04 목 · 09-05 금 · 09-11 목 · 09-13 토 · 09-20 토 · 09-14 일
+  const known = ['2025-09-04', '2025-09-05', '2025-09-11', '2025-09-13', '2025-09-14', '2025-09-20']
+  it('근거가 모두 평일 -> 통과', () => {
+    expect(weekdayViolations('평일 저녁에도 함께 먹었습니다.', ['2025-09-04', '2025-09-05', '2025-09-11'], known)).toEqual([])
+  })
+  it('하나가 주말 -> 실패(어긋난 날짜를 적음)', () => {
+    expect(weekdayViolations('평일 사이의 한 끼', ['2025-09-05', '2025-09-13'], known)).toEqual(['요일 「평일」≠ 2025-09-13(토요일)'])
+  })
+  it('근거 없음 -> 실패', () => {
+    expect(weekdayViolations('평일 저녁에 만났습니다.', [], known)).toEqual(['요일 「평일」의 근거 날짜가 없음'])
+  })
+  it('"토요일마다" - 근거 2개 모두 토요일 -> 통과 · 하나라도 아니면 실패', () => {
+    expect(weekdayViolations('토요일마다 나들이를 했습니다.', ['2025-09-13', '2025-09-20'], known)).toEqual([])
+    expect(weekdayViolations('토요일마다 나들이를 했습니다.', ['2025-09-13', '2025-09-14'], known)).toEqual(['요일 「토요일마다」≠ 2025-09-14(일요일)'])
+  })
+  it('주말 - 문장의 날짜들이 모두 주말', () => {
+    expect(weekdayViolations('9월 13일과 14일, 주말 이틀을 보냈습니다.', [], known)).toEqual([])
+    expect(weekdayViolations('9월 5일과 13일, 주말에 만났습니다.', [], known)).toEqual(['요일 「주말」≠ 2025-09-05(금요일)'])
+  })
+  it('낱개 요일 규칙은 84-c 그대로', () => {
+    expect(weekdayViolations('9월 13일 토요일', [], known)).toEqual([])
+    expect(weekdayViolations('토요일 오후', ['2025-09-13', '2025-09-20'], known)).toEqual(['요일 「토요일」의 날짜를 정할 수 없음'])
   })
 })
 

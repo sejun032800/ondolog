@@ -70,8 +70,8 @@ def questions(basis: Optional[str] = None) -> list:
     if basis:
         suggestion['basis'] = basis
     return [
-        {'type': 'rating', 'text': '이날의 데이트는 10점 만점에 몇 점?'},
-        {'type': 'recall', 'text': '이날 중 가장 기억에 남는 건?'},
+        {'type': 'rating', 'text': '이날의 데이트는 10점 만점에 몇 점인가요?'},
+        {'type': 'recall', 'text': '이날 중 가장 기억에 남는 건 무엇인가요?'},
         suggestion,
     ]
 

@@ -402,6 +402,25 @@ def add_note_recalled_line(template: str) -> str:
     return out
 
 
+# 84-c2(R134-5 ②) - 발행 노트 **끝**(정정 요청 줄 바로 아래)에 AI 안내 한 줄. 지면 HTML 파일은 고치지 않고 렌더러가 끼운다(R51-2와 같은 방식 -
+# **개발 임시 수정**, 디자인 19번 · v1.2.3이 자리를 정하면 디자인이 이긴다). 문장은 `compose.NOTE_AI_NOTICE` 한 곳 -> 슬롯 `@note.aiNotice`.
+# 아래 블록은 `bottom:118px`로 붙어 있어 줄이 늘면 위로 자란다(판면 아래 경계는 그대로).
+NOTE_AI_NOTICE_LINE = '<p class="note" style="margin:6px 0 0"><span data-slot="@note.aiNotice"></span></p>'
+NOTE_CORRECTION_MARK = '정정 요청'
+
+
+def add_note_ai_notice(template: str) -> str:
+    """`note` 틀의 정정 요청 문단(`정정 요청 … </p>`) 바로 뒤에 AI 안내 줄을 끼운다. 그 문단이 틀에 하나가 아니면 StopError - 자리를 짐작하지 않는다."""
+    if template.count(NOTE_CORRECTION_MARK) != 1:
+        raise StopError('발행 노트 틀에 정정 요청 문단이 하나가 아니다 - AI 안내 줄 자리를 정할 수 없다')
+    at = template.index(NOTE_CORRECTION_MARK)
+    end = template.find('</p>', at)
+    if end < 0:
+        raise StopError('발행 노트 틀의 정정 요청 문단이 </p>로 닫히지 않는다 - AI 안내 줄 자리를 정할 수 없다')
+    end += len('</p>')
+    return template[:end] + NOTE_AI_NOTICE_LINE + template[end:]
+
+
 def as_dict_note(spec: PageSpec) -> dict:
     note = (spec.computed or {}).get('note')
     return note if isinstance(note, dict) else {}
@@ -414,6 +433,8 @@ def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
     template = templates[spec.stem]
     if spec.stem == 'note' and as_dict_note(spec).get('recalledPhotosLine'):
         template = add_note_recalled_line(template)
+    if spec.stem == 'note' and as_dict_note(spec).get('aiNotice'):
+        template = add_note_ai_notice(template)
     html = fill(template, spec.corner, spec.computed, spec.bind,
                 chooser=lambda names, scope: choose_variant(spec, names, scope), widths=spec.widths)
     html = drop_empty_count_cells(html)

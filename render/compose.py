@@ -917,6 +917,10 @@ def not_used_text(row_key: str, item: dict, timeline_max_pages: int) -> str:
     return texts[(row_key, kind)]
 
 
+# 84-c2(ROADMAP R134-5 ②) - 발행 노트 끝 AI 안내 한 줄(합니다체). **이 상수 한 곳에서만** 받는다 - 법무 검토(M4-7)에서 문장이 바뀌거나
+# 디자인 19번이 자리 · 크기를 정하면 여기와 슬롯(`@note.aiNotice`)만 옮긴다. 틀 문구처럼 '온도록이 쓴 문장' 수에는 넣지 않는다(결정 기록).
+NOTE_AI_NOTICE = '온도록이 쓴 문장은 두 분의 기록을 바탕으로 AI가 만들었습니다. 두 분이 남긴 말과 사진은 고치지 않았습니다.'
+
 INFO_TEXTS = {
     'drawings': lambda n: f'그림 {n}개 — 이 호의 지면에는 그림 자리가 없습니다',
     'omitted_places': lambda n: f'장소 {n}곳 — 목록에 {PLACES_CAP}곳까지 싣습니다',
@@ -968,6 +972,8 @@ def _note_values(b: _Builder, pages: list) -> dict:
         # R51-2 - 이번 기간 표와 따로 한 줄. 재소환이 0이면 빈 글자(줄 없음). 숫자는 호의 사실(`photos_shown_recalled`)에서 온다
         'recalledPhotos': len(facts.photos_shown_recalled),
         'recalledPhotosLine': (f'그때 그 시절 · 지난 기록에서 다시 실은 사진 {len(facts.photos_shown_recalled)}장' if facts.photos_shown_recalled else ''),
+        # 84-c2(R134-5) - 발행 노트 끝 AI 안내 한 줄. 문장은 `NOTE_AI_NOTICE` 한 곳.
+        'aiNotice': NOTE_AI_NOTICE,
     }
 
 

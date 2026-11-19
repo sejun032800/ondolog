@@ -11,12 +11,14 @@
  *   - 글 칸(text): 합니다체만.
  *   - 라벨 칸(label): 명사형 · 연결형("~있어서") · 합니다체. ~다체 · 반말 · 해요체는 안 됨.
  *   - 질문 칸(question): 해요체만("~요?" · "~까요?" · "~나요?" · "~가요?", 물음표 없어도 됨).
- * ② 숫자 · 시각 - 입력값 그대로. 시각 형식 "오전/오후 h시 m분"(정각 "h시") · "정오" · "자정". 24시 표기 · "HH:MM" · "반" ·
- *   오전/오후 없는 시각은 형식 위반. 값은 그 칸이 볼 수 있는 입력 시각과 같아야 한다(반올림 0). 날짜("9월 13일" · "13일" ·
+ * ② 숫자 · 시각 - 입력값 그대로. 시각 형식 "오전/오후 h시 m분"(정각 "h시") · "정오" · "자정" · 84-c2(R134-2) 시간대 앞말
+ *   "새벽 · 아침 · 낮 · 저녁 · 밤 + 12시간제"(앞말이 구간과 어긋나면 실패 - `TIME_BANDS`). 24시 표기 · "HH:MM" · "반" ·
+ *   앞말 없는 시각은 형식 위반(R134-3 - 따옴표 안 원문은 검사 밖). 값은 그 칸이 볼 수 있는 입력 시각과 같아야 한다(반올림 0). 날짜("9월 13일" · "13일" ·
  *   "9월")와 사진 장수("사진 n장")도 입력에 있는 값만. 그 밖의 아라비아 숫자는 입력에 나온 숫자만.
  *   한글 수사("두 곳" · "세 번" · "이틀 전" · "엿새 전")는 **사진 장수 말고는 검사하지 않는다**(HANDOFF 84-c 결정 기록 "확인 필요").
- * ③ 요일 - 요일 낱말(월요일~일요일 · 주말 · 평일)이 그 문장의 날짜(없으면 칸의 근거 날짜가 하나일 때 그 날짜)의 실제 요일과
- *   맞아야 한다. 날짜를 하나로 정할 수 없으면 실패.
+ * ③ 요일 - 낱개 요일(월요일~일요일)은 그 문장의 날짜(없으면 칸의 근거 날짜가 하나일 때 그 날짜)의 실제 요일과 맞아야 한다.
+ *   날짜를 하나로 정할 수 없으면 실패. 84-c2(R134-4) 묶음("평일" · "주말" · "토요일마다")은 문장의 날짜(없으면 칸의 근거 날짜)
+ *   **모두**가 맞아야 통과 - 하나라도 어긋나거나 근거 날짜가 없으면 실패.
  */
 
 // ---------------------------------------------------------------------------
@@ -280,6 +282,34 @@ const NATIVE_NUMERALS: Readonly<Record<string, number>> = {
   열: 10,
 }
 
+/**
+ * R134-2 시각 앞말 구간(PM 확정). 숫자는 12시간제. 앞말이 구간과 어긋나면 실패.
+ * 0시대(00:00~02:59)는 "밤"과 "새벽" 둘 다 허용("밤 12시 30분" · "새벽 12시 30분" · "밤 2시" · "새벽 2시") - 84-c2 결정 기록.
+ * "정오"(12:00) · "자정"(00:00) 낱말과 "오전 12시"(00:00) · "오후 12시"(12:00)는 84-c 그대로.
+ */
+export type TimeBand = '새벽' | '아침' | '낮' | '저녁' | '밤'
+export const TIME_BANDS: Readonly<Record<TimeBand, readonly (readonly [number, number])[]>> = {
+  새벽: [[0, 5 * 60 + 59]],
+  아침: [[6 * 60, 10 * 60 + 59]],
+  낮: [[11 * 60, 16 * 60 + 59]],
+  저녁: [[17 * 60, 20 * 60 + 59]],
+  밤: [
+    [21 * 60, 23 * 60 + 59],
+    [0, 2 * 60 + 59],
+  ],
+}
+const TIME_BAND_LABEL: Readonly<Record<TimeBand, string>> = {
+  새벽: '00:00~05:59',
+  아침: '06:00~10:59',
+  낮: '11:00~16:59',
+  저녁: '17:00~20:59',
+  밤: '21:00~02:59',
+}
+
+export function inTimeBand(band: TimeBand, minute: number): boolean {
+  return TIME_BANDS[band].some(([a, b]) => minute >= a && minute <= b)
+}
+
 function minuteLabel(minute: number): string {
   const h = Math.floor(minute / 60)
   const m = minute % 60
@@ -313,15 +343,27 @@ export function numberViolations(value: string, facts: NumberFacts): string[] {
       out.push(`시각 24시 표기 「${token}」`)
       continue
     }
-    if (prefix !== '오전' && prefix !== '오후') {
-      out.push(`시각 형식 「${token}」(오전/오후 없음)`)
+    if (prefix === undefined) {
+      // R134-3: 앞말 없는 시각은 실패(따옴표 안 원문은 맨 위 `stripQuoted`로 이미 빠졌다).
+      out.push(`시각 형식 「${token}」(앞말 없음 - 오전/오후 · 새벽/아침/낮/저녁/밤)`)
       continue
     }
     if (m[4] !== undefined) {
       out.push(`시각 형식 「${token}」("반" 대신 30분)`)
       continue
     }
-    const minute = (prefix === '오전' ? h % 12 : (h % 12) + 12) * 60 + min
+    let minute: number
+    if (prefix === '오전' || prefix === '오후') {
+      minute = (prefix === '오전' ? h % 12 : (h % 12) + 12) * 60 + min
+    } else {
+      // R134-2: 시간대 앞말 + 12시간제 숫자 - 앞말의 구간 안에 드는 쪽(h시 · h+12시)으로 읽는다. 둘 다 아니면 어긋남.
+      const inBand = [(h % 12) * 60 + min, ((h % 12) + 12) * 60 + min].filter((x) => inTimeBand(prefix as TimeBand, x))
+      if (inBand.length === 0) {
+        out.push(`시각 앞말 「${token}」이 시간대와 어긋남(${prefix} ${TIME_BAND_LABEL[prefix as TimeBand]})`)
+        continue
+      }
+      minute = inBand[0]
+    }
     if (!facts.minutes.has(minute)) out.push(`입력에 없는 시각 「${token}」(${minuteLabel(minute)})`)
   }
   for (const m of [...rest.matchAll(/정오|자정/g)]) {
@@ -389,13 +431,18 @@ export function kstWeekdayOf(iso: string): (typeof WEEKDAY_NAMES)[number] | null
   return p === null ? null : weekdayOf(p.date)
 }
 
-const WEEKDAY_WORD = /([월화수목금토일])요일|주말|평일/g
+const WEEKDAY_WORD = /([월화수목금토일])요일마다|([월화수목금토일])요일|주말|평일/g
+
+/** R134-4 묶음 표현 - "평일" · "주말" · "토요일마다". 근거 날짜 **모두**가 맞아야 통과(하나라도 어긋나면 · 근거가 없으면 실패). */
+function isGroupWord(word: string): boolean {
+  return word === '평일' || word === '주말' || word.endsWith('마다')
+}
 
 function matchesWeekday(word: string, date: string): boolean {
   const w = weekdayOf(date)
   if (word === '주말') return w === '토요일' || w === '일요일'
   if (word === '평일') return w !== '토요일' && w !== '일요일'
-  return w === word
+  return w === word.replace(/마다$/, '')
 }
 
 /**
@@ -430,6 +477,17 @@ export function weekdayViolations(value: string, contextDates: readonly string[]
     for (const w of words) {
       const word = w[0]
       const at = w.index ?? 0
+      if (isGroupWord(word)) {
+        // 묶음: 문장에 날짜가 있으면 그 날짜 전부, 없으면 칸의 근거 날짜 전부.
+        const group = mentions.length > 0 ? [...new Set(mentions.flatMap((x) => x.dates))] : context
+        if (group.length === 0) {
+          out.push(`요일 「${word}」의 근거 날짜가 없음`)
+          continue
+        }
+        const off = group.filter((d) => !matchesWeekday(word, d)).sort()
+        if (off.length > 0) out.push(`요일 「${word}」≠ ${off.map((d) => `${d}(${weekdayOf(d)})`).join(' · ')}`)
+        continue
+      }
       let dates: string[]
       if (mentions.length > 0) {
         const before = mentions.filter((x) => x.index < at)
