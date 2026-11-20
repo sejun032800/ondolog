@@ -98,8 +98,8 @@ export function sampleSweetWords(input: SweetWordsInput): unknown {
   const sub = sorted.slice(2, 4)
   return {
     kind: 'excerpts',
-    main: [{ context: '기간 중 오간 짧은 대화', turns: turns.map((m: ChatMessageRecord) => ({ messageId: m.id })) }],
-    sub: sub.map((m: ChatMessageRecord) => ({ messageId: m.id })),
+    main: [{ context: '기간 중 오간 짧은 대화', turns: turns.map((m: ChatMessageRecord) => ({ messageId: m.id })), conflict: false }],   // 84-e 자기 점검 칸
+    sub: sub.map((m: ChatMessageRecord) => ({ messageId: m.id, conflict: false })),
   }
 }
 

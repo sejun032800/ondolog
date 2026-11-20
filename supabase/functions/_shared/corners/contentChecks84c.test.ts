@@ -149,7 +149,7 @@ describe('84-c 코너 응답 처리 - 검사가 걸리는 자리', () => {
   it('다정한 말들: 정황 ~다체 · 날짜 없는 요일(턴 날짜와 다름)은 실패', () => {
     const turnsDay = weekdayOf('2026-08-22')
     const other = turnsDay === '월요일' ? '화요일' : '월요일'
-    const out = (context: string) => ({ kind: 'excerpts', main: [{ context, turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }] }], sub: [] })
+    const out = (context: string) => ({ kind: 'excerpts', main: [{ context, turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }], conflict: false }], sub: [] })
     expect(processCornerResponse(sweetWordsModule, JSON.stringify(out(`${turnsDay} 아침에 오간 대화`)), SW_INPUT, MONTHLY_CONTEXT).ok).toBe(true)
     const bad = processCornerResponse(sweetWordsModule, JSON.stringify(out(`${other} 아침에 대화가 오갔다`)), SW_INPUT, MONTHLY_CONTEXT)
     expect(bad.ok).toBe(false)

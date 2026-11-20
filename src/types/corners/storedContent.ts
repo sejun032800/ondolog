@@ -59,6 +59,8 @@ export const UserNoteSchema = z.object({
 })
 
 export const ChatTurnSchema = z.object({
+  /** 84-e(R137-1) - 원문의 메시지 행 id(유성이 지금 살아 있는 행을 다시 읽는다). 84-e 전에 발행된 호에는 없다 - 그때는 보낸 사람 + 시각으로 찾는다. */
+  messageId: z.string().min(1).optional(),
   speaker: z.string().min(1),
   text: z.string().min(1),
   at: IsoDateTime,
@@ -186,6 +188,8 @@ export const SweetExcerptSchema = z.object({
 })
 
 export const SweetSubSchema = z.object({
+  /** 84-e(R137-1) - `ChatTurnSchema.messageId`와 같다. */
+  messageId: z.string().min(1).optional(),
   attribution: AttributionSchema,
   speaker: z.string().min(1),
   text: z.string().min(1),
@@ -220,6 +224,8 @@ export const MonthEvidenceSchema = z
     type: z.enum(['message', 'photo', 'date']),
     at: z.union([IsoDateTime, IsoDate]),
     excerpt: z.string().min(1).optional(),
+    /** 84-e(R137-1) - `type: 'message'`의 원문 메시지 행 id. 84-e 전에 발행된 호에는 없다. */
+    messageId: z.string().min(1).optional(),
     attribution: AttributionSchema.optional(),
     photoPath: z.string().min(1).optional(),
   })

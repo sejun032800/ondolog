@@ -192,7 +192,7 @@ function evidenceKey(e: z.infer<typeof FilledSignalEvidenceSchema>): string {
 function toStoredEvidence(e: FilledEvidence): StoredEvidence {
   switch (e.type) {
     case 'message':
-      return { type: 'message', at: e.at, excerpt: e.excerpt, attribution: e.attribution }
+      return { type: 'message', messageId: e.messageId, at: e.at, excerpt: e.excerpt, attribution: e.attribution }   // 84-e(R137-1) - 원문을 싣는 근거도 메시지 id를 함께
     case 'photo':
       return { type: 'photo', at: e.at, photoPath: e.photoPath }
     case 'date':

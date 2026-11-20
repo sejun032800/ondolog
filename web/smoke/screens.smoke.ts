@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { METEOR_TEXT } from './seed'
 
 const ROOT = process.env.ONDOLOG_SMOKE_ROOT ?? path.join(os.tmpdir(), 'ondolog-smoke')
 const SHOTS = path.join(ROOT, 'shots')
@@ -286,6 +287,58 @@ test.describe('79- 화면 스모크', () => {
     await expect(row).toContainText('하늘의 별이 천천히 숨 쉬어요')
     await expect(page.getByTestId('settings-sky-twinkle')).toHaveAttribute('aria-checked', 'true')
     await check(page, w, 'settings-oursky')
+  })
+
+  test('84-e 유성: C01 제자리 빛(줄인 모션) -> C03 떨어진 말 · 390 / 360 폭', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' }) // 제자리 빛 - 움직이지 않아 누르기가 안정적이다(움직이는 유성은 아래 시험)
+    await page.setViewportSize({ width: 390, height: 844 })
+    const w = await open(page, 'world=account&meteor=1')
+    await expect(page.getByTestId('tab-bar')).toBeVisible({ timeout: 5000 })
+    await settle(page)
+    await seen(page.getByTestId('main-days'))
+    await touchDrag(page.locator('.mainScroll'), 120, 320)
+    await seen(page.getByTestId('sky-screen'))
+    const meteor = page.getByTestId('sky-meteor')
+    await expect(meteor).toBeVisible({ timeout: 12_000 }) // 하늘이 준비된 뒤 4~10초
+    await expect(meteor).toHaveAttribute('data-mode', 'still')
+    await meteor.click()
+    const fallen = page.getByTestId('sky-fallen')
+    await seen(fallen)
+    await expect(page.getByTestId('sky-fallen-text')).toHaveText(METEOR_TEXT)
+    await expect(page.getByTestId('sky-fallen-count')).toHaveText('1 / 1')
+    await expect(page.getByTestId('sky-fallen-next')).toBeDisabled()
+    await check(page, w, 'sky-c03-390')
+    await page.setViewportSize({ width: 360, height: 780 })
+    await check(page, w, 'sky-c03-360')
+    await page.getByTestId('sky-fallen-close').click()
+    await expect(fallen).toBeHidden()
+    await expect(page.getByTestId('sky-screen')).toBeVisible()
+  })
+
+  test('84-e 유성: 움직이는 유성(기본 모션) -> 누르면 C03', async ({ page }) => {
+    const w = await open(page, 'world=account&meteor=1')
+    await expect(page.getByTestId('tab-bar')).toBeVisible({ timeout: 5000 })
+    await settle(page)
+    await seen(page.getByTestId('main-days'))
+    await touchDrag(page.locator('.mainScroll'), 120, 320)
+    await seen(page.getByTestId('sky-screen'))
+    const meteor = page.getByTestId('sky-meteor')
+    await expect(meteor).toBeVisible({ timeout: 12_000 })
+    await expect(meteor).toHaveAttribute('data-mode', 'fall')
+    await meteor.dispatchEvent('click') // 움직이는 중이라 위치 고정을 기다리지 않고 누른다
+    await seen(page.getByTestId('sky-fallen'))
+    expect(w.errors).toEqual([])
+  })
+
+  test('84-e 설정 H01: OUR SKY "유성 떨어뜨리기" 줄(첫 줄 · 기본 켬)', async ({ page }) => {
+    const w = await openAccount(page)
+    await tab(page, 'settings')
+    const row = page.getByTestId('settings-row-sky-meteor')
+    await seen(row)
+    await expect(row).toContainText('유성 떨어뜨리기')
+    await expect(row).toContainText('다정한 말이 유성으로 떨어져요')
+    await expect(page.getByTestId('settings-sky-meteor')).toHaveAttribute('aria-checked', 'true')
+    await check(page, w, 'settings-oursky-meteor')
   })
 
   test('채팅: 목록 · 입력창 · 사진 칸 비율 · 맨 아래 붙기', async ({ page }) => {

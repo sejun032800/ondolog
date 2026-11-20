@@ -584,11 +584,13 @@ interface SweetWordsPayload {
 
   /** 서브 — 단문 나열 */
   sub: Array<{
+    messageId?: string;           // 84-e(R137-1) 원문 메시지 행 id - 84-e 전에 발행된 호에는 없다
     attribution: Attribution;
     speaker: string;
     text: string;                 // 원문 그대로
   }>;
 }
+// ChatTurn에도 messageId?: string (84-e, R137-1) - 유성(MASTER 9-8-4)이 지금 살아 있는 메시지 행을 다시 읽는 열쇠. 원문 사본을 유성에 쓰지 않는다
 
 interface SweetExcerpt {
   /** AI가 쓰는 유일한 문장. 상황·정황만. 평가 금지 */
@@ -610,6 +612,8 @@ interface SweetExcerpt {
 | **평가 필드 없음** | 스키마에 `rating`·`comment`·`praise` 필드를 **정의하지 않는다** |
 | **스킵 우선** | 다정한 발화가 없으면 `status='skipped'`, `skip_reason='no_warm_messages'`. 억지 생성 금지 |
 | 다툼 제외 | 화해 대화도 포함하지 않는다 (다툼 맥락 자체를 소환하지 않음) |
+| **자기 점검 (84-e)** | LLM이 고른 대화(main) · 한 줄(sub)마다 **같은 응답 안에서** `conflict`(다툼 · 화해 맥락인가, boolean)를 낸다. `true`인 줄은 엔진이 검사 · 저장 전에 뺀다(`dropFlagged`). 칸이 빠지면 형식 오류(재요청 1회 → 빠짐). 빼고 남은 대화가 0개면 최소 분량 미달 = `insufficient_input`. 낱말 규칙이 아니라 LLM 판단(MASTER 17-4 · §17-0-9-F-2 r61). 저장 내용에는 이 칸을 두지 않는다. 출처 ROADMAP R137-3 ① |
+| **메시지 id (84-e)** | 저장 내용의 `turns[]` · `sub[]`(그리고 §7 `evidence` 중 `type: 'message'`)에 원문 메시지 행 id `messageId`를 함께 둔다. jsonb 칸이라 마이그레이션 0. 출처 ROADMAP R137-1 |
 
 **검증**: 저장 전 `turns[].text`를 원본 `messages.body`와 대조해 불일치 시 재생성한다.
 

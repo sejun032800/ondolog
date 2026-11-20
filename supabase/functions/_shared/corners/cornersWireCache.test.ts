@@ -34,8 +34,8 @@ interface WireBody {
 
 const SWEET = {
   kind: 'excerpts',
-  main: [{ context: '아침 출근길에 오간 대화', turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }] }],
-  sub: [{ messageId: 'm-3' }],
+  main: [{ context: '아침 출근길에 오간 대화', turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }], conflict: false }],
+  sub: [{ messageId: 'm-3', conflict: false }],
 }
 
 const DATES = {

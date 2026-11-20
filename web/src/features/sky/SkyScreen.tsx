@@ -6,6 +6,8 @@
  *  - 모션: 줄인 모션이면 켜짐 · 흐름 · 반짝임 0. 앱이 가려지면(`visibilitychange`) 애니메이션을 멈춘다. 별 애니메이션은 transform · opacity만.
  * 85-(MASTER 9-8-4 · 보드 patch9b): C01 ✕ 왼쪽 [둘러보기] 칩(폭 380pt 미만이면 40pt 원 아이콘 · 읽기 이름 "하늘 둘러보기") -> (iOS만 C09) ->
  *   C08 센서 / C08-alt 끌기(`SkyTour`). 둘러보기 중 ✕ · 뒤로 = C01로. 별 반짝임(H01 OUR SKY, 기기에만)을 끄면 배경 별 + 데이트 별 반짝임이 멈춘다.
+ * 84-e(MASTER 9-8-4 r80 · 보드 17-b): 유성(C01 이번 달 · C08 둘러보기)과 떨어진 말(C03) - `Meteor.tsx` · 규칙 `meteorRules.ts` · 읽기 `meteorData.ts`.
+ *   지난 하늘 · 별 시트 · 사진 · 권한 앞 화면 · 빈 하늘에서는 떨어지지 않는다. 서버 쓰기 0.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { togetherDates } from '@/engine/togetherDay'
@@ -23,6 +25,7 @@ import type { DayRecord } from '../records/dayRecordRead'
 import { toDayCounts } from '../records/dayRecordRead'
 import { useSky, useSkyNames, useSkyPhotoUrls } from './skyData'
 import { SkyTour, type TourStar } from './SkyTour'
+import { FallenWords, MeteorLayer, useMeteorDrop } from './Meteor'
 import { useSkyPrefStore, useSkyPrefs } from './skyPrefs'
 import { MOTION_MS, decideTourStart } from './tourMath'
 import { hasOrientationApi, orientationPermissionNeeded, requestOrientationPermission } from './useSkyOrientation'
@@ -238,6 +241,14 @@ export function SkyScreen({ nav }: { nav: Nav }) {
   if (touring && !sel) { headTitle = `${monthNumber(thisMonth)}월의 하늘`; headSub = SKY_COPY.subtitle; headKicker = null }
   const centered = headKicker !== null
   const showChip = !empty && !sel && !showPast && !touring
+
+  // ── 84-e 유성 · 떨어진 말 ──
+  const meteorNames = useSkyNames(useMemo(() => [userId, partnerId].filter((v): v is string => !!v), [userId, partnerId]))
+  const meteor = useMeteorDrop({
+    userId, coupleId: openable ? coupleId : null, enabled: prefs.meteor, ready: !sky.loading && sky.allLoaded,
+    canShow: !empty && !sel && !photoView && !asking && !(tour?.leaving ?? false) && (touring || !showPast),
+    visible: pageVisible, names: meteorNames, namesReady: true,
+  })
   const rootClass = `screen skyScreen ${reduced ? 'still' : ''} ${pageVisible ? '' : 'paused'} ${sel ? 'zoomed' : ''} ${prefs.twinkle ? '' : 'noTwinkle'} ${touring ? 'touring' : ''}`
 
   // 둘러보기의 하늘 층 - 이번 달 별 · 달 · 가장 따뜻한 날(1단계와 같은 자리 · 크기 · 반짝임 주기)
@@ -371,6 +382,16 @@ export function SkyScreen({ nav }: { nav: Nav }) {
           <button type="button" className="skyPill wide press" onClick={() => void allowMotion()} data-testid="sky-motion-allow">{SKY_COPY.askAllow}</button>
           <button type="button" className="skyTextBtn press" onClick={() => { setAsking(false); setTour({ mode: 'drag', leaving: false }) }} data-testid="sky-motion-drag">{SKY_COPY.askDrag}</button>
         </div>
+      ) : null}
+
+      {/* 84-e 유성(C01 · C08) - 한 번에 하나 · 가려지면 멈춘다 */}
+      {meteor.falling ? (
+        <MeteorLayer key={meteor.falling.candidate.id} plan={meteor.falling} reduced={reduced} paused={!pageVisible} onCatch={meteor.catchIt} onEnd={meteor.ended} />
+      ) : null}
+
+      {/* 84-e C03 떨어진 말 */}
+      {meteor.fallenOpen ? (
+        <FallenWords coupleId={openable ? coupleId : null} caught={meteor.fallenOpen} names={meteorNames} onClose={meteor.closeFallen} />
       ) : null}
 
       {/* C05 */}

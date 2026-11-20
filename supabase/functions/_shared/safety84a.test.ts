@@ -116,7 +116,7 @@ describe('84-a llmClient - 요청 본문 · 호출 시간 상한 · 시도 직�
 describe('84-a 값 검사 - 골격에서: 걸리면 schema_invalid -> 재요청 1 -> 그래도 걸리면 코너 실패', () => {
   const INPUT: SweetWordsInput = { warmthIndex: null, messages: CHAT_MESSAGES }
   const output = (context: string) =>
-    JSON.stringify({ kind: 'excerpts', main: [{ context, turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }] }], sub: [] })
+    JSON.stringify({ kind: 'excerpts', main: [{ context, turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }], conflict: false }], sub: [] })
 
   it('금지 표현 두 번 -> 호출 2회 · schema_invalid 실패', async () => {
     const client = scriptedLlmClient([output('관계를 진단하는 대화'), output('관계를 진단하는 대화')])

@@ -31,8 +31,8 @@ const INPUT: SweetWordsInput = { warmthIndex: null, messages: CHAT_MESSAGES }
 /** 정상 응답 - 대화 하나(m-1, m-2)와 한 줄 하나(m-3). */
 const GOOD_OUTPUT = {
   kind: 'excerpts',
-  main: [{ context: '아침 출근길에 오간 대화', turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }] }],
-  sub: [{ messageId: 'm-3' }],
+  main: [{ context: '아침 출근길에 오간 대화', turns: [{ messageId: 'm-1' }, { messageId: 'm-2' }], conflict: false }],
+  sub: [{ messageId: 'm-3', conflict: false }],
 }
 
 function run(output: unknown, input: SweetWordsInput = INPUT, context = MONTHLY_CONTEXT) {
@@ -100,8 +100,8 @@ describe('17-4 LLM 출력 스키마 (r44)', () => {
   it('원문을 담을 필드가 없다 - LLM이 text·speaker·at·attribution을 써 보내도 스키마가 버린다', () => {
     const parsed = sweetWordsLlmSchema('monthly').parse({
       kind: 'excerpts',
-      main: [{ context: 'c', turns: [{ messageId: 'm-1', text: '변조', speaker: '누구', at: 'x', attribution: {} }] }],
-      sub: [{ messageId: 'm-3', text: '변조' }],
+      main: [{ context: 'c', turns: [{ messageId: 'm-1', text: '변조', speaker: '누구', at: 'x', attribution: {} }], conflict: false }],
+      sub: [{ messageId: 'm-3', text: '변조', conflict: false }],
     })
     expect(JSON.stringify(parsed)).not.toContain('변조')
   })
@@ -122,13 +122,15 @@ describe('17-4 응답 처리 - 저장 내용', () => {
             context: '아침 출근길에 오간 대화',
             attribution: { display: '2026.08.22 09:20, 아침 대화 중', at: '2026-08-22T09:20:00+09:00', source: 'chat' },
             turns: [
-              { speaker: '세준', text: '오늘 비 온대. 우산 챙겼어?', at: '2026-08-22T09:20:00+09:00' },
-              { speaker: '서영', text: '응 챙겼어. 너도 감기 조심해', at: '2026-08-22T09:21:30+09:00' },
+              // 84-e(R137-1): 원문 메시지 행 id를 함께 저장한다(유성이 지금 살아 있는 행을 다시 읽는다)
+              { messageId: 'm-1', speaker: '세준', text: '오늘 비 온대. 우산 챙겼어?', at: '2026-08-22T09:20:00+09:00' },
+              { messageId: 'm-2', speaker: '서영', text: '응 챙겼어. 너도 감기 조심해', at: '2026-08-22T09:21:30+09:00' },
             ],
           },
         ],
         sub: [
           {
+            messageId: 'm-3',
             attribution: { display: '2026.08.11 23:40, 밤 대화 중', at: '2026-08-11T23:40:00+09:00', source: 'chat' },
             speaker: '서영',
             text: '오늘 고생했어 진짜',
@@ -145,9 +147,10 @@ describe('17-4 응답 처리 - 저장 내용', () => {
         {
           context: '새벽 한 줄',
           turns: [{ messageId: 'm-6', text: '변조된 원문', speaker: '가짜', at: '1999-01-01T00:00:00+09:00' }],
+          conflict: false,
         },
       ],
-      sub: [{ messageId: 'm-3', text: '변조된 서브', speaker: '가짜' }],
+      sub: [{ messageId: 'm-3', text: '변조된 서브', speaker: '가짜', conflict: false }],
     }
     const result = run(tampered)
     expect(result.ok).toBe(true)
@@ -163,7 +166,7 @@ describe('17-4 응답 처리 - 저장 내용', () => {
   it('대화의 턴은 시각 순서로 놓이고 출처 표기는 첫 턴의 것이다(LLM이 순서·표기를 정하지 않는다)', () => {
     const result = run({
       kind: 'excerpts',
-      main: [{ context: 'c', turns: [{ messageId: 'm-2' }, { messageId: 'm-1' }] }],
+      main: [{ context: 'c', turns: [{ messageId: 'm-2' }, { messageId: 'm-1' }], conflict: false }],
       sub: [],
     })
     expect(result.ok).toBe(true)
@@ -193,7 +196,7 @@ describe('17-4 응답 처리 - 저장 내용', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(Object.keys(result.content.payload.main[0]).sort()).toEqual(['attribution', 'context', 'turns'])
-    expect(Object.keys(result.content.payload.sub[0]).sort()).toEqual(['attribution', 'speaker', 'text'])
+    expect(Object.keys(result.content.payload.sub[0]).sort()).toEqual(['attribution', 'messageId', 'speaker', 'text'])   // messageId = 84-e(R137-1) 원문 행 id(LLM 문장 아님)
   })
 })
 
@@ -202,7 +205,9 @@ describe('17-4 응답 처리 - 개수 (17-0-7)', () => {
   const item = (n: number) => ({
     context: 'c',
     turns: ['m-1', 'm-2', 'm-3', 'm-4'].slice(0, n).map(turn),
+    conflict: false,
   })
+  const subOf = (id: string) => ({ messageId: id, conflict: false })
 
   it('월간: main 1~3개는 통과, 0개·4개는 schema_invalid', () => {
     for (const n of [1, 2, 3]) {
@@ -231,13 +236,13 @@ describe('17-4 응답 처리 - 개수 (17-0-7)', () => {
 
   it('turns는 1~4턴, sub는 0~6개', () => {
     expect(run({ kind: 'excerpts', main: [item(4)], sub: [] }).ok).toBe(true)
-    expect(run({ kind: 'excerpts', main: [{ context: 'c', turns: [] }], sub: [] }).ok).toBe(false)
+    expect(run({ kind: 'excerpts', main: [{ context: 'c', turns: [], conflict: false }], sub: [] }).ok).toBe(false)
     expect(
-      run({ kind: 'excerpts', main: [{ context: 'c', turns: ['m-1', 'm-2', 'm-3', 'm-4', 'm-5'].map(turn) }], sub: [] }).ok,
+      run({ kind: 'excerpts', main: [{ context: 'c', turns: ['m-1', 'm-2', 'm-3', 'm-4', 'm-5'].map(turn), conflict: false }], sub: [] }).ok,
     ).toBe(false)
-    const six = ['m-1', 'm-2', 'm-3', 'm-4', 'm-5', 'm-6'].map(turn)
+    const six = ['m-1', 'm-2', 'm-3', 'm-4', 'm-5', 'm-6'].map(subOf)
     expect(run({ kind: 'excerpts', main: [item(1)], sub: six }).ok).toBe(true)
-    expect(run({ kind: 'excerpts', main: [item(1)], sub: [...six, turn('m-1')] }).ok).toBe(false)
+    expect(run({ kind: 'excerpts', main: [item(1)], sub: [...six, subOf('m-1')] }).ok).toBe(false)
   })
 })
 
@@ -285,7 +290,7 @@ describe('17-4 응답 처리 - 금지 키 (원본 객체에, 파이프라인 전
 
 describe('17-4 응답 처리 - ID 해석 (r43·r44, 판정은 골격)', () => {
   it('입력에 없는 messageId는 schema_invalid(존재하지 않는 ID)', () => {
-    const result = run({ kind: 'excerpts', main: [{ context: 'c', turns: [{ messageId: 'm-없음' }] }], sub: [] })
+    const result = run({ kind: 'excerpts', main: [{ context: 'c', turns: [{ messageId: 'm-없음' }], conflict: false }], sub: [] })
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.reason).toBe('schema_invalid')
@@ -296,7 +301,7 @@ describe('17-4 응답 처리 - ID 해석 (r43·r44, 판정은 골격)', () => {
   it('입력 집합에 다른 커플의 메시지가 섞여 있고 LLM이 그것을 참조해도 막는다(두 번째 방어선)', () => {
     const foreign = message('m-foreign', '2026-08-20T10:00:00', '남', '남의 대화', { coupleId: COUPLE_B })
     const result = run(
-      { kind: 'excerpts', main: [{ context: 'c', turns: [{ messageId: 'm-foreign' }] }], sub: [] },
+      { kind: 'excerpts', main: [{ context: 'c', turns: [{ messageId: 'm-foreign' }], conflict: false }], sub: [] },
       { ...INPUT, messages: [...CHAT_MESSAGES, foreign] },
     )
     expect(result.ok).toBe(false)
@@ -309,7 +314,7 @@ describe('17-4 응답 처리 - ID 해석 (r43·r44, 판정은 골격)', () => {
   it('기간 밖(끝 배타) 메시지를 참조하면 막는다', () => {
     const outside = message('m-late', '2026-09-01T00:00:00', '세준', '다음 달 첫 순간')
     const result = run(
-      { kind: 'excerpts', main: [{ context: 'c', turns: [{ messageId: 'm-late' }] }], sub: [] },
+      { kind: 'excerpts', main: [{ context: 'c', turns: [{ messageId: 'm-late' }], conflict: false }], sub: [] },
       { ...INPUT, messages: [...CHAT_MESSAGES, outside] },
     )
     expect(result.ok).toBe(false)
@@ -318,7 +323,7 @@ describe('17-4 응답 처리 - ID 해석 (r43·r44, 판정은 골격)', () => {
 
   it('다른 종류(photo·date)의 id로는 메시지를 가리킬 수 없다 - 종류가 맞아야 한다', () => {
     // 'd-1'은 입력 메시지에 없으므로 존재하지 않는 ID로 처리된다.
-    const result = run({ kind: 'excerpts', main: [{ context: 'c', turns: [{ messageId: 'd-1' }] }], sub: [] })
+    const result = run({ kind: 'excerpts', main: [{ context: 'c', turns: [{ messageId: 'd-1' }], conflict: false }], sub: [] })
     expect(result.ok).toBe(false)
   })
 })
@@ -405,5 +410,70 @@ describe('17-4 저장 스키마는 모양만 본다 (17-0-8)', () => {
     const main = (derived.value as { payload: { main: Array<{ attribution: { display: string }; turns: Array<{ text: string }> }> } }).payload.main
     expect(main[0].turns.map((t) => t.text)).toEqual(['첫째', '둘째'])
     expect(main[0].attribution.display).toBe('첫째 표기')
+  })
+})
+
+describe('84-e 자기 점검 - 다툼 · 화해 맥락 표시 (R137-3 ① · MASTER 17-4 · §17-0-9-F-2)', () => {
+  const main = (ids: string[], conflict: boolean, context = '점심시간에 오간 대화') => ({
+    context,
+    turns: ids.map((messageId) => ({ messageId })),
+    conflict,
+  })
+  const sub = (messageId: string, conflict: boolean) => ({ messageId, conflict })
+
+  it('표시(true)된 대화 · 한 줄은 빠지고 나머지만 저장된다', () => {
+    const result = run({
+      kind: 'excerpts',
+      main: [main(['m-1', 'm-2'], false), main(['m-4', 'm-5'], true)],
+      sub: [sub('m-3', false), sub('m-6', true)],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.content.payload.main).toHaveLength(1)
+    expect(result.content.payload.main[0].turns.map((t) => t.messageId)).toEqual(['m-1', 'm-2'])
+    expect(result.content.payload.sub.map((s) => s.messageId)).toEqual(['m-3'])
+    expect(JSON.stringify(result.content)).not.toContain('야 왜 답장 안 해')
+    expect(JSON.stringify(result.content)).not.toContain('conflict')            // 표시 칸은 저장하지 않는다
+  })
+
+  it('뺀 줄은 검사하지 않는다 - 표시된 대화의 정황이 규칙에 어긋나도 남은 줄이 맞으면 통과', () => {
+    const result = run({ kind: 'excerpts', main: [main(['m-1'], false), main(['m-4'], true, '서로 다툰 날이었다')], sub: [] })
+    expect(result.ok).toBe(true)
+  })
+
+  it('표시 칸이 빠진 줄 = 형식 오류(schema_invalid) - 대화든 한 줄이든', () => {
+    const noMainFlag = run({ kind: 'excerpts', main: [{ context: '점심시간에 오간 대화', turns: [{ messageId: 'm-1' }] }], sub: [] })
+    expect(noMainFlag.ok).toBe(false)
+    if (!noMainFlag.ok) expect(noMainFlag.reason).toBe('schema_invalid')
+    const noSubFlag = run({ kind: 'excerpts', main: [main(['m-1'], false)], sub: [{ messageId: 'm-3' }] })
+    expect(noSubFlag.ok).toBe(false)
+    if (!noSubFlag.ok) expect(noSubFlag.reason).toBe('schema_invalid')
+    const notBoolean = run({ kind: 'excerpts', main: [{ ...main(['m-1'], false), conflict: 'no' }], sub: [] })
+    expect(notBoolean.ok).toBe(false)
+  })
+
+  it('대화가 모두 표시되면 최소 분량(대화 1개) 미달 - 명시적 빈 결과와 같은 insufficient_input(한 줄이 남아도)', () => {
+    const result = run({ kind: 'excerpts', main: [main(['m-4', 'm-5'], true)], sub: [sub('m-3', false)] })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('insufficient_input')
+  })
+
+  it('골격: 표시 칸이 두 번 빠지면 재요청 1회 뒤 schema_invalid로 빠진다 · 모두 표시면 재요청 없이 insufficient_input', async () => {
+    const missing = JSON.stringify({ kind: 'excerpts', main: [{ context: '점심시간에 오간 대화', turns: [{ messageId: 'm-1' }] }], sub: [] })
+    const c1 = scriptedLlmClient([missing, missing])
+    const r1 = await runCornerModule(sweetWordsModule, { input: INPUT, context: MONTHLY_CONTEXT, llmClient: c1 })
+    expect(r1).toMatchObject({ outcome: 'failure', reason: 'schema_invalid', llmCallAttempts: 2 })
+    const allFlagged = JSON.stringify({ kind: 'excerpts', main: [main(['m-4'], true)], sub: [] })
+    const c2 = scriptedLlmClient([allFlagged])
+    const r2 = await runCornerModule(sweetWordsModule, { input: INPUT, context: MONTHLY_CONTEXT, llmClient: c2 })
+    expect(r2).toMatchObject({ outcome: 'failure', reason: 'insufficient_input', llmCallAttempts: 1 })
+  })
+
+  it('프롬프트: 표시 칸 지시와 출력 형식에 conflict가 있다(같은 호출 - 추가 호출 0)', () => {
+    const req = sweetWordsModule.buildRequest(INPUT, MONTHLY_CONTEXT)
+    const system = req.system.map((b) => b.text).join('\n')
+    expect(system).toContain('conflict(자기 점검)')
+    expect(system).toContain('"conflict":false}],"sub":[{"messageId":"입력의 id","conflict":false}]')
+    expect(system).toContain('확신이 서지 않으면 true')
   })
 })

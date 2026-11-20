@@ -177,12 +177,14 @@ describe('17-5 응답 처리 - 저장 내용', () => {
     expect(messageArticle.evidence).toEqual([
       {
         type: 'message',
+        messageId: 'm-1',   // 84-e(R137-1)
         at: '2026-08-22T09:20:00+09:00',
         excerpt: '오늘 비 온대. 우산 챙겼어?',
         attribution: { display: '2026.08.22 09:20, 아침 대화 중', at: '2026-08-22T09:20:00+09:00', source: 'chat' },
       },
       {
         type: 'message',
+        messageId: 'm-2',
         at: '2026-08-22T09:21:30+09:00',
         excerpt: '응 챙겼어. 너도 감기 조심해',
         attribution: { display: '2026.08.22 09:21, 아침 대화 중', at: '2026-08-22T09:21:30+09:00', source: 'chat' },

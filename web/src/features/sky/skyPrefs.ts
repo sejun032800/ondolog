@@ -1,5 +1,6 @@
 /**
  * 85- 하늘 사람 설정 - **기기에만**(MASTER 9-8-4 "값은 기기에만" · 보드 17-c "두 토글 값은 기기에만 저장"). 서버 쓰기 0.
+ *  - 84-e: 유성 떨어뜨리기(H01 OUR SKY 첫 줄, 기본 켬 - 현재 H01 보드).
  *  - 별 반짝임(H01 OUR SKY, 기본 켬) · 둘러보기 처음 안내(C10)를 봤음 · 끌기 힌트(C08-alt)를 봤음 · iOS 움직임 권한을 거부했음(C09 다시 안 띄움).
  *  - 저장 = 기기 저장 `skypref`(81- 모양 버전 · 읽을 때 검사, 사용자 키). 로그아웃 · 탈퇴 요청 · 계정 전환 때 지워진다(`deviceCache.ts`).
  *  - **센서 값은 저장하지 않는다**(이 파일은 켬/끔 · 봤음 · 거부만 안다).
@@ -9,17 +10,19 @@ import { create } from 'zustand'
 import { readCache, writeCache } from '../../cache/deviceCache'
 
 export interface SkyPrefs {
+  meteor: boolean
   twinkle: boolean
   guideSeen: boolean
   dragHintSeen: boolean
   motionDenied: boolean
 }
 
-export const DEFAULT_SKY_PREFS: SkyPrefs = { twinkle: true, guideSeen: false, dragHintSeen: false, motionDenied: false }
+export const DEFAULT_SKY_PREFS: SkyPrefs = { meteor: true, twinkle: true, guideSeen: false, dragHintSeen: false, motionDenied: false }
 
 /** 이 사용자의 하늘 설정(없거나 깨졌으면 기본값 - 깨진 값은 기기 저장이 버린다). */
 export function readSkyPrefs(userId: string | null): SkyPrefs {
   return {
+    meteor: readCache<{ on: boolean }>(userId, 'skypref', 'meteor')?.on ?? DEFAULT_SKY_PREFS.meteor,
     twinkle: readCache<{ on: boolean }>(userId, 'skypref', 'twinkle')?.on ?? DEFAULT_SKY_PREFS.twinkle,
     guideSeen: readCache<{ seen: boolean }>(userId, 'skypref', 'guide')?.seen ?? false,
     dragHintSeen: readCache<{ seen: boolean }>(userId, 'skypref', 'dragHint')?.seen ?? false,
@@ -32,6 +35,7 @@ interface SkyPrefStore {
   prefs: SkyPrefs
   load: (userId: string | null) => void
   setTwinkle: (on: boolean) => void
+  setMeteor: (on: boolean) => void
   markGuideSeen: () => void
   markDragHintSeen: () => void
   markMotionDenied: () => void
@@ -45,6 +49,10 @@ export const useSkyPrefStore = create<SkyPrefStore>((set, get) => ({
   setTwinkle: (on) => {
     writeCache(get().userId, 'skypref', { on }, 'twinkle')
     set((s) => ({ prefs: { ...s.prefs, twinkle: on } }))
+  },
+  setMeteor: (on) => {
+    writeCache(get().userId, 'skypref', { on }, 'meteor')
+    set((s) => ({ prefs: { ...s.prefs, meteor: on } }))
   },
   markGuideSeen: () => {
     writeCache(get().userId, 'skypref', { seen: true }, 'guide')

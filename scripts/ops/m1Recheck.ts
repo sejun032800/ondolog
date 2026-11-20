@@ -7,6 +7,9 @@
  * - 실행 기록의 LLM 출력(시도 원문)을 코너의 LLM 출력 스키마로 읽은 뒤 코너가 만드는 내용 검사를 그대로 부른다 -
  *   검사 코드를 따로 두지 않는다(3차 뒤에도 같은 명령).
  * - 결과는 칸 · 규칙 · 짧은 표기(시각 · 요일 낱말)만이다. 문장은 내지 않는다.
+ * - 84-e(R137-3 ①): 다정한 말 출력에 자기 점검 칸(`conflict`)이 생겼다. 그 전 실행(2차 · 3차)의 출력에는 이 칸이 없어 **지금 검증기로는
+ *   형식 오류**(`schema_invalid` → 재요청 1 → 빠짐)다. recheck는 그 사실을 행마다 `legacyNoFlag`로 **표시**하고 세며(건너뛰지 않는다),
+ *   84-c 내용 검사는 계속 보이도록 빠진 칸만 `false`로 채워 읽는다 - 채운 값은 이 표 안에서만 쓰고 저장 · 판정에 쓰지 않는다.
  * 이 파일은 Deno API를 쓰지 않는다(시험이 그대로 부른다). 파일 읽기 · 쓰기는 하네스가 한다.
  */
 
@@ -55,6 +58,17 @@ export interface RecheckRow {
   /** LLM 출력 스키마로 읽혔는가(아니면 내용 검사 대상이 아님). */
   readonly parsed: boolean
   readonly violations: readonly string[]
+  /** 84-e - 자기 점검 칸(`conflict`)이 없는 옛 다정한 말 출력(지금 검증기로는 형식 오류). 내용 검사는 칸을 false로 채워 읽은 결과다. */
+  readonly legacyNoFlag?: boolean
+}
+
+/** 84-e 전 다정한 말 출력에 빠진 자기 점검 칸만 `false`로 채운 사본(recheck 표 전용). 이미 있는 값은 그대로. */
+export function withLegacySelfCheck(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || (value as { kind?: unknown }).kind !== 'excerpts') return value
+  const v = value as { main?: unknown; sub?: unknown }
+  const fill = (items: unknown) =>
+    Array.isArray(items) ? items.map((it) => (typeof it === 'object' && it !== null && !('conflict' in it) ? { ...it, conflict: false } : it)) : items
+  return { ...v, main: fill(v.main), sub: fill(v.sub) }
 }
 
 /** 위반 한 줄의 종류. */
@@ -86,7 +100,15 @@ export async function recheckRecords(records: readonly RunRecord[]): Promise<Rec
         rows.push({ model: rec.model, corner: rec.corner, run: rec.run, attempt: a.index, published, parsed: false, violations: [] })
         return
       }
-      const parsed = spec.llmSchema.safeParse(parsedValue)
+      let parsed = spec.llmSchema.safeParse(parsedValue)
+      let legacyNoFlag = false
+      if (!parsed.success && rec.corner === 'sweet_words') {
+        const legacy = spec.llmSchema.safeParse(withLegacySelfCheck(parsedValue))
+        if (legacy.success) {
+          parsed = legacy
+          legacyNoFlag = true
+        }
+      }
       if (!parsed.success || spec.contentChecks === undefined) {
         rows.push({ model: rec.model, corner: rec.corner, run: rec.run, attempt: a.index, published, parsed: false, violations: [] })
         return
@@ -99,6 +121,7 @@ export async function recheckRecords(records: readonly RunRecord[]): Promise<Rec
         published,
         parsed: true,
         violations: [...spec.contentChecks(parsed.data)],
+        ...(legacyNoFlag ? { legacyNoFlag: true } : {}),
       })
     })
   }
@@ -126,5 +149,11 @@ export function renderRecheck(rows: readonly RecheckRow[]): string {
   }
   const total = rows.reduce((n, r) => n + r.violations.length, 0)
   out.push('', `합계: 시도 ${rows.length} · 위반 ${total}`)
+  const legacy = rows.filter((r) => r.legacyNoFlag === true)
+  if (legacy.length > 0) {
+    out.push(
+      `84-e 자기 점검 칸(conflict) 없는 옛 다정한 말 시도: ${legacy.length}(그중 실림 ${legacy.filter((r) => r.published).length}) - 지금 검증기로는 형식 오류(schema_invalid → 재요청 1 → 빠짐). 위 내용 검사 수는 빠진 칸만 false로 채워 읽은 결과다`,
+    )
+  }
   return out.join('\n')
 }

@@ -88,6 +88,8 @@ const CASES: Case[] = [
   { name: '둘러보기 안내 봤음', kind: 'skypref', scope: 'guide', good: { seen: true }, missing: {}, wrongType: { seen: 1 } },
   { name: '끌기 힌트 봤음', kind: 'skypref', scope: 'dragHint', good: { seen: true }, missing: {}, wrongType: { seen: 'y' } },
   { name: '움직임 권한 거부', kind: 'skypref', scope: 'motion', good: { denied: true }, missing: {}, wrongType: { denied: null } },
+  { name: '유성 떨어뜨리기(84-e)', kind: 'skypref', scope: 'meteor', good: { on: false }, missing: {}, wrongType: { on: 1 } },
+  { name: '유성 기록(84-e) - 메시지 id · 날짜만', kind: 'meteor', scope: 'c1', good: { caught: ['m1', 'm2'], lastDay: '2026-10-20' }, missing: { caught: [] }, wrongType: { caught: [1], lastDay: null } },
 ]
 
 describe('81- 범주마다: 깨진 값 · 옛 버전 -> 그 범주만 버림 · cache_fail 1회', () => {

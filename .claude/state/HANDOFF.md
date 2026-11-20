@@ -11,6 +11,66 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `84-e` 다정한 말 자기 점검 · 메시지 id 저장 · 유성(C01 · C08 · C03) (메인 세션, 2026-11-20, 위임문 `phase-7/84-e-dispatch-selfcheck-id-meteor.md` · 출처 ROADMAP r137 R137-1~5 · MASTER r80 9-8-4) - 완료 · 멈춤 0 (미커밋)
+
+**이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님.**
+시작 확인: `DOC_REVISION: 2026-11-20-r138` · 84-d · 84-d2 커밋 들어감(작업 트리 깨끗) - 통과. 위임 0(메인 세션 직접). LLM 0 · 원격 0(허용 질의 없음) · **마이그레이션 0** · 함수 배포 0 · 새 패키지 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 0 · 커밋 0 · **하늘 서버 쓰기 0**.
+
+### ① 다정한 말 자기 점검 (R137-3 ①)
+| 무엇 | 고친 곳 | 시험 |
+|---|---|---|
+| 응답 형식: 고른 대화(main) · 한 줄(sub)마다 `conflict: boolean`(**필수**) - 같은 호출 안 · 추가 호출 0 | `supabase/functions/_shared/corners/sweetWords.ts:71`(`ConflictFlag`) · 스키마 main/sub | `sweetWords.test.ts` "84-e 자기 점검" 6건 |
+| 엔진이 표시(true)된 줄을 뺀다 - **Zod 바로 뒤, 값 · 내용 검사 · ID 해석 · 저장보다 먼저**(뺀 줄은 검사도 저장도 0) | 골격 훅 `cornerPipeline.ts:340`(`dropFlagged`) · `:572` · `:787` · `:898` / 코너 `sweetWords.ts:101` `dropConflictLines` | "표시된 대화 · 한 줄은 빠지고 나머지만 저장" · "뺀 줄은 검사하지 않는다" |
+| 표시 칸이 빠진 줄 = 형식 오류(`schema_invalid` → 지금 재요청 1회 → 빠짐) | Zod(필수 boolean) · 재요청 정책은 그대로(`cornerPipeline.ts` `SKIP_REASON_RETRY_POLICY`) | "표시 칸이 빠진 줄 = 형식 오류" · "골격: 두 번 빠지면 재요청 1회 뒤 schema_invalid" |
+| 빼고 남은 대화 0개 = 최소 분량(대화 1개, CORNER_CONTENT §6-1 · 저장 스키마 `storedContent.ts` `main.min(1)`) 미달 → 지금의 "모자라면" 규칙 = 명시적 빈 결과와 같은 `insufficient_input`(`cornerPipeline.ts:582-583` 경로) · 한 줄이 남아도 | `sweetWords.ts:107` `isSweetWordsEmpty` · `:266` | "대화가 모두 표시되면 … insufficient_input" · 골격 "재요청 없이 insufficient_input" |
+| 프롬프트: 지시 한 줄 + 출력 형식 예에 `"conflict":false` · "확신이 서지 않으면 true" | `sweetWords.ts:206` · 출력 형식 줄 | "프롬프트: 표시 칸 지시와 출력 형식" |
+| 가짜 출력 · 샘플 출력에 칸 추가 | `scripts/ops/sampleOutputs.ts` · 시험 4파일 | jest 전체 |
+| 문서 | `docs/ONDOLOG_CORNER_CONTENT.md` §6-2 "자기 점검" 줄 · §6-1 `messageId` | - |
+- 예문 규칙(R134-1): 새 예문 문장 0(JSON 형식 줄만) · 금지 키 검사에 `conflict` 안 걸림(`forbiddenKeys.ts` 부분 문자열 목록 밖).
+
+### recheck (2차 결과 · ① 칸 없음 처리)
+- 결과: **시도 20 · 위반 34 - 84-c2 · 84-d와 같음.** 더한 줄: "84-e 자기 점검 칸 없는 옛 다정한 말 시도: **6(그중 실림 6)** - 지금 검증기로는 형식 오류(schema_invalid → 재요청 1 → 빠짐)".
+- 결정: 옛 결과는 **건너뛰지 않고 표시**한다(`legacyNoFlag`). 84-c 내용 검사가 계속 보이도록 빠진 칸만 `false`로 채워 읽는다 - 이 표 안에서만, 저장 · 판정에 쓰지 않는다(`scripts/ops/m1Recheck.ts:66` `withLegacySelfCheck` · `:109`). 시험 `scripts/ops/recheck84e.test.ts` 3건.
+- 뜻: 2차 결과를 지금 엔진에 다시 넣으면 다정한 말 6회 모두 첫 응답이 형식 오류 → 재요청. 최종 실측(R135-4)에서 새 프롬프트로 다시 잰다.
+
+### ② 코너 내용에 메시지 id (R137-1)
+- 다정한 말 저장 내용 `turns[].messageId` · `sub[].messageId`(`sweetWords.ts:166` · sub 줄) + 원문을 싣는 이달의 우리 근거 `evidence[type=message].messageId`(`thisMonth.ts:195`). 저장 스키마는 **선택 칸**(`src/types/corners/storedContent.ts:63` · `:192` · `:228` - 84-e 전 호에는 없다).
+- **마이그레이션 0 확인**: `corners.content`는 jsonb(`supabase/migrations/009_magazine.sql:67`). 앱 읽기 권한도 그대로 - `corners_select`(커플 · `status='published'`, `012_rls_policies.sql:184-186`, 발행 때 `022_publish_path.sql:149`가 published로) · `messages_select`(커플 · `deleted_at is null`, `012:142-143`). 새 RPC 0.
+- 옛 호(id 없음): **보낸 사람(이름) + 시각(그 초 안)**으로 찾고 못 찾으면 건너뜀(`web/src/features/sky/meteorData.ts:79` `findLegacyMessage`). 시험 `meteor84e.vitest.tsx` "id로 읽고 · 옛 호는 …".
+- 저장 모양 시험 갱신: `sweetWords.test.ts` §6-3 예시 · sub 키 · `thisMonth.test.ts` 근거.
+
+### ③ 유성 (R137-1 · R137-2 · MASTER 9-8-4 r80 · 보드 17-b · 17-d)
+| 항목 | 고친 곳 | 시험 |
+|---|---|---|
+| 규칙(순수): 한 줄 선택만 · 7일 지난 말 · 하루(KST) 1번 · 놓친 말 다음 날 다시 · 잡은 말 다시 0 · 후보 0 → 없음 · 설정 끔 → 없음 · 고르기 = (커플+사람+날짜) 해시(난수 0) · 4~10초 · 25~35° · 누를 수 있는 시간 3초 / 줄인 모션 5.2초 | 새 `web/src/features/sky/meteorRules.ts`(`MIN_AGE_MS` :31 · `planMeteor` :103) | `meteor84e.vitest.tsx` 규칙 6건(7일 경계 · KST 자정 · 결정적) |
+| 읽기: 발행된 다정한 말 코너의 `sub[]`만 → **지금 살아 있는 메시지 행**(코너 사본 원문 0) · 숨김 · 탈퇴로 행이 없으면 건너뜀 · 질의는 select뿐 | 새 `meteorData.ts:90` `fetchMeteorCandidates` | 읽기 2건 · 화면 "숨김 · 탈퇴로 행이 없으면 건너뜀" · "네트워크 쓰기 0(런타임)" · 정적 "서버 쓰기 · RPC 0" |
+| 떨어뜨리기: 하늘이 준비된 뒤(별 읽기 끝) 4~10초 · 그때 보여도 되는 화면이면(C01 이번 달 · C08/C08-alt) · 지난 하늘 · 별 시트 · 사진 · 권한 앞 화면 · 빈 하늘이면 0 · 떨어지는 중 그쪽으로 가면 사라짐(놓침) · 앱이 가려지면 멈춤 | 새 `Meteor.tsx:58` `useMeteorDrop` · `SkyScreen.tsx:247` · `:389` | "4~10초 안에 떨어지고 …" · "놓치면(3초) … 다음 날 … 잡은 말 0" · "지난 하늘 0" · "C08 둘러보기에서도" |
+| 모양 · 모션(보드 17-d): 오른쪽 위 → 왼쪽 아래 · 흰 꼬리 · 흰 점 + rose 후광 · 머리 2.4초 `cubic-bezier(.3,0,.7,1)` · 꼬리 0.4초 · 사라짐 0.6초 ease-in(꼬리는 머리 쪽으로) · 누르는 범위 지름 64pt 원이 머리를 따라감 · 줄인 모션 = 제자리 빛(흰 점 + 후광 + 바깥 고리) 0.6/4/0.6 · transform · opacity만 · 한 번에 하나 | `Meteor.tsx:117` `MeteorLayer` · `web/src/styles.css` 끝 "84-e" 묶음 | "줄인 모션 - 제자리 빛 5.2초" |
+| C03 떨어진 말(새로): FALLEN WORDS · "{n} / {N}"(지금 살아 있는 잡은 말 전체 중 위치 · 방금 잡은 말이 N) · 원문(자르지 않음 · 길면 스크롤) · 출처 "{이름} · {M}월 {D}일 {HH:MM}"(앱 하늘 화면 24시간 표기 `SkyScreen.tsx` `fmtTime`) · ‹ 이전 말 / 다음 말 ›(끝이면 흐림) · "지나가는 유성을 누르면 떠요" · ✕ · 뒤로 | `Meteor.tsx:161` `FallenWords` | 화면 1건 · 스모크 2건 |
+| 설정: OUR SKY 첫 줄 "유성 떨어뜨리기 · 다정한 말이 유성으로 떨어져요"(현재 H01 보드 `screens/H01.jpg`) · 기본 켬 · `skyPrefs` 키 하나(`skypref:meteor`, 기기에만) | `SettingsView.tsx:125` · `skyPrefs.ts` | `settings.vitest.tsx` OUR SKY 시험 · 스모크 |
+| 기기 저장: 새 범주 `meteor`(81- 모양 버전 1 · 읽을 때 검사, scope = 커플 id) = **잡은 말의 메시지 id(잡은 순서) + 마지막으로 떨어진 날짜만 · 원문 0** · `COUPLE_KINDS`에 넣음 → 로그아웃 · 탈퇴 요청 · 계정 전환 · 해제 요청/완료 때 지워짐 · `clearCoupleCache` 정확 일치(`skypref:meteor` 토글은 남음) | `deviceCache.ts:23` · `:25` · `cacheShapes.ts`(`meteorMemory` · `CACHE_VERSION.meteor`) · `meteorData.ts:115` | "기기 저장" 3건 · `cacheShape81.vitest.tsx` 범주 2건 · 화면 시험 "원문이 기기 저장소에 0" |
+| 성능 | transform · opacity · 보일 때만 · 한 번에 하나 · `paused` | **V40에서만 확인됨(폰)** |
+- 스모크(`web/smoke/screens.smoke.ts`): "84-e 유성: C01 제자리 빛(줄인 모션) -> C03 · 390 / 360 폭" · "움직이는 유성(기본 모션) -> 누르면 C03" · "84-e 설정 H01 유성 줄" - chromium · webkit 모두 통과. 유성 재료는 `?meteor=1`일 때만(`smoke/seed.ts` `METEOR_TEXT` · 8일 전 메시지 + 발행된 다정한 말 코너) - 다른 스모크 화면에 유성이 끼지 않게.
+
+### 폰에서만 확인되는 것
+- V40 실기기에서 유성이 끊김 없이 지나가는지(웹뷰 합성 · 꼬리 그라디언트) · 움직이는 머리를 손가락으로 잡을 수 있는지(64pt 원) · Android "애니메이션 삭제"(줄인 모션)에서 제자리 빛 · C03 안 긴 원문 스크롤 · 기기 뒤로 가기로 C03 닫힘 · iOS(WKWebView)는 Mac 뒤.
+
+### 결정 기록 (출처 R137-1~5 · MASTER 9-8-4 r80)
+1. 자기 점검 칸 이름 `conflict`(boolean, 필수) · "확신이 서지 않으면 true"(빼는 쪽 - "다정한지 확신이 서지 않는 발화는 고르지 않는다"와 같은 방향) · 표시 칸은 저장하지 않는다.
+2. 빼기는 골격의 선택 훅(`dropFlagged`) - Zod 직후. 다른 코너는 쓰지 않는다(없으면 그대로).
+3. 대화가 다 빠지면 한 줄이 남아도 `insufficient_input`(최소 분량 = 대화 1개).
+4. recheck는 옛 결과를 표시(건너뜀 아님) · 빠진 칸만 false로 채워 내용 검사를 계속 본다.
+5. 메시지 id는 다정한 말 턴 · 한 줄 + 이달의 우리 메시지 근거. 옛 호는 보낸 사람 이름 + 그 초 안의 시각으로 찾는다(이름은 지금 프로필 이름 - 이름을 바꾼 사람의 옛 호 말은 못 찾고 건너뛴다).
+6. 유성 기록은 **커플 자료 범주**(`COUPLE_KINDS`)로 둔다 - 위임서 "사람 설정과 같은 기본"은 로그아웃 · 계정 전환 삭제는 같고, 메시지 id가 커플 자료라 해제 때도 지운다(MASTER "계정 전환 때 처음부터"보다 넓게 지움 - PE 판단으로 사람 범주로 바꾸려면 `COUPLE_KINDS`에서 한 단어).
+7. **설정 줄은 줄인 모션에서도 켜고 끌 수 있게 둔다** - 위임서는 "반짝임 줄과 같은 비활성 규칙"이라 했지만, MASTER 9-8-4 · 보드 17-b는 줄인 모션에서도 유성이 제자리 빛으로 **떨어진다**고 정해 줄을 끈 모양으로 두면 화면과 어긋난다. PE 확인 필요(바꾸려면 `SettingsView.tsx` 한 줄).
+8. C03 "채팅에서 보기"는 **숨김**(지운 · 불러오지 않은 옛 메시지로 갈 때의 동작이 정해진 곳이 없다 - HANDOFF 84-d0 열린 질문 6).
+9. C03 "{n} / {N}" = 잡은 말 중 **지금 행이 살아 있는 것**만 센다(숨김 · 탈퇴로 지워진 말은 C03에도 나오지 않는다).
+10. C03 시각 = 앱 하늘 화면의 24시간 `HH:MM`(위임서 "앱 규칙") - 보드 그림의 "밤 11시 12분"과 다르다(디자인 확인 필요 시 `meteorRules.ts` `fallenMeta` 한 곳).
+11. C03 전환 = 앱에 1단계 C03이 없어 C05(사진)와 같은 fadeIn 260ms.
+12. 유성 시각 기준 = "하늘이 준비된 뒤" = 별 읽기가 끝나고(`allLoaded`) 후보 읽기가 끝난 때부터 4~10초.
+
+검증: **`npm run gate` 통과 136.2초**(web tsc · Vitest **70 파일** · 법무 · smoke **38/38**) - 그 앞 1회는 온보딩 스모크 1건 보임 시간 초과(84-e와 무관한 화면 · 다음 회 통과, R123-4 흔들림 목록과 같은 종류) · 루트 tsc 0 · jest **125/2220**(이전 124/2211 · PGlite 포함) · deno check 6개 통과 · `recheck` 위 숫자 · Python **356 OK**(445초, 회귀 0) · `build` · `build:trial` · `cap sync android`(맨 끝 한 번 · `web/android` 추적 변경 0). 키 · 주소 · id · 이메일 · 생성 문장 0 · 새 파일 이름 ASCII.
+
 ## `84-d2` 높이 표 환경 실측 · 이름 없는 경유지 (메인 세션, 2026-11-20, 위임문 `phase-7/84-d2-dispatch-measure-env-unnamed-stop.md` · 출처 ROADMAP r138 R138-1~6) - 완료 · 멈춤 0 (미커밋)
 
 시작 확인: `DOC_REVISION: 2026-11-20-r138` · 84-d 2묶음 커밋 들어감(`render/heights.py` · `valueChecks.ts` 30자 추적 중, 작업 트리 깨끗) - 통과. LLM 0 · 원격 0(허용 질의 없음) · 마이그레이션 0 · 새 패키지 0 · `web/` 0 · 엔진 0 · 커밋 0 · **디자인 도구 변경 0**(`render/issue/tools/measure.py` 해시 `66e6a79` 그대로, 실행만) · `render/issue/` 다른 틀 파일 0 · **여유 줄 0** · `docs/design/nocturne/render/issue/` 사본 0(디자인 원본 그대로).

@@ -31,7 +31,10 @@ const MEMOS = ['비 온 뒤라 길이 반짝였다', '창가 자리가 비어 �
 const PLACES = ['호숫가 산책로', '골목 끝 빵집', '언덕 위 전망대', '작은 서점', '강변 벤치']
 const LINES = ['오늘 몇 시에 끝나?', '여섯 시쯤!', '그럼 역 앞에서 보자', '좋아 우산 챙겨', '사진 보낼게', '도착했어', '천천히 와', '저녁 뭐 먹을까', '국수 어때', '좋지']
 
-export function makeSeed(withSession: boolean): { me: string | null; tables: Record<string, Row[]> } {
+/** 84-e 유성 스모크(`?meteor=1`)의 떨어질 말 - 8일 전 · 발행된 호의 다정한 말 한 줄 선택. 다른 스모크 화면에는 넣지 않는다(유성이 4~10초 뒤 화면에 끼지 않게). */
+export const METEOR_TEXT = '오늘 하루도 고생 많았어. 집에 가면 따뜻하게 자'
+
+export function makeSeed(withSession: boolean, opts: { meteor?: boolean } = {}): { me: string | null; tables: Record<string, Row[]> } {
   if (!withSession) return { me: null, tables: {} }
   const profiles: Row[] = [
     { id: ME, display_name: NAME_ME, gender: 'female', birth_date: '1997-03-14', mbti: 'ENFP', onboarding_step: 3, marketing_agreed_at: null, deleted_at: null, purge_scheduled_at: null, biometric_consent_at: null, biometric_consent_revoked_at: null, reference_photo_path: null },
@@ -75,6 +78,14 @@ export function makeSeed(withSession: boolean): { me: string | null; tables: Rec
     })
   }
 
+  const corners: Row[] = []
+  if (opts.meteor) {
+    const at = kstAt(8, 22, 10)
+    messages.unshift({ id: 'smoke-msg-meteor', couple_id: COUPLE, sender_id: YOU, body: METEOR_TEXT, media_path: null, message_type: 'text', sent_at: at, created_at: at, read_at: at, client_msg_id: 'smoke-cm-meteor', deleted_at: null })
+    corners.push({ id: 'smoke-corner-sw', couple_id: COUPLE, issue_id: 'smoke-issue-1', corner_type: 'sweet_words', status: 'published',
+      content: { schemaVersion: '1.0', header: {}, payload: { warmthIndex: null, main: [], sub: [{ messageId: 'smoke-msg-meteor', speaker: NAME_YOU, text: METEOR_TEXT, attribution: { display: 'x', at, source: 'chat' } }] } } })
+  }
+
   const daily_temperature: Row[] = []
   for (let ago = 1; ago <= 30; ago++) daily_temperature.push({ couple_id: COUPLE, date_on: kstDay(ago), temperature: 36.5 + ((ago * 37) % 20) / 10 })
 
@@ -90,7 +101,7 @@ export function makeSeed(withSession: boolean): { me: string | null; tables: Rec
     me: ME,
     tables: {
       profiles, couples, personality_profiles, personality_assessments, dates, date_stops, data_entries, messages, daily_temperature, issues_public,
-      stories: [], corners: [], couple_dissolutions: [], push_tokens: [],
+      stories: [], corners, couple_dissolutions: [], push_tokens: [],
       notification_settings: [{ user_id: ME, messages: true, changes: true }],
     },
   }

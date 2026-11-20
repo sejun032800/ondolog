@@ -16,7 +16,7 @@ const params = new URLSearchParams(location.search)
 const world = params.get('world') === 'onboarding' ? 'onboarding' : 'account'
 // 앱의 `App`이 원래 받는 `initialPath`(시험이 쓰는 것과 같은 입구)만 넘긴다 - 로그인 전 세계에서 동의 화면으로 바로 갈 때.
 const initialPath = params.get('path') ?? undefined
-const seed = makeSeed(world === 'account')
+const seed = makeSeed(world === 'account', { meteor: params.get('meteor') === '1' })   // 84-e 유성 스모크만
 // 80-: 시험이 RPC 호출(특히 오류 기록 `log_app_error`)을 읽는 곳 - 스모크 빌드에만 있다.
 const rpcLog: { fn: string; args: unknown }[] = []
 ;(window as unknown as Record<string, unknown>).__ONDOLOG_SMOKE_RPC__ = rpcLog

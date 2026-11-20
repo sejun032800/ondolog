@@ -923,3 +923,43 @@ input { font: inherit; }
 .setSkyRow.off { opacity: .4; }
 .setNote { margin: -4px 0 0; padding: 0 4px; font-size: 13px; line-height: 19px; }
 @media (prefers-reduced-motion: reduce) { .skyTour.enter, .skyCompass, .skyGuide, .skyDragHint, .skyTourChip { animation-duration: 150ms !important; } }
+
+/* 84-e 유성(C01 · C08) · 떨어진 말(C03) - MASTER 9-8-4 r80 · 보드 17-b · 17-d. 애니메이션은 transform · opacity만(V40). */
+.meteorLayer { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+.meteorLayer.paused, .meteorLayer.paused * { animation-play-state: paused !important; }
+.meteorPath { position: absolute; left: 100%; width: 0; height: 0; }
+.meteorHead { position: absolute; left: -32px; top: -32px; width: 64px; height: 64px; border-radius: 50%; border: 0; padding: 0; background: transparent; pointer-events: auto;
+  animation: meteorMove 2400ms cubic-bezier(.3,0,.7,1) both, meteorFade 600ms ease-in 2400ms both; }
+.meteorHeadDot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 6px 2px rgba(255,255,255,.9), 0 0 18px 7px rgba(244,185,200,.55); }
+.meteorTail { position: absolute; left: 50%; top: 50%; width: var(--tail); height: 1.5px; margin-top: -.75px; transform-origin: 0 50%;
+  transform: rotate(var(--ang)) scaleX(0); background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(255,255,255,0));
+  animation: meteorTailGrow 400ms ease-out both, meteorTailShrink 600ms ease-in 2400ms forwards; }
+@keyframes meteorMove { from { transform: translate3d(0, 0, 0) } to { transform: translate3d(var(--dx), var(--dy), 0) } }
+@keyframes meteorFade { from { opacity: 1 } to { opacity: 0 } }
+@keyframes meteorTailGrow { from { transform: rotate(var(--ang)) scaleX(0) } to { transform: rotate(var(--ang)) scaleX(1) } }
+@keyframes meteorTailShrink { from { transform: rotate(var(--ang)) scaleX(1) } to { transform: rotate(var(--ang)) scaleX(0) } }
+/* 줄인 모션 - 제자리 빛: 나타남 0.6 · 머묾 4 · 사라짐 0.6 = 5.2초 */
+.meteorStill { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; border: 0; padding: 0; background: transparent; pointer-events: auto;
+  animation: meteorStill 5200ms linear both; }
+.meteorRing { position: absolute; inset: 16px; border-radius: 50%; border: 1px solid rgba(244,185,200,.45); }
+@keyframes meteorStill { 0% { opacity: 0 } 11.54% { opacity: 1 } 88.46% { opacity: 1 } 100% { opacity: 0 } }
+
+.fallen { position: absolute; inset: 0; z-index: 7; background: rgba(10,8,20,.94); display: flex; flex-direction: column;
+  padding: calc(var(--top) + 6px) 24px calc(var(--bot) + 16px); animation: fadeIn 260ms ease both; }
+.fallenHead { position: relative; display: flex; justify-content: center; min-height: 40px; }
+.fallenHead .skyClose { position: absolute; right: 0; top: 0; }
+.fallenHeadText { text-align: center; padding-top: 4px; }
+.fallenCount { margin-top: 4px; font-size: 11px; line-height: 14px; letter-spacing: 1px; color: var(--textMute); }
+.fallenArt { position: relative; height: 150px; flex: none; pointer-events: none; }
+.fallenArt .fallenTrail { position: absolute; left: 22%; top: 86%; width: 72%; height: 1.5px; transform-origin: 0 50%; transform: rotate(-34deg);
+  background: linear-gradient(90deg, rgba(244,185,200,.9), rgba(244,185,200,0)); }
+.fallenArt .meteorHeadDot { left: 22%; top: 86%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; }
+.fallenBody { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 4px 16px; }
+.fallenText { margin: 0; font-family: 'MaruBuri', serif; font-size: 26px; line-height: 40px; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.fallenMeta { margin: 18px 0 0; font-size: 13px; line-height: 18px; color: var(--textSub); }
+.fallenFoot { flex: none; }
+.fallenNav { display: flex; justify-content: space-between; }
+.fallenNavBtn { min-height: 44px; padding: 0 2px; border: 0; background: transparent; font-size: 13px; color: var(--text); }
+.fallenNavBtn:disabled { opacity: .35; }
+.fallenHint { margin: 4px 0 0; font-size: 12px; line-height: 16px; color: var(--textMute); }

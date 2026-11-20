@@ -90,7 +90,7 @@ describe('H01 · H02 설정 목록', () => {
     for (const l of labels) expect(screen.getByText(l)).toBeTruthy()
     // 78-: '알림'(H10)은 이제 갈 곳이 있다 - NOTIFICATIONS 묶음에 한 줄(아래 시험). 그 밖 숨김은 그대로.
     expect(screen.getByTestId('settings-row-notify').textContent).toContain('알림')
-    for (const hidden of ['구독', '사진 앱 연동', '데이터 내려받기', '빠진 지면', '생체정보', '오픈소스', '유성', '연결 해제', '회원 탈퇴']) {
+    for (const hidden of ['구독', '사진 앱 연동', '데이터 내려받기', '빠진 지면', '생체정보', '오픈소스', '연결 해제', '회원 탈퇴']) { // 84-e: '유성 떨어뜨리기'는 이제 OUR SKY 줄(아래 시험)
       expect(screen.queryByText(new RegExp(hidden))).toBeNull()
     }
   })
@@ -1146,7 +1146,7 @@ describe('85- H01 OUR SKY - 별 반짝임(기기에만)', () => {
       value: (q: string) => ({ matches: on && q.includes('reduce'), media: q, addEventListener: () => {}, removeEventListener: () => {} }),
     })
 
-  it('COUPLE 다음 · 제목 OUR SKY · "별 반짝임" + "하늘의 별이 천천히 숨 쉬어요"(R127-2) · 기본 켬 · "유성 떨어뜨리기" 줄 0', async () => {
+  it('COUPLE 다음 · 제목 OUR SKY · 84-e "유성 떨어뜨리기"(첫 줄, 기본 켬) + "별 반짝임" + "하늘의 별이 천천히 숨 쉬어요"(R127-2) · 기본 켬', async () => {
     settingsDb()
     await loadStores()
     render(<SettingsTab nav={makeFakeNav()} />)
@@ -1157,7 +1157,12 @@ describe('85- H01 OUR SKY - 별 반짝임(기기에만)', () => {
     expect(row.textContent).toContain('별 반짝임')
     expect(row.textContent).toContain('하늘의 별이 천천히 숨 쉬어요')
     expect(byId('settings-sky-twinkle').getAttribute('aria-checked')).toBe('true')
-    expect(screen.queryByText(/유성 떨어뜨리기/)).toBeNull()
+    // 84-e: 유성이 연결되어 현재 H01 보드 두 줄 - 유성 줄이 먼저
+    const meteor = byId('settings-row-sky-meteor')
+    expect(meteor.textContent).toContain('유성 떨어뜨리기')
+    expect(meteor.textContent).toContain('다정한 말이 유성으로 떨어져요')
+    expect(byId('settings-sky-meteor').getAttribute('aria-checked')).toBe('true')
+    expect(meteor.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('끄면 기기에만 저장(서버 쓰기 0) · 다시 켜짐', async () => {

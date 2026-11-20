@@ -22,7 +22,14 @@
  * - 대화 안 턴 순서: 시각 오름차순(같으면 LLM이 준 순서). 고르고 **배치**하는 일이다.
  * - 대화의 출처 표기(`attribution`): 그 대화 첫 턴 메시지의 표기. LLM이 정하지 않는다.
  * - 헤더·`warmthIndex`: 상수·입력.
+ * - 84-e(R137-1 ②): 저장 내용의 턴 · 한 줄에 **메시지 id**(`messageId`)를 함께 둔다(유성이 지금 살아 있는 메시지 행을 다시 읽는다).
  * 그 결과는 저장 스키마(`sweetWordsStoredSchema`, 모양만 본다)를 통과해야 한다.
+ *
+ * ── 자기 점검 (84-e, ROADMAP R137-3 ①) ─────────────────────────────────────
+ * 고른 대화(main)와 한 줄(sub)마다 LLM이 **같은 응답 안에서** `conflict`(다툼 · 화해 맥락인가, boolean)를 낸다. 낱말 규칙이 아니라
+ * LLM 판단이다(MASTER 17-4 · §17-0-9-F-2 r61). 골격의 `dropFlagged`가 `true`인 줄을 빼고(검사 · 저장 전), 칸이 빠진 줄은 LLM 출력
+ * 스키마가 막는다(`schema_invalid` → 기존 재요청 1회 → 빠짐). 빼고 남은 대화가 0개면 최소 분량(대화 1개, CORNER_CONTENT §6-1)에 못 미쳐
+ * 명시적 빈 결과와 같은 `insufficient_input`이다(`isExplicitEmpty`). 추가 호출 0.
  */
 
 import { z } from 'zod'
@@ -60,12 +67,18 @@ export interface SweetWordsInput {
 
 const MessageRefSchema = z.object({ messageId: z.string().min(1) })
 
+/** 84-e 자기 점검 - 그 줄이 다툼 · 화해 맥락인가. **필수**(빠지면 형식 오류). `true`인 줄은 `dropFlagged`가 뺀다. */
+const ConflictFlag = z.boolean()
+
 const MainItemSchema = z.object({
   /** AI가 쓰는 유일한 문장. 상황·정황만. */
   context: z.string().min(1),
   /** 대화 1~4턴. 메시지 id로만 가리킨다. */
   turns: z.array(MessageRefSchema).min(1).max(4),
+  conflict: ConflictFlag,
 })
+
+const SubItemSchema = MessageRefSchema.extend({ conflict: ConflictFlag })
 
 /**
  * LLM 출력 스키마. 비어 있음은 리터럴 `kind: 'none'` 하나로만 표현된다(빈 배열·null·누락은 빈 결과가 아니다).
@@ -77,12 +90,23 @@ export function sweetWordsLlmSchema(cadence: CornerContext['cadence']) {
     z.object({
       kind: z.literal('excerpts'),
       main: cadence === 'daily' ? z.array(MainItemSchema).length(1) : z.array(MainItemSchema).min(1).max(3),
-      sub: z.array(MessageRefSchema).max(6),
+      sub: z.array(SubItemSchema).max(6),
     }),
   ])
 }
 
 export type SweetWordsLlmOutput = z.infer<ReturnType<typeof sweetWordsLlmSchema>>
+
+/** 84-e(R137-3 ①) - 자기 점검 표시(`conflict: true`)가 붙은 대화 · 한 줄을 뺀다. 순수 함수. */
+export function dropConflictLines(llm: SweetWordsLlmOutput): SweetWordsLlmOutput {
+  if (llm.kind !== 'excerpts') return llm
+  return { ...llm, main: llm.main.filter((m) => m.conflict !== true), sub: llm.sub.filter((s) => s.conflict !== true) }
+}
+
+/** 명시적 빈 결과 + 자기 점검으로 빼고 남은 대화가 0개(최소 분량 미달) - 둘 다 `insufficient_input`. */
+export function isSweetWordsEmpty(llm: SweetWordsLlmOutput): boolean {
+  return llm.kind === 'none' || llm.main.length === 0
+}
 
 /**
  * ID 해석 선언(17-0-4 r43·r44) - 판정은 골격이 한다. 이 코너는 "어느 필드가 어떤 종류의 ID인가"만 넘긴다.
@@ -139,10 +163,10 @@ function deriveFor(input: SweetWordsInput, context: CornerContext) {
       return {
         context: item.context,
         attribution: turns[0].attribution,
-        turns: turns.map((t) => ({ speaker: t.speaker, text: t.text, at: t.at })),
+        turns: turns.map((t) => ({ messageId: t.messageId, speaker: t.speaker, text: t.text, at: t.at })),
       }
     })
-    const sub = filled.sub.map((m) => ({ attribution: m.attribution, speaker: m.speaker, text: m.text }))
+    const sub = filled.sub.map((m) => ({ messageId: m.messageId, attribution: m.attribution, speaker: m.speaker, text: m.text }))
     return {
       ok: true,
       value: {
@@ -179,10 +203,11 @@ const CORNER_INSTRUCTION_BLOCK: PromptBlock = {
     '  좋은 예: "점심시간에 오간 대화", "출근길에 오간 대화". 나쁜 예: "서로를 아끼는 마음이 느껴지는 대화"(감상), "고마움을 전하자 상대도 화답한 대화"(내용 재진술), "다툼 뒤에 마음이 풀린 대화"(금지된 맥락).',
     '- 한 줄(sub): 대화로 묶지 않을 다정한 단문의 메시지 id. 같은 메시지를 main과 sub에 겹쳐 쓰지 않는다.',
     '- 메시지의 원문, 화자, 시각, 출처 표기는 쓰지 않는다. id만 쓴다.',
+    '- conflict(자기 점검): 고른 대화(main)와 한 줄(sub)마다 반드시 true나 false로 쓴다. 고른 뒤 앞뒤 메시지를 다시 보고, 그 말이 다툼이 있던 날에 오간 말이거나 다툼 뒤에 풀어가는 화해(사과, 서운함을 주고받는 말)의 맥락이면 true, 아니면 false다. 표현이 다정해도 그 맥락이면 true다. true로 표시한 줄은 지면에 실리지 않는다. 확신이 서지 않으면 true로 쓴다.',
     '',
     '출력 형식(JSON 하나)',
     '다정한 발화가 있으면:',
-    '{"kind":"excerpts","main":[{"context":"정황 한 문장","turns":[{"messageId":"입력의 id"}]}],"sub":[{"messageId":"입력의 id"}]}',
+    '{"kind":"excerpts","main":[{"context":"정황 한 문장","turns":[{"messageId":"입력의 id"}],"conflict":false}],"sub":[{"messageId":"입력의 id","conflict":false}]}',
     '다정한 발화가 하나도 없으면 억지로 만들지 말고:',
     '{"kind":"none"}',
   ].join('\n'),
@@ -238,7 +263,9 @@ function responseSpec(
 ): CornerResponseSpec<SweetWordsLlmOutput, SweetWordsStored> {
   return {
     llmSchema: sweetWordsLlmSchema(context.cadence),
-    isExplicitEmpty: (llm) => llm.kind === 'none',
+    isExplicitEmpty: isSweetWordsEmpty,
+    // 84-e(R137-3 ①): 자기 점검 표시가 붙은 줄 빼기(검사 · 저장 전).
+    dropFlagged: dropConflictLines,
     references: SWEET_WORDS_REFERENCES,
     derive: deriveFor(input, context),
     storedSchema: sweetWordsStoredSchema(context.cadence),

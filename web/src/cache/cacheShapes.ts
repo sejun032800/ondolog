@@ -81,6 +81,8 @@ const pushAsked = shape({ asked: isBool })
 const skyPrefOn = shape({ on: isBool })
 const skyPrefSeen = shape({ seen: isBool })
 const skyPrefDenied = shape({ denied: isBool })
+/** 84-e: 유성 기록 - 잡은 말의 메시지 id(잡은 순서) · 마지막으로 떨어진 KST 날짜. **원문 칸은 없다.** */
+const meteorMemory = shape({ caught: arrayOf(isStr), lastDay: strOrNull })
 /** 보존한 대기열 원본(81-). 원본은 글자 그대로(`raw`) - 다시 해석하지 않는다. */
 export const queueKeepValue = shape({ entries: arrayOf(shape({ at: isStr, raw: isStr })) })
 
@@ -89,7 +91,7 @@ export const queueKeepValue = shape({ entries: arrayOf(shape({ at: isStr, raw: i
  * (81- 직전 모양 = 지금 모양 1이라서. 버전이 2가 되면 버전 없는 값도 옛 버전으로 버려진다).
  */
 export const CACHE_VERSION = {
-  chat: 1, main: 1, feed: 1, sky: 1, name: 1, route: 1, push: 1, qkeep: 1, skypref: 1,
+  chat: 1, main: 1, feed: 1, sky: 1, name: 1, route: 1, push: 1, qkeep: 1, skypref: 1, meteor: 1,
 } as const
 
 /** 범주 + scope -> 검사. 모르는 scope면 null(시작 때 훑기는 건드리지 않고, 읽기는 버린다). */
@@ -121,10 +123,12 @@ export function checkFor(kind: keyof typeof CACHE_VERSION, scope?: string): Chec
     case 'qkeep':
       return queueKeepValue
     case 'skypref':
-      if (scope === 'twinkle') return skyPrefOn
+      if (scope === 'twinkle' || scope === 'meteor') return skyPrefOn
       if (scope === 'guide' || scope === 'dragHint') return skyPrefSeen
       if (scope === 'motion') return skyPrefDenied
       return null
+    case 'meteor':
+      return scope ? meteorMemory : null
     default:
       return null
   }

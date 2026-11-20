@@ -331,6 +331,13 @@ export interface CornerResponseSpec<TLlm, TStored> {
    * (칸 · 규칙, 문장 0)을 돌려준다. 저장 스키마까지 통과한 뒤(7단계)에 보고(값 검사에 걸리면 그때 함께 알린다), 걸리면 `schema_invalid` + 재요청 안내(`retryHint`).
    */
   readonly contentChecks?: (llm: TLlm) => readonly string[]
+  /**
+   * 84-e(R137-3 ①) 자기 점검 - LLM이 **같은 응답 안에서** 고른 줄마다 낸 표시(예: 다정한 말의 "다툼 · 화해 맥락")로 줄을 뺀다.
+   * 3단계(Zod) 바로 뒤, 값 검사 · 명시적 빈 결과 · ID 해석보다 먼저 - 뺀 줄은 검사하지도 싣지도 않는다. 낱말 규칙이 아니라 LLM 판단을 따른다
+   * (MASTER §17-0-9-F-2 r61). 표시 칸 자체가 빠진 응답은 LLM 출력 스키마(Zod)가 막는다(`schema_invalid`). 빼고 남은 것이 모자라면
+   * 코너의 `isExplicitEmpty`가 `insufficient_input`으로 본다. 순수 함수 · 선택(없으면 그대로).
+   */
+  readonly dropFlagged?: (llm: TLlm) => TLlm
 }
 
 interface FoundReference {
@@ -561,7 +568,8 @@ export function validateCornerResponse<TLlm, TStored>(
   if (!parsed.success) {
     return { ok: false, reason: 'schema_invalid', detail: parsed.error.message }
   }
-  const llm = parsed.data
+  // 3-a. 84-e(R137-3 ①) 자기 점검 표시가 붙은 줄을 뺀다 - 아래 검사 · 채우기 · 저장은 남은 줄만 본다.
+  const llm = spec.dropFlagged !== undefined ? spec.dropFlagged(parsed.data) : parsed.data
 
   // 3-b. 84-a(R124-4) 값 검사 - AI 문장 칸의 길이 상한 · 금지 표현(유저 원문은 대상 아님). 상세에는 칸 · 길이 · 표현만(문장 0).
   // 84-c: 값 검사에 걸리면 내용 검사(7단계) 결과도 함께 알린다 - 재요청 1회 안에서 다 고치게.
@@ -636,6 +644,8 @@ export interface CornerResponseHooks<TLlm, TStored = TLlm> {
   readonly valueRules?: readonly ValueRule[]
   /** 84-c 내용 검사(선택). */
   readonly contentChecks?: CornerResponseSpec<TLlm, TStored>['contentChecks']
+  /** 84-e 자기 점검 표시로 줄 빼기(선택). */
+  readonly dropFlagged?: CornerResponseSpec<TLlm, TStored>['dropFlagged']
 }
 
 export interface CornerPipelineParams<TInput, TLlm, TStored = TLlm> {
@@ -774,6 +784,7 @@ export async function runCornerPipeline<TInput, TLlm, TStored = TLlm>(
     storedSchema: hooks.storedSchema,
     valueRules: hooks.valueRules,
     contentChecks: hooks.contentChecks,
+    dropFlagged: hooks.dropFlagged,
   }
 
   let llmCallAttempts = 0
@@ -884,6 +895,7 @@ export function runCornerModule<TInput, TLlm, TStored>(
       storedSchema: spec.storedSchema,
       valueRules: spec.valueRules,
       contentChecks: spec.contentChecks,
+      dropFlagged: spec.dropFlagged,
     },
     llmClient: params.llmClient,
     lookupCoeffBundle: params.lookupCoeffBundle,

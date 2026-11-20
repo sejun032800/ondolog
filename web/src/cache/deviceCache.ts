@@ -17,10 +17,12 @@ const PREFIX = 'ondolog.dc1:'
  * `qkeep`(81-)은 변환하지 못한 대기열 원본을 보존하는 칸 - 로그아웃 · 탈퇴 요청 · 계정 전환 때 지워지고(사용자 키 규칙), 해제 완료 때는 대기열과 같이 남는다.
  * `skypref`(85-)는 하늘 사람 설정(별 반짝임 · 둘러보기 안내를 봤음 · 끌기 힌트를 봤음 · iOS 움직임 권한 거부) - 커플 자료가 아니다(해제 완료 때 남는다).
  *   사용자 키라 로그아웃 · 탈퇴 요청 · 계정 전환 때는 지워진다(사람 설정 - 다른 계정이 이어받지 않는다). 센서 값은 여기에 없다.
+ * `meteor`(84-e)는 유성 기록(잡은 말의 **메시지 id** · 마지막으로 떨어진 날짜, scope = 커플 id) - 원문은 없다. 메시지 id는 커플 자료라 COUPLE_KINDS에 든다
+ *   (해제 완료 · 계정 전환 때 처음부터 - MASTER 9-8-4 r80).
  */
-export type CacheKind = 'chat' | 'main' | 'feed' | 'sky' | 'name' | 'route' | 'push' | 'qkeep' | 'skypref'
+export type CacheKind = 'chat' | 'main' | 'feed' | 'sky' | 'name' | 'route' | 'push' | 'qkeep' | 'skypref' | 'meteor'
 /** 커플 자료 종류 - 로그아웃 · 탈퇴 요청 · 해제 요청(유예 진입) · 해제 완료 · 계정 전환에서 지워진다. 하늘('sky', 77-)도 여기에 든다. */
-export const COUPLE_KINDS: readonly CacheKind[] = ['chat', 'main', 'feed', 'sky']
+export const COUPLE_KINDS: readonly CacheKind[] = ['chat', 'main', 'feed', 'sky', 'meteor']
 
 function store(): Storage | null {
   try {
