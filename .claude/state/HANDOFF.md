@@ -11,6 +11,121 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## 최종 실측 실행 명령 (R135-4 · R140-4, 메인 세션 2026-11-20 - 명령만 적음 · 코드 0 · LLM 0 · 원격 0 · 커밋 0) - **3) 시드에서 멈춤**
+
+> Proteur · 시작 메뉴에서 연 PowerShell · 저장소 맨 위 폴더 · **한 줄씩**. 키 · 주소 · id · 이메일은 명령에 0. 출력은 아래 `m`(가리개)을 거쳐 id · 이메일이 `<id>` · `<email>`로 보인다.
+> 판정 · 체크리스트는 `phase-7/final-measure-guide-for-proteur.md` 5절.
+
+### 멈춤 - 3) 2025년 시드를 넣을 길이 지금 코드에 없다 (PE · PM 결정 필요)
+- 시드 대상 커플은 문제없다(8번 아래). 막히는 것은 **데이터 연도**다.
+- 원격의 시드 커플은 10-22 실행분이다(로컬 목록 `scripts/ops/out/seed-m2b.json` 날짜 10-22). 그때 데이터셋은 **2026년** 날짜였다(84-c가 11-19에 2025로 옮김 - `fixtures/m1-month/dataset.ts:24` `FIXTURE_YEAR = 2025` · R134-6 "**다음 실행부터** 2025"). 그래서 시드 커플에 2025-09 기록은 없다 → 기간 2025-09로 생성하면 "선행 검사 미달"로 끝난다. 2026-09로 생성하면 요일 문구가 2025 달력이라 84-c 요일 검사가 걸린다(HANDOFF 84-c ④). - 원격을 읽지 않았으니 **확인 필요**(로컬 기록 · 코드 근거).
+- `seedTestData.ts run`을 **다시 치면 안 된다**: 계정은 이어 쓰지만 `profiles` 삽입에서 중복으로 멈추고(`seedTestData.ts:131-161`, 그 뒤 `couples.invite_code` 고정값 `TESTA001`도 유일 칸 `005_couples.sql:7` · `seedTestData.ts:166-184` · `:355`), `finally`가 **로컬 id 목록 `seed-m2b.json`(39 KB)을 계정 한 줄짜리로 덮어쓴다**(`seedTestData.ts:418-420`). 2025 데이터는 들어가지 않는다.
+- "이미 들어가 있으면 건너뛰기" = `Test-Path scripts\ops\out\seed-m2b.json`이 `True`면 시드를 치지 않는다(지금 `True`). 그런데 들어가 있는 것이 2026이라 건너뛰면 4)를 할 수 없다.
+- 맞추는 방법(작은 위임 - 코드 변경이라 이번에 하지 않음): ① **권장** `seedTestData.ts`에 2025 데이터셋으로 **새 시험 커플 하나**(예 `test-m2b-G` · 새 초대 코드 · 계정 `test-m2b-g1/g2@example.com` · 비밀번호 없음)만 만드는 실행 이름을 더하고, 목록은 **별 파일**(예 `seed-final.json`)에 - 기존 목록 · 커플을 건드리지 않음 ② 또는 기존 A 커플에 2025-09 데이터를 더함(기간이 겹치지 않음) - A의 2026 기록과 섞여 보이므로 ①보다 못함. 어느 쪽이든 원격 쓰기는 그 시험 커플 행뿐.
+- 그때까지 칠 수 있는 것: **1) · 2)**(하네스 - 원격 0). 4)~6)은 3)이 풀린 뒤 아래 그대로.
+
+### 0) 창 준비 (한 번)
+```
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+function m { process { "$_" -replace '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}','<id>' -replace '[\w.+-]+@[\w-]+\.[\w.-]+','<email>' } }
+```
+- 첫 줄: Deno · Python의 한글 출력이 파이프에서 깨지지 않게(HANDOFF 77- 0-2와 같은 문제). 둘째 줄: 화면에 나오는 id(uuid) · 이메일을 가린다(`generateIssueCli.ts:69` 등이 호 id를 출력하고, 멈춤 문구에 커플 id가 들어가서 - `opsGuards.ts:83`).
+
+### 1) LLM 키 보안 입력 (이 창의 환경 변수만)
+```
+$s = Read-Host -AsSecureString "LLM 키"
+$env:ONDOLOG_LLM_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); Remove-Variable s
+$env:ONDOLOG_LLM_API_KEY.StartsWith('sk-ant-')
+```
+→ `True`일 때만 계속. 값이 화면에 찍히는 줄 0(사용자 · 시스템 범위 저장 0 - R87-6).
+
+### 2) 하네스 Sonnet 5.5 × 3 → review → recheck (원격 0)
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_LLM_API_KEY --allow-net=api.anthropic.com --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts run --model claude-sonnet-5-5 --runs 3 --tag final 2>&1 | m
+deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts review 2>&1 | m
+deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts recheck 2>&1 | m
+```
+- 결과: `scripts/ops/out/runs/claude-sonnet-5-5__*__final__r1~3.json` · `review.md` · `summary.md` · `recheck.md`(git 밖).
+- recheck는 2차(`84b`)와 이번(`final`)을 함께 본다 - `final` 줄만 판정에 쓴다. 옛 `84b` 다정한 말 6줄은 "자기 점검 칸 없음" 표시가 정상(84-e).
+- 하네스는 합성 데이터셋을 이 PC 안에서 조립한다(원격 DB 0). 다툰 날 09-16 · 09-17이 들어 있다(9번) → `conflict` 표시는 여기서도 잰다.
+
+### 3) 시험 커플 시드 - **멈춤(위)**. 확인만:
+```
+Test-Path scripts\ops\out\seed-m2b.json
+```
+→ `True`(이미 들어가 있음 - 2026 데이터). **`seedTestData.ts run`은 치지 않는다.**
+
+### 4) 시험 커플 실제 모드 1호 (3)이 풀린 뒤) - 생성 → 렌더 → 발행
+**순서 정정**: 렌더는 **발행 전**이다 - 렌더가 발행된 호를 거부한다(`render_issue.py:748-749` "이미 발행된 호다 - 렌더는 발행 전에 한 번"). 안내서의 "생성 → 발행 → 렌더"가 아니라 **생성 → 렌더 → 발행**.
+
+4-0. 접속 값(보안 입력) · 대상 커플을 로컬 목록에서 변수로(id를 치지도 보지도 않는다):
+```
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+$h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
+$cid = ((Get-Content scripts\ops\out\seed-m2b.json -Raw -Encoding UTF8 | ConvertFrom-Json).couples | Where-Object { $_.label -eq 'A' -and $_.nickname -eq 'test-m2b-A' }).id
+[bool]$cid
+```
+- 키는 운영용 **`ops_2026_11`**(생성 · 발행 - HANDOFF 74-k2 표). 확인 줄 `True` · `[bool]$cid` `True`일 때만. (3)을 ①로 풀면 `seed-m2b.json` · `'A'` · `test-m2b-A` 자리만 새 목록 파일 · 라벨로 바뀐다.)
+- `--mode live` 앞 확인(읽기만): `npx supabase migration list 2>&1 | m` → `20261118120000_m1_llm_provider`가 원격 칸에 있어야 한다. 없으면 생성이 호 행을 만들기 **전에** 거부 코드 2로 멈춘다(fail-closed - 84-a) → db push 먼저(HANDOFF 84-a "db push 순서").
+
+4-1. 생성(실제 모드 · Sonnet 5.5는 `app_config.llm_provider`가 정함 · 기간 2025-09 = `[2025-09-01, 2025-10-01)` KST):
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_LLM_API_KEY --allow-net="$h,api.anthropic.com" --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out scripts/ops/generateIssueCli.ts --couple-id $cid --period-start 2025-09-01 --period-end 2025-10-01 --mode live 2>&1 | m
+$iid = (Get-ChildItem scripts\ops\out\generate-*.json | Sort-Object LastWriteTime | Select-Object -Last 1).BaseName -replace '^generate-',''
+(Get-Content "scripts\ops\out\generate-$iid.json" -Raw -Encoding UTF8 | ConvertFrom-Json).coupleId -eq $cid
+```
+→ 마지막 줄 `True`(방금 만든 파일이 이 커플의 것). 코너 셋 `success`가 아니면 6).
+
+4-2. 렌더(v1.2.3 · 키를 렌더용 **`render_2026_11`**로 바꾼다):
+```
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+render\.venv\Scripts\python.exe render\render_issue.py --issue-id $iid 2>&1 | m
+Invoke-Item "render\out\$iid\issue.pdf"
+```
+- **PDF 위치**: `render\out\<호 id>\issue.pdf`(쪽 그림 `page-NN.jpg` · `audit.json` · `compose.json` 같은 폴더 · git 밖). 마지막 줄이 id를 치지 않고 연다. 렌더 시작 때 높이 표 환경 경고가 있으면 `경고:` 줄로 나온다(84-d2 - 이 PC면 0).
+
+4-3. 발행(키를 다시 `ops_2026_11`로):
+```
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out scripts/ops/publishIssueCli.ts --issue-id $iid 2>&1 | m
+```
+끝: 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_LLM_API_KEY` · `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` → 둘 다 `False`.
+
+### 5) 각 명령이 원격에 쓰는 것 · 비용 상한
+| 명령 | 원격에 쓰는 것 | 상한 |
+|---|---|---|
+| 2) 하네스 `run` | **원격 DB · 스토리지 0** - 권한이 `--allow-net=api.anthropic.com`뿐(DB 주소에 갈 수 없다) · 결과는 로컬 `scripts/ops/out` | **명령 1회 $10**: `llmSafety.ts:30` `HARNESS_BUDGET_USD` → `m1QualityRun.ts:268` `CostMeter` - 다음 호출 전 "지금까지 + 이번 최악"이 넘으면 부르지 않음 |
+| 2) `review` · `recheck` | 0(네트워크 권한 없음) | - |
+| 4-1) 생성 | `issues` 초안 행 1(같은 커플 · 같은 기간 초안이 있으면 재사용 - `generateIssue.ts:239`) · `corners` 행 3(insert · 내용 · status · `llm_usage` · `source_date_ids` update) · `ops_alerts`(정지 · 상한 때만) · 스토리지 `entries` → `magazine` 사진 복사(`mediaCopy.ts:121`) - 모두 그 호 · 그 커플 | **1호 $2**: `llmSafety.ts:31` `ISSUE_BUDGET_USD` → 시도 직전마다 `generateIssue.ts:350`(+ 코너 8분 · 1호 20분 · 1회 120초). 넘으면 그 코너 안전 정지(`usage_over` 경보) |
+| 4-2) 렌더 | 스토리지 `magazine/{커플}/{호}/render/`(디지털 PDF + 쪽 그림 - 인쇄용 0) · `issues` 그 행의 `pdf_digital_path` · `page_count` · `cover_path`(`render_issue.py:805-817`, 조건 `published_at is null`) | LLM 0 |
+| 4-3) 발행 | RPC `fn_publish_issue` → 그 호 `issues` 발행 칸 · 그 호 `corners` `ready → published` · 그 커플 `dates` 재소환 칸(`022_publish_path.sql:149-157`) | LLM 0 |
+| 3) 시드(멈춤) | (치지 않음) | - |
+
+### 6) 떨어지면 - 떨어진 코너만 다시 (R135-5)
+- 하네스: `--corner`로 그 코너만(값 `date_archive` · `sweet_words` · `this_month` - `m1QualityRun.ts:24` · `:258`). 태그는 `final2`로 바꿔 이번 결과를 덮지 않는다:
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_LLM_API_KEY --allow-net=api.anthropic.com --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts run --model claude-sonnet-5-5 --corner sweet_words --runs 3 --tag final2 2>&1 | m
+```
+- 생성: **4-1 첫 줄을 그대로 다시**. 같은 초안을 다시 쓰고(`generateIssue.ts:239`), `ready` · `published` 코너는 다시 만들지 않는다(`generateIssue.ts:310`) → 떨어진 코너만 LLM을 부른다. 다시 생성하면 렌더 칸이 비워지므로(`generateIssue.ts:474` `clearRender`) 4-2 · 4-3을 다시. 발행된 호는 다시 생성하지 않는다(`generateIssue.ts:240-241` - 멈춤).
+
+### 7) 키 · URL · id · 이메일 0 · 원격 쓰기가 시험 커플 행뿐인 근거
+- 명령: 키는 보안 입력 → 이 창의 환경 변수만 · URL은 변수 · 호스트는 `$h` · 커플 id는 로컬 목록에서 `$cid` · 호 id는 생성 결과 파일 이름에서 `$iid`(치지도 보지도 않음). 출력: 각 명령이 키 · ref를 지울 값 목록으로 가림(`generateIssueCli.ts:43-44` · `render_issue.py:854-857` `redact`) + 남는 uuid · 이메일은 `m`이 가림.
+- 개발 프로젝트만: `opsGuards.ts:56-66` `assertDevelopmentProject`(linked-project 이름 `ondolog`) · `render_issue.py:98` · `--allow-net`이 그 호스트 하나.
+- 시험 커플만: 생성 `generateIssue.ts:215` · 발행 `publishIssue.ts:50` · 렌더 `render_issue.py:746` - `couples.nickname`에 `test`(`opsGuards.ts:71-83`). **주의 - 이 가드는 51- 두 폰 커플(시험 커플 이름)도 통과시킨다** → 대상은 가드가 아니라 `--couple-id $cid`(시드 목록의 `test-m2b-A` 하나)가 정한다. 생성 · 렌더 · 발행이 쓰는 행은 그 커플 · 그 호의 것뿐(5) 표).
+- 실제 커플 0 · `demo_responses` 0(어느 명령도 그 표를 읽거나 쓰지 않음).
+
+### 8) 시드가 들어갈 커플 (R140-4)
+- **시드 전용 시험 계정이다 - Proteur의 두 폰 커플이 아니다.** `seedTestData.ts`는 자기 계정을 만든다: 이메일 `test-m2b-{a1,a2,b1,b2,c1,c2,f1,f2}@example.com`(`seedTestData.ts:132`) · 비밀번호 없음(로그인 불가 - `:10`) · 커플은 새로 insert(`:166-184`, 별명 `test-m2b-A/B/C/F` · 초대 코드 `TESTA001` 등 `:355` · `:373`). 다른 커플을 찾아 쓰는 코드가 없다. 로컬 목록도 8계정 모두 `test-m2b-` · `example.com`(이메일 값은 적지 않음).
+- 4)의 대상 = `test-m2b-A`(합성 데이터셋 한 달 · 활성 - `:352-356`). 두 폰 커플(51-)에는 합성 대화를 넣지 않는다 - 위 명령 어디에도 그 커플 id가 들어갈 자리가 없다(`$cid`는 시드 목록에서만).
+
+### 9) 다툰 날 대화 (R140-4 ②)
+- **들어 있다.** `scripts/ops/fixtures/m1-month/chat.ts:11`(날 종류 주석 "다툰 날: 09-16 · 09-17 아침") · `:191-223`(09-16, 32건 - 잘잘못 · 사과 · "미안하다고 하면 끝인 거야?") · `:225-236`(09-17 - 뒤끝 · 화해 "고마워" · "오늘은 좀 풀린 것 같…" = 표현은 다정하지만 화해 맥락 → `conflict` 시험). 연도 `FIXTURE_YEAR = 2025`(`dataset.ts:24`, 날짜 줄 `:48`) → **2025-09-16 · 09-17**. 메시지로 들어가는 길: `dataset.ts:214` `messages: parseChat()` → 하네스 입력 · 시드 `seedTestData.ts:278-279` `insertRows('messages', …)`.
+- 단, 원격 시드 커플에 들어가 있는 것은 10-22의 **2026-09-16 · 17**이다(위 멈춤) - 2025로 다시 넣는 길이 열리면 같은 대화가 2025 날짜로 들어간다. 하네스(2)는 지금도 2025 날짜로 본다.
+
 ## `84-e` 다정한 말 자기 점검 · 메시지 id 저장 · 유성(C01 · C08 · C03) (메인 세션, 2026-11-20, 위임문 `phase-7/84-e-dispatch-selfcheck-id-meteor.md` · 출처 ROADMAP r137 R137-1~5 · MASTER r80 9-8-4) - 완료 · 멈춤 0 (미커밋)
 
 **이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님.**
