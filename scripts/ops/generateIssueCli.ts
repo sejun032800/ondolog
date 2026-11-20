@@ -16,12 +16,14 @@
  *     --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out \
  *     scripts/ops/generateIssueCli.ts --couple-id <uuid> --period-start 2026-09-01 --period-end 2026-10-01 [--cadence monthly]
  *   실제(84-a): 위에 `--allow-env`에 `ONDOLOG_LLM_API_KEY` · `--allow-net`에 `api.anthropic.com`을 더하고 `--mode live`.
+ *   84-f(R141-2): 실제 모드는 `--allow-read`에 `scripts/ops/out`도 더한다 - 로컬 시드 목록(`seed-m2b*.json`)의 커플 id만 대상으로 받는다
+ *   (못 읽으면 목록이 비어 실제 모드는 멈춘다 - fail-closed).
  * 기간은 `[start, end)` KST 반열린 구간이고 운영자가 넘긴다.
  */
 
 import { createLlmClient } from '../../supabase/functions/_shared/llmClient.ts'
 import { generateIssue, type LiveDeps } from './generateIssue.ts'
-import { OpsStopError } from './opsGuards.ts'
+import { OpsStopError, isSeedListFile, seedListCoupleIds } from './opsGuards.ts'
 import { CONNECTED_LINE, parseFlags, printer, requireFlag, writeJson } from './opsCli.ts'
 import { connectOps } from './supabaseOps.ts'
 
@@ -45,11 +47,25 @@ if (apiKey !== null) hidden.push(apiKey) // 84-a: 실제 모드 키도 지울 �
 const say = printer(hidden)
 say(CONNECTED_LINE)
 
+/** 84-f: 로컬 시드 목록 파일들(`scripts/ops/out/seed-m2b*.json`)을 읽는다. 읽을 수 없으면 빈 목록(실제 모드 멈춤). */
+async function readSeedLists(): Promise<{ name: string; text: string }[]> {
+  const out: { name: string; text: string }[] = []
+  try {
+    for await (const e of Deno.readDir('scripts/ops/out')) {
+      if (e.isFile && isSeedListFile(e.name)) out.push({ name: e.name, text: await Deno.readTextFile(`scripts/ops/out/${e.name}`) })
+    }
+  } catch {
+    return []
+  }
+  return out
+}
+
 const live: LiveDeps | undefined =
   apiKey === null
     ? undefined
     : {
         now: () => Date.now(),
+        seedCoupleIds: seedListCoupleIds(await readSeedLists()),
         createClient: (config) =>
           createLlmClient({ apiKey: apiKey as string, model: config.model, beforeAttempt: config.beforeAttempt, onResponse: config.onResponse }),
       }

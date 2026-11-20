@@ -54,7 +54,11 @@
 
         [bool]$env:ONDOLOG_LLM_API_KEY
 
-   → **False**
+        [bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY
+
+        [bool]$env:ONDOLOG_SUPABASE_URL
+
+   → 셋 다 **False**
 3. console → Usage에서 이번 달 지출($)을 적어 둠(지금까지 $1.51)
 4. 이번 키 **삭제**
 

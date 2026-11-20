@@ -6,6 +6,11 @@
  *    방법: 접속 URL의 프로젝트 ref를 `supabase/.temp/linked-project.json`(CLI가 `supabase link`로 남기는 연결 정보)의
  *    `ref`·`name`과 대조한다. 파일이 없거나 이름이 `ondolog`가 아니거나 ref가 다르면 멈춘다(fail closed).
  * 2. **시험 커플 확인** - 샘플 출력 모드는 시험 커플에만 돈다(R13-7: 이름에 `test`). 판정 열은 `couples.nickname`이다.
+ * 3. **실제 모드 대상 잠금**(84-f · R141-2 · R140-4) - `--mode live`는 2에 더해 **로컬 시드 목록 파일(`scripts/ops/out/seed-m2b*.json`)에 있는
+ *    커플 id**일 때만 돈다. 별명 "test"만 보면 51- 두 폰 커플(시험 이름)도 통과하므로, 합성 시드 커플만 실제 모드에 들어가게 장치로 막는다.
+ *    폰 커플 실제 모드의 길(R141-3)은 이 파일 밖이다.
+ *
+ * 멈춤 문구에 커플 id를 넣지 않는다(84-f - 출력 0).
  *
  * 비밀값은 이 파일을 거쳐 어디에도 쓰지 않는다. `redactSecrets`는 출력 직전의 마지막 방어선이다.
  */
@@ -80,7 +85,43 @@ export interface CoupleForGuard {
 /** 시험 커플인가. 아니면 던진다(R13-7). */
 export function assertTestCouple(couple: CoupleForGuard): void {
   if (!hasTestMark(couple.nickname)) {
-    throw new OpsStopError(`샘플 출력 모드는 시험 커플에만 돈다 - couples.nickname에 '${TEST_MARK}'가 없다 (couple ${couple.id})`)
+    throw new OpsStopError(`샘플 출력 모드는 시험 커플에만 돈다 - couples.nickname에 '${TEST_MARK}'가 없다`)
+  }
+}
+
+/** 시드 목록 파일 이름(84-f) - `seed-m2b.json`(10-22 A/B/C/F) · `seed-m2b-2025.json`(G). 실패 기록(`.failed.json`)은 목록이 아니다. */
+export function isSeedListFile(name: string): boolean {
+  return /^seed-m2b[\w.-]*\.json$/.test(name) && !name.endsWith('.failed.json')
+}
+
+/**
+ * 로컬 시드 목록 파일들에서 커플 id를 모은다(84-f). 목록의 커플 중 별명에 시험 표시가 있는 것만. 깨진 파일 · 모양이 아닌 항목은 건너뛴다(그 id는 통과하지 못한다 - fail-closed).
+ */
+export function seedListCoupleIds(files: readonly { readonly name: string; readonly text: string }[]): Set<string> {
+  const out = new Set<string>()
+  for (const f of files) {
+    if (!isSeedListFile(f.name)) continue
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(f.text)
+    } catch {
+      continue
+    }
+    const couples = typeof parsed === 'object' && parsed !== null ? (parsed as { couples?: unknown }).couples : undefined
+    if (!Array.isArray(couples)) continue
+    for (const c of couples) {
+      if (typeof c === 'object' && c !== null && typeof (c as { id?: unknown }).id === 'string' && hasTestMark((c as { nickname?: unknown }).nickname as string)) {
+        out.add((c as { id: string }).id)
+      }
+    }
+  }
+  return out
+}
+
+/** 실제 모드 대상 잠금(84-f) - 시드 목록에 있는 커플 id가 아니면 던진다. 문구에 id 0. */
+export function assertLiveTarget(coupleId: string, seedCoupleIds: ReadonlySet<string>): void {
+  if (!seedCoupleIds.has(coupleId)) {
+    throw new OpsStopError('실제 모드는 로컬 시드 목록(scripts/ops/out/seed-m2b*.json)에 있는 시험 커플에만 돈다 - 이 커플은 목록에 없다(R140-4 · R141-2)')
   }
 }
 

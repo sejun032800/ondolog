@@ -75,6 +75,7 @@ function liveDeps(samples: string[], script: Script = {}) {
   const attemptsByCorner = [0, 0, 0]
   const deps: LiveDeps = {
     now: () => clock,
+    seedCoupleIds: new Set([COUPLE_ID]), // 84-f: 실제 모드 대상 잠금 - 시험 커플은 시드 목록에 있다
     createClient: (config) => {
       const corner = created.length
       created.push(config.model)

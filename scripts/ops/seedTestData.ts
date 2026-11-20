@@ -19,11 +19,17 @@
  *   deno run --no-lock --config supabase/functions/deno.json \
  *     --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=<프로젝트 ref>.supabase.co \
  *     --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out \
- *     scripts/ops/seedTestData.ts run
+ *     scripts/ops/seedTestData.ts run|run-2025
+ *
+ * 84-f(ROADMAP r141 R141-2): `run-2025` = **2025년 합성 데이터로 새 시험 커플 G 하나만**(`seedCouple2025.ts`). 다시 쳐도 안전(이미 있으면 쓰기 0) ·
+ *   목록은 새 파일 `scripts/ops/out/seed-m2b-2025.json`. 기존 A/B/C/F와 `seed-m2b.json`은 읽지도 바꾸지도 않는다.
+ *   **`run`은 다시 치지 않는다**(10-22에 이미 들어감 - 계정 중복으로 멈춘다). 두 실행 모두 목록 파일은 **성공했을 때만** 쓰고,
+ *   실패하면 목록 파일은 그대로 두고 그때까지 만든 행 · 파일을 `*.failed.json`에 남긴다(84-f ③ - 전에는 실패 때 목록을 덮어썼다).
  */
 
 import { buildTables, COUPLE_ID, SEJUN_ID, SEOYOUNG_ID } from './fixtures/m1-month/dataset.ts'
-import { printer, writeJson } from './opsCli.ts'
+import { CONNECTED_LINE, printer, writeJson } from './opsCli.ts'
+import { recordSeedOutcome, seedCouple2025, emptySeedLog, SEED_2025, type SeedPort, type SeedTable } from './seedCouple2025.ts'
 import { connectOps } from './supabaseOps.ts'
 
 // ---------------------------------------------------------------------------
@@ -120,8 +126,9 @@ const remember = (table: string, ids: string[]) => {
 }
 
 const { client, secrets, projectRef } = await connectOps()
-const say = printer(secrets)
-say(`접속 대상: 개발 프로젝트 ondolog (${projectRef}) - 확인됨`)
+// 84-f: ref는 출력하지 않는다(A-27 - 생성 명령과 같다). 지울 값 목록에도 더한다.
+const say = printer([...secrets, projectRef])
+say(CONNECTED_LINE)
 
 function must<T>(what: string, result: { data: T | null; error: { message: string } | null }): T {
   if (result.error !== null || result.data === null) throw new Error(`${what}: ${result.error?.message ?? '결과 없음'}`)
@@ -345,76 +352,149 @@ async function createCorner(
 // 실행
 // ---------------------------------------------------------------------------
 
-if (Deno.args[0] !== 'run') throw new Error('사용: run')
+const command = Deno.args[0]
+if (command !== 'run' && command !== 'run-2025') throw new Error('사용: run | run-2025')
 
-// 도중에 실패해도 그때까지 만든 행·파일의 목록은 남긴다(지우지 않는다 - 목록이 있어야 정리할 수 있다).
-try {
-  // A·B: 합성 데이터셋 한 달(2026-09). 생성 명령이 초안을 만든다.
-  const a1 = await createUser('a1', 'test-세준', 'male')
-  const a2 = await createUser('a2', 'test-서영', 'female')
-  const coupleA = await createCouple('A', 'TESTA001', a1, a2, 'active')
-  await loadDataset(coupleA, a1, a2)
+/** 84-f: `seedCouple2025.ts`가 쓰는 원격 접근 - service_role 클라이언트 그대로(개발 프로젝트 확인은 `connectOps`가 먼저). */
+const supabasePort: SeedPort = {
+  async findAuthUser(email) {
+    for (let page = 1; page <= 50; page += 1) {
+      const listed = await client.auth.admin.listUsers({ page, perPage: 200 })
+      if (listed.error) throw new Error(`계정 목록 실패: ${listed.error.message}`)
+      const users = (listed.data?.users ?? []) as { id: string; email?: string }[]
+      const found = users.find((u) => u.email === email)
+      if (found) return found.id
+      if (users.length < 200) return null
+    }
+    throw new Error('계정 목록이 너무 길다 - 찾지 못하고 멈춘다')
+  },
+  async createAuthUser(email) {
+    const created = await client.auth.admin.createUser({ email, email_confirm: true, user_metadata: { test: true } })
+    if (created.error || !created.data?.user) throw new Error(`계정 생성 실패: ${created.error?.message ?? '결과 없음'}`)
+    return created.data.user.id
+  },
+  async hasProfile(id) {
+    const r = await client.from('profiles').select('id').eq('id', id).maybeSingle()
+    if (r.error) throw new Error(`profiles 조회 실패: ${r.error.message}`)
+    return r.data !== null
+  },
+  async insertProfile(row) {
+    must('profiles 삽입 (G)', await client.from('profiles').insert(row).select('id').single())
+  },
+  async findCoupleByInviteCode(code) {
+    const r = await client.from('couples').select('id, nickname').eq('invite_code', code).maybeSingle()
+    if (r.error) throw new Error(`couples 조회 실패: ${r.error.message}`)
+    return (r.data as { id: string; nickname: string | null } | null) ?? null
+  },
+  async insertCouple(row) {
+    return (must('couples 삽입 (G)', await client.from('couples').insert(row).select('id').single()) as { id: string }).id
+  },
+  async countRows(table: SeedTable, coupleId) {
+    const r = await client.from(table).select('id', { count: 'exact', head: true }).eq('couple_id', coupleId)
+    if (r.error) throw new Error(`${table} 수 조회 실패: ${r.error.message}`)
+    return r.count ?? 0
+  },
+  async insertRows(table: SeedTable, rows) {
+    for (let i = 0; i < rows.length; i += 100) {
+      const { error } = await client.from(table).insert(rows.slice(i, i + 100))
+      if (error) throw new Error(`${table} 삽입 실패: ${error.message}`)
+    }
+  },
+  async upload(bucket, path, bytes) {
+    const { error } = await client.storage.from(bucket).upload(path, bytes, { contentType: 'image/png', upsert: false })
+    if (error) throw new Error(`storage 업로드 실패 (${bucket}): ${error.message}`)
+  },
+}
 
-  const b1 = await createUser('b1', 'test-세준', 'male')
-  const b2 = await createUser('b2', 'test-서영', 'female')
-  const coupleB = await createCouple('B', 'TESTB001', b1, b2, 'active', { magazine_theme: 'neon' })
-  await loadDataset(coupleB, b1, b2)
+if (command === 'run-2025') {
+  const log2025 = emptySeedLog()
+  const status = await recordSeedOutcome(
+    async () => {
+      const outcome = await seedCouple2025(
+        { port: supabasePort, png: (w, h, n) => solidPng(w, h, PALETTE[n % PALETTE.length]), uuid: () => crypto.randomUUID(), now: NOW, say },
+        log2025,
+      )
+      return { status: outcome.status, value: outcome.log }
+    },
+    (path, value) => writeJson(path, value, secrets),
+    SEED_2025.listFile,
+    () => log2025,
+  )
+  say(status === 'created' ? `목록 파일: ${SEED_2025.listFile}` : '목록 파일 그대로(건너뜀)')
+} else {
+  // 84-f ③: 성공했을 때만 목록 파일을 쓴다. 실패하면 목록 파일은 그대로 두고 그때까지 만든 행 · 파일을 seed-m2b.failed.json에(정리할 수 있게).
+  await recordSeedOutcome(
+    async () => {
+      // A·B: 합성 데이터셋 한 달(2026-09). 생성 명령이 초안을 만든다.
+      const a1 = await createUser('a1', 'test-세준', 'male')
+      const a2 = await createUser('a2', 'test-서영', 'female')
+      const coupleA = await createCouple('A', 'TESTA001', a1, a2, 'active')
+      await loadDataset(coupleA, a1, a2)
 
-  // C: 해제 유예 - 비활성 예외용
-  const c1 = await createUser('c1', 'test-c1', 'male')
-  const c2 = await createUser('c2', 'test-c2', 'female')
-  const coupleC = await createCouple('C', 'TESTC001', c1, c2, 'dissolving')
-  const issueC = await createIssue('C-inactive', 'C', coupleC, '2026-07-01', '2026-07-31')
-  await createCorner('C-inactive', coupleC, issueC, '2026-07-01', '2026-07-31', 'date_archive', 1, 'ready')
+      const b1 = await createUser('b1', 'test-세준', 'male')
+      const b2 = await createUser('b2', 'test-서영', 'female')
+      const coupleB = await createCouple('B', 'TESTB001', b1, b2, 'active', { magazine_theme: 'neon' })
+      await loadDataset(coupleB, b1, b2)
 
-  // F: 예외·동시 발행용
-  const f1 = await createUser('f1', 'test-f1', 'male')
-  const f2 = await createUser('f2', 'test-f2', 'female')
-  const coupleF = await createCouple('F', 'TESTF001', f1, f2, 'active')
-  const dateF = must(
-    'dates 삽입 (F)',
-    await client
-      .from('dates')
-      .insert({ couple_id: coupleF, date_on: '2026-04-10', region: 'test-region', photo_count: 0 })
-      .select('id')
-      .single(),
-  ) as { id: string }
-  remember('dates', [dateF.id])
+      // C: 해제 유예 - 비활성 예외용
+      const c1 = await createUser('c1', 'test-c1', 'male')
+      const c2 = await createUser('c2', 'test-c2', 'female')
+      const coupleC = await createCouple('C', 'TESTC001', c1, c2, 'dissolving')
+      const issueC = await createIssue('C-inactive', 'C', coupleC, '2026-07-01', '2026-07-31')
+      await createCorner('C-inactive', coupleC, issueC, '2026-07-01', '2026-07-31', 'date_archive', 1, 'ready')
 
-  const issueAlert = await createIssue('F-open-alert', 'F', coupleF, '2026-05-01', '2026-05-31')
-  await createCorner('F-open-alert', coupleF, issueAlert, '2026-05-01', '2026-05-31', 'date_archive', 1, 'ready', [dateF.id])
-  const alert = must(
-    'ops_alerts 삽입 (F)',
-    await client
-      .from('ops_alerts')
-      .insert({
-        kind: 'usage_over',
-        couple_id: coupleF,
-        issue_id: issueAlert,
-        detail: { stage: 'input_halt', cornerType: 'this_month', estimatedInputTokens: 41000, limit: 40000, fixture: true },
-      })
-      .select('id')
-      .single(),
-  ) as { id: string }
-  log.alerts.push({ id: alert.id, issueLabel: 'F-open-alert' })
-  remember('ops_alerts', [alert.id])
+      // F: 예외·동시 발행용
+      const f1 = await createUser('f1', 'test-f1', 'male')
+      const f2 = await createUser('f2', 'test-f2', 'female')
+      const coupleF = await createCouple('F', 'TESTF001', f1, f2, 'active')
+      const dateF = must(
+        'dates 삽입 (F)',
+        await client
+          .from('dates')
+          .insert({ couple_id: coupleF, date_on: '2026-04-10', region: 'test-region', photo_count: 0 })
+          .select('id')
+          .single(),
+      ) as { id: string }
+      remember('dates', [dateF.id])
 
-  const issueNoReady = await createIssue('F-no-ready', 'F', coupleF, '2026-06-01', '2026-06-30')
-  await createCorner('F-no-ready', coupleF, issueNoReady, '2026-06-01', '2026-06-30', 'date_archive', 1, 'failed')
-  await createCorner('F-no-ready', coupleF, issueNoReady, '2026-06-01', '2026-06-30', 'sweet_words', 2, 'pending')
+      const issueAlert = await createIssue('F-open-alert', 'F', coupleF, '2026-05-01', '2026-05-31')
+      await createCorner('F-open-alert', coupleF, issueAlert, '2026-05-01', '2026-05-31', 'date_archive', 1, 'ready', [dateF.id])
+      const alert = must(
+        'ops_alerts 삽입 (F)',
+        await client
+          .from('ops_alerts')
+          .insert({
+            kind: 'usage_over',
+            couple_id: coupleF,
+            issue_id: issueAlert,
+            detail: { stage: 'input_halt', cornerType: 'this_month', estimatedInputTokens: 41000, limit: 40000, fixture: true },
+          })
+          .select('id')
+          .single(),
+      ) as { id: string }
+      log.alerts.push({ id: alert.id, issueLabel: 'F-open-alert' })
+      remember('ops_alerts', [alert.id])
 
-  for (const [label, start, end] of [
-    ['F-concurrent-1', '2026-07-01', '2026-07-31'],
-    ['F-concurrent-2', '2026-08-01', '2026-08-31'],
-  ] as const) {
-    const id = await createIssue(label, 'F', coupleF, start, end)
-    await createCorner(label, coupleF, id, start, end, 'date_archive', 1, 'ready', [dateF.id])
-  }
+      const issueNoReady = await createIssue('F-no-ready', 'F', coupleF, '2026-06-01', '2026-06-30')
+      await createCorner('F-no-ready', coupleF, issueNoReady, '2026-06-01', '2026-06-30', 'date_archive', 1, 'failed')
+      await createCorner('F-no-ready', coupleF, issueNoReady, '2026-06-01', '2026-06-30', 'sweet_words', 2, 'pending')
 
-  say(`계정 ${log.users.length} · 커플 ${log.couples.length} · 호 ${log.issues.length} · 코너 ${log.corners.length} · 경보 ${log.alerts.length} · 스토리지 객체 ${log.storage.length}`)
-  for (const c of log.couples) say(`커플 ${c.label}: ${c.id} (${c.nickname}, ${c.status})`)
-  for (const i of log.issues) say(`호 ${i.label}: ${i.id}`)
-  say('목록 파일: scripts/ops/out/seed-m2b.json')
-} finally {
-  await writeJson('scripts/ops/out/seed-m2b.json', log, secrets)
+      for (const [label, start, end] of [
+        ['F-concurrent-1', '2026-07-01', '2026-07-31'],
+        ['F-concurrent-2', '2026-08-01', '2026-08-31'],
+      ] as const) {
+        const id = await createIssue(label, 'F', coupleF, start, end)
+        await createCorner(label, coupleF, id, start, end, 'date_archive', 1, 'ready', [dateF.id])
+      }
+
+      say(`계정 ${log.users.length} · 커플 ${log.couples.length} · 호 ${log.issues.length} · 코너 ${log.corners.length} · 경보 ${log.alerts.length} · 스토리지 객체 ${log.storage.length}`)
+      for (const c of log.couples) say(`커플 ${c.label}: ${c.id} (${c.nickname}, ${c.status})`)
+      for (const i of log.issues) say(`호 ${i.label}: ${i.id}`)
+      say('목록 파일: scripts/ops/out/seed-m2b.json')
+      return { status: 'created' as const, value: log }
+    },
+    (path, value) => writeJson(path, value, secrets),
+    'scripts/ops/out/seed-m2b.json',
+    () => log,
+  )
 }
