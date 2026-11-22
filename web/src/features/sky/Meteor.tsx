@@ -158,8 +158,16 @@ export function MeteorLayer(props: { plan: MeteorPlan; reduced: boolean; paused:
 // C03 떨어진 말
 // ---------------------------------------------------------------------------
 
-export function FallenWords(props: { coupleId: string | null; caught: readonly string[]; names: Readonly<Record<string, string>>; onClose: () => void }) {
-  const { loaded, words } = useFallenWords({ open: true, coupleId: props.coupleId, caught: props.caught })
+export function FallenWords(props: {
+  coupleId: string | null
+  caught: readonly string[]
+  names: Readonly<Record<string, string>>
+  onClose: () => void
+  /** 84-h 시험판 미리 보기 - 견본 말을 그대로 연다(서버 읽기 0). 없으면 잡은 말을 살아 있는 행으로 읽는다. */
+  preset?: readonly MeteorCandidate[]
+}) {
+  const fetched = useFallenWords({ open: !props.preset, coupleId: props.coupleId, caught: props.caught })
+  const { loaded, words } = props.preset ? { loaded: true, words: props.preset } : fetched
   const [index, setIndex] = useState<number | null>(null)
   useBackHandler(props.onClose)
   // 처음에는 방금 잡은 말(마지막)

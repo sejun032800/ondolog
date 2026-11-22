@@ -7,17 +7,19 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { METEOR_TEXT } from './seed'
+import { METEOR_TEXT, PREVIEW_LONG_TEXT } from './seed'
 
 const ROOT = process.env.ONDOLOG_SMOKE_ROOT ?? path.join(os.tmpdir(), 'ondolog-smoke')
 const SHOTS = path.join(ROOT, 'shots')
 /** 80- (79-덧붙임 1): 이 회차의 실패 기록 폴더(회차마다 새 폴더 - 덮어쓰기 0). */
 const RUN_DIR = path.join(ROOT, 'runs', process.env.ONDOLOG_SMOKE_RUN ?? 'manual')
 const FIRST_FRAME_MS = 1000
+/** 84-h: 시험판 모드 스모크 빌드 자리(`playwright.config.ts` 두 번째 서버). */
+const TRIAL_BASE = 'http://127.0.0.1:4180/'
 
 interface Watch { errors: string[]; external: string[] }
 
-async function open(page: Page, query: string): Promise<Watch> {
+async function open(page: Page, query: string, base = './'): Promise<Watch> {
   const w: Watch = { errors: [], external: [] }
   page.on('console', (m) => { if (m.type() === 'error') w.errors.push(`console: ${m.text()}`) })
   page.on('pageerror', (e) => w.errors.push(`pageerror: ${e.message}`))
@@ -30,7 +32,7 @@ async function open(page: Page, query: string): Promise<Watch> {
     w.external.push(u.protocol)
     return route.abort()
   })
-  await page.goto(`./?${query}`)
+  await page.goto(`${base}?${query}`)
   return w
 }
 
@@ -339,6 +341,69 @@ test.describe('79- 화면 스모크', () => {
     await expect(row).toContainText('다정한 말이 유성으로 떨어져요')
     await expect(page.getByTestId('settings-sky-meteor')).toHaveAttribute('aria-checked', 'true')
     await check(page, w, 'settings-oursky-meteor')
+  })
+
+  /** 84-h: 시험판 빌드에서 설정 줄 -> 하늘. 미리 보기 동안 서버(가짜 클라이언트) RPC 0 · 기기 저장 견본 0. */
+  async function openPreview(page: Page): Promise<Watch> {
+    const w = await open(page, 'world=account', TRIAL_BASE)
+    await expect(page.getByTestId('tab-bar')).toBeVisible({ timeout: 5000 })
+    await settle(page)
+    await tab(page, 'settings')
+    const row = page.getByTestId('settings-row-sky-meteor-preview')
+    await row.scrollIntoViewIfNeeded()
+    await seen(row)
+    await expect(row).toContainText('유성 미리 보기 · 시험판')
+    await check(page, w, 'settings-oursky-preview')
+    await row.click()
+    await seen(page.getByTestId('sky-screen'))
+    return w
+  }
+  const noPreviewTrace = (page: Page) => page.evaluate(() => {
+    const all = Object.keys(localStorage).map((k) => `${k}=${localStorage.getItem(k)}`).join('|')
+    return { preview: all.includes('preview') || all.includes('퇴근길'), meteorKeys: Object.keys(localStorage).filter((k) => /meteor/.test(k) && !/skypref/.test(k)) }
+  })
+
+  test('84-h 시험판 유성 미리 보기: 설정 줄 -> C01 제자리 빛(곧) -> C03 긴 원문 스크롤 · 390 / 360', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' }) // 제자리 빛 - 누르기가 안정적이다
+    await page.setViewportSize({ width: 390, height: 844 })
+    const w = await openPreview(page)
+    const meteor = page.getByTestId('sky-meteor')
+    await expect(meteor).toBeVisible({ timeout: 3000 }) // 곧 - 4~10초 기다림 없음
+    await expect(meteor).toHaveAttribute('data-mode', 'still')
+    await meteor.click()
+    await seen(page.getByTestId('sky-fallen'))
+    await expect(page.getByTestId('sky-fallen-text')).toHaveText(PREVIEW_LONG_TEXT)
+    await expect(page.getByTestId('sky-fallen-count')).toHaveText('2 / 2')
+    const body = page.getByTestId('sky-fallen-body')
+    const scroll = await body.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight }))
+    expect(scroll.sh, '긴 원문이 두 화면 넘게(스크롤 영역)').toBeGreaterThan(scroll.ch * 2)
+    await check(page, w, 'sky-c03-preview-390')
+    await body.evaluate((el) => { el.scrollTop = el.scrollHeight })
+    await expect(page.getByTestId('sky-fallen-meta')).toBeInViewport()
+    await page.setViewportSize({ width: 360, height: 780 })
+    await check(page, w, 'sky-c03-preview-360')
+    await page.getByTestId('sky-fallen-prev').click()
+    await expect(page.getByTestId('sky-fallen-text')).toHaveText(METEOR_TEXT)
+    await page.getByTestId('sky-fallen-close').click()
+    await expect(page.getByTestId('sky-fallen')).toBeHidden()
+    await expect(page.getByTestId('sky-screen')).toBeVisible()
+    expect(await noPreviewTrace(page)).toEqual({ preview: false, meteorKeys: [] })
+    expect(await page.evaluate(() => ((window as unknown as Record<string, { fn: string }[]>).__ONDOLOG_SMOKE_RPC__ ?? []).map((c) => c.fn))).toEqual(
+      expect.not.arrayContaining([expect.stringMatching(/meteor|sweet/i)]),
+    )
+  })
+
+  test('84-h 시험판 유성 미리 보기: 움직이는 유성(기본 모션) -> 누르면 C03', async ({ page }) => {
+    const w = await openPreview(page)
+    const meteor = page.getByTestId('sky-meteor')
+    await expect(meteor).toBeVisible({ timeout: 3000 })
+    await expect(meteor).toHaveAttribute('data-mode', 'fall')
+    await meteor.dispatchEvent('click') // 움직이는 중이라 위치 고정을 기다리지 않고 누른다
+    await seen(page.getByTestId('sky-fallen'))
+    await expect(page.getByTestId('sky-fallen-text')).toHaveText(PREVIEW_LONG_TEXT)
+    expect(await noPreviewTrace(page)).toEqual({ preview: false, meteorKeys: [] })
+    expect(w.errors).toEqual([])
+    expect(w.external).toEqual([])
   })
 
   test('채팅: 목록 · 입력창 · 사진 칸 비율 · 맨 아래 붙기', async ({ page }) => {

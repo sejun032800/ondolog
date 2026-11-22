@@ -6,6 +6,8 @@
  * 78-: NOTIFICATIONS > 알림(H10)은 보드 H02 자리(PERSONALITY 다음 · PRIVACY 앞)에 이 파일이 더한다 - 루트 `SETTINGS_GROUPS`(RN 동결 앱과 공용)는 바꾸지 않는다.
  * 85-(MASTER 9-8-4 · 보드 patch9b H01_oursky · H01_reduced): OUR SKY 묶음을 COUPLE 다음에 이 파일이 더한다 - "별 반짝임" 한 줄(값은 기기에만).
  * 84-e: 유성이 연결되어 "유성 떨어뜨리기" 줄을 그 위에 더한다(현재 H01 보드 - 두 줄 · 값은 기기에만).
+ * 84-h(R145-2): 시험판(`IS_TRIAL_BUILD`)에서만 OUR SKY 묶음 맨 아래에 "유성 미리 보기" 줄 - 누르면 하늘(C01)로 가서 견본 유성 하나가 곧 떨어진다.
+ *   출시 빌드에서는 분기가 상수로 잘려 줄 · 견본이 번들에 남지 않는다(`sky/meteorPreview.tsx`).
  *   기기 움직임 줄이기가 켜져 있으면 줄 비활성 + 묶음 아래 문구(사용자가 켜 둔 값은 지우지 않는다). "유성 떨어뜨리기" 줄은 유성이 열릴 때부터.
  * 미연결이어도 이 탭은 전부 열린다 - "연인" 줄은 "연결 전", 눌러서 열리는 커플 화면이 잠긴 문(I01)을 보인다.
  * 값은 읽기뿐이다. 쓰는 것은 하위 화면이 한다. B14: 값이 다 읽히기 전에는 오른쪽 값 자리가 뼈대다(값이 늦게 채워지지 않는다).
@@ -22,6 +24,8 @@ import { appVersion } from './appInfo'
 import { ListGroup, ListRow, Toggle } from './parts'
 import { useReducedMotionLive, useSkyPrefStore, useSkyPrefs } from '../sky/skyPrefs'
 import { useSettingsSummary } from './useSettingsSummary'
+import { IS_TRIAL_BUILD } from '../../config/env'
+import { PREVIEW_COPY, requestMeteorPreview } from '../sky/meteorPreview'
 
 /** 보드 H02 NOTIFICATIONS 묶음(78-). */
 export const NOTIFY_GROUP = { kicker: 'NOTIFICATIONS', label: '알림' } as const
@@ -140,6 +144,14 @@ export function SettingsView({ nav }: { nav: Nav }) {
                   testId="settings-row-sky-twinkle"
                 />
               </div>
+              {IS_TRIAL_BUILD ? (
+                <ListRow
+                  label={PREVIEW_COPY.row}
+                  description={PREVIEW_COPY.rowDesc}
+                  onPress={() => { requestMeteorPreview(); nav.push('sky') }}
+                  testId="settings-row-sky-meteor-preview"
+                />
+              ) : null}
             </ListGroup>
             {reducedMotion ? <p className="t-sub c-mute setNote" data-testid="settings-sky-reduced">{SKY_GROUP.reducedNote}</p> : null}
           </section>

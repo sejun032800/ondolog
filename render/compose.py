@@ -287,6 +287,38 @@ def split_timeline(stops: list) -> tuple:
     return pages, dropped
 
 
+# 개발 임시 수정 · 84-h · 디자인 판으로 확정 예정 (R145-3 · 55-3c "0인 칸 조각 빼기"와 같은 원칙)
+# 숫자를 문장 · 머리에 끼우는 자리에서 0인 조각은 문장에서 뺀다. 틀(`render/issue/`)의 예시 문장은 그대로 - 렌더러가 넣는 값만 바뀐다.
+
+def lead_text(month: str, period_dates: int, regions: list, place_count: int, photos: int, memos: int) -> str:
+    """`@da.lead` 두 문장. 둘째 문장의 0인 조각을 뺀다:
+    사진 · 메모 둘 다 있으면 `…남긴 N장의 사진과 M개의 메모를 그대로 실었습니다.` / 하나만이면 그 조각만(`…남긴 N장의 사진을 …`) /
+    둘 다 0이면 `…N곳을 거쳤습니다.` / 장소도 0이면 둘째 문장 없음. 장소가 0이면 `N곳을 거치며`를 뺀다(지역 이름도 함께 - 지역은 장소에서 온다)."""
+    first = f'{month}에 두 사람이 함께 보낸 날은 {period_dates}번이었습니다.'
+    where = f"{''.join(r + ', ' for r in regions)}{place_count}곳" if place_count > 0 else ''
+    things = [t for n, t in ((photos, f'{photos}장의 사진'), (memos, f'{memos}개의 메모')) if n > 0]
+    if things:
+        obj = '과 '.join(things) + ('를' if things[-1].endswith('메모') else '을')
+        second = f"{where + '을 거치며 ' if where else ''}남긴 {obj} 그대로 실었습니다."
+    elif where:
+        second = f'{where}을 거쳤습니다.'
+    else:
+        return first
+    return f'{first} {second}'
+
+
+def route_summary(region_count: int, place_count: int) -> str:
+    """`@da.routeSummary` - `2개 지역 · 6개 장소`. 0인 조각은 뺀다(`0개 지역 · 6개 장소` -> `6개 장소`). 둘 다 0이면 빈 글자."""
+    pieces = [t for n, t in ((region_count, f'{region_count}개 지역'), (place_count, f'{place_count}개 장소')) if n > 0]
+    return ' · '.join(pieces)
+
+
+def records_line(memos_total: int, ai_captions: int) -> str:
+    """`@da.records` - `남긴 기록 · 메모 2 · AI 캡션 1`. 0인 조각은 뺀다(`메모 0 · AI 캡션 1` -> `AI 캡션 1`). 둘 다 0이면 빈 글자(칸째 빠짐 - 틀 data-optional)."""
+    pieces = [t for n, t in ((memos_total, f'메모 {memos_total}'), (ai_captions, f'AI 캡션 {ai_captions}')) if n > 0]
+    return ('남긴 기록 · ' + ' · '.join(pieces)) if pieces else ''
+
+
 def photo_note(total: int, shown: int) -> str:
     """README §10 `@da.articlePhotoNote` - 실린 수 < 전체면 `그날 남은 사진 {전체}장 중 {실린}장`, 같으면 `그날 남은 사진 {실린}장`. 0이면 빈 값."""
     if shown <= 0:
@@ -436,17 +468,13 @@ class _Builder:
 
         # @da.lead - 지면에 실제로 실린 것만 센다(R26-5): 데이트는 이번 기간 모은 양, 사진 · 메모는 이번 기간 기사 중 실린 것(재소환은 따로)
         regions = facts.regions
-        region_part = f"{', '.join(regions)}, " if regions else ''
-        lead = (f'{month}에 두 사람이 함께 보낸 날은 {facts.period_dates}번이었습니다. '
-                f'{region_part}{facts.place_count}곳을 거치며 남긴 {len(facts.photos_shown_period)}장의 사진과 '
-                f'{facts.memos_shown_period}개의 메모를 그대로 실었습니다.')
+        # 84-h(R145-3): 0인 조각(사진 0장 · 메모 0개 · 장소 0곳)은 문장에서 뺀다 - `lead_text`
+        lead = lead_text(month, facts.period_dates, regions, facts.place_count, len(facts.photos_shown_period), facts.memos_shown_period)
         route_headline = f'{month}에 두 사람이 그린 지도'
         self.say('ondolog', 'fixedFrame', '@da.lead', lead)
         self.say('ondolog', 'fixedFrame', '@da.routeHeadline', route_headline)
 
-        records = ''
-        if lead_f.memos_total + lead_f.ai_captions_shown > 0:
-            records = f'남긴 기록 · 메모 {lead_f.memos_total}' + (f' · AI 캡션 {lead_f.ai_captions_shown}' if lead_f.ai_captions_shown > 0 else '')
+        records = records_line(lead_f.memos_total, lead_f.ai_captions_shown)   # 84-h: `메모 0 · AI 캡션 1` -> `AI 캡션 1`
 
         places = facts.places[:PLACES_CAP]
         self.omitted_places = len(facts.places) - len(places)
@@ -505,7 +533,7 @@ class _Builder:
             if isinstance(q, dict):
                 q['type'] = QUESTION_TYPE_KO.get(q.get('type'), q.get('type'))
         computed = {'da': {
-            'routeSummary': f'{facts.region_count}개 지역 · {facts.place_count}개 장소',
+            'routeSummary': route_summary(facts.region_count, facts.place_count),   # 84-h: `0개 지역 · 6개 장소` -> `6개 장소`
             'routeHeadline': route_headline,
             'places': places,
         }}
@@ -930,7 +958,9 @@ def not_used_text(row_key: str, item: dict, timeline_max_pages: int) -> str:
     texts = {
         ('dates', 'unpicked'): f'기사로 고르지 않은 날 {n}번',
         ('photos', 'over_cap'): f'사진 {n}장 — 한 구간에 {PHOTOS_PER_STOP}장까지 싣습니다',
-        ('photos', 'dropped_stops'): f"구간 {item.get('stops', 0)}곳(사진 {n}장) — 타임라인 {timeline_max_pages}면에 들어가지 않았습니다",
+        # 84-h(개발 임시 수정 · 디자인 판으로 확정 예정): 사진이 0이면 `(사진 0장)` 조각을 뺀다 - 메모 쪽(`article_dropped_stops`)과 같은 모양
+        ('photos', 'dropped_stops'): (f"구간 {item.get('stops', 0)}곳(사진 {n}장) — 타임라인 {timeline_max_pages}면에 들어가지 않았습니다" if n
+                                      else f"구간 {item.get('stops', 0)}곳 — 타임라인 {timeline_max_pages}면에 들어가지 않았습니다"),
         ('photos', 'other_cap'): f'사진 {n}장 — 대표가 아닌 기사에는 {ARTICLE_PHOTOS}장까지 싣습니다',
         ('photos', 'unpicked'): f'사진 {n}장 — 기사에 담기지 않았습니다',
         ('memos', 'extra_in_stop'): f'메모 {n}개 — 한 구간에 하나만 싣습니다',

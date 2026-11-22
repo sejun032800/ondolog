@@ -12,6 +12,9 @@ import { defineConfig, devices } from '@playwright/test'
 const smokeDir = path.dirname(fileURLToPath(import.meta.url))
 const outRoot = process.env.ONDOLOG_SMOKE_ROOT ?? path.join(os.tmpdir(), 'ondolog-smoke')
 const PORT = 4179
+/** 84-h: 시험판 모드 스모크 빌드(`smoke/run.mjs` 2b)를 띄우는 두 번째 자리 - 시험판 "유성 미리 보기" 스모크만 쓴다(`TRIAL_BASE`). */
+const TRIAL_PORT = 4180
+const trialOut = path.join(outRoot, 'dist-trial')
 // 80- (79-덧붙임 1): 회차 이름 - 실패 기록 · 스크린샷을 회차별 폴더에 남긴다(덮어쓰기 0). 워커는 이 값을 물려받는다.
 process.env.ONDOLOG_SMOKE_RUN ??= new Date().toISOString().replace(/[:.]/g, '-')
 
@@ -26,13 +29,23 @@ export default defineConfig({
   timeout: 45_000,
   reporter: [['list']],
   use: { baseURL: `http://127.0.0.1:${PORT}/`, trace: 'off', screenshot: 'off', video: 'off', locale: 'ko-KR', timezoneId: 'Asia/Seoul' },
-  webServer: {
-    command: `npx vite preview --config smoke/vite.smoke.config.ts --mode smoke --host 127.0.0.1 --port ${PORT} --strictPort`,
-    cwd: path.resolve(smokeDir, '..'),
-    url: `http://127.0.0.1:${PORT}/`,
-    reuseExistingServer: false,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: `npx vite preview --config smoke/vite.smoke.config.ts --mode smoke --host 127.0.0.1 --port ${PORT} --strictPort`,
+      cwd: path.resolve(smokeDir, '..'),
+      url: `http://127.0.0.1:${PORT}/`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      command: `npx vite preview --config smoke/vite.smoke.config.ts --mode trial --host 127.0.0.1 --port ${TRIAL_PORT} --strictPort`,
+      cwd: path.resolve(smokeDir, '..'),
+      url: `http://127.0.0.1:${TRIAL_PORT}/`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: { ...(process.env as Record<string, string>), ONDOLOG_SMOKE_OUT: trialOut },
+    },
+  ],
   projects: [
     { name: 'webkit', use: { ...devices['iPhone 14 Pro'] } },
     { name: 'chromium', use: { ...devices['Pixel 7'] } },

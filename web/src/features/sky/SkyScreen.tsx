@@ -8,6 +8,8 @@
  *   C08 센서 / C08-alt 끌기(`SkyTour`). 둘러보기 중 ✕ · 뒤로 = C01로. 별 반짝임(H01 OUR SKY, 기기에만)을 끄면 배경 별 + 데이트 별 반짝임이 멈춘다.
  * 84-e(MASTER 9-8-4 r80 · 보드 17-b): 유성(C01 이번 달 · C08 둘러보기)과 떨어진 말(C03) - `Meteor.tsx` · 규칙 `meteorRules.ts` · 읽기 `meteorData.ts`.
  *   지난 하늘 · 별 시트 · 사진 · 권한 앞 화면 · 빈 하늘에서는 떨어지지 않는다. 서버 쓰기 0.
+ * 84-h(R145-2): 시험판 전용 유성 미리 보기(`meteorPreview.tsx`) - `IS_TRIAL_BUILD` 분기 안에서만(출시 빌드에서는 번들째 빠짐).
+ *   미리 보기로 연 하늘에서는 실제 유성을 쉬게 한다(한 번에 하나 · 실제 기록과 섞이지 않게).
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { togetherDates } from '@/engine/togetherDay'
@@ -26,6 +28,8 @@ import { toDayCounts } from '../records/dayRecordRead'
 import { useSky, useSkyNames, useSkyPhotoUrls } from './skyData'
 import { SkyTour, type TourStar } from './SkyTour'
 import { FallenWords, MeteorLayer, useMeteorDrop } from './Meteor'
+import { IS_TRIAL_BUILD } from '../../config/env'
+import { MeteorPreviewHost, takeMeteorPreview } from './meteorPreview'
 import { useSkyPrefStore, useSkyPrefs } from './skyPrefs'
 import { MOTION_MS, decideTourStart } from './tourMath'
 import { hasOrientationApi, orientationPermissionNeeded, requestOrientationPermission } from './useSkyOrientation'
@@ -128,6 +132,8 @@ export function SkyScreen({ nav }: { nav: Nav }) {
   const reduced = prefersReducedMotion()
   const pageVisible = usePageVisible()
   const prefs = useSkyPrefs(userId)
+  // 84-h: 설정의 시험판 줄로 열렸는가(열 때 한 번 읽고 지운다). 출시 빌드에서는 상수 false.
+  const [previewOn] = useState(() => (IS_TRIAL_BUILD ? takeMeteorPreview() : false))
 
   // 연결 전(혼자)에는 하늘이 없다 - 어떻게든 이 경로에 와도 메인으로 돌려보낸다.
   useEffect(() => {
@@ -244,9 +250,10 @@ export function SkyScreen({ nav }: { nav: Nav }) {
 
   // ── 84-e 유성 · 떨어진 말 ──
   const meteorNames = useSkyNames(useMemo(() => [userId, partnerId].filter((v): v is string => !!v), [userId, partnerId]))
+  const meteorCanShow = !empty && !sel && !photoView && !asking && !(tour?.leaving ?? false) && (touring || !showPast)
   const meteor = useMeteorDrop({
-    userId, coupleId: openable ? coupleId : null, enabled: prefs.meteor, ready: !sky.loading && sky.allLoaded,
-    canShow: !empty && !sel && !photoView && !asking && !(tour?.leaving ?? false) && (touring || !showPast),
+    userId, coupleId: openable ? coupleId : null, enabled: prefs.meteor && !previewOn, ready: !sky.loading && sky.allLoaded,
+    canShow: meteorCanShow,
     visible: pageVisible, names: meteorNames, namesReady: true,
   })
   const rootClass = `screen skyScreen ${reduced ? 'still' : ''} ${pageVisible ? '' : 'paused'} ${sel ? 'zoomed' : ''} ${prefs.twinkle ? '' : 'noTwinkle'} ${touring ? 'touring' : ''}`
@@ -392,6 +399,12 @@ export function SkyScreen({ nav }: { nav: Nav }) {
       {/* 84-e C03 떨어진 말 */}
       {meteor.fallenOpen ? (
         <FallenWords coupleId={openable ? coupleId : null} caught={meteor.fallenOpen} names={meteorNames} onClose={meteor.closeFallen} />
+      ) : null}
+
+      {/* 84-h 시험판 유성 미리 보기(C01 · C08 -> C03) - 견본만 · 기록 0 */}
+      {/*   하늘이 다 읽힌 뒤 실제 유성과 같은 조건(canShow)에서만 떨어진다 · 서버 · 기기 저장 0 */}
+      {IS_TRIAL_BUILD && previewOn ? (
+        <MeteorPreviewHost touring={touring} canShow={meteorCanShow && !sky.loading && sky.allLoaded} visible={pageVisible} reduced={reduced} />
       ) : null}
 
       {/* C05 */}

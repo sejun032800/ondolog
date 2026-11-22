@@ -14,8 +14,21 @@ export const SMOKE_MARKERS = [
   '가온', '나래', '솜사탕', // 만든 이름 · 별칭
 ]
 
+/**
+ * 84-h(R145-2): 시험판 전용 "유성 미리 보기"에만 있는 글자(줄 이름 · 줄 설명 · 견본 문장 · 견본 id - `src/features/sky/meteorPreview.tsx`).
+ * 출시 빌드(`build`)에는 하나도 없어야 하고, 시험 빌드(`build:trial`)에는 모두 있어야 한다(검사가 살아 있는지). 값이 그 파일과 맞는지는 `meteorPreview84h.vitest.tsx`가 본다.
+ */
+export const PREVIEW_MARKERS = [
+  '유성 미리 보기 · 시험판',
+  '견본 말 하나를 바로 떨어뜨려요',
+  '오늘 하루도 고생 많았어. 집에 가면 따뜻하게 자',
+  '오늘 퇴근길에 비가 와서 우산을 펴고 걷는데',
+  'preview-sender-a',
+  'settings-row-sky-meteor-preview',
+]
+
 /** 폴더 안 글 파일(.js · .css · .html · .json · .map)에서 표지를 찾는다. 돌려주는 값: [{ file, marker }]. */
-export function scanForMarkers(dir) {
+export function scanForMarkers(dir, markers = SMOKE_MARKERS) {
   const hits = []
   const walk = (d) => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -23,7 +36,7 @@ export function scanForMarkers(dir) {
       if (e.isDirectory()) walk(p)
       else if (/\.(m?js|css|html|json|map|svg|txt)$/i.test(e.name)) {
         const text = fs.readFileSync(p, 'utf8')
-        for (const m of SMOKE_MARKERS) if (text.includes(m)) hits.push({ file: path.relative(dir, p), marker: m })
+        for (const m of markers) if (text.includes(m)) hits.push({ file: path.relative(dir, p), marker: m })
       }
     }
   }
