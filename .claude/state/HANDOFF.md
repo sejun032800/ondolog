@@ -11,6 +11,118 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `51- ③` 두 폰 커플 실제 모드 길 - 허용 목록 + 명시 플래그 (메인 세션, 2026-11-22, 위임문 `phase-7/51-3-dispatch-phone-couple-live.md` · 출처 ROADMAP r143 R143-4 · R141-3 · R140-5) - 길 완료 · 멈춤 0 · 실행은 Proteur (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-20-r143` · 84-g 커밋(`9e07e07`) 들어감 · 작업 트리 깨끗 - 통과. 위임 0(메인 세션 직접). **원격 0** · LLM 0 · 마이그레이션 0 · 새 패키지 0 · `web/` · `render/` · 엔진 0 · `demo_responses` 0 · 커밋 0. **저장소 밖 75- 허용 목록 파일은 열지도 고치지도 않음**(코드가 실행 때 읽기만 - 이 세션에서 읽은 적 0).
+
+| # | 고친 곳 | 시험(jest `scripts/ops/phoneCouple513.test.ts` 21건 · 가짜 DB = 메모리 저장소 + 가짜 포트) |
+|---|---|---|
+| ① 두 겹 잠금 | 새 `scripts/ops/phoneTestCouple.ts` - `:22` 플래그 `--allow-phone-test-couple` · `:49` `phoneRunKind`(플래그 없으면 84-f 길 · `--couple-id`와 함께면 멈춤 · `--mode live` 또는 `--dry-run`만) · `:72` `phoneAllowlistEmails`(75- `resetAllowlist.ts`의 `parseAllowlist` · `makeResetGate` **그대로** - 파일 없음/못 읽음 · 형식 오류 · project= 없음 · 접속 주소 ref 불일치 · 이메일 0 → 멈춤, 접속 전) · `:122` `assertLiveTargetAllowed`(폰 커플 id가 있으면 그 커플만, 없으면 84-f `assertLiveTarget` 그대로 - 두 길을 섞지 않음). `generateIssue.ts:127` `LiveDeps.phoneTestCoupleId` · `:225` 잠금(DB를 읽기 전 · 아래 별명 "test" · active · AI 동의 · 모델 확인은 그대로) | "플래그 + --couple-id → 멈춤 …" · "허용 목록 파일이 없거나 못 읽으면 멈춤" · "형식 오류(줄 번호만) · project= 없음 · 접속 주소 ref 불일치 · 이메일 0 → 멈춤" · "목록만(플래그 없음) → 84-f 길: … 호 행 0 · LLM 0" · "플래그만(목록에 계정 없음) → 대상 커플 0개로 멈춤" · "둘 다 → 잠금 통과: 다음 확인(모델 설정)까지 간다 · 그 전에 호 행 0 · LLM 0" · "둘 다 + 별명 \"test\" 검사는 그대로" · "시드 목록 길은 그대로 · 두 길을 섞지 않는다" · 모든 멈춤 문구 id · 이메일 · ref 0(`clean`) |
+| ② 대상 고르기(id 치기 0) | `phoneTestCouple.ts:101` `resolvePhoneTestCouple` - 허용 목록 이메일 → 계정 id → 두 구성원이 **모두** 그 계정인 커플(`dissolved` 제외) **정확히 1개**만 · 0 · 2개 이상은 개수만 담아 멈춤 · 읽기 = 새 `phoneOpsAdapter.ts:21`(75- `findUserIds`와 같은 방법 + `couples` 조회) · CLI `generateIssueCli.ts:91`(찾은 id는 어느 화면 줄에도 넣지 않음) · `:128` 대상 | "두 계정이 모두 목록에 있는 커플 1개 → 그 커플" · "0개 → 멈춤(개수만) - 계정 없음 · 한 계정만 목록에 · 해제 끝난 커플" · "2개 → 멈춤(개수만)" |
+| ③ 미리 보기 `--dry-run` | 새 `scripts/ops/phonePreview.ts:83` `previewPhoneCouple` - 기록 범위(`phoneOpsAdapter.ts:61`) 안의 달마다 입력 조립(읽기) → 합계 · 날짜별(`YYYY-MM-DD 메시지 n · 데이트 n · 사진 n`) · 그 달 호 상태 · 코너별 재료 유무 · 추정 입력 토큰/정지 상한 + 선행 검사(P0 · 모델 설정). 다툰 날 표시 0 · 원문 · id 0 · 쓰기 0. CLI `generateIssueCli.ts:96` | "기간 후보(달) · 날짜별 개수 · 선행 검사 결과만 - 원문 · id · 이메일 0 · 쓰기 0" · "합계 = 날짜별 합" · "선행 검사 실패도 결과만 - …" · "달 목록 · KST 날짜" |
+| ⑤ 한 줄 선택 날짜 | 새 `scripts/ops/sweetSubDates.ts:18` `sweetSubDays` · `:31` `sweetSubDateLines`(개발 프로젝트 · 별명 "test" · **발행된 호**만 · sub의 보낸 날 KST · 시각 순 · 날짜와 개수만) | "sub의 보낸 날(KST) · 시각 순 · 대화(main)는 세지 않는다 …" · "발행된 호 → 개수 + 날짜 줄만(원문 · 이름 · id 0)" · "발행 전 호 · 시험 커플 아님 → 멈춤 · …" |
+
+**허용 목록을 읽는 곳**: `generateIssueCli.ts:55` `readAllowlistText`(경로 = 75- `resetAllowlist.ts` `resolveAllowlistPath` - 초기화 스크립트와 같은 규칙 · 경로 출력 0) → `:73` `phoneAllowlistEmails`. 플래그가 없으면 읽지 않는다. 읽은 이메일은 화면 출력 지울 값 목록에 더한다(`:86`).
+
+### 51- ③ 실행 명령 (Proteur · 시작 메뉴 PowerShell · 저장소 맨 위 · **한 창** · 한 줄씩)
+
+**1) 창 준비 · 보안 입력** - "최종 실측 실행 명령" 0) · 1) · 3-0)과 같다:
+```
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+function m { process { "$_" -replace '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}','<id>' -replace '[\w.+-]+@[\w-]+\.[\w.-]+','<email>' } }
+$s = Read-Host -AsSecureString "LLM 키"
+$env:ONDOLOG_LLM_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); Remove-Variable s
+$env:ONDOLOG_LLM_API_KEY.StartsWith('sk-ant-')
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+$h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
+$al = Join-Path $env:USERPROFILE '.ondolog\reset-allowlist.txt'
+Test-Path $al
+```
+→ 확인 줄 셋(`sk-ant-` · `sb_secret_` · `Test-Path`) 모두 `True`일 때만. 키는 운영용 **`ops_2026_11`**. 75- 목록을 다른 곳에 뒀으면 `$al = $env:ONDOLOG_RESET_ALLOWLIST`. 그 목록에 **두 폰 계정 이메일 둘 다**가 있어야 한다(없으면 "커플이 0개다"로 멈춤 - 목록은 Proteur가 직접 고친다).
+
+**2) 84-g ④ 자기 점검 하네스 1회 → review → recheck** (원격 0 · 다정한 말만 · Sonnet 5.5):
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_LLM_API_KEY --allow-net=api.anthropic.com --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts run --model claude-sonnet-5-5 --fixture m1-month-conflict --corner sweet_words --runs 1 --tag selfcheck 2>&1 | m
+deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts review 2>&1 | m
+deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts recheck 2>&1 | m
+```
+→ `scripts/ops/out/review.md` · `recheck.md`의 "자기 점검 시험 (84-g ④ …)" 절 3칸(고른 줄 중 다툰 날 · 화해 줄 / 그중 conflict 표시 / 표시 없이 남아 실림 = 실패)을 PE에게.
+
+**3) 두 폰 커플 미리 보기** (쓰기 0 · LLM 0 · 커플 id 치기 0):
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/generateIssueCli.ts --allow-phone-test-couple --dry-run 2>&1 | m
+```
+→ "두 폰 커플 길(51- ③): … 1개 - 확인됨" · 선행 검사 `통과` · 모델 `허용 - claude-sonnet-5-5` · 달마다 `## YYYY-MM` + 날짜별 개수 · 코너 재료. Proteur가 **기간 한 달**(3일치 기록이 있는 달 · 그 달 호 "없음" 또는 "초안 있음")을 정해 그 줄의 `--period-start` · `--period-end` 값을 아래 변수에 넣는다:
+```
+$ps = '2026-11-01'; $pe = '2026-12-01'
+```
+
+**4) 생성 → 렌더 → 발행** (렌더는 발행 전 - "최종 실측" 4) 순서 정정 그대로)
+
+4-1. 생성(실제 모드 · Sonnet 5.5는 `app_config.llm_provider` · 플래그):
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_LLM_API_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net="$h,api.anthropic.com" --allow-read="supabase/.temp/linked-project.json,scripts/ops/out,$al" --allow-write=scripts/ops/out scripts/ops/generateIssueCli.ts --allow-phone-test-couple --mode live --period-start $ps --period-end $pe 2>&1 | m
+$iid = (Get-ChildItem scripts\ops\out\generate-*.json | Sort-Object LastWriteTime | Select-Object -Last 1).BaseName -replace '^generate-',''
+$g = Get-Content "scripts\ops\out\generate-$iid.json" -Raw -Encoding UTF8 | ConvertFrom-Json; $g.mode -eq 'live' -and $g.period.start -eq $ps
+```
+→ 마지막 줄 `True`(방금 만든 이 기간의 실제 모드 결과). 코너 셋 `ready`가 아니면 아래 "떨어지면".
+
+4-2. 렌더(키를 렌더용 **`render_2026_11`**로):
+```
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+render\.venv\Scripts\python.exe render\render_issue.py --issue-id $iid 2>&1 | m
+Invoke-Item "render\out\$iid\issue.pdf"
+```
+- 렌더 · 발행은 별명 "test"만 본다(`render_issue.py:746` · `publishIssue.ts:50`) - 폰 커플 별명이 시험 이름이라 통과(84-f 7) 절). 두 겹 잠금은 **LLM을 부르는 생성에만** 있다.
+
+4-3. 발행(키를 다시 `ops_2026_11`로):
+```
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out scripts/ops/publishIssueCli.ts --issue-id $iid 2>&1 | m
+```
+
+4-4. 유성 날짜 계산용(⑤ · 읽기만 · 발행 뒤):
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY --allow-net=$h --allow-read=supabase/.temp/linked-project.json scripts/ops/sweetSubDates.ts --issue-id $iid 2>&1 | m
+```
+→ "다정한 말 한 줄 선택 N개 - 보낸 날(KST, 시각 순):" + 날짜 줄. 이 줄만 PE에게(유성은 7일 지난 말부터 - `meteorRules.ts` `MIN_AGE_MS`). 0개면 그대로 PE에게.
+
+**5) 끝내기**: 창을 닫고 새 창에서
+```
+[bool]$env:ONDOLOG_LLM_API_KEY; [bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY; [bool]$env:ONDOLOG_SUPABASE_URL
+```
+→ 셋 다 `False`.
+
+### 원격에 쓰는 것 · 비용 상한
+| 명령 | 원격에 쓰는 것 | 상한 |
+|---|---|---|
+| 2) 하네스 · review · recheck | **0**(권한이 `api.anthropic.com`뿐 · 결과는 로컬 `scripts/ops/out`) | 명령 1회 $10(`HARNESS_BUDGET_USD`) · 예상 **약 $0.07**(최종 실측 다정한 말 1회 $0.056~0.070) |
+| 3) 미리 보기 | **0**(인증 계정 목록 · `couples` · `profiles` · `messages` · `dates` · `date_stops` · `data_entries` · `issues` · `app_config` 읽기만) | LLM 0 |
+| 4-1) 생성 | 두 폰 커플의 그 달 `issues` 초안 행 1(있으면 재사용) · `corners` 행 3(insert · 내용 · status · `llm_usage` · `source_date_ids`) · `ops_alerts`(정지 · 상한 때만) · 스토리지 `entries` → `magazine` 사진 복사 - 모두 그 호 · 그 커플 | **1호 $2**(`ISSUE_BUDGET_USD`) · 예상 **약 $0.2**(G 1호 $0.216 · 3일치라 더 적을 수 있음) |
+| 4-2) 렌더 | 스토리지 `magazine/{커플}/{호}/render/`(디지털 PDF + 쪽 그림 - 인쇄용 0) · 그 호 `issues` 렌더 세 칸 | LLM 0 |
+| 4-3) 발행 | RPC `fn_publish_issue` → 그 호 발행 칸 · 그 호 `corners` `ready → published` · 그 커플 `dates` 재소환 칸. **발행 뒤 두 폰 앱에 호가 보인다**(의도) | LLM 0 |
+| 4-4) 한 줄 선택 날짜 | 0(읽기만) | LLM 0 |
+
+### 떨어지면
+- 하네스: 2) 첫 줄을 태그 `selfcheck2`로 다시(이번 결과를 덮지 않음).
+- 생성: **4-1 첫 줄을 그대로 다시**(같은 초안 재사용 · `ready` 코너는 다시 만들지 않음 · 떨어진 코너만 LLM). 다시 생성하면 렌더 칸이 비워지므로 4-2 · 4-3도 다시. 발행된 호는 다시 생성하지 않는다(멈춤).
+- 미리 보기 · 생성이 "허용 목록 …"이나 "커플이 N개다"로 멈추면 그 줄만 PE에게(목록 · 폰 계정 확인).
+
+### 결정 기록 (출처 R141-3 · R143-4)
+1. 허용 목록 = 75- 0-6 초기화 스크립트 목록 **그 파일 · 그 해석 함수**(`resetAllowlist.ts`) - 새 목록 0(R141-3 "이미 사람이 관리하는 단일 근거"). project= 줄 · 접속 주소 대조도 같은 문(gate).
+2. 플래그가 있으면 `--couple-id`를 받지 않는다 - 대상은 목록에서만 정한다(id 치기 · 보기 0). 플래그 실행에서 시드 커플, 시드 실행에서 폰 커플은 멈춤(두 길 섞지 않음).
+3. 후보 = 두 구성원이 **모두** 목록 계정인 커플 · `dissolved` 제외 · 정확히 1개. active · 별명 "test" · AI 동의는 생성의 기존 확인이 그대로 본다(미리 보기도 결과를 보여 줌).
+4. 플래그는 `--mode live` 또는 `--dry-run`과만(샘플 출력을 폰 커플에 쓰지 않는다). 미리 보기는 LLM 키 없이 돈다.
+5. 목록 이메일은 화면 · 결과 파일의 지울 값 목록에 넣는다. 찾은 커플 id는 어느 화면 줄에도 넣지 않는다(미리 보기 · 결과 줄은 개수 · 호 id만 - 호 id는 `m`이 가림). 로컬 결과 파일(`generate-<호>.json`, git 밖)은 84-f와 같은 모양(A-27 시험 `opsCliOutput.test.ts`의 `writeJson(file, report, hidden)` 그대로).
+6. 두 겹 잠금은 LLM을 부르는 생성에만 둔다 - 렌더 · 발행 · ⑤는 기존 별명 "test" 확인 그대로(LLM 0).
+7. 미리 보기 달 수 상한 24(마지막 달부터) · 입력 조립 호 id는 자리 값(쓰기 · 출력 0).
+
+검증: **`npm run gate` 통과 197.9초**(smoke 38/38 · `web/` 변경 0) · 루트 tsc 0 · jest **130/2280**(이전 129/2259 · 새 파일 1개 21건 · PGlite 포함 - 첫 전체 실행에서 `seed2025_84f.test.ts` 첫 시험이 부하로 5초 한도를 넘어 뒤 2건이 이어 실패, 그 파일만 다시 8/8 · 전체 다시 130/2280 통과 - 84-g까지의 흔들림 종류) · deno check(`generateIssueCli.ts` · `sweetSubDates.ts` · `phonePreview.ts` · `phoneTestCouple.ts` · `phoneOpsAdapter.ts` · `publishIssueCli.ts` · `resetTestAccount.ts` · `m1QualityRun.ts` · `seedTestData.ts` · `push-send/index.ts`) 통과 · deno test `resetTestAccountCheck.ts` 28 통과(75- 잠금 그대로). 키 · 주소 · ref · id · 이메일 0(시험 이메일 꼴만) · 새 파일 이름 ASCII · 허용 목록 파일 열람 · 변경 0.
+
 ## `84-g` 실제 커플 첫 호 전 손질 - "유저" 0 · 근거 날짜 · 조판 2 · 자기 점검 시험 데이터 (메인 세션, 2026-11-22, 위임문 `phase-7/84-g-dispatch-first-issue-polish.md` · 출처 ROADMAP r143 R143-1~6) - 완료 · 멈춤 0 (미커밋)
 
 시작 확인: `DOC_REVISION: 2026-11-20-r143` - 통과. 위임 0(메인 세션 직접 · 앞 세션이 중간에 멈춘 작업 트리를 이어 받아 검토 · 확인). LLM 0 · 원격 0(허용 질의 없음) · 마이그레이션 0 · 새 패키지 0 · `web/` 0 · `demo_responses` 0 · 실제 데이터 0 · 디자인 틀(`render/issue/`) 0 · 커밋 0.

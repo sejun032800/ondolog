@@ -40,7 +40,8 @@ import { dateArchiveModule } from '../../supabase/functions/_shared/corners/date
 import { sweetWordsModule } from '../../supabase/functions/_shared/corners/sweetWords.ts'
 import { thisMonthModule } from '../../supabase/functions/_shared/corners/thisMonth.ts'
 import { copyIssueMedia, type MediaCopyReport } from './mediaCopy.ts'
-import { OpsStopError, assertLiveTarget, assertTestCouple } from './opsGuards.ts'
+import { OpsStopError, assertTestCouple } from './opsGuards.ts'
+import { assertLiveTargetAllowed } from './phoneTestCouple.ts'
 import type { CornerLlmUsage, CornerRow, IssueRow, IssueType, MediaStore, OpsStore } from './opsStore.ts'
 import type { BeforeAttemptResult, LlmClient, LlmResponseInfo } from '../../supabase/functions/_shared/llmClient.ts'
 import type { LlmRequest } from '../../supabase/functions/_shared/llmRequest.ts'
@@ -118,6 +119,12 @@ export interface LiveDeps {
   readonly now: () => number
   /** 84-f(R141-2): 로컬 시드 목록 파일들의 커플 id - 실제 모드 대상은 이 안이어야 한다(`opsGuards.ts` `assertLiveTarget`). 비어 있으면 실제 모드는 늘 멈춘다. */
   readonly seedCoupleIds: ReadonlySet<string>
+  /**
+   * 51- ③(R141-3): 두 겹 잠금(저장소 밖 75- 허용 목록에 두 계정 + `--allow-phone-test-couple`)을 지나 CLI가 찾은 두 폰 커플 id.
+   * 있으면 실제 모드 대상은 **이 커플만**(시드 목록 길은 쓰지 않는다), 없으면 84-f 그대로(`phoneTestCouple.ts` `assertLiveTargetAllowed`).
+   * `resolvePhoneTestCouple` 말고 이 값을 채우는 곳은 없다.
+   */
+  readonly phoneTestCoupleId?: string | null
 }
 
 /** 실제 모드로 저장한 코너 행의 `engine_version` 앞머리(뒤에 모델 id). 샘플(`SAMPLE_ENGINE_VERSION`)과 구별한다. */
@@ -212,7 +219,11 @@ export async function generateIssue(
   }
 
   // ── 84-f 실제 모드 대상 잠금(R141-2 · R140-4): 로컬 시드 목록의 커플 id + 아래 별명 "test" 둘 다. DB를 읽기 전에 ───────
-  if (mode === 'live') assertLiveTarget(params.coupleId, (deps.live as LiveDeps).seedCoupleIds)
+  // 51- ③(R141-3): 두 겹 잠금을 지난 두 폰 커플 id가 있으면 그 커플만(별명 "test" 등 아래 확인은 그대로).
+  if (mode === 'live') {
+    const l = deps.live as LiveDeps
+    assertLiveTargetAllowed(params.coupleId, l.seedCoupleIds, l.phoneTestCoupleId)
+  }
 
   // ── 시험 커플 확인 + P0 대상 조건(17-0-10-B) ───────────────────────────
   const couple = await store.getCouple(params.coupleId)
