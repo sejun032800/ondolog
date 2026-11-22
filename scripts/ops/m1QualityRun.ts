@@ -31,6 +31,10 @@
  *     scripts/ops/m1QualityRun.ts recheck      # 84-c: out/runs/*.json의 모든 시도를 새 내용 검사로 -> out/recheck.md (네트워크 · 키 0)
  *
  * 84-c(R133-5): 합성 데이터셋 연도는 `FIXTURE_YEAR`(2025). 실행 json에 `fixtureYear`를 남긴다 - `recheck`가 같은 입력을 다시 만든다.
+ *
+ * 84-g ④(R143-3 ④): `--fixture m1-month-conflict --corner sweet_words` = 자기 점검 시험 데이터(다툰 날 · 화해 직후의 다정해 보이는 줄)로
+ * **다정한 말 코너만** 돈다(다른 코너 · `all`이면 키를 읽기 전에 멈춤). 기본값은 `m1-month`(84-g 전과 같음 · 파일 이름도 같음).
+ * 실행 json에 `fixture`를 남기고 파일 이름 태그 뒤에 데이터셋 이름을 붙인다(`m1Review.ts` `runFileName`). review · recheck가 따로 묶는다.
  */
 
 import type { AssembledInput } from '../../supabase/functions/_shared/inputAssembly.ts'
@@ -57,7 +61,8 @@ import {
 } from '../../src/engine/corners/llmSafety.ts'
 import type { LlmRequest } from '../../supabase/functions/_shared/llmRequest.ts'
 import { assembleFixture, recheckRecords, renderRecheck } from './m1Recheck.ts'
-import { CORNERS, renderReview, safeName, sentCalls, type AttemptRecord, type CornerKey, type HttpCall, type RunRecord, type Usage } from './m1Review.ts'
+import { DEFAULT_FIXTURE, resolveRunFixture } from './selfCheckTally.ts'
+import { CORNERS, renderReview, runFileName, safeName, sentCalls, type AttemptRecord, type CornerKey, type HttpCall, type RunRecord, type Usage } from './m1Review.ts'
 import { dateArchiveModule } from '../../supabase/functions/_shared/corners/dateArchive.ts'
 import { sweetWordsModule } from '../../supabase/functions/_shared/corners/sweetWords.ts'
 import { thisMonthModule } from '../../supabase/functions/_shared/corners/thisMonth.ts'
@@ -126,10 +131,10 @@ function corners(): Record<CornerKey, { module: CornerModule<any, any, any>; inp
   }
 }
 
-async function assemble(): Promise<AssembledInput> {
+async function assemble(fixture: string = DEFAULT_FIXTURE): Promise<AssembledInput> {
   // 호 ID는 합성 값이다 - 사진 경로가 목적지 경로(§17-0-10-D) 모양을 갖게 하려는 것뿐이고 DB에 쓰지 않는다(`54-`).
-  // 84-c: 조립은 `m1Recheck.ts`와 같은 함수(데이터 연도 `FIXTURE_YEAR`).
-  return await assembleFixture(FIXTURE_YEAR)
+  // 84-c: 조립은 `m1Recheck.ts`와 같은 함수(데이터 연도 `FIXTURE_YEAR`). 84-g: 데이터셋 이름(기본 `m1-month`).
+  return await assembleFixture(FIXTURE_YEAR, fixture)
 }
 
 function requestText(req: LlmRequest): string {
@@ -258,10 +263,14 @@ async function run(flags: Map<string, string>): Promise<void> {
   const which = flags.get('corner') ?? 'all'
   const selected: readonly CornerKey[] = which === 'all' ? CORNERS : [which as CornerKey]
   for (const c of selected) if (!CORNERS.includes(c)) throw new Error(`알 수 없는 코너: ${c}`)
+  // 84-g ④: 데이터셋 - 키를 읽기 전에 정한다(자기 점검 데이터는 다정한 말만).
+  const fx = resolveRunFixture(flags.get('fixture'), which)
+  if (!fx.ok) throw new Error(`멈춤: ${fx.message} - 호출 0`)
+  const fixture = fx.fixture
 
   const key = readKey()
   const redact = makeRedactor(key)
-  const assembled = await assemble()
+  const assembled = await assemble(fixture)
   const table = corners()
   await Deno.mkdir(RUNS_DIR, { recursive: true })
   // 84-a(R124-3): 이번 실행 전체 $10.
@@ -390,11 +399,12 @@ async function run(flags: Map<string, string>): Promise<void> {
         r19_2Violations: attempts.filter((a) => !a.validation.ok && a.validation.detail.includes(R19_2_MARK)).length,
         costUsd: usageCostUsd(model, usageTotal),
         fixtureYear: FIXTURE_YEAR,
+        ...(fixture === DEFAULT_FIXTURE ? {} : { fixture }),
       }
-      const file = `${RUNS_DIR}/${safeName(model)}__${cornerKey}__${tag}__r${r}.json`
+      const file = `${RUNS_DIR}/${runFileName(record)}`
       await Deno.writeTextFile(file, redact(JSON.stringify(record, null, 2)))
       console.log(
-        `[${model}] ${cornerKey} #${r}: ${record.outcome}${record.failureReason ? ' (' + record.failureReason + ')' : ''}${record.outcome === 'halted' ? ' (' + record.failureDetail + ')' : ''}${truncated ? ' [max_tokens 잘림]' : ''} ` +
+        `[${model}] ${cornerKey}${fixture === DEFAULT_FIXTURE ? '' : ' (' + fixture + ')'} #${r}: ${record.outcome}${record.failureReason ? ' (' + record.failureReason + ')' : ''}${record.outcome === 'halted' ? ' (' + record.failureDetail + ')' : ''}${truncated ? ' [max_tokens 잘림]' : ''} ` +
           `calls=${sentCalls({ httpCalls })} in=${usageTotal.input} cw=${usageTotal.cacheWrite} cr=${usageTotal.cacheRead} out=${usageTotal.output} ${totalLatencyMs}ms ` +
           `$${formatUsd(record.costUsd ?? 0)} (누적 $${formatUsd(meter.spentUsd())} / 상한 $${HARNESS_BUDGET_USD})`,
       )
@@ -429,7 +439,7 @@ async function recheck(): Promise<void> {
     if (e.isFile && e.name.endsWith('.json')) records.push(JSON.parse(await Deno.readTextFile(`${RUNS_DIR}/${e.name}`)))
   }
   const rows = await recheckRecords(records)
-  const text = renderRecheck(rows)
+  const text = renderRecheck(rows, records)
   await Deno.writeTextFile(`${OUT_DIR}/recheck.md`, text)
   console.log(text)
 }

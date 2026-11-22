@@ -39,6 +39,26 @@ export const FORBIDDEN_VALUE_EXPRESSIONS: readonly string[] = [
   '순위',
 ]
 
+/**
+ * 84-g(ROADMAP r143 R143-3 ①) 지면에서 두 사람을 가리키는 낱말 - "두 사람" · "두 분"으로 쓴다(프롬프트 공통 원칙과 같은 기준, R134-1).
+ * 부분 문자열로 찾는다("사용자 이름"처럼 붙은 말도 걸림). **따옴표 안 원문 인용은 검사 밖**(84-c `stripQuoted`와 같은 규칙) -
+ * 원문 칸(메시지 · 메모)은 애초에 값 규칙의 대상 칸이 아니다. 어기면 위와 같이 재요청 1회 → 빠짐.
+ * 위 정책어 목록은 84-a 그대로(따옴표 제외를 새로 더하지 않음).
+ */
+export const FORBIDDEN_PERSON_EXPRESSIONS: readonly string[] = ['유저', '사용자']
+
+/**
+ * 따옴표 안의 글(원문 인용)을 지운다 - `contentChecks.ts` `stripQuoted`와 **같은 따옴표 여섯 쌍**(시험
+ * `supabase/functions/_shared/corners/personWords84g.test.ts`가 두 함수의 결과가 같은지 본다). 이 폴더 파일은 서로 가져오지 않는다(Deno는 `.ts` 확장자를
+ * 요구하고 루트 tsc는 막는다 - 각 파일이 자기 완결).
+ */
+const QUOTED: readonly RegExp[] = [/"[^"]*"/g, /'[^']*'/g, /“[^”]*”/g, /‘[^’]*’/g, /「[^」]*」/g, /『[^』]*』/g]
+export function withoutQuoted(text: string): string {
+  let out = text
+  for (const p of QUOTED) out = out.replace(p, ' ')
+  return out
+}
+
 /** 코드포인트 길이(이모지 한 개 = 1). */
 export function codePointCount(value: string): number {
   return Array.from(value).length
@@ -74,6 +94,10 @@ export function findValueViolations(llmOutput: unknown, rules: readonly ValueRul
       if (length > rule.maxLength) violations.push(`${rule.path}: 길이 ${length} > 상한 ${rule.maxLength}`)
       for (const word of FORBIDDEN_VALUE_EXPRESSIONS) {
         if (value.includes(word)) violations.push(`${rule.path}: 금지 표현 「${word}」`)
+      }
+      const unquoted = withoutQuoted(value)
+      for (const word of FORBIDDEN_PERSON_EXPRESSIONS) {
+        if (unquoted.includes(word)) violations.push(`${rule.path}: 금지 표현 「${word}」(두 사람 · 두 분으로)`)
       }
     }
   }

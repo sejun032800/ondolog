@@ -8,6 +8,7 @@
  */
 
 import { HARNESS_BUDGET_USD, formatUsd, isAllowedModel, usageCostUsd } from '../../src/engine/corners/llmSafety.ts'
+import { DEFAULT_FIXTURE, fixtureOf, isSelfCheckRecord, renderSelfCheckTable, tallySelfCheck } from './selfCheckTally.ts'
 
 export const CORNERS = ['date_archive', 'sweet_words', 'this_month'] as const
 export type CornerKey = (typeof CORNERS)[number]
@@ -77,10 +78,21 @@ export interface RunRecord {
   readonly costUsd?: number
   /** 84-c: 합성 데이터셋 연도(없으면 84-c 전 실행 = 2026). `recheck`가 같은 입력을 다시 만들 때 쓴다. */
   readonly fixtureYear?: number
+  /** 84-g ④: 합성 데이터셋 이름(없으면 `m1-month` - 84-g 전 기록 포함). 자기 점검 시험 데이터 = `m1-month-conflict`. */
+  readonly fixture?: string
 }
 
 export function safeName(s: string): string {
   return s.replace(/[^A-Za-z0-9_.-]/g, '-')
+}
+
+/**
+ * 실행 기록 파일 이름(`out/runs/` 안). 기본 데이터셋은 84-g 전과 같은 이름 · 다른 데이터셋은 태그 뒤에 그 이름을 넣는다
+ * (같은 태그로 돌려도 기본 실행을 덮지 않게).
+ */
+export function runFileName(rec: Pick<RunRecord, 'model' | 'corner' | 'tag' | 'run' | 'fixture'>): string {
+  const fx = fixtureOf(rec)
+  return `${safeName(rec.model)}__${rec.corner}__${rec.tag}${fx === DEFAULT_FIXTURE ? '' : '__' + safeName(fx)}__r${rec.run}.json`
 }
 
 /** 84-a2: 이 회차에서 실제로 보낸 HTTP 요청 수 - 기록 · 화면 · review · summary가 모두 이 값을 쓴다. */
@@ -168,8 +180,11 @@ export function isDropped(r: RunRecord): boolean {
  * 84-a2: 호출 수는 `sentCalls`(실제로 보낸 HTTP 수) 하나만 쓴다 · 말투 칸 = "합니다체 밖".
  */
 export function renderReview(input: readonly RunRecord[]): { readonly review: string; readonly summary: string } {
-  const records = [...input]
-  records.sort((a, b) => a.corner.localeCompare(b.corner) || a.model.localeCompare(b.model) || a.tag.localeCompare(b.tag) || a.run - b.run)
+  const all = [...input]
+  all.sort((a, b) => a.corner.localeCompare(b.corner) || a.model.localeCompare(b.model) || a.tag.localeCompare(b.tag) || a.run - b.run)
+  // 84-g ④: 자기 점검 시험 데이터 회차는 따로 묶는다 - 코너 절 · 모델별 집계(9코너-실행 기준)에 섞지 않는다.
+  const records = all.filter((r) => !isSelfCheckRecord(r))
+  const selfCheck = all.filter(isSelfCheckRecord)
 
   const out: string[] = []
   out.push('# M1 품질 판정 자료', '')
@@ -186,7 +201,7 @@ export function renderReview(input: readonly RunRecord[]): { readonly review: st
         `- 결과: **${rec.outcome === 'success' ? '성공' : rec.outcome === 'halted' ? '안전 정지 (호출 없음)' : '실패 (' + rec.failureReason + ')'}** / LLM 호출(보낸 수) ${sentCalls(rec)}회 / ${rec.totalLatencyMs}ms / ` +
           `토큰 입력 ${rec.usageTotal.input} · 출력 ${rec.usageTotal.output} · 캐시읽기 ${rec.usageTotal.cacheRead} · 캐시쓰기 ${rec.usageTotal.cacheWrite}`,
       )
-      out.push(`- 원자료: \`scripts/ops/out/runs/${safeName(rec.model)}__${rec.corner}__${rec.tag}__r${rec.run}.json\``)
+      out.push(`- 원자료: \`scripts/ops/out/runs/${runFileName(rec)}\``)
       if (rec.truncated) out.push(`- **출력 잘림: \`stop_reason=max_tokens\` (max_tokens ${rec.maxTokens}), 재시도하지 않음** - 아래 시도 원문이 잘린 출력이다`)
       if (rec.outcome !== 'success') out.push(`- ${rec.outcome === 'halted' ? '정지 사유' : '실패 상세'}: ${cell(rec.failureDetail ?? '')}`)
       out.push('')
@@ -223,6 +238,30 @@ export function renderReview(input: readonly RunRecord[]): { readonly review: st
   }
   out.push('')
 
+  if (selfCheck.length > 0) {
+    out.push('---', '', '## 자기 점검 시험 (84-g ④ · 데이터 `m1-month-conflict` · 다정한 말만)', '')
+    out.push('다툰 날(09-16 · 09-17)과 화해 직후(09-18 아침)에 다정해 보이는 줄을 더한 데이터. 위 코너 절 · 모델별 집계에는 넣지 않았다.')
+    out.push('세는 단위 = 고른 대화 · 한 줄. 고른 수 · 표시 수는 마지막 응답, 실린 수는 저장 내용(성공 회차)에서 센다.', '')
+    out.push(
+      ...renderSelfCheckTable(
+        selfCheck.map((r) => ({
+          label: `${r.model} / ${r.tag} / 회차 ${r.run}`,
+          outcome: r.outcome === 'success' ? '성공' : r.outcome === 'halted' ? '안전 정지' : `실패 (${r.failureReason})`,
+          tally: tallySelfCheck(r),
+        })),
+      ),
+      '',
+    )
+    for (const rec of selfCheck) {
+      out.push(`### ${rec.model} / 회차 ${rec.run} / ${rec.tag}`, '', `- 원자료: \`scripts/ops/out/runs/${runFileName(rec)}\``, '')
+      if (rec.outcome === 'success') {
+        out.push('| 지면에 실릴 문장 | 원문 |', '|---|---|')
+        for (const r of sideBySide('sweet_words', rec.content)) out.push(`| ${cell(r.left)} | ${cell(r.right)} |`)
+        out.push('')
+      }
+    }
+  }
+
   out.push('---', '', '## 판단 기준 (MASTER 3-7)', '')
   out.push('> 이 문장을 두 사람이 **각자** 읽었을 때, 한쪽이라도 불편해질 여지가 있는가. 있으면 쓰지 않는다.', '')
   out.push('허용: 유저 원본을 주인공으로 배치 / 감정·분위기 짚기 / 긍정적 방향의 목소리 / 변화를 관찰해 서술 / 두 사람 모두에게 해당하는 서술 / 데이터가 없으면 스킵·분량 축소', '')
@@ -258,11 +297,11 @@ export function renderReview(input: readonly RunRecord[]): { readonly review: st
   const sum: string[] = ['# 실행 요약 (자동 생성)', '']
   sum.push('| 모델 | 코너 | 회차 | 결과 | 호출(보낸 수) | 입력 | 출력 | 캐시읽기 | 캐시쓰기 | 지연(ms) | R19-2 위반 | 비용(동기, $) |', '|---|---|---|---|---|---|---|---|---|---|---|---|')
   let grand = 0
-  for (const r of records) {
+  for (const r of all) {
     const c = cost(r.model, r.usageTotal)
     grand += c ?? 0
     sum.push(
-      `| ${r.model} | ${r.corner} | ${r.run} | ${r.outcome === 'success' ? '성공' : r.outcome === 'halted' ? `안전 정지(${r.haltedFor ?? 'input_token_limit'})` : '실패: ' + r.failureReason}${r.truncated ? ' (max_tokens 잘림)' : ''} | ${sentCalls(r)} | ${r.usageTotal.input} | ${r.usageTotal.output} | ${r.usageTotal.cacheRead} | ${r.usageTotal.cacheWrite} | ${r.totalLatencyMs} | ${r.r19_2Violations ?? 0} | ${c !== null ? formatUsd(c) : '-'} |`,
+      `| ${r.model} | ${r.corner}${isSelfCheckRecord(r) ? ' (자기 점검 데이터)' : ''} | ${r.run} | ${r.outcome === 'success' ? '성공' : r.outcome === 'halted' ? `안전 정지(${r.haltedFor ?? 'input_token_limit'})` : '실패: ' + r.failureReason}${r.truncated ? ' (max_tokens 잘림)' : ''} | ${sentCalls(r)} | ${r.usageTotal.input} | ${r.usageTotal.output} | ${r.usageTotal.cacheRead} | ${r.usageTotal.cacheWrite} | ${r.totalLatencyMs} | ${r.r19_2Violations ?? 0} | ${c !== null ? formatUsd(c) : '-'} |`,
     )
   }
   sum.push('', `합계 비용(동기, $): ${formatUsd(grand)} · 하네스 1회 상한 $${HARNESS_BUDGET_USD} · 84- 전체 상한 $30은 PE가 이 표로 집계`)

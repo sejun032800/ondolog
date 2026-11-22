@@ -671,7 +671,21 @@ class _Builder:
         message -> excerpt를 따옴표로(15자 초과면 날짜만) · photo -> `사진 n장`(사진 근거는 개수를 합쳐 한 번) · date -> 날짜.
         날짜 표기는 `08.22` - 연도는 재소환 기사의 날짜(또는 이 호의 연도 `year`와 다른 해)에만 붙인다(README §11 ⑤).
         `metric`은 저장 스키마에 없다.
+
+        84-g ②(ROADMAP r143 R143-3 ②): 메시지 근거가 **둘 이상의 날짜**에 걸치면 발췌마다 그 메시지 날짜를 붙인다(`09.25 “…” · 09.26 “…”`).
+        이때 발췌 없이 날짜만 서는 메시지 근거는, 같은 날짜가 이미 발췌 앞에 붙었으면 다시 쓰지 않는다. 메시지 날짜가 하나뿐이면 84-g 전과 같다.
         """
+        def message_day(ev: dict) -> str:
+            return (mmdd_or_ymd(ev.get('at'), year, recalled_days)
+                    or mmdd_or_ymd(as_dict(ev.get('attribution')).get('at'), year, recalled_days))
+
+        def shown_excerpt(ev: dict) -> Optional[str]:
+            ex = ev.get('excerpt')
+            return ex if isinstance(ex, str) and ex.strip() and code_points(ex) <= EVIDENCE_EXCERPT_MAX else None
+
+        messages = [ev for ev in evidence if isinstance(ev, dict) and ev.get('type') == 'message']
+        per_excerpt_day = len({d for d in (message_day(ev) for ev in messages) if d}) >= 2
+        dated_excerpt_days = {message_day(ev) for ev in messages if shown_excerpt(ev) is not None} if per_excerpt_day else set()
         parts: list = []
         photo_at: Optional[int] = None
         photos = 0
@@ -680,14 +694,12 @@ class _Builder:
                 continue
             kind = ev.get('type')
             if kind == 'message':
-                ex = ev.get('excerpt')
-                if isinstance(ex, str) and ex.strip() and code_points(ex) <= EVIDENCE_EXCERPT_MAX:
-                    parts.append(f'“{ex}”')
-                else:
-                    day = (mmdd_or_ymd(ev.get('at'), year, recalled_days)
-                           or mmdd_or_ymd(as_dict(ev.get('attribution')).get('at'), year, recalled_days))
-                    if day:
-                        parts.append(day)
+                ex = shown_excerpt(ev)
+                day = message_day(ev)
+                if ex is not None:
+                    parts.append(f'{day} “{ex}”' if per_excerpt_day and day else f'“{ex}”')
+                elif day and day not in dated_excerpt_days:
+                    parts.append(day)
             elif kind == 'photo':
                 photos += 1
                 if photo_at is None:

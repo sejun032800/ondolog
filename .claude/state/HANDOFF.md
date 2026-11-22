@@ -11,6 +11,65 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `84-g` 실제 커플 첫 호 전 손질 - "유저" 0 · 근거 날짜 · 조판 2 · 자기 점검 시험 데이터 (메인 세션, 2026-11-22, 위임문 `phase-7/84-g-dispatch-first-issue-polish.md` · 출처 ROADMAP r143 R143-1~6) - 완료 · 멈춤 0 (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-20-r143` - 통과. 위임 0(메인 세션 직접 · 앞 세션이 중간에 멈춘 작업 트리를 이어 받아 검토 · 확인). LLM 0 · 원격 0(허용 질의 없음) · 마이그레이션 0 · 새 패키지 0 · `web/` 0 · `demo_responses` 0 · 실제 데이터 0 · 디자인 틀(`render/issue/`) 0 · 커밋 0.
+
+| # | 고친 곳 | 시험 |
+|---|---|---|
+| ① "유저" · "사용자" 지면 0 | 프롬프트 공통 원칙 한 줄 `cornerCommon.ts:117`(+ `:112` 원칙 문장 · `dateArchive.ts:281-296` · `thisMonth.ts:250-251`의 지시문 "유저" → "두 사람" - R134-1 프롬프트도 검사 기준과 같게) · 값 검사 `valueChecks.ts:48` `FORBIDDEN_PERSON_EXPRESSIONS` · `:56` `withoutQuoted`(84-c 따옴표 여섯 쌍) · `:98-101` 검사(부분 문자열 · 따옴표 밖) → 지금의 재요청 1 → 빠짐 · 문서 `ONDOLOG_CORNER_CONTENT.md` 값 검사 절 | jest `supabase/functions/_shared/corners/personWords84g.test.ts` 13건: "AI 문장 \"유저가 남긴\" → 걸림" · "\"사용자 이름\"처럼 붙은 말도 걸림" · "원문 인용(따옴표) 안의 … → 통과" · "따옴표 빼기는 84-c `stripQuoted`와 같다" · "지금의 재요청 → 빠짐 … 보낸 수 2" · "프롬프트 지시문 자체는 그 한 줄 말고 … 쓰지 않는다" |
+| ② 근거 날짜 여러 날 | 렌더러 `render/compose.py:668` `evidence_line` - `:687` 메시지 근거 날짜가 둘 이상이면 발췌마다 그 날짜(`09.25 “…” · 09.26 “…”`) · `:688` 날짜만 서는 긴 발췌는 같은 날짜가 이미 발췌 앞에 있으면 다시 쓰지 않음 · 한 날이면 전과 같음 | Python `render/tests/test_g84_polish.py` `EvidenceDays`: `test_one_day_is_unchanged` · `test_two_days_date_each_excerpt` · `test_three_days` · `test_other_evidence_and_year_rules_kept` |
+| ③ 조판 2건(개발 임시 수정 · R50-6) | 틀은 그대로 · 렌더러가 작업 폴더 `base.css` 사본 끝에 붙임: `render_issue.py:370-379` `DEV_TEMP_CSS_84G` · `:396` `prepare_work`. (a) 제목 `h1,h2,h3,.h-display,.h-art,.h-lead,.h-sec{word-break:keep-all;overflow-wrap:break-word}` (b) 발행 노트 막대 `[data-slot="@note.ratioPeople"],[data-slot="@note.ratioOndolog"]{margin-left:.3em}` | `test_g84_polish.py` `DevTempCss`: `test_appended_only_to_work_copy`(원본 틀에 84-g 0 · 사본만) · `test_rules`(높이 표가 잰 칸 선택자 0) |
+| ④ 자기 점검 시험 데이터 | 새 `scripts/ops/fixtures/m1-month-conflict/dataset.ts`(바탕 `m1-month` 그대로 + 다툰 날 09-16 · 17 · 화해 직후 09-18 아침의 다정해 보이는 줄 10 - `:23` · `:81` `buildConflictTables` · `:103` `conflictContextIds`) · 새 `scripts/ops/selfCheckTally.ts`(`:28` `resolveRunFixture` = `--fixture`는 `--corner sweet_words`와만 · 키 읽기 전 멈춤 · `:83` `tallySelfCheck` 3칸 · `:106` 표) · 하네스 `m1QualityRun.ts:267` 인자 · `:404` 파일 이름 · `m1Review.ts:93` `runFileName`(기본 데이터는 84-g 전 이름 그대로) · `:241` review 따로 묶음 · `m1Recheck.ts:50` `tablesOf` · `:178` recheck 따로 묶음 + 집계 | jest `scripts/ops/selfCheck84g.test.ts` 10건: "바탕 데이터는 그대로" · "없음 = 기본 m1-month(84-g 전과 같음)" · "자기 점검 데이터는 --corner sweet_words와 함께만" · "기록 파일 이름 - 기본은 84-g 전 그대로" · "고른 줄 중 다툰 날 · 화해 2 / 그중 conflict 표시 1 / 표시 없이 남아 실림 1(= 실패)" · "다툰 날 줄을 고르지 않으면 0 · 0 · 0" · "review · recheck가 따로 묶는다" |
+| 함께 | recheck가 값 검사(길이 · 금지 표현)도 돌림 - 골격과 같은 함수(`m1Recheck.ts:147`) · 표에 `길이` · `금지` 칸 · 상세 줄에 태그(84b · final) | 위 jest |
+
+### recheck (`m1QualityRun.ts recheck` · LLM 0 · 원격 0)
+- 합계 **시도 30 · 위반 40**. 84-g 줄: **「유저」 시도 2(그중 실림 1) · 줄 2 · 「사용자」 0**.
+  - 잡혀야 할 것: **이달의 우리 r2(final) 시도2(실림) `articles[].body` 「유저」**(따옴표 밖 AI 문장 - 원문 확인) - 최종 실측의 "다시 쓰고 싶은 문장 1"(R143-1). 같은 종류로 r1(84b) 시도1(안 실림)도 잡힘.
+  - 새 `길이` 3 = 84b this_month r1 시도1 · 2(closing 48 · 43 > 42) · r2 시도1(theme.lead 128 > 126) - **실행 때 골격이 이미 그 이유로 거절한 시도와 값까지 같음**(기록 `validation.detail` 대조) → 오탐 0.
+  - final 줄: r2 시도1 요일(알려진 재요청 1) · r2 시도2 「유저」 - 그 밖 0. 다른 오탐 0.
+
+### 렌더 (LLM 0 · 원격 0)
+| 권 | 쪽 | safe | 잘림(원문/기록) · 넘침 | 사실 어긋남 | 환경 경고 | 타임라인 과소 | 시간 |
+|---|---|---|---|---|---|---|---|
+| vol1-photos | 14 | 0 | 0 · 0 | 0 | 0 | 0 | 69.5초 |
+| vol2-opener-fallback | 12 | 0 | 0 · 0 | 0 | 0 | 0 | 36.5초 |
+| vol2b-opener-typeonly | 12 | 0 | 0 · 0 | 0 | 0 | 0 | 30.2초 |
+| vol3-long-original | 15 | 0 | 0 · 0 | 0 | 0 | 0 | 64.2초 |
+| vol4-timeline-overflow | 14 | 0 | 0 · 0 | 0 | 0 | 0 | 44.4초 |
+| vol5-batch2 | 15 | 0 | 0 · 0 | 0 | 0 | 0 | 60.0초 |
+| vol3-fail | - | - | - | - | - | - | 기대대로 멈춤(한 대화 1185px > 938px) |
+| **G 1호(로컬 재렌더)** | 14 | 0 | 0 · 0(기록 clipped 0) | - | - | - | 25.3초 |
+
+- **G 1호 PDF: `render\out\84-g-G1\issue.pdf`**(쪽 그림 `page-NN.jpg` · `audit.json` 같은 폴더 · git 밖). 11-20 렌더(`render\out\daf34aa9-…\`)가 남긴 채운 지면 HTML · 사진을 그대로 쓰고, 스타일은 지금 `prepare_work`(③), 이달의 우리 근거 줄은 지금 `evidence_line`으로 다시 만듦(②) - 근거 메시지 날짜는 G에 시드된 `m1-month` 원문 날짜(`chat.ts:298` 09-25 · `:313` 09-26). 전체 다시 짜기는 원격 읽기가 필요해 하지 않음 → **51- ③ 뒤 실제 커플 첫 호는 정식 렌더 경로 그대로**.
+  - 2쪽 막대 "두 사람 48%" · "온도록 52%" 띄어 씀. 3쪽 제목 "카페에서 서울숲, 뚝섬 / 저녁집까지"(전 "뚝섬 저 / 녁집까지"). 12쪽 소기사 3 "근거 · 09.25 “9시 40분 어때” · 09.26 “응 용산역 개찰구 앞”"(전 "근거 · 09.25 · “9시 40분 어때” · “응 용산역 개찰구 앞”") · 소기사 1(한 날 09.07)은 그대로.
+- **③(a) 줄 수 비교**: 시드 6권 + G 1호의 모든 지면에서 제목 · 모든 `data-slot` 칸 높이를 84-g CSS 켠 것 / 끈 것으로 재어 비교 → **높이 차이 0 · clamp로 잘린 제목 0**(G 3쪽 제목은 줄바꿈 자리만 바뀌고 두 줄 그대로). 높이 표 `measure.json`이 잰 칸(메모 · 캡션 · 장소 · 인용)은 임시 CSS 선택자 밖이고 `measure.py`는 원본 틀 CSS로 잰다 → 줄 수가 바뀌지 않아 무작위 견본 과소 예측 재확인 조건에 해당 없음(84-d2 값 70개 과소 0 유지).
+
+### 개발 임시 수정 목록 (R50-6 · 디자인 판으로 확정 예정)
+1. `render/render_issue.py:370` `DEV_TEMP_CSS_84G` (a) 제목 낱말 단위 줄바꿈 - 표시 주석 `개발 임시 수정 · 84-g · 디자인 판으로 확정 예정`(코드 주석 + 붙이는 CSS 주석 둘 다).
+2. 같은 곳 (b) 발행 노트 "문장의 출처" 막대 라벨 · 비율 사이 띄어쓰기.
+- 틀 파일(`render/issue/`) 변경 0 - 렌더러 쪽에서 처리.
+
+### 디자인에 보낼 조판 정정 2건 (R139-3 묶음에 PM이 더함 - 한 줄씩)
+- "제목 활자(`h1 · h2 · h3 · .h-display · .h-art · .h-lead · .h-sec`)에 `word-break: keep-all; overflow-wrap: break-word`를 넣어 한국어 제목이 낱말 중간에서 줄바꿈되지 않게 해 주세요(시험 1호 3쪽 '뚝섬 저 / 녁집까지' - 렌더러가 임시로 붙여 둠)."
+- "`note.html` '문장의 출처' 막대의 라벨과 비율 사이가 flex 안에서 붙어 '두 사람48%'로 보입니다 - `@note.ratioPeople` · `@note.ratioOndolog` 앞에 간격(렌더러 임시 `margin-left: .3em`)을 틀에 넣어 주세요."
+
+### ④ 51- ③ 때 칠 하네스 명령 (키 입력은 위 "최종 실측 실행 명령" 0) · 1) 그대로)
+```
+deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_LLM_API_KEY --allow-net=api.anthropic.com --allow-read=. --allow-write=scripts/ops/out scripts/ops/m1QualityRun.ts run --model claude-sonnet-5-5 --fixture m1-month-conflict --corner sweet_words --runs 3 --tag selfcheck 2>&1 | m
+```
+그다음 `review` · `recheck`(위 2) 그대로) → `review.md` · `recheck.md`의 "자기 점검 시험 (84-g ④ …)" 절의 3칸. 결과 파일 `claude-sonnet-5-5__sweet_words__selfcheck__m1-month-conflict__r1~3.json`(기본 실행 파일을 덮지 않음). 예상 비용: 최종 실측 다정한 말 1회 $0.056~0.070(입력 약 1.9~2.2만 토큰) → **3회 약 $0.20 · 재요청이 모두 나도 약 $0.45** · 명령 1회 상한 $10(`HARNESS_BUDGET_USD`).
+
+### 결정 기록 (출처 R143-1~6)
+1. 금지 낱말은 부분 문자열로 찾는다("사용자 이름" · "사용자들" 걸림) · 따옴표 밖만 - 84-c `stripQuoted`와 같은 여섯 쌍을 `valueChecks.ts` 안에 사본(이 폴더 파일은 서로 가져오지 않음 · 두 함수 결과가 같은지 시험이 봄). 84-a 정책어 목록은 따옴표 제외를 새로 더하지 않음(동작 변화 0).
+2. 프롬프트 공통 원칙 한 줄에 더해, 지시문에 있던 "유저" 낱말도 "두 사람"으로 바꿈(R134-1 - 예문 · 지시가 검사 기준과 같게). 한 줄 자체 말고는 프롬프트에 "유저" · "사용자" 0(시험).
+3. 근거 날짜: "여러 날" 판정은 메시지 근거의 날짜만 센다(사진 · 데이트 근거는 전과 같음). 여러 날이면 날짜만 서는 긴 발췌는 같은 날짜가 이미 발췌 앞에 있으면 빼서 같은 날짜를 두 번 쓰지 않음.
+4. 조판은 틀을 고치지 않고 렌더러가 작업 폴더 사본에 CSS를 붙임(R50-6 "렌더러 쪽 먼저"). 높이 표가 잰 칸은 선택자 밖.
+5. 자기 점검 데이터는 다정한 말만(`--fixture m1-month-conflict`는 다른 코너 · `all`과 함께면 키 읽기 전 멈춤). 기본값 · 기본 파일 이름은 84-g 전과 같음. 세는 단위 = 고른 항목(대화 하나 · 한 줄), 고른 수 · 표시 수는 마지막 응답, 실린 수는 저장 내용(성공 회차).
+6. G 1호는 원격 0 조건이라 11-20 채운 지면 + 지금 CSS + 지금 근거 줄 함수로 로컬 재렌더(위 렌더 절). 원격의 G 1호 행 · PDF는 그대로.
+
+검증: **`npm run gate` 통과 198.8초**(smoke 38/38 · `web/` 변경 0) · 루트 tsc 0 · jest **129/2259**(이전 127/2236 · 새 시험 파일 2개 23건 · PGlite 포함) · deno check(`m1QualityRun.ts` · `m1Recheck.ts` · `m1Review.ts` · `selfCheckTally.ts` · `fixtures/m1-month-conflict/dataset.ts` · `generateIssueCli.ts` · `seedTestData.ts` · `publishIssueCli.ts` · `push-send/index.ts`) 통과 · Python **362 OK**(이전 356 · +6 · 922초) · recheck 위 숫자 · 렌더 위 표. 키 · 주소 · id · 이메일 · 생성 문장 0(위 지면 인용은 시험 데이터 합성 대화 · 제목) · 새 파일 이름 ASCII.
+
 ## `84-f` 2025년 시험 커플 G 시드 · 실제 모드 대상 잠금 (메인 세션, 2026-11-20, 위임문 `phase-7/84-f-dispatch-seed-2025-couple.md` · 허가 ROADMAP r141 R141-2 · 출처 R140-4 · R134-6) - 완료 · 멈춤 0 (미커밋)
 
 시작 확인: `DOC_REVISION: 2026-11-20-r141` - 통과. 위임 0(메인 세션 직접). **원격 실행 0**(시드는 Proteur 사람 실행 - "최종 실측 실행 명령" 3)) · LLM 0 · 마이그레이션 0 · 새 패키지 0 · `web/` · `render/` · 엔진 0 · `demo_responses` 0 · 커밋 0. 기존 A/B/C/F · `seed-m2b.json` · 51- 폰 커플은 읽지도 바꾸지도 않음(코드가 찾는 것은 G의 두 이메일과 초대 코드 `TESTG001`뿐).
