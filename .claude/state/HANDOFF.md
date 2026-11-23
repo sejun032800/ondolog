@@ -11,6 +11,42 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `87-` 알림 날짜별 숫자 표 · 웹 업로드 실패 17건 조사 · 문서 정정 (메인 세션, 2026-11-23, 위임문 `phase-7/87-dispatch-push-daily-counts.md` · 출처 ROADMAP r148 R148-1~6 · R111-5 정정) - 완료 · 멈춤 0 (미커밋 · db push · 함수 배포는 Proteur)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님. 시작 때 ROADMAP이 r147이라 한 줄 알림 -> Proteur가 r148 커밋(`745b506`) 뒤 진행.
+
+원격 읽기(R112-3 · 허용 3개만 · 쓰기 0) - 실행한 질의 문장 그대로:
+- (Q1) `select extname, extversion from pg_extension where extname in ('pg_net','pg_cron');` -> pg_cron 1.6.4 · pg_net 0.20.4
+- (Q2) `select jobname, schedule, active from cron.job order by jobname;` -> `execute-dissolutions` 0 5 * * * 켬 · `expire-stories` */15 * * * * 켬(2개)
+- (Q3) `select day, sum(count)::int from public.app_error_daily where platform = 'web' group by day order by day;` -> 2026-11-18 17 한 줄뿐
+
+### ① 알림 날짜별 숫자 표 - 마이그레이션 `20261123120000_m1_push_daily.sql`
+
+| 항목 | 정한 것 |
+|---|---|
+| 모양 | `push_daily(day date, kind text, status text, count int)` · 키 (day, kind, status) · day = KST · kind ∈ message · date · nickname · unknown · 내용 · 메시지 id · 사람 · 커플 · 토큰 · 주소 칸 0 (`:25`) |
+| (a) 함수가 끝까지 돈 경우 | `push-send`가 응답 직전 `push_count(kind, status, n)`(`:83`, service_role만 `:211`). 갈래(`pushSend.ts:211` `PUSH_COUNT_STATUSES`): 토큰마다 `sent` · `dropped`(등록 안 된 토큰 지움) · `fcm_NNN` · `send_error` / 요청마다 `no_tokens` · `ring`(공백 뒤 첫 알림 - 새 태그) · `collapse`(같은 태그 접힘) · `realert_err` · `unauthorized` · `bad_request` · `method` / 입구(`index.ts:41` · `:80`) `config`(503 - DB 키가 있을 때) · `internal`(500) |
+| (b) 함수가 못 돈 경우 | **고른 방법: pg_net 요청 번호 + 1시간 예약.** `push_enqueue`가 `net.http_post` 번호를 `push_net_pending(id, kind, created_at)`에 적고(`:132-140` - 나머지는 78-m1 그대로) · pg_cron `push-net-count`(`7 * * * *`, `:218`)가 `push_net_collect()`(`:151`)로 `net._http_response`와 맞춰 `http_NNN` · `timeout` · `net_error`로 세고 그 번호를 지움(같은 문장 - 두 번 세지 않음). 6시간 넘게 응답이 없는 번호는 `lost`. 이유: 함수 비밀이 없으면 함수가 DB에 못 쓰므로 DB가 직접 세야 하고, 응답 표 보존이 6시간이라 그보다 짧은 1시간 주기면 한두 번 빠져도 남는다. 번호 표로 알림 요청만 골라 센다(응답 표에는 주소가 없음) |
+| 쓰기 | `push_count` · `push_net_collect` 둘 다 `security definer` · 앱 역할 실행 0 · 기록 실패는 발송 뒤 · 삼킴 + 로그 `push-count=err`(`pushSend.ts:249` `recordPushCounts`) |
+| 읽기 | 두 표 RLS 켬 · 정책 0 · 앱 역할 권한 0 · service_role 읽기(+ push_daily 지우기)만 |
+| 정리 | `purgeWithdrawn` "알림 숫자 90일 정리: N" · "알림 숫자 지움: N"(`purgeWithdrawn.ts:300-307` · `:395`) - 80- 오류 표와 같은 기준 날짜 · 같은 길(표 없으면 "확인 못 함(87-m1 전이면 정상)") |
+| 월요일 | 76-f 절 8번을 SQL 읽기 질의 하나로 바꿈(옛 Logs 방법은 기록으로 남기고 정정 줄) |
+
+시험: `__tests__/db/pushDaily87m1.test.ts`(PGlite 9 - 내용 칸 0 · RLS · 앱 역할 읽기 · 쓰기 · 실행 거부 · push_count 갈래 정리 · 번호만 적힘 · 200/503/401/시간 초과/연결 실패 각각 · 두 번 세지 않음 · lost · KST 날짜 · 예약) · `pushSend.test.ts` "87- 날짜별 숫자" 5(보낸 뒤에 셈 · 기록 거부/던짐에도 발송 그대로 · 요청 갈래 · ring/collapse/send_error/realert_err · 의존성 없으면 78- 그대로) · `purgeWithdrawn.test.ts` "87- 알림 숫자 90일 정리" 2 · `retentionUnschedule76m2.test.ts` 예약 목록에 `push-net-count` 추가(기대값 갱신).
+
+### ② 웹 업로드 실패 17건 - 판정: **시험이 썼다(정황 일치 · 길 확인 · 직접 증거는 없음 - 원격 로그 1일)** -> 막음
+
+- 기록 길: `upload_fail` = `feedSave.ts:28` · `:33` · `photoQueueHub.ts:119` -> `reportAppError`(`errorLog.ts:78-81`, 화면 = `currentScreen`) -> 2초 뒤 보내기(`errorLog.ts:91-94`) -> `getSupabase()`(`auth/client.ts:33-38`) -> `log_app_error`(`errorLog.ts:123`). 화면 `unknown` = `setErrorScreen`을 부르는 곳이 `App.tsx:195`뿐이라 App 없이 그린 화면(= 부품 시험)에서 `screenOf(null)`(`errorLogRules.ts:52-54`). 플랫폼 `web` = `Capacitor.getPlatform()`이 web이면(`errorLogRules.ts:131-133`) - jsdom · 브라우저.
+- 접속 값 출처: 앱 · 개발 서버 · **Vitest 모두 `import.meta.env`(`config/env.ts:12-17`) = `web/.env`** - Vite가 시험 모드에도 `.env`를 읽는다(이 PC에서 확인: 값 있음 true, 값은 찍지 않음). 많은 시험이 `setSupabaseForTest(undefined)`로 되돌림 -> 다음 `getSupabase()`가 **실제 클라이언트**. 시험 공용 정리(`vitestSetup.ts`)는 시험 끝에만 오류 기록 상태를 비워, 부하로 2초 넘게 걸린 시험 안에서는 보내기 타이머가 돌 수 있었다. 스모크: 가짜 클라이언트(`smoke/entry.tsx:24`) + 바깥 요청 전부 차단 · 0 단언(`screens.smoke.ts:29-33` · `:71`) - 닫혀 있음. 개발 서버: 실제 값 · App 안이라 화면 이름이 붙는다(`unknown`이 되기 어렵다).
+- 11/18 = 85- 게이트 5회 · 앞 4회 시간 초과(HANDOFF "85-" 검증 줄) - 그 뒤 게이트 날에 0인 것은 타이머가 도는 길이(부하) 차이로 설명된다.
+- **덤으로 찾은 것**: `feedCache76.vitest.tsx`는 "서버 클라이언트 없음"이라 적었지만 실제로는 `.env`의 실제 클라이언트로 원격 읽기를 보내고 있었다(이번 막기로 드러나 실패 -> 가짜 오프라인 클라이언트로 바꿈, 단언 그대로).
+- 막은 곳: `web/src/vitestSetup.ts` - 시험마다 `vi.stubEnv`로 두 접속 값을 빈 값(`:37-38`) · 시험 끝 `vi.unstubAllEnvs` · 전역 `fetch` 그물(`:28-34` · `:58` - data: · blob:만 통과, 막힌 수만 셈). 시험 `vitestNetGuard87.vitest.ts` 3(접속 값 null · `setSupabaseForTest(undefined)` 뒤에도 클라이언트 null · `unknown` 업로드 실패를 세고 보내도 바깥 요청 0 · 그물 동작). 전체 Vitest에서 그물에 걸린 바깥 요청 = 그물 시험의 일부러 1건뿐(임시 계측 - 남기지 않음).
+
+### ③ 문서 정정
+HANDOFF 76-f 월요일 절 8번(새 SQL 질의 · 옛 줄 남김 + "셀 수 없다" 줄 정정 · "7일은 볼 수 있다" 정정) · 76-i 다음 할 일 3-4 · 11/23 다음 할 일 4에 정정 줄 · PROGRESS 월요일 1회차 줄.
+
+검증: **`npm run gate` 통과 156.8초**(web tsc 8.5 · Vitest 74 파일 1237 + 1 건너뜀 26.6 · 법무 8/8 4.6 · smoke 42/42 117.1) · 루트 tsc 0 · jest 131 스위트 / 2295(PGlite 포함) · deno check `push-send/index.ts` · `_shared/pushSend.ts` · `scripts/ops/purgeWithdrawn.ts` 통과. 앱 코드 변경 0(시험 환경 · 시험만) -> 빌드 · 설치 불필요. 새 패키지 0 · LLM 0 · `consent.ts` 0 · `demo_responses` 0 · R34-3 0 · 원격 쓰기 0 · 새 파일 이름 ASCII.
+
 ## `85-b` 둘러보기 센서 안정화 - 튐 · 상하/좌우 섞임 (메인 세션, 2026-11-23, 위임문 `phase-7/85-b-dispatch-tour-sensor-stability.md` · 출처 ROADMAP r147 R147-3) - 완료 · 멈춤 0 (미커밋)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님.
@@ -1656,6 +1692,7 @@ git commit -m "76-j state: handoff and progress"
    2. PE 확인을 받은 뒤에만 `--apply`(행 삭제는 되돌릴 수 없음) -> 적용 출력 숫자도 PE에
    3. 그다음 `sweepOrphanFiles` 미리 보기 -> 적용
    4. 같은 날 8번 알림 건강 확인: 대시보드 Logs 지난 7일 `push-send` 상태별 건수 - **11/16의 503 22건이 보이면 로그 7일 보존 확인**, 안 보이면 볼 수 있는 기간을 PE에
+      - **정정(2026-11-23 · R148-2)**: Free 플랜 로그 보존 1일 - 7일은 볼 수 없었다(하루치 200 1건). 다음부터 8번은 87- `push_daily` SQL 질의(76-f 월요일 운영 절 8번).
 4. HANDOFF는 덮어쓰지 않고 메인 세션이 고친 것을 커밋만(R112-4). `b49c64c` 원인 한 줄을 PE · 메인 세션에 알려 주면 PROGRESS에 그대로 적음
 
 ## `76-i` 숨긴 행 실제 삭제 + 로그아웃 때 서랍 알림 지우기 + 변경 알림 뒤 새로 읽기 + 운영 규칙 2 (메인 세션, 2026-11-16, 위임문 `76-i-dispatch-hard-delete-hidden.md` · 근거 `78-pm-report.md` §4-2 · `78-phone-check-2-pm-report.md` P1 · P2 · R110-4 · R111-2~5) - 완료 (미커밋)
@@ -1775,6 +1812,7 @@ git commit -m "76-i state: handoff, progress, restore 78 handoff section, ops ru
    - A가 메인을 보는 중 B가 사귄 날짜 변경 -> 띠와 함께 **메인 D+가 바로 바뀜**(설정에 가지 않고) · 닉네임 변경 -> 커플 이름 바로 바뀜
    - 78- 남은 1분 확인 4개: A가 홈(앱 뒤)일 때 B가 날짜 · 닉네임 변경 -> 서랍 알림 -> 누르면 메인 -> 안내 1회 / V40이 받는 쪽 / 설정 "변경 안내 끔" -> 변경 알림 0 / 방해 금지 예외 목록에 온도록이 보이는지
 4. 다음 월요일(11/23): 76-f 월요일 운영 - 미리 보기의 "숨긴 행 정리" 3줄을 PE에 보내고 확인 뒤 적용 · 8번 알림 건강 확인(11/16의 503 22건이 보이면 7일 보존 확인)
+   - **정정(2026-11-23 · R148-2)**: 로그 보존은 1일(Free) - 7일 확인 불가. 8번은 87- 표로 바꿈.
 5. PM: 위 "멈춘 것"의 `dates` (가) · (나) · (다)
 
 ## `78-` 푸시 알림(Android) + 닉네임 변경 안내 + 처리방침 v1.2 + R108 남은 것 (메인 세션, 2026-11-16, 위임문 `78-dispatch-push.md` · 근거 `78-pm-report-before-dispatch.md` · `PM_legal_minimal_v1.md` v1.2 · R100-4 · R101-5 · R108-2 · R108-3 · R109-1~3) - 완료 (미커밋)
@@ -2345,9 +2383,20 @@ deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functi
 
 7. (76-h · R106-4) `purgeWithdrawn` 미리 보기의 **"해제 실행 대기" 숫자가 두 주 연속 줄지 않으면 PE에 알림** - 매일 해제 실행 일정(cron)이 멈췄다는 신호.
 
-8. (76-i · R111-5) **알림 건강 확인 - 지난 7일 `push-send` 응답을 상태별 건수로만**(값 · 토큰 · 본문 · 주소 0). 대시보드 **Logs**(왼쪽 메뉴) -> 왼쪽 **Time Range**를 지난 7일로 -> **Log Type**은 Edge Function 하나만 -> **Pathname** 필터에 `push-send` -> **Status** 필터로 200 / 그 밖을 나눠 건수만 본다(행을 열어 내용을 보지 않는다). **200이 아닌 것이 한 건이라도 있으면 PE에 건수만 알림**(503 = 함수 비밀 빠짐 · 401 = Vault 비밀).
+8. (87- · R148-3 - 아래 옛 방법을 바꿈) **알림 건강 확인 - 지난 7일 날짜 · 종류 · 상태별 건수**(87-m1 `push_daily` - 표에 내용 · id · 사람 · 토큰 칸이 없다). 대시보드 **SQL Editor**에서 읽기만:
+
+```
+select day, kind, status, count
+from public.push_daily
+where day >= (now() at time zone 'Asia/Seoul')::date - 6
+order by day, kind, status;
+```
+
+   **보냄(`sent` · `http_200`)과 정보 줄(`no_tokens` · `ring` · `collapse`)이 아닌 것이 한 건이라도 있으면 PE에 건수만 알림**(규칙 그대로). 읽는 법: `http_503` = 함수 비밀 빠짐(11/16 사고 꼴) · `http_401` / `unauthorized` = Vault 비밀 · `timeout` · `net_error` · `lost` = 함수까지 못 감 · `fcm_NNN` · `send_error` = FCM 거절 · 연결 · `dropped` = 등록 안 된 토큰 지움 · `config` · `internal` = 함수 설정 · 내부 오류. 87-m1을 올리기 전이면 표가 없다는 오류 - 정상.
+   - (옛 방법 - 87- 전, 아래 줄은 기록으로 남김) (76-i · R111-5) **알림 건강 확인 - 지난 7일 `push-send` 응답을 상태별 건수로만**(값 · 토큰 · 본문 · 주소 0). 대시보드 **Logs**(왼쪽 메뉴) -> 왼쪽 **Time Range**를 지난 7일로 -> **Log Type**은 Edge Function 하나만 -> **Pathname** 필터에 `push-send` -> **Status** 필터로 200 / 그 밖을 나눠 건수만 본다(행을 열어 내용을 보지 않는다). **200이 아닌 것이 한 건이라도 있으면 PE에 건수만 알림**(503 = 함수 비밀 빠짐 · 401 = Vault 비밀).
+   - **정정(87- · R148-3)**: 아래 "셀 수 없다"는 손으로 볼 때 이야기다 - 87-m1은 pg_cron `push-net-count`가 **1시간마다**(6시간보다 짧게) 응답을 세어 `push_daily`에 넣고 센 번호를 지워, 503 · 401 · 시간 초과가 하루 숫자로 남는다.
    - `net._http_response`(pg_net 응답 표)로는 셀 수 없다: **보존 6시간**(`pg_net.ttl` = 6 hours 실측, pg_net 0.20.4 · 문서 기본값과 같음 · 바꾸려면 Supabase 지원 요청 필요). 마이그레이션 0으로 되는 쪽(로그)을 쓴다.
-   - 로그 보존 실측(2026-11-16, Free 플랜): 같은 로그 저장소에 11/9(7일 전) API 요청 로그 · 11/7(9일 전) DB 로그가 남아 있음 -> 7일은 볼 수 있다. `push-send` 기록은 11/16부터라 **11/23 첫 확인에서 11/16의 503 22건(78- 1차 폰 확인 - 함수 비밀 누락)이 보이면 7일 보존이 확인된 것**(그 22건은 이미 원인을 안다 - 알림 불필요). 보이지 않으면 PE에 "볼 수 있는 기간"을 알림 -> 대안은 날짜별 숫자만 남기는 작은 표(마이그레이션 · PM 결정).
+   - 로그 보존 실측(2026-11-16, Free 플랜): 같은 로그 저장소에 11/9(7일 전) API 요청 로그 · 11/7(9일 전) DB 로그가 남아 있음 -> 7일은 볼 수 있다. **정정(2026-11-23 · R148-2): 틀렸다 - Free 플랜 로그 보존은 1일(대시보드 안내 11/23). 11/23 확인에서 보인 것은 하루치 200 1건뿐. 그래서 87- 날짜별 숫자 표(위 8번)로 바꿈.** `push-send` 기록은 11/16부터라 **11/23 첫 확인에서 11/16의 503 22건(78- 1차 폰 확인 - 함수 비밀 누락)이 보이면 7일 보존이 확인된 것**(그 22건은 이미 원인을 안다 - 알림 불필요). 보이지 않으면 PE에 "볼 수 있는 기간"을 알림 -> 대안은 날짜별 숫자만 남기는 작은 표(마이그레이션 · PM 결정).
    - (메인 세션이 대신 볼 때) 로그 질의 - 24시간 창으로 7번:
      `select toString(log_attributes['response.status_code']) as status, count(*) as n from logs where source = 'function_edge_logs' and toString(log_attributes['request.pathname']) like '%/push-send%' group by status order by status`
 

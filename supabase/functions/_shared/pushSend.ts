@@ -8,6 +8,7 @@
  * 쌓임 방지(R109-2): 메시지 알림은 커플 기준 고정 태그 + 같은 collapse key -> 알림 서랍에 하나로 갈아 끼운다(본문은 마지막 것).
  *   변경 안내는 메시지와 다른 태그(종류별)라 따로 보인다. iOS 확장 지점: 같은 태그를 `apns-collapse-id` · `thread-id`로 싣는다(APNs 키를 Firebase에 등록하면 같은 메시지가 간다).
  * 로그: 결과 코드 · 숫자만. 토큰 · 본문 · 이름 · id 0.
+ * 87-(R148-3) 날짜별 숫자: 응답 직전에 `count(종류, 갈래, 건수)`로 87-m1 `push_daily`에 더한다(`PUSH_COUNT_STATUSES`). 보내기가 먼저 - 기록 실패는 삼키고 로그 한 줄.
  * 이 파일은 LLM을 부르지 않는다(규칙 C 경계 밖) - HTTP는 주입된 `transport`로만 나간다(Google OAuth · FCM).
  */
 
@@ -202,6 +203,16 @@ export interface PushRequest {
   json(): Promise<unknown>
 }
 
+/**
+ * 87-: 날짜별 숫자 갈래(87-m1 `push_status_name` 목록과 같은 이름). 토큰마다 하나: sent · dropped · fcm_NNN · send_error.
+ * 요청마다: no_tokens · ring(새 태그 - 울림) · collapse(같은 태그 - 조용히 갈아 끼움) · realert_err · unauthorized · bad_request · method.
+ * 함수 입구(index.ts): config(503) · internal(500). 함수가 돌지 못한 경우(503 · 게이트웨이 401 · 시간 초과)는 DB 쪽 `push_net_collect`가 센다.
+ */
+export const PUSH_COUNT_STATUSES = [
+  'sent', 'dropped', 'send_error', 'no_tokens', 'ring', 'collapse', 'realert_err', 'unauthorized', 'bad_request', 'method', 'internal', 'config',
+] as const
+export type PushCountKind = PushKind | 'unknown'
+
 export interface PushDeps {
   /** 78-m1 `push_context` - 비밀 대조 + 받는 사람 다시 판정. */
   context(secret: string, kind: PushKind, coupleId: string, actorId: string): Promise<PushContext>
@@ -216,6 +227,8 @@ export interface PushDeps {
   projectId: string
   /** 한 줄 - 결과 코드 · 숫자만. */
   log(line: string): void
+  /** 87-: 날짜별 숫자 +n(87-m1 `push_count`). 없으면 세지 않는다. 던져도 발송 결과는 그대로. */
+  count?(kind: PushCountKind, status: string, n: number): Promise<void>
 }
 
 export interface PushResult {
@@ -232,30 +245,49 @@ export function isDeadToken(status: number, error: unknown): boolean {
   return details.some((d) => d?.errorCode === 'UNREGISTERED' || d?.errorCode === 'SENDER_ID_MISMATCH')
 }
 
+/** 87-: 모은 갈래를 날짜별 숫자로 보낸다. 실패는 삼키고 로그 한 줄(`push-count=err`) - 발송 결과에 영향 0. */
+export async function recordPushCounts(deps: Pick<PushDeps, 'count' | 'log'>, kind: PushCountKind, tally: ReadonlyMap<string, number>): Promise<void> {
+  const count = deps.count
+  if (!count || tally.size === 0) return
+  const results = await Promise.allSettled([...tally].map(async ([status, n]) => { await count(kind, status, n) }))
+  if (results.some((r) => r.status === 'rejected')) deps.log('push-count=err')
+}
+
 export async function handlePush(req: PushRequest, deps: PushDeps): Promise<PushResult> {
   let realertNote = ''
-  const done = (r: PushResult, codes: number[] = []): PushResult => {
+  let countKind: PushCountKind = 'unknown'
+  const tally = new Map<string, number>()
+  const add = (status: string, n = 1) => { if (n > 0) tally.set(status, (tally.get(status) ?? 0) + n) }
+  const done = async (r: PushResult, codes: number[] = [], status?: string): Promise<PushResult> => {
     const counts = 'sent' in r.body ? ` sent=${r.body.sent} dropped=${r.body.dropped} failed=${r.body.failed}` : ''
     deps.log(`push-send status=${r.status}${counts}${codes.length ? ` fcm=${codes.join(',')}` : ''}${realertNote}`)
+    if (status) add(status)
+    // 87-: 보낸 뒤에 센다 - 기록은 삼킨다.
+    try {
+      await recordPushCounts(deps, countKind, tally)
+    } catch {
+      deps.log('push-count=err')
+    }
     return r
   }
-  if (req.method !== 'POST') return done({ status: 405, body: { error: 'method' } })
+  if (req.method !== 'POST') return done({ status: 405, body: { error: 'method' } }, [], 'method')
   const secret = req.header(PUSH_SECRET_HEADER)
-  if (!secret) return done({ status: 401, body: { error: 'unauthorized' } })
+  if (!secret) return done({ status: 401, body: { error: 'unauthorized' } }, [], 'unauthorized')
   let payload: { kind?: unknown; couple_id?: unknown; actor_id?: unknown; photo?: unknown }
   try {
     payload = ((await req.json()) ?? {}) as typeof payload
   } catch {
-    return done({ status: 400, body: { error: 'body' } })
+    return done({ status: 400, body: { error: 'body' } }, [], 'bad_request')
   }
   const { kind, couple_id: coupleId, actor_id: actorId } = payload
+  if (isPushKind(kind)) countKind = kind
   if (!isPushKind(kind) || typeof coupleId !== 'string' || !UUID.test(coupleId) || typeof actorId !== 'string' || !UUID.test(actorId)) {
-    return done({ status: 400, body: { error: 'body' } })
+    return done({ status: 400, body: { error: 'body' } }, [], 'bad_request')
   }
   const ctx = await deps.context(secret, kind, coupleId, actorId)
-  if (!ctx.ok) return done({ status: 401, body: { error: 'unauthorized' } })
+  if (!ctx.ok) return done({ status: 401, body: { error: 'unauthorized' } }, [], 'unauthorized')
   const tokens = ctx.tokens ?? []
-  if (tokens.length === 0) return done({ status: 200, body: { sent: 0, dropped: 0, failed: 0 } })
+  if (tokens.length === 0) return done({ status: 200, body: { sent: 0, dropped: 0, failed: 0 } }, [], 'no_tokens')
 
   const body = pushBody(kind, ctx.sender_name, kind === 'message' && payload.photo === true)
   // 81-b 다시 울림 태그. 시각을 못 읽으면 78- 묶음 이름 그대로(조용히 갈아 끼움 - 발송은 막지 않는다).
@@ -264,14 +296,20 @@ export async function handlePush(req: PushRequest, deps: PushDeps): Promise<Push
   if (kind === 'message') {
     if (deps.recentMessageTimes) {
       try {
-        const start = burstStart(await deps.recentMessageTimes(coupleId, actorId))
-        if (start !== null) alertTag = burstTag(kind, coupleId, start)
+        const times = await deps.recentMessageTimes(coupleId, actorId)
+        const start = burstStart(times)
+        if (start !== null) {
+          alertTag = burstTag(kind, coupleId, start)
+          // 87-: 이 메시지가 공백 뒤 첫 알림이면 울림, 아니면 같은 태그로 조용히(접힘).
+          add(start === Date.parse(times.find((t) => Number.isFinite(Date.parse(t))) ?? '') ? 'ring' : 'collapse')
+        }
       } catch {
         realertFailed = true
       }
     }
   } else if (deps.nowMs) {
     alertTag = burstTag(kind, coupleId, deps.nowMs())
+    add('ring')
   }
   const access = await deps.accessToken()
   const url = `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(deps.projectId)}/messages:send`
@@ -288,6 +326,7 @@ export async function handlePush(req: PushRequest, deps: PushDeps): Promise<Push
       })
       if (res.ok) {
         sent += 1
+        add('sent')
         continue
       }
       codes.push(res.status)
@@ -295,13 +334,19 @@ export async function handlePush(req: PushRequest, deps: PushDeps): Promise<Push
       if (isDeadToken(res.status, err)) {
         await deps.dropToken(secret, t.id)
         dropped += 1
+        add('dropped')
       } else {
         failed += 1
+        add(`fcm_${String(Math.max(0, Math.min(999, Math.trunc(res.status)))).padStart(3, '0')}`)
       }
     } catch {
       failed += 1
+      add('send_error')
     }
   }
-  if (realertFailed) realertNote = ' realert=err'
+  if (realertFailed) {
+    realertNote = ' realert=err'
+    add('realert_err')
+  }
   return done({ status: 200, body: { sent, dropped, failed } }, codes)
 }

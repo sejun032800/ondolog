@@ -7,6 +7,18 @@ import { writeCache } from '../../cache/deviceCache'
 import { clearSignedUrlCache, getSignedUrl, putSignedUrls, SIGNED_URL_TTL_MS } from '../../cache/signedUrlCache'
 import { useFeed } from './feedData'
 
+/**
+ * 87-(R148-4): 오프라인 서버 - 어떤 읽기든 끊김으로 거부한다. 전에는 `setSupabaseForTest(undefined)`가 `web/.env`의 실제 접속 값으로
+ * 실제 클라이언트를 만들어 이 시험이 실제 원격으로 읽기를 보냈다(시험은 원격 0 - 이제 시험 환경에서 접속 값은 빈 값).
+ */
+function offlineClient(): Parameters<typeof setSupabaseForTest>[0] {
+  const chain: unknown = new Proxy(function () {}, {
+    get: (_t, prop) => (prop === 'then' ? (_ok: unknown, fail: (e: unknown) => void) => fail(new TypeError('offline')) : () => chain),
+    apply: () => chain,
+  })
+  return chain as Parameters<typeof setSupabaseForTest>[0]
+}
+
 const chapter = {
   key: '2026-10', year: 2026, month: 10, photoTotal: 1, memoTotal: 0,
   dates: [{ id: 'd1', dateOn: '2026-10-03', date_on: '2026-10-03', coverPath: 'c1/a.jpg', photoCount: 1, memoCount: 0, title: null, quote: null }],
@@ -15,11 +27,12 @@ const chapter = {
 beforeEach(() => {
   try { localStorage.clear() } catch { /* */ }
   clearSignedUrlCache()
-  setSupabaseForTest(undefined)
+  setSupabaseForTest(offlineClient())
   useAuthStore.getState().setUserId('me')
 })
 afterEach(() => {
   cleanup()
+  setSupabaseForTest(undefined)
   useAuthStore.getState().setUserId(null)
 })
 
@@ -48,7 +61,7 @@ describe('B5 피드 먼저 보이기', () => {
 
   it('읽기에 실패해도(오프라인) 먼저 보이던 값은 지우지 않는다 - 오류 화면으로 바꾸지 않는다', async () => {
     writeCache('me', 'feed', { chapters: [chapter], names: {} })
-    const { result } = renderHook(() => useFeed(true)) // 서버 클라이언트 없음 = 읽기 실패
+    const { result } = renderHook(() => useFeed(true)) // 오프라인 서버 = 읽기 실패
     await Promise.resolve()
     expect(result.current.chapters).toHaveLength(1)
     expect(result.current.error).toBeNull()

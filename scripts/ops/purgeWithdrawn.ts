@@ -37,6 +37,7 @@
  *
  * 80- (R114-3 ② · 80-m1) 오류 기록 90일 정리: 앱 오류 하루 집계(`app_error_daily` - 사람 · 내용 칸 0)에서 KST 날짜가 90일보다 오래된 행을 지운다.
  *   표가 아직 없으면(80-m1을 올리기 전) "확인 못 함" 한 줄로 넘어가고 다른 단계는 그대로 돈다. 다시 돌려도 같다(멱등).
+ * 87- (R148-3 · 87-m1) 알림 숫자 90일 정리: 알림 하루 집계(`push_daily` - 내용 · 사람 칸 0)도 같은 기준 날짜 · 같은 길(표가 없으면 "확인 못 함").
  *
  * 한 사용자 처리 중 실패하면 그 사용자는 다음 실행 때 다시(파일 · 행 지우기가 멱등) · 다른 사용자는 계속 · 실패 수를 출력.
  * 기본은 미리 보기(대상 사용자 수 · 지울 행 수 · 파일 수). `--apply`일 때만 지운다.
@@ -110,6 +111,10 @@ export interface PurgePort extends Pick<ResetPort, 'count' | 'countFiles' | 'rem
   oldErrorRows(cutoffDay: string): Promise<number>
   /** 80-: 위 행을 지운다. 지운 수. */
   deleteOldErrorRows(cutoffDay: string): Promise<number>
+  /** 87-: 알림 숫자(`push_daily`)에서 day < cutoffDay 인 행 수. */
+  oldPushRows(cutoffDay: string): Promise<number>
+  /** 87-: 위 행을 지운다. 지운 수. */
+  deleteOldPushRows(cutoffDay: string): Promise<number>
 }
 
 /** 76-i · 76-j 숨긴 행 정리 대상 [표, 작성자 칸]. dates는 작성자 칸이 없다. date_stops · stories는 대상 밖(머리 주석). 순서 = 지우는 순서. */
@@ -292,6 +297,14 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
     errorRows = null
   }
   lines.push(errorRows === null ? '오류 기록 90일 정리: 확인 못 함(80-m1 전이면 정상)' : `오류 기록 90일 정리: ${errorRows}`)
+  // 87-: 알림 숫자 90일 정리 - 같은 기준 날짜 · 같은 길.
+  let pushRows: number | null = null
+  try {
+    pushRows = await port.oldPushRows(errorCutoff)
+  } catch {
+    pushRows = null
+  }
+  lines.push(pushRows === null ? '알림 숫자 90일 정리: 확인 못 함(87-m1 전이면 정상)' : `알림 숫자 90일 정리: ${pushRows}`)
   if (!args.apply) {
     lines.push('실제로 지우려면 --apply')
     return { kind: 'previewed', lines }
@@ -365,14 +378,24 @@ export async function runPurge(connect: () => Promise<PurgePort>, args: PurgeArg
       errorFailed = true
     }
   }
+  let pushDeleted = 0
+  let pushFailed = false
+  if (pushRows !== null && pushRows > 0) {
+    try {
+      pushDeleted = await port.deleteOldPushRows(errorCutoff)
+    } catch {
+      pushFailed = true
+    }
+  }
   lines.push(`남길 커플의 남은 파일 지움: ${keptOrphans}`)
   lines.push(`숨긴 행 지움: ${hiddenDeleted}`)
   lines.push(`숨긴 행 실패(다음 실행 때 다시): ${hiddenFailed}`)
   lines.push(`건너뜀(지울 때 살아 있는 기록): ${lateSkipped}`)
   lines.push(errorFailed ? '오류 기록 지움: 실패(다음 실행 때 다시)' : `오류 기록 지움: ${errorDeleted}`)
+  lines.push(pushFailed ? '알림 숫자 지움: 실패(다음 실행 때 다시)' : `알림 숫자 지움: ${pushDeleted}`)
   lines.push(`지운 사용자: ${done}`)
   lines.push(`실패: ${failed}`)
-  lines.push(failed > 0 || hiddenFailed > 0 || errorFailed ? '완료(실패한 것은 다음 실행 때 다시)' : '완료')
+  lines.push(failed > 0 || hiddenFailed > 0 || errorFailed || pushFailed ? '완료(실패한 것은 다음 실행 때 다시)' : '완료')
   return { kind: 'applied', lines }
 }
 
@@ -577,6 +600,16 @@ export function makePurgePort(client: Db): PurgePort {
     async deleteOldErrorRows(cutoffDay) {
       const { data, error } = await client.from('app_error_daily').delete().lt('day', cutoffDay).select('day')
       must('app_error_daily 삭제', error)
+      return Array.isArray(data) ? data.length : 0
+    },
+    async oldPushRows(cutoffDay) {
+      const { count, error } = await client.from('push_daily').select('day', { count: 'exact', head: true }).lt('day', cutoffDay)
+      must('push_daily 조회', error)
+      return count ?? 0
+    },
+    async deleteOldPushRows(cutoffDay) {
+      const { data, error } = await client.from('push_daily').delete().lt('day', cutoffDay).select('day')
+      must('push_daily 삭제', error)
       return Array.isArray(data) ? data.length : 0
     },
     async partnerGone(partnerId, nowIso) {

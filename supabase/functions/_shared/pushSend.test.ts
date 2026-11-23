@@ -314,3 +314,92 @@ describe('접근 토큰(서비스 계정 -> OAuth)', () => {
     expect(calls).toBe(2)
   })
 })
+
+describe('87- 날짜별 숫자(R148-3) - 먼저 보내고, 기록은 실패해도 삼킴', () => {
+  type Counted = { kind: string; status: string; n: number }
+  function counting(h: ReturnType<typeof harness>, fail: false | 'reject' | 'throw' = false) {
+    const counted: Counted[] = []
+    const order: string[] = []
+    const transport = h.deps.transport
+    h.deps.transport = async (url, init) => { order.push('fcm'); return transport(url, init) }
+    h.deps.count = (kind, status, n) => {
+      order.push('count')
+      if (fail === 'throw') throw new Error('db down')
+      if (fail === 'reject') return Promise.reject(new Error('db down'))
+      counted.push({ kind, status, n })
+      return Promise.resolve()
+    }
+    const tally = () => Object.fromEntries(counted.map((c) => [`${c.kind}|${c.status}`, c.n]))
+    return { counted, order, tally }
+  }
+  const three = () => ({ ok: true, sender_name: '서영', tokens: [
+    { id: 't1', token: 'ok', platform: 'android' as const },
+    { id: 't2', token: 'dead', platform: 'android' as const },
+    { id: 't3', token: 'busy', platform: 'android' as const },
+  ] })
+  const fcm = (t: string) => (t === 'ok' ? { status: 200 } : t === 'dead' ? { status: 404 } : { status: 500 })
+
+  it('토큰마다 한 갈래(sent · dropped · fcm_NNN) · 종류별 · 보낸 뒤에 센다', async () => {
+    const h = harness(three, fcm)
+    const c = counting(h)
+    const r = await handlePush(req(msg()), h.deps)
+    expect(r.body).toEqual({ sent: 1, dropped: 1, failed: 1 })
+    expect(c.tally()).toEqual({ 'message|sent': 1, 'message|dropped': 1, 'message|fcm_500': 1 })
+    expect(c.order.indexOf('count')).toBeGreaterThan(c.order.lastIndexOf('fcm'))
+  })
+
+  it('기록이 거부 · 던짐이어도 발송 결과 그대로 · 로그 한 줄(push-count=err)만', async () => {
+    for (const fail of ['reject', 'throw'] as const) {
+      const h = harness(three, fcm)
+      counting(h, fail)
+      const r = await handlePush(req(msg()), h.deps)
+      expect(r.status).toBe(200)
+      expect(r.body).toEqual({ sent: 1, dropped: 1, failed: 1 })
+      expect(h.sent).toHaveLength(3)
+      expect(h.logs).toContain('push-count=err')
+    }
+  })
+
+  it('요청 갈래: 비밀 없음 · 틀린 비밀 unauthorized · 형식 bad_request(종류 unknown) · 받는 사람 없음 no_tokens · GET method', async () => {
+    const run = async (r: PushRequest, ctx?: () => PushContext) => {
+      const h = harness(ctx)
+      const c = counting(h)
+      await handlePush(r, h.deps)
+      return c.tally()
+    }
+    expect(await run(req(msg(), {}))).toEqual({ 'unknown|unauthorized': 1 })
+    expect(await run(req(msg(), { 'x-ondolog-push': 'wrong' }))).toEqual({ 'message|unauthorized': 1 })
+    expect(await run(req({ kind: 'spam', couple_id: COUPLE, actor_id: ACTOR }))).toEqual({ 'unknown|bad_request': 1 })
+    expect(await run(req(msg({ kind: 'date' })), () => ({ ok: true, tokens: [] }))).toEqual({ 'date|no_tokens': 1 })
+    expect(await run(req(msg(), undefined, 'GET'))).toEqual({ 'unknown|method': 1 })
+  })
+
+  it('FCM 연결 실패 send_error · 다시 울림: 공백 뒤 첫 알림 ring · 10분 안 다음 알림 collapse · 변경 안내 ring · 시각 못 읽음 realert_err', async () => {
+    const h = harness(undefined, () => { throw new TypeError('net') })
+    const c = counting(h)
+    await handlePush(req(msg()), h.deps)
+    expect(c.tally()).toEqual({ 'message|send_error': 1 })
+
+    const T = Date.parse('2026-11-23T09:00:00Z')
+    const iso = (ms: number) => new Date(ms).toISOString()
+    const tagRun = async (times: number[], kind = 'message', broken = false) => {
+      const g = harness()
+      const k = counting(g)
+      g.deps.recentMessageTimes = async () => { if (broken) throw new Error('x'); return times.map(iso) }
+      g.deps.nowMs = () => T
+      await handlePush(req(msg({ kind })), g.deps)
+      return k.tally()
+    }
+    expect(await tagRun([T, T - REALERT_GAP_MS - 1])).toEqual({ 'message|sent': 1, 'message|ring': 1 })
+    expect(await tagRun([T, T - 60_000])).toEqual({ 'message|sent': 1, 'message|collapse': 1 })
+    expect(await tagRun([], 'nickname')).toEqual({ 'nickname|sent': 1, 'nickname|ring': 1 })
+    expect(await tagRun([T], 'message', true)).toEqual({ 'message|sent': 1, 'message|realert_err': 1 })
+  })
+
+  it('세는 의존성이 없으면(78- 그대로) 아무 일 0 · 로그에 갈래 줄 0', async () => {
+    const h = harness()
+    const r = await handlePush(req(msg()), h.deps)
+    expect(r.status).toBe(200)
+    expect(h.logs.some((l) => l.includes('push-count'))).toBe(false)
+  })
+})

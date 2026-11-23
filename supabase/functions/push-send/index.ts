@@ -7,9 +7,13 @@
  *   ONDOLOG_FCM_SERVICE_ACCOUNT_B64 - Firebase 서비스 계정 JSON을 base64로 감싼 것.
  *   SUPABASE_URL                    - 플랫폼이 넣는 값.
  * 모든 판단은 `_shared/pushSend.ts`(시험됨). 여기는 연결만 한다. 로그 = 결과 코드 · 숫자.
+ * 87-(R148-3): 날짜별 숫자 = 87-m1 `push_count`(service_role 전용 RPC - 같은 키). 보낸 뒤에 부르고 실패는 삼킨다.
+ *   DB 키가 있으면 503(FCM 비밀 없음) · 500도 여기서 센다. DB 키부터 없으면 함수는 못 쓴다 - DB 예약(`push_net_collect`)이 pg_net 응답으로 센다.
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
-import { AccessTokenCache, BURST_LOOKBACK, handlePush, parseServiceAccount, type PushContext, type Transport } from '../_shared/pushSend.ts'
+import {
+  AccessTokenCache, BURST_LOOKBACK, handlePush, parseServiceAccount, recordPushCounts, type PushContext, type PushCountKind, type Transport,
+} from '../_shared/pushSend.ts'
 
 const transport: Transport = globalThis.fetch.bind(globalThis)
 /** Deno 런타임 전역 - 함수 tsconfig(lib에 deno.ns 없음)와 `deno check` 양쪽에서 같은 타입으로 읽는다. */
@@ -22,10 +26,19 @@ const key = runtime.env.get('ONDOLOG_PUSH_DB_KEY')
 const sa = parseServiceAccount(runtime.env.get('ONDOLOG_FCM_SERVICE_ACCOUNT_B64'))
 const db = url && key ? createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null
 const tokens = sa ? new AccessTokenCache(sa, transport) : null
+const log = (line: string) => console.log(line)
+/** 87-: 날짜별 숫자 +n. 던지면 `recordPushCounts`가 삼킨다. */
+const count = db
+  ? async (kind: PushCountKind, status: string, n: number) => {
+    const { error } = await db.rpc('push_count', { p_kind: kind, p_status: status, p_count: n })
+    if (error) throw new Error('count')
+  }
+  : undefined
 
 runtime.serve(async (req: Request) => {
   if (!db || !sa || !tokens) {
     console.log('push-send status=503 config')
+    await recordPushCounts({ count, log }, 'unknown', new Map([['config', 1]]))
     return new Response(JSON.stringify({ error: 'config' }), { status: 503, headers: { 'Content-Type': 'application/json' } })
   }
   try {
@@ -57,12 +70,14 @@ runtime.serve(async (req: Request) => {
         accessToken: () => tokens.get(),
         transport,
         projectId: sa.project_id,
-        log: (line) => console.log(line),
+        log,
+        count,
       },
     )
     return new Response(JSON.stringify(result.body), { status: result.status, headers: { 'Content-Type': 'application/json' } })
   } catch {
     console.log('push-send status=500')
+    await recordPushCounts({ count, log }, 'unknown', new Map([['internal', 1]]))
     return new Response(JSON.stringify({ error: 'internal' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
   }
 })

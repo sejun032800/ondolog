@@ -24,9 +24,9 @@ describe('76-m2 retention-policy unschedule', () => {
     expect(r.rows).toHaveLength(0)
   })
 
-  it('014 의 다른 예약은 그대로다', async () => {
+  it('014 의 다른 예약은 그대로다(87-m1 이 push-net-count 하나를 더한다)', async () => {
     const r = await db.query<{ jobname: string }>(`select jobname from cron.job order by jobname`)
-    expect(r.rows.map((x) => x.jobname)).toEqual(['execute-dissolutions', 'expire-stories'])
+    expect(r.rows.map((x) => x.jobname)).toEqual(['execute-dissolutions', 'expire-stories', 'push-net-count'])
   })
 
   it('apply_retention_policy 함수는 여전히 존재한다', async () => {
