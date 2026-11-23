@@ -22,6 +22,34 @@ sys.dont_write_bytecode = True
 MEASURE_PATH = Path(__file__).resolve().parent / 'issue' / 'measure.json'
 MEASURE: dict = json.loads(MEASURE_PATH.read_text(encoding='utf-8'))
 
+# 88-(ROADMAP R149-5 · README v1.2.4 §12) 칸 종류별로 줄 수 표의 어느 열을 쓸지 - 이 설정 한 곳에서만 정한다(디자인 도구 · `measure.json` 모양은 그대로).
+#   'lines'        = 디자인 `measure.py`가 여유 1줄(`SAFETY_LINES`)을 더해 적은 열(여유 있음)
+#   'sampledLines' = 같은 측정의 여유 전 값(여유 없음)
+# 판정 규칙: 칸 종류마다 렌더 환경에서 견본(시드 3 · 칸마다 210 - 시험 데이터 문장 · 낱말 길이를 섞은 합성 문장 · 줄바꿈 섞은 문장)으로
+#   여유 없음 열의 예측 < 실제 − 0.5px 이 **0건이면 뺀다('sampledLines')**, 1건이라도 있으면 **남긴다('lines')**.
+# 판정 표: HANDOFF `88-` 절 "③ 높이 여유 1줄 판정"(2026-11-23 · 9칸 모두 여유 없음 과소 4~49건 -> 모두 남김).
+# 표를 다시 재도(`tools/measure.py`) 이 설정이 그대로 적용된다. 다시 판정하면 이 표와 HANDOFF 판정 표를 함께 고친다.
+LINE_COLUMN: dict[str, str] = {
+    'timeline.memoLines': 'lines',
+    'timeline.captionLines': 'lines',
+    'timeline.placeLines': 'lines',
+    'quotes.turnLines.odd': 'lines',
+    'quotes.turnLines.even': 'lines',
+    'quotes.contextLines': 'lines',
+    'article.stopMemoLines': 'lines',
+    'article.photoCaption.1.memoLines': 'lines',
+    'article.photoCaption.2.memoLines': 'lines',
+    'article.photoCaption.3.memoLines': 'lines',
+}
+
+
+def line_table(path: str, measure: dict | None = None) -> dict:
+    """줄 수 표 하나를 `LINE_COLUMN`이 고른 열로 - {'chars', 'lines'}. 설정에 없는 표 · 열이 없으면 KeyError(조용히 다른 열을 쓰지 않는다)."""
+    node: Any = MEASURE if measure is None else measure
+    for key in path.split('.'):
+        node = node[key]
+    return {'chars': node['chars'], 'lines': node[LINE_COLUMN[path]]}
+
 
 def segment_lines(table: dict, n: int) -> int:
     """조각 하나(줄바꿈 없는 글자 n자)의 줄 수 - 표의 `n 이상인 첫 칸`. 빈 조각도 한 줄을 쓴다."""
@@ -59,6 +87,9 @@ def ceil_px(h: float) -> int:
 # --- 타임라인 구간 (README §12 "타임라인 구간") ---------------------------------
 
 TIMELINE = MEASURE['timeline']
+TL_MEMO = line_table('timeline.memoLines')
+TL_CAPTION = line_table('timeline.captionLines')
+TL_PLACE = line_table('timeline.placeLines')
 TIMELINE_CAPACITY_PX = TIMELINE['capacity']
 
 
@@ -66,22 +97,24 @@ def timeline_stop_height(photos: int, memo_text: Any, ai_caption: Any, place: An
     """구간 높이 = max(왼쪽 단, 오른쪽 단) + stopPadding. 메모와 AI 캡션은 함께 그리지 않는다(메모가 있으면 메모)."""
     r = TIMELINE['right'][f'photos-{photos}']
     if isinstance(memo_text, str) and memo_text.strip():
-        right = r['memo']['base'] + r['memo']['perLine'] * table_lines(TIMELINE['memoLines'], memo_text)
+        right = r['memo']['base'] + r['memo']['perLine'] * table_lines(TL_MEMO, memo_text)
     elif isinstance(ai_caption, str) and ai_caption.strip():
-        right = r['caption']['base'] + r['caption']['perLine'] * table_lines(TIMELINE['captionLines'], ai_caption)
+        right = r['caption']['base'] + r['caption']['perLine'] * table_lines(TL_CAPTION, ai_caption)
     else:
         right = r['none']
     lf = TIMELINE['left']
     has_place = isinstance(place, str) and place.strip() != ''
     key = ('place' if has_place else 'noPlace') + ('Label' if photos else 'NoLabel')
-    left = lf[key] + (lf['placeLine'] * (table_lines(TIMELINE['placeLines'], place) - 1) if has_place else 0)
+    left = lf[key] + (lf['placeLine'] * (table_lines(TL_PLACE, place) - 1) if has_place else 0)
     return ceil_px(max(left, right) + TIMELINE['stopPadding'])
 
 
 # --- 다정한 말들 인용 (README §12 "인용 대화 하나") -------------------------------
 
 QUOTES = MEASURE['quotes']
-QUOTE_CAPACITY = QUOTES['capacity']     # {'sub0', 'sub1-3', 'sub4-6'}
+QUOTE_CAPACITY = QUOTES['capacity']
+Q_CONTEXT = line_table('quotes.contextLines')
+Q_TURN = {'odd': line_table('quotes.turnLines.odd'), 'even': line_table('quotes.turnLines.even')}     # {'sub0', 'sub1-3', 'sub4-6'}
 
 
 def quote_capacity(sub_count: int) -> int:
@@ -94,9 +127,9 @@ def quote_capacity(sub_count: int) -> int:
 def conversation_height(context: Any, turn_texts: list) -> int:
     """대화 하나 = base + contextLine x 정황 줄 수 + 턴마다(perTurn + turnLine x (그 턴 줄 수 - 1)). 홀수 턴 446px · 짝수 턴 404px 표."""
     c = QUOTES['conversation']
-    h = c['base'] + c['contextLine'] * table_lines(QUOTES['contextLines'], context if isinstance(context, str) else '')
+    h = c['base'] + c['contextLine'] * table_lines(Q_CONTEXT, context if isinstance(context, str) else '')
     for i, text in enumerate(turn_texts):
-        table = QUOTES['turnLines']['odd' if i % 2 == 0 else 'even']
+        table = Q_TURN['odd' if i % 2 == 0 else 'even']
         h += c['perTurn'] + c['turnLine'] * (table_lines(table, text) - 1)
     return ceil_px(h)
 
@@ -105,24 +138,27 @@ def conversation_height(context: Any, turn_texts: list) -> int:
 
 ARTICLE = MEASURE['article']
 ARTICLE_STOPS_CAPACITY = ARTICLE['stopsCapacity']
+ART_STOP_MEMO = line_table('article.stopMemoLines')
+ART_PHOTO_MEMO = {n: line_table(f'article.photoCaption.{n}.memoLines') for n in ('1', '2', '3')}
 
 
 def article_stop_height(memo_text: Any, ai_caption: Any, place: Any) -> float:
     """`hero-none` 구간 하나 - 오른쪽(메모 / AI 캡션, 위아래 여백 포함)과 왼쪽(시각 + 장소 줄, + 여백) 중 큰 쪽."""
     if isinstance(memo_text, str) and memo_text.strip():
-        right = box(ARTICLE['stopMemo'], table_lines(ARTICLE['stopMemoLines'], memo_text))
+        right = box(ARTICLE['stopMemo'], table_lines(ART_STOP_MEMO, memo_text))
     elif isinstance(ai_caption, str) and ai_caption.strip():
-        right = box(ARTICLE['stopCaption'], table_lines(TIMELINE['captionLines'], ai_caption))
+        right = box(ARTICLE['stopCaption'], table_lines(TL_CAPTION, ai_caption))
     else:
         right = 0.0
     has_place = isinstance(place, str) and place.strip() != ''
-    left_lines = table_lines(TIMELINE['placeLines'], place) if has_place else 0   # 왼쪽 단 폭 68px · 11.5px = 타임라인 장소 칸과 같은 활자
+    left_lines = table_lines(TL_PLACE, place) if has_place else 0   # 왼쪽 단 폭 68px · 11.5px = 타임라인 장소 칸과 같은 활자
     left = box(ARTICLE['stopLeft'], left_lines) + ARTICLE['stopPadding']
     return max(left, right)
 
 
 def photo_caption_fits(memo_text: Any, photos_on_page: int) -> bool:
     """기사 사진 아래 메모 칸 - 메모 상자(22.3 + 15.2 x 줄)가 칸이 쓸 수 있는 높이(room)에 들어가는가. 칸 폭은 그 면의 사진 수(1 · 2 · 3)가 정한다."""
-    spec = ARTICLE['photoCaption'][str(min(max(photos_on_page, 1), 3))]
-    lines = table_lines(spec['memoLines'], memo_text)
+    key = str(min(max(photos_on_page, 1), 3))
+    spec = ARTICLE['photoCaption'][key]
+    lines = table_lines(ART_PHOTO_MEMO[key], memo_text)
     return box(spec['memoBlock'], lines) <= spec['room']

@@ -1,14 +1,12 @@
 """84-g 시험 (위임: `phase-7/84-g-dispatch-first-issue-polish.md`, ROADMAP r143 R143-3 ② ③). 네트워크 · 브라우저 없음.
 
   G2  근거 날짜 여러 날 - 메시지 근거가 둘 이상의 날짜에 걸치면 발췌마다 그 메시지 날짜(한 날 · 두 날 · 세 날)
-  G3  조판 개발 임시 수정(R50-6) - 작업 폴더 `base.css` 사본 끝에만 붙는다(원본 틀 그대로): 제목 낱말 단위 줄바꿈 · 발행 노트 막대 띄어쓰기
+  G3  (88-에서 뺌) 조판 개발 임시 수정 - 디자인 v1.2.4 확정판(base.css keep-all · note.html gap)이 맡는다. 시험은 `test_88_v124.NoteBarSpacing`
 """
 
 import os
 import sys
-import tempfile
 import unittest
-from pathlib import Path
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(__file__)
@@ -50,27 +48,6 @@ class EvidenceDays(unittest.TestCase):
                          '근거 · 사진 1장 · 09.03 “가” · 2024.09.04 “나”')
         self.assertEqual(line([fx.ev_message('가', '2025-09-03'), fx.ev_message('나', '2025-09-04')], 2025, {'2025-09-04'}),
                          '근거 · 09.03 “가” · 2025.09.04 “나”')
-
-
-class DevTempCss(unittest.TestCase):
-    def test_appended_only_to_work_copy(self):
-        original = (r.ISSUE_DIR / 'base.css').read_text(encoding='utf-8')
-        self.assertNotIn('84-g', original)                                    # 디자인 틀 그대로
-        with tempfile.TemporaryDirectory() as d:
-            work = Path(d) / 'work'
-            r.prepare_work(work)
-            copied = (work / 'base.css').read_text(encoding='utf-8')
-        self.assertTrue(copied.startswith(original))
-        self.assertTrue(copied.endswith(r.DEV_TEMP_CSS_84G))
-        self.assertIn('개발 임시 수정 · 84-g · 디자인 판으로 확정 예정', r.DEV_TEMP_CSS_84G)
-
-    def test_rules(self):
-        css = r.DEV_TEMP_CSS_84G
-        self.assertIn('h1,h2,h3,.h-display,.h-art,.h-lead,.h-sec{word-break:keep-all;overflow-wrap:break-word}', css)
-        self.assertIn('[data-slot="@note.ratioPeople"],[data-slot="@note.ratioOndolog"]{margin-left:.3em}', css)
-        # 높이 표가 잰 칸(메모 p.mb · 인용 .text · 정황 · AI 캡션 · 장소)은 건드리지 않는다
-        for sel in ('.mb', '.text', '.context', '.aiCaption', '.placeName', '.body'):
-            self.assertNotIn(sel, css)
 
 
 if __name__ == '__main__':

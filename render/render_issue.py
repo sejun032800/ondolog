@@ -367,21 +367,13 @@ def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
     return html
 
 
-# 개발 임시 수정 · 84-g · 디자인 판으로 확정 예정 (ROADMAP r143 R143-3 ③ · R143-5 · R50-6 방식)
-# 디자인 틀(`render/issue/`)은 고치지 않고, 렌더러가 작업 폴더의 `base.css` 사본 끝에 아래 규칙을 붙인다.
-#   (a) 제목 낱말 단위 줄바꿈 - "뚝섬 저 / 녁집까지"처럼 낱말 중간에서 줄이 바뀌지 않게(제목 활자 칸만 · 본문 · 인용 · 메모는 그대로 -
-#       높이 표 `measure.json`이 잰 칸은 바뀌지 않는다). 한 줄보다 긴 낱말만 그 안에서 끊는다.
-#   (b) 발행 노트 "문장의 출처" 막대 - 라벨과 비율 사이 띄어쓰기("두 사람48%" → "두 사람 48%"). flex 상자 안이라 틀의 공백이 접힌다.
-DEV_TEMP_CSS_84G = """
-/* 개발 임시 수정 · 84-g · 디자인 판으로 확정 예정 (render_issue.py DEV_TEMP_CSS_84G) */
-h1,h2,h3,.h-display,.h-art,.h-lead,.h-sec{word-break:keep-all;overflow-wrap:break-word}
-[data-slot="@note.ratioPeople"],[data-slot="@note.ratioOndolog"]{margin-left:.3em}
-"""
+# 84-g 개발 임시 수정(작업 폴더 `base.css` 사본 끝에 붙이던 `DEV_TEMP_CSS_84G` - 제목 keep-all · 막대 margin-left .3em)은 88-에서 뺐다:
+# 디자인 v1.2.4가 확정판으로 맡는다(README §10 ① a: `base.css` `body{word-break:keep-all; overflow-wrap:break-word}` 모든 글 칸 ·
+# ① b: `note.html` 막대 `gap:.35em` - 렌더러가 간격을 또 넣으면 두 번 띄워진다, E2).
 
 
 def prepare_work(work: Path) -> None:
-    """작업 폴더에 스타일·테마·폰트를 복사한다. **견본 사진(images/)은 복사하지 않는다.**
-    84-g: `base.css` 사본 끝에 개발 임시 수정(`DEV_TEMP_CSS_84G`)을 붙인다 - 원본 틀은 그대로."""
+    """작업 폴더에 스타일·테마·폰트를 복사한다. **견본 사진(images/)은 복사하지 않는다.** 틀은 그대로 복사한다(덧붙이는 CSS 0 - 88-)."""
     if work.exists():
         shutil.rmtree(work)
     (work / 'pages').mkdir(parents=True)
@@ -392,8 +384,6 @@ def prepare_work(work: Path) -> None:
             shutil.copytree(src, work / name)
         else:
             shutil.copy2(src, work / name)
-    with open(work / 'base.css', 'a', encoding='utf-8', newline='\n') as f:
-        f.write(DEV_TEMP_CSS_84G)
 
 
 COVER_QUOTE_MAX_LINES = 2   # README v1.2.3 §11 ⑫ - 표지 이 달의 말은 두 줄까지(넘으면 줄째 지운다 - 원문을 자르지 않는다, R136-2 ③)
@@ -478,6 +468,10 @@ def settle_cover(composition: Composition, templates: dict[str, str], work: Path
                 unsplit = composition.report.get('coverHeadlineUnsplit') or ''
                 cover['headline'] = unsplit
                 composition.report['coverHeadlineFrom'] = 'theme.headline-unsplit' if unsplit else 'none'
+                # 88- E3(README v1.2.4 §11 ⑭): 표제가 더는 이 달의 말이 아니다 -> 인용 줄을 되살리고 말한 사람 줄(headlineBy)은 비운다
+                cover['quote'] = cover.get('heldQuote', '')
+                cover['quoteBy'] = cover.get('heldQuoteBy', '')
+                cover['headlineBy'] = ''
                 outcome['headlineReverted'] = True
                 say('표지: 이 달의 말을 표제로 쓰면 잘린다 - 원문을 자르지 않고 표제를 나뉘지 않은 이달의 우리 표제로 되돌렸다')
                 result = probe(page)

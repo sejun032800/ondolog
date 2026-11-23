@@ -287,7 +287,7 @@ def split_timeline(stops: list) -> tuple:
     return pages, dropped
 
 
-# 개발 임시 수정 · 84-h · 디자인 판으로 확정 예정 (R145-3 · 55-3c "0인 칸 조각 빼기"와 같은 원칙)
+# 84-h에서 넣은 0인 조각 빼기 - 디자인 v1.2.4 README §11 ⑬으로 확정(88- E4 대조: 리드 둘째 문장 · `@da.records` · `@da.routeSummary` · 발행 노트 같음)
 # 숫자를 문장 · 머리에 끼우는 자리에서 0인 조각은 문장에서 뺀다. 틀(`render/issue/`)의 예시 문장은 그대로 - 렌더러가 넣는 값만 바뀐다.
 
 def lead_text(month: str, period_dates: int, regions: list, place_count: int, photos: int, memos: int) -> str:
@@ -919,7 +919,14 @@ def _cover_values(b: _Builder, photo: Optional[str]) -> dict:
         photo_headline = type_headline = quote
     else:
         photo_headline = type_headline = headline or ''
-    common = {'quote': quote or '', 'quoteBy': speaker or '', 'temperature': ''}  # 우리의 온도는 지금 늘 없다(일 배치 전)
+    # 88- E3(README v1.2.4 §11 ⑭ · §10 ④ E3): 표제가 이 달의 말에서 왔으면(`headlineFrom == 'quote'`) 같은 문장을 두 번 싣지 않는다 -
+    # 인용 줄(`quote` · `quoteBy`)은 빈 값(줄째 빠짐), 표제 아래 `이 달의 말 · {말한 사람}` 줄(`headlineBy`). 아니면 `headlineBy`는 빈 값.
+    # (검토 diff의 `lines is None and bool(quote)`와 같은 뜻 - 위에서 `from_ = 'quote'`는 정확히 그때만 선다.)
+    # `heldQuote` · `heldQuoteBy`는 슬롯이 없는 보관 값 - 표제가 잘려 이달의 우리 표제로 되돌릴 때(render_issue.settle_cover) 인용 줄을 되살린다.
+    same = from_ == 'quote'
+    common = {'quote': '' if same else (quote or ''), 'quoteBy': '' if same else (speaker or ''),
+              'headlineBy': (speaker or '') if same else '', 'heldQuote': quote or '', 'heldQuoteBy': speaker or '',
+              'temperature': ''}  # 우리의 온도는 지금 늘 없다(일 배치 전)
     return {
         'photo': {**common, 'photo': photo or '', 'headline': photo_headline},
         'type': {**common, 'headline': type_headline},
@@ -958,7 +965,7 @@ def not_used_text(row_key: str, item: dict, timeline_max_pages: int) -> str:
     texts = {
         ('dates', 'unpicked'): f'기사로 고르지 않은 날 {n}번',
         ('photos', 'over_cap'): f'사진 {n}장 — 한 구간에 {PHOTOS_PER_STOP}장까지 싣습니다',
-        # 84-h(개발 임시 수정 · 디자인 판으로 확정 예정): 사진이 0이면 `(사진 0장)` 조각을 뺀다 - 메모 쪽(`article_dropped_stops`)과 같은 모양
+        # 84-h · v1.2.4 §11 ⑬ 확정: 사진이 0이면 `(사진 0장)` 조각을 뺀다 - 메모 쪽(`article_dropped_stops`)과 같은 모양
         ('photos', 'dropped_stops'): (f"구간 {item.get('stops', 0)}곳(사진 {n}장) — 타임라인 {timeline_max_pages}면에 들어가지 않았습니다" if n
                                       else f"구간 {item.get('stops', 0)}곳 — 타임라인 {timeline_max_pages}면에 들어가지 않았습니다"),
         ('photos', 'other_cap'): f'사진 {n}장 — 대표가 아닌 기사에는 {ARTICLE_PHOTOS}장까지 싣습니다',

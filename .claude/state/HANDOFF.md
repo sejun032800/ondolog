@@ -11,6 +11,111 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `88-` 매거진 틀 v1.2.4 반입 · 렌더 환경 재측정 · 높이 여유 1줄 판정 · E2~E5 (메인 세션, 2026-11-23, 위임문 `phase-7/88-dispatch-render-v1_2_4.md` · 함께 `dev_reference_v1_2_4.diff` · `measure_design_env_v1_2_4.json` · 출처 ROADMAP r149 R149-2 · R149-4 · R149-5 · R149-7 · R149-9 · README v1.2.4 §10 · §11 ⑬ ⑭ · §12) - 완료 · 멈춤 1(⑤ G 1호 · 두 폰 11월호 비교 - 아래) (미커밋)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님. ROADMAP r149 · MASTER r82 확인.
+
+### 0) 반입 사고 · 복구 (Proteur 허가 "되살리고 진행해")
+반입 커밋 `fb356b1`이 디자인 압축을 겹치지 않고 `render/`를 갈아 끼운 상태였다(40파일 · 지움 34: 렌더러 Python 13 · `render_config.json` · `requirements.txt` · `render/tests/` 18 · `measure.json` · `measure.env.json`, git 밖 `render/.venv` · `render/out`도 사라짐). 복구: 지워진 34파일만 `fb356b1^`에서 되살림(틀 6파일은 v1.2.4 그대로) · `render/.venv` 다시 만듦(고정 판 playwright 1.64.0 · beautifulsoup4 4.15.0 · pypdf 6.21.2 · pillow 12.3.0 + Chromium - **`requirements.txt` 한글 주석 때문에 이 PC(cp949)에서는 `PYTHONUTF8=1`이 있어야 pip가 읽는다**). 되살린 파일은 `git checkout`이라 색인에 올라가 있다(A) - 이 작업 커밋에 함께. `render/out`(84-g · 84-h G 1호 · 11월호 저장 결과)은 git 밖이라 되살릴 수 없다.
+
+### ① 반입 확인
+| 확인 | 결과 |
+|---|---|
+| `render/render` | 없음 |
+| README 1줄 | v1.2.4 |
+| 틀 변경 | `render/issue/` 6파일(README · base.css · cover-photo · cover-type · note · tools/measure.py)만. 렌더러 Python은 위 0) 사고 - 복구 뒤 반입 전과 같음 |
+| 파일 수 | `render/issue` 50(압축 49 + 저장소 `measure.json`) · 개발 `measure.env.json` 따로 |
+| `measure.json` 반입 전과 같음 | 같음(`fb356b1^`에서 되살림 - `git diff fb356b1^` 0) - 그 뒤 ②에서 다시 잼 |
+| 글꼴 7개 해시 | 반입 전 `measure.env.json`과 7/7 같음 |
+| 84-g 개발 임시 CSS | 틀이 아니라 **렌더러**(`render_issue.py` `DEV_TEMP_CSS_84G` - 작업 폴더 base.css 사본 끝에 붙임)에 있어 틀 교체로 사라지지 않음 -> 88-에서 뺌(E2 · ① a · b 확정판이 맡음, `render_issue.py:370-372` 주석) |
+
+검토 diff(`compose.py`) 대조:
+| diff 변경 | 저장소 | 처리 |
+|---|---|---|
+| 리드 둘째 문장 `lead_tail(...)` | `lead_tail` 정의는 diff에도 저장소에도 없음 - 같은 일을 84-h `lead_text()`(`compose.py:293-307`)가 함(사진 · 메모 둘 다 / 하나 / 둘 다 0 / 장소 0) | 이미 같음 |
+| `@da.records` 0 조각 빼기 | 84-h `records_line()`(`compose.py:316-319`) | 이미 같음 |
+| `@da.routeSummary` 0 조각 빼기 | 84-h `route_summary()`(`compose.py:310-313`) | 이미 같음 |
+| 표지 `same = (lines is None and bool(quote))` | 없음(저장소 `_cover_values`에는 `same` 자체가 없었음) | E3로 새로 - 조건은 `from_ == 'quote'`(저장소에서 `from_='quote'`는 정확히 `lines is None and quote`일 때 - 같은 뜻, README 쪽 이름을 따름) |
+
+### ② E1 렌더 환경 재측정 (반입과 같은 커밋)
+`render/.venv/Scripts/python.exe render/issue/tools/measure.py` 63초 · **2번 재서 바이트까지 같음**(sha256 `123a75a3…`) · `measure_env.py --write` -> `measureJson` 해시만 바뀜(OS · Chromium 156.0.8078.4 · 글꼴 같음) · 렌더 시작 환경 경고 0. 도구가 `measure.json`에 `"version": "v1.2.3"`을 씀(도구 안 고정 문자열 - 고치지 않음, 디자인 작은 결함 목록).
+
+| 표 | 칸 | v1.2.3 렌더 환경판 -> v1.2.4 `lines` 바뀐 칸 | 여유 붙은 칸(`lines` ≠ `sampledLines`) | v1.2.3 -> `sampledLines`(낱말 단위만) | 디자인 환경판과 다른 칸 `lines` / `sampledLines` |
+|---|---|---|---|---|---|
+| timeline.memoLines | 84 | 77 | 77 | 13 | 46 / 46 |
+| timeline.captionLines | 84 | 73 | 73 | 4 | 28 / 27 |
+| timeline.placeLines | 20 | 18 | 18 | 14 | 11 / 11 |
+| quotes.turnLines.odd | 84 | 77 | 77 | 12 | 53 / 52 |
+| quotes.turnLines.even | 84 | 78 | 78 | 17 | 59 / 58 |
+| quotes.contextLines | 32 | 22 | 22 | 1 | 5 / 4 |
+| article.stopMemoLines | 84 | 77 | 77 | 8 | 45 / 44 |
+| article.photoCaption.1.memoLines | 60 | 45 | 45 | 0 | 10 / 9 |
+| article.photoCaption.2.memoLines | 60 | 54 | 54 | 8 | 23 / 22 |
+| article.photoCaption.3.memoLines | 60 | 56 | 56 | 18 | 34 / 34 |
+| 합 | 652 | 577 | 577 | 95 | 314 / 307 |
+
+인용 가용 높이 938 / 843 / 780(v1.2.3 렌더 환경판과 같음 · 디자인 940 / 841 / 778) · 사진 아래 메모 칸 room 106px(디자인 104) · 상자 식 그대로. `validation`(디자인 견본 그대로): 타임라인 40개 −0.0 ~ +87.0px 과소 0 · 인용 30개 +22.1 ~ +176.4px 과소 0(디자인 환경 +58.0 · +24.1 ~ +166.2).
+
+### ③ 높이 여유 1줄 판정 (R149-5)
+방법: 저장소 밖 사본(틀 · `tools/measure.py` 함수 그대로)으로 칸 종류마다 실제 틀 요소에 견본을 넣어 Chromium 높이를 재고, ②의 표 두 열(가 `lines` 여유 있음 / 나 `sampledLines` 여유 없음)로 예측한 높이(줄 수 × 줄 높이)와 맞댐. 시드 3(8801 · 8802 · 8803) × 70 = **칸마다 210** · 견본 = 시험 데이터(`render/tests/fixtures.py`) 문장 · 낱말 길이(1~11자)를 섞은 합성 문장 · 줄바꿈(빈 줄 포함) 섞은 문장 각 1/3(장소 칸은 장소 낱말 조합). 과소 = 예측 < 실제 − 0.5px. 실제 사용자 원문 0.
+
+| 칸 | 견본 | (가) 과소 | (가) 최대 과대 px | (가) 최대 과소 px | (나) 과소 | (나) 최대 과소 px | 판정 |
+|---|---|---|---|---|---|---|---|
+| `timeline.memoLines` | 210 | 6 | 290 | 29 | 44 | 58 | 남김 |
+| `timeline.captionLines` | 210 | 0 | 122.1 | 0 | 22 | 17.4 | 남김 |
+| `timeline.placeLines` | 210 | 1 | 48 | 16 | 8 | 32 | 남김 |
+| `quotes.turnLines.odd` | 210 | 0 | 240.6 | 0 | 38 | 21.9 | 남김 |
+| `quotes.turnLines.even` | 210 | 5 | 240.6 | 21.9 | 39 | 43.8 | 남김 |
+| `quotes.contextLines` | 210 | 0 | 60.8 | 0 | 4 | 15.2 | 남김 |
+| `article.stopMemoLines` | 210 | 0 | 208 | 0 | 28 | 26 | 남김 |
+| `article.photoCaption.1.memoLines` | 210 | 0 | 77.9 | 0 | 7 | 13.0 | 남김 |
+| `article.photoCaption.2.memoLines` | 210 | 0 | 168.9 | 0 | 30 | 13.0 | 남김 |
+| `article.photoCaption.3.memoLines` | 210 | 11 | 214.3 | 28.0 | 49 | 43.2 | 남김 |
+
+- **판정: 9칸(사진 아래 메모 표 셋 포함 10표) 모두 여유를 남긴다.** 설정 = `heights.py` `LINE_COLUMN`(모두 `'lines'`, 근거 주석에 이 표) · 읽기는 `line_table()` 한 곳.
+- (나) 과소는 시험 데이터 문장에서는 모든 칸 0, 합성 · 줄바꿈 문장에서 나옴. **(가) 여유 있음도 과소 23건**(메모 6 · 장소 1 · 짝수 턴 5 · 사진 3장 칸 11) - 모두 합성 문장(11~12자 낱말 · 350자 이상)에서, 최대 1~2줄. 넘친 지면은 렌더 뒤 지면 검사(`overset`)가 막는다(마지막 방어) - 실제 커플 문장에서 생기는지는 첫 호 감사기로 본다(PE 판단 거리).
+
+### ④ E2 ~ E5 · 근거 날짜
+| # | 바꾼 곳 | 시험 |
+|---|---|---|
+| E2 | 데이터 쪽 공백은 원래 0(`ratioPeople` = `48%`), 84-g는 렌더러 CSS `margin-left:.3em`으로 띄웠음 -> `DEV_TEMP_CSS_84G` · 붙이기 삭제(`render_issue.py:370-386`) - 틀 `gap:.35em` 하나만 | `test_88_v124.NoteBarSpacing`(작업 폴더 base.css = 틀 그대로 · gap 2곳 · 비율 글자 공백 0 · margin 0) · `test_g84_polish` DevTempCss 2건 삭제 |
+| E3 | `compose.py:921-929` `_cover_values` - `headlineFrom == 'quote'`면 `quote` · `quoteBy` 빈 값 · `headlineBy` = 말한 사람, 아니면 `headlineBy` 빈 값 · `heldQuote` 보관 값 / `render_issue.py:471-474` 표제가 잘려 이달의 우리 표제로 되돌리면 인용 줄 되살리고 `headlineBy` 비움 | `test_88_v124.CoverHeadlineBy` 2(사진 · 활자 표지 각각 두 갈래) · `Rendered.test_reverted_headline_brings_back_the_quote_row` |
+| E4 | 할 일 없음(84-h가 §11 ⑬과 같음) - 주석만 "확정"으로(`compose.py:290` · `not_used_text`) | `test_h84_zero_fragments`(LeadText 6 · RouteSummary · SameKind 2 · WholeIssue 2) · `test_88_v124.Batch4.test_zero_fragments` |
+| E5 | `tests/fixtures.py` `batch4_scenario`(메모 0 · 지역 0 · 이달의 우리 skipped · 긴 기사 제목 · 9월호 픽스처 틀 - 위임서 "연도 2025"는 픽스처 틀(ISSUE_ROW 2026-09)과 달라 픽스처 틀을 따름) · `local_volumes.py` `vol6-batch4` | `test_88_v124.Batch4` 2 · `Rendered.test_batch4_renders_clean` |
+| ⑤ 근거 날짜 | 할 일 없음(84-g `evidence_line` = 여러 날이면 발췌마다 · 같은 날이면 끝에 한 번 꼴 · 15자 넘으면 날짜만) | `test_g84_polish.EvidenceDays` 4 |
+| 시험 기대값 | `test_v122.TimelineMemo` 들어가는 묶음 50자 -> 30자(v1.2.4 표에서 50자 메모가 한 줄 늘어 전제가 깨짐 - 시험 뜻 그대로) · `test_render_issue` 표지 줄 삭제 단언은 보이는 글자로(v1.2.4 틀 주석에 "이 달의 말") | - |
+
+### ⑤ 렌더 비교 (LLM 0 · 원격 0 · 출력 저장소 밖)
+③ 판정이 "모두 남김"이라 **판정 전(여유 모두) = 판정 후** - 같은 설정. 여유의 대가를 보려고 참고로 "여유 모두 뺌(sampledLines)"도 렌더.
+
+| 권 | 쪽 | 타임라인 면 | 못 실은 구간 | 인용 면 | 실린 / 빠진 대화 | 넘침 · 잘림 · 판면 밖 · 사실 | 여유 뺌과 차이 |
+|---|---|---|---|---|---|---|---|
+| vol1-photos | 14 | 2 | 0 | 1 | 2 / 0 | 0 | 없음 |
+| vol2-opener-fallback | 12 | 1 | 0 | 1 | 2 / 0 | 0 | 없음 |
+| vol2b-opener-typeonly | 12 | 1 | 0 | 1 | 2 / 0 | 0 | 없음 |
+| vol3-long-original | 15 | 2 | 0 | 2 | 2 / 0 | 0 | 없음 |
+| vol4-timeline-overflow | 14 | 2 | 0 | 1 | 2 / 0 | 0 | 없음 |
+| vol5-batch2 | 15 | 2 | 0 | 1 | 1 / 0 | 0 | 없음 |
+| edge | 13 | 1 | 0 | 1 | 1 / 0 | 0 | 없음 |
+| vol6-batch4 | 10 | 1 | 0 | 1 | 1 / 0 | 0 | 없음(표지 표제 = 이 달의 말) |
+| vol3-fail(실패해야 함) | - | - | - | - | - | 실패(대화 1295px > 938) | 여유 뺌도 실패(1207px) |
+
+발행 노트 "싣지 않은 것" 줄은 두 모드에서 권마다 같음 · 디자인 audit.py 5항목 일치 · 타임라인 어림 < 실제 0. 시드 7권 = 로컬 권 6 + edge(84-d 가장자리 권)로 읽음.
+
+**멈춤(이 항목만): G 1호 · 두 폰 11월호 비교 못 함.** 저장 결과(`render/out/84-h-G1` · `84-h-phone-nov` · 채운 지면 `render/out/<호 id>/work`)가 0) 사고로 사라짐. 원격에서 다시 그리려면 읽기 전용 렌더 명령이 필요한데 **없다**: `render_issue.py`는 발행된 호를 거부(`:757`)하고 늘 버킷 · `issues` 행에 쓴다(`:814` · `:821`). Proteur에게 줄 "렌더만 · 발행 0" 명령을 만들 수 없음 -> 다음 위임에서 (가) 읽기 전용 렌더 명령(원격 읽기 → 로컬 PDF만)을 만들지, (나) C2 때 새 호로 볼지 PM 판단.
+
+### ⑥ 월요일 정상 줄 (R149-2)
+76-f 월요일 절 8번 질의 아래 문장을 고침(87- 문장 대체): 정상 = `sent` · `http_200` · `no_tokens` · `ring` · `collapse` · `dropped` · 그 밖은 status와 건수만 PE에 · `lost` 여러 건 = 예약 작업이 멈췄었다는 신호.
+
+### ⑦ 다시 발행 조사 (R149-9 C2 준비 · 코드 읽기만)
+- `publishIssueCli`로 **같은 호를 다시 발행할 수 없다**: `publishIssue.ts:51` "이미 발행된 호다" · DB `fn_publish_issue`도 `022_publish_path.sql:128-129` `already published`. 렌더도 발행된 호를 거부(`render_issue.py:757`).
+- 그래서 "v1.2.4로 다시 렌더한 호 보기"는 지금 길로는 **새 호**(새 초안 행 · 다시 생성 = LLM 호출 · 발행하면 번호 +1 · 코너 새 행)뿐. 이미 발행된 호의 파일만 바꾸는 명령은 없다.
+- 만약 파일 교체 명령을 새로 만든다면(설계 메모): 쪽 이미지 경로는 호 id · 쪽 번호로 정해짐(앱 `pageImagePath` - `web/src/features/magazine/viewerData.ts:14`) -> 같은 경로에 덮으면 새 행 0 · 앱은 서명 URL 만료(또는 이미지 실패 뒤 한 번 다시 받기) 뒤 새 그림. 쪽 수가 바뀌면 `issues.page_count`도 고쳐야 함(발행 뒤 바뀌지 않게 막는 칸은 `theme`뿐 - `021_app_ui_theme.sql:31`). 코너 content가 그대로라 유성 후보(발행된 다정한 말들)는 그대로. 읽음 표시는 앱 · DB에 없음(서재 목록뿐).
+- **알림은 가지 않는다**: 알림 트리거는 메시지 INSERT · 커플 날짜/닉네임 UPDATE뿐(78-m1) - 발행 · 파일 교체에 알림 0.
+- 안전하게 하려면 사람이 칠 명령: 지금은 없음 -> 새 명령(시험 커플 잠금 · 발행된 호만 · PDF · 쪽 이미지 교체 · `page_count` 갱신 · 미리 보기 → `--apply`)을 만들지 PM 결정.
+
+검증: 렌더 Python 시험 **383 통과**(443.7초 · 새 `test_88_v124` 12 · 삭제 2) · `npm run gate` **154.9초** 통과(web tsc 8.3 · Vitest 1237 + 1 건너뜀 26.2 · 법무 8/8 4.4 · smoke 42/42 116.1) · 루트 jest 2295 통과 · `measure.json` 2번 바이트 같음 · 남은 `__pycache__` · `_measure.html` · `_preview/` 0. LLM 0 · 원격 쓰기 0 · 원격 읽기 0 · `web/` 0 · 새 패키지 0 · 마이그레이션 0 · 디자인 틀 · 도구 변경 0 · 새 파일 이름 ASCII.
+
 ## `87-` 알림 날짜별 숫자 표 · 웹 업로드 실패 17건 조사 · 문서 정정 (메인 세션, 2026-11-23, 위임문 `phase-7/87-dispatch-push-daily-counts.md` · 출처 ROADMAP r148 R148-1~6 · R111-5 정정) - 완료 · 멈춤 0 (미커밋 · db push · 함수 배포는 Proteur)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님. 시작 때 ROADMAP이 r147이라 한 줄 알림 -> Proteur가 r148 커밋(`745b506`) 뒤 진행.
@@ -2392,7 +2497,7 @@ where day >= (now() at time zone 'Asia/Seoul')::date - 6
 order by day, kind, status;
 ```
 
-   **보냄(`sent` · `http_200`)과 정보 줄(`no_tokens` · `ring` · `collapse`)이 아닌 것이 한 건이라도 있으면 PE에 건수만 알림**(규칙 그대로). 읽는 법: `http_503` = 함수 비밀 빠짐(11/16 사고 꼴) · `http_401` / `unauthorized` = Vault 비밀 · `timeout` · `net_error` · `lost` = 함수까지 못 감 · `fcm_NNN` · `send_error` = FCM 거절 · 연결 · `dropped` = 등록 안 된 토큰 지움 · `config` · `internal` = 함수 설정 · 내부 오류. 87-m1을 올리기 전이면 표가 없다는 오류 - 정상.
+   **정상 줄(88- · R149-2): `sent` · `http_200` · `no_tokens` · `ring` · `collapse` · `dropped`.** 그 밖의 줄이 한 건이라도 있으면 **그 status와 건수만** PE에 보낸다. **`lost`가 여러 건이면 "예약 작업(`push-net-count`)이 멈췄었다"는 신호**(6시간 넘게 아무도 응답을 세지 않았다). 읽는 법: `http_503` = 함수 비밀 빠짐(11/16 사고 꼴) · `http_401` / `unauthorized` = Vault 비밀 · `timeout` · `net_error` = 함수까지 못 감 · `fcm_NNN` · `send_error` = FCM 거절 · 연결 · `dropped` = 등록 안 된 토큰을 지움(앱을 지운 기기 - 정상 정리) · `config` · `internal` = 함수 설정 · 내부 오류. 87-m1을 올리기 전이면 표가 없다는 오류 - 정상.
    - (옛 방법 - 87- 전, 아래 줄은 기록으로 남김) (76-i · R111-5) **알림 건강 확인 - 지난 7일 `push-send` 응답을 상태별 건수로만**(값 · 토큰 · 본문 · 주소 0). 대시보드 **Logs**(왼쪽 메뉴) -> 왼쪽 **Time Range**를 지난 7일로 -> **Log Type**은 Edge Function 하나만 -> **Pathname** 필터에 `push-send` -> **Status** 필터로 200 / 그 밖을 나눠 건수만 본다(행을 열어 내용을 보지 않는다). **200이 아닌 것이 한 건이라도 있으면 PE에 건수만 알림**(503 = 함수 비밀 빠짐 · 401 = Vault 비밀).
    - **정정(87- · R148-3)**: 아래 "셀 수 없다"는 손으로 볼 때 이야기다 - 87-m1은 pg_cron `push-net-count`가 **1시간마다**(6시간보다 짧게) 응답을 세어 `push_daily`에 넣고 센 번호를 지워, 503 · 401 · 시간 초과가 하루 숫자로 남는다.
    - `net._http_response`(pg_net 응답 표)로는 셀 수 없다: **보존 6시간**(`pg_net.ttl` = 6 hours 실측, pg_net 0.20.4 · 문서 기본값과 같음 · 바꾸려면 Supabase 지원 요청 필요). 마이그레이션 0으로 되는 쪽(로그)을 쓴다.

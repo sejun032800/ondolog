@@ -5,6 +5,7 @@
 
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -409,7 +410,8 @@ class Render(unittest.TestCase):
                     html = r.fill_page(comp.pages[0], scenario_theme, templates)
                     self.assertEqual(quote in html, not expect_removed)
                     if expect_removed:
-                        self.assertNotIn('이 달의 말', html)              # 줄째 - 라벨까지 지워진다(활자 표지) / 따옴표 줄(사진 표지)
+                        visible = re.sub(r'<!--.*?-->', '', html, flags=re.S)   # 88-: v1.2.4 틀 주석에 '이 달의 말'이 있다 - 보이는 글자만 본다
+                        self.assertNotIn('이 달의 말', visible)           # 줄째 - 라벨까지 지워진다(활자 표지) / 따옴표 줄(사진 표지)
                         self.assertNotIn('&ldquo;', html.replace('<!--', ''))
                     # 지운 뒤에도 원문은 인용면에 그대로 있다
                     self.assertIn(quote, json.dumps([p.corner for p in comp.pages if p.stem == 'sw-quotes'], ensure_ascii=False))

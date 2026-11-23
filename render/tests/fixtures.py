@@ -500,3 +500,34 @@ def edge_scenario(theme: str = 'basic') -> dict:
     tm = standard_this_month(da)
     return {'theme': theme, 'materials': {'messages': 120, 'photos': 20, 'dates': 3, 'memos': 10},
             'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2), corner_row('this_month', tm, seq=3)]}
+
+
+# ---------------------------------------------------------------------------
+# 88- 디자인 v1.2.4 대조 권(README §10 ④ E5). 모두 합성 시험 데이터이고 실제 사람의 기록이 아니다.
+# ---------------------------------------------------------------------------
+
+BATCH4_LONG_TITLE = '비가 그친 오후에 처음으로 끝까지 걸어 본 골목과 그 끝의 작은 서점까지'
+
+
+def batch4_scenario(theme: str = 'basic') -> dict:
+    """88- E5 대조 권 - 메모 0(모든 구간이 사진 · AI 캡션만) · 지역 0(기사 지역 · 요약 지역 없음) · 이달의 우리 없음(skipped -> 표지 표제가 이 달의 말,
+    README v1.2.4 §11 ⑭ `@cover.headlineBy`) · 긴 기사 제목(낱말 단위 줄바꿈 - base.css keep-all). 검토 diff에는 코드가 없어 README 설명대로 새로 썼다.
+    다른 픽스처 권과 같은 틀(ISSUE_ROW 2026년 9월호 · 같은 두 사람 · 합성 사진)."""
+    w, h = 1200, 1600
+    featured = article('2026-09-12', BATCH4_LONG_TITLE, None, [
+        stop(0, '14:20', '홍대입구역', [photo('e01', w, h)], [], '역 앞에서 만난 오후'),
+        stop(1, '16:10', '골목 서점', [photo('e02', w, h), photo('e03', w, h)], [], '서점 앞 의자에 앉아 있던 시간'),
+        stop(2, '19:00', None, [photo('e06', w, h)], [], None),
+    ], featured=True)
+    second = article('2026-09-20', '사진만 남은 저녁', None, [
+        stop(0, '18:00', '한강 산책로', [photo('e08', w, h)], [], '해가 지던 산책로'),
+        stop(1, '20:30', '편의점 앞', [photo('e09', w, h)], [], None),
+    ])
+    da = date_archive([featured, second], [])
+    sw = sweet_words([
+        excerpt('저녁 약속을 정하던 대화', '20', [turn(A, '오늘은 끝까지 걸어 보자', '2026-09-20T17:40:00+09:00'),
+                                         turn(B, '좋아 운동화 신고 갈게', '2026-09-20T17:41:10+09:00')]),
+    ], [sub(B, '오늘 고생했어 진짜')])
+    return {'theme': theme, 'materials': {'messages': 40, 'photos': 6, 'dates': 2, 'memos': 0},
+            'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2),
+                        corner_row('this_month', None, status='skipped', skip_reason='insufficient_input', seq=3)]}

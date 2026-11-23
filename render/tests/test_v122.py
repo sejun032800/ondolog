@@ -427,10 +427,11 @@ class TimelineMemo(unittest.TestCase):
         self.assertGreater(long_place, short_place)                          # 사진 없는 구간은 장소 이름이 높이를 정할 수 있다
 
     def test_a_long_memo_moves_the_stop_to_the_next_page_and_two_pages_are_balanced(self):
-        short = [stop_of(1, 50), stop_of(1, 50), stop_of(0, 50)]
+        # 88-: v1.2.4 표(낱말 단위 줄바꿈 + 여유 1줄)에서 50자 메모가 한 줄 늘어 셋이 한 면을 넘었다 - 들어가는 묶음은 30자로(시험 뜻 그대로)
+        short = [stop_of(1, 30), stop_of(1, 30), stop_of(0, 30)]
         self.assertLessEqual(sum(map(stop_height, short)), heights.TIMELINE_CAPACITY_PX)
         self.assertEqual([len(p) for p in split_timeline(short)[0]], [3])
-        longer = [stop_of(1, 50), stop_of(1, 50), stop_of(0, 150)]
+        longer = [stop_of(1, 30), stop_of(1, 30), stop_of(0, 200)]
         self.assertGreater(sum(map(stop_height, longer)), heights.TIMELINE_CAPACITY_PX)
         # v1.2.3 #9 · D11 - 앞에서부터 채우면 [2, 1]이지만, 두 면이면 순서를 지켜 높이 차가 가장 작게 다시 나눈다 -> [1, 2]
         self.assertEqual([len(p) for p in split_timeline(longer)[0]], [1, 2])

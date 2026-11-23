@@ -11,6 +11,7 @@
   vol4-timeline-overflow 긴 타임라인 메모(380자 안팎, 문장 단위) 둘 · basic. v1.2.2까지는 "멈춰야 한다"(옛 어림 50자마다 29px으로는 한 면, 실제는 넘침)였다.
                          v1.2.3 실측 표(`measure.json`)로 재면 두 면으로 나뉘어 **통과하는 권**이다(D13) - 대신 타임라인 면마다 **어림 >= 실제**를 확인한다
   vol5-batch2           디자인 v1.2.3 대조 권 - 사진 0 기사(hero-none) · 구간 캡션(메모 / AI 캡션) · 사진 근거 소기사 섞임 · 재소환 사진 줄 · lovely
+  vol6-batch4           88- 디자인 v1.2.4 대조 권 - 메모 0 · 지역 0 · 이달의 우리 없음(표지 표제 = 이 달의 말 · headlineBy) · 긴 기사 제목 · basic
 
 통과 기준(84-d): 원문 잘림 · 원문 상자 넘침 · 사실 어긋남 0 · 디자인 audit.py와 같음 · **판면 밖(`safe`) 0**(v1.2.3) · 타임라인 면마다 어림 >= 실제.
 
@@ -53,6 +54,7 @@ VOLUMES = [
     ('vol3-long-original', lambda: fx.long_original_scenario('ondol')),
     ('vol4-timeline-overflow', lambda: fx.timeline_overflow_scenario('basic')),   # v1.2.3 - 통과하는 권(D13)
     ('vol5-batch2', lambda: fx.batch2_scenario('lovely')),                        # 디자인 v1.2.3 대조 권
+    ('vol6-batch4', lambda: fx.batch4_scenario('basic')),                         # 88- 디자인 v1.2.4 대조 권(E5) - 메모 0 · 지역 0 · 이달의 우리 없음 · 긴 제목
 ]
 FAIL_VOLUME = ('vol3-fail', lambda: fx.long_original_scenario('ondol', with_overlong=True))
 MATERIALS = {'messages': 120, 'photos': 20, 'dates': 3, 'memos': 4}
