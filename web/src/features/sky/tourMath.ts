@@ -81,19 +81,110 @@ export function project(point: { az: number; alt: number }, view: View, heightPe
   return { x, y, visible }
 }
 
-/**
- * 기기 방향 -> 바라보는 방향. 세로로 든 폰이 지평선을 볼 때 beta ≈ 90 -> 높이 0, 위로 젖힐수록 높이가 오른다.
- * 방위: iOS는 `webkitCompassHeading`(북 = 0, 시계 방향), 그 밖은 `alpha`(반시계)를 뒤집는다. 값이 없으면 null.
- */
-export function viewFromOrientation(o: { alpha: number | null; beta: number | null; compassHeading?: number | null }): View | null {
-  const heading = typeof o.compassHeading === 'number' && Number.isFinite(o.compassHeading)
-    ? o.compassHeading
-    : typeof o.alpha === 'number' && Number.isFinite(o.alpha) ? 360 - o.alpha : null
-  if (heading === null || typeof o.beta !== 'number' || !Number.isFinite(o.beta)) return null
-  return { yaw: wrap360(heading), pitch: clampPitch(o.beta - 90) }
+// ---------------------------------------------------------------------------
+// 85-b 기기 방향 -> 시선 방향(회전 행렬) - R147-3
+// ---------------------------------------------------------------------------
+// 85-는 alpha · beta를 그대로 방위 · 높이로 썼다(gamma 무시). 폰을 세운 자세(beta ≈ 90)에서는 alpha와 gamma가 같은 축을 돌려
+// (짐벌 잠김) alpha 혼자 크게 흔들리거나 180° 뒤집힌다 -> 방위 띠가 튀고, 위아래 기울임이 방위에 섞였다.
+// 이제 세 각도로 W3C 회전 행렬 R = Rz(alpha) · Rx(beta) · Ry(gamma)(기기 -> 땅: 동 · 북 · 위)를 만들고
+// 카메라 시선(기기 -Z)과 화면 위쪽(화면 방향 보정)에서 방위 · 높이를 읽는다. 같은 자세의 다른 각도 표현은 같은 결과다.
+
+const D2R = Math.PI / 180
+
+/** `deviceorientation`의 세 각도(도). */
+export interface DeviceAngles {
+  alpha: number | null
+  beta: number | null
+  gamma?: number | null
 }
 
-/** 지수 평활 한 걸음(방위는 짧은 쪽으로 돈다). */
+function finite(n: number | null | undefined): n is number {
+  return typeof n === 'number' && Number.isFinite(n)
+}
+
+/**
+ * 기기 방향 -> 시선(높이는 자르지 않음). 방위 = 시선의 수평 성분 + 올려다본 만큼 "화면 위쪽의 반대" 수평 성분.
+ *  - 지평선 쪽을 볼 때는 시선만(화면 위쪽 가중 0 - 폰을 조금 비틀어도 방위가 움직이지 않음).
+ *  - 하늘 꼭대기 쪽으로 갈수록 화면 위쪽이 방위를 정한다(시선의 수평 성분이 0으로 가도 끊기지 않음).
+ *  - 순수한 위아래 기울임(시선 · 화면 위쪽이 같은 수직면)에서는 두 성분이 같은 방위라 방위가 그대로다.
+ * `screenAngleDeg` = 화면 방향(세로 0 · 가로 90/270) - 화면 위쪽 축을 고른다. gamma가 없으면 0. 값이 없거나 방위를 못 정하면 null.
+ * alpha는 기기가 주는 기준(Android 대개 북 · iOS 임의) - 나침반 보정은 `nextCompass`.
+ */
+export function lookFromOrientation(o: DeviceAngles, screenAngleDeg = 0): View | null {
+  if (!finite(o.alpha) || !finite(o.beta)) return null
+  const g = finite(o.gamma) ? o.gamma : 0
+  const cA = Math.cos(o.alpha * D2R), sA = Math.sin(o.alpha * D2R)
+  const cB = Math.cos(o.beta * D2R), sB = Math.sin(o.beta * D2R)
+  const cG = Math.cos(g * D2R), sG = Math.sin(g * D2R)
+  // R의 세 열 = 기기 X · Y · Z 축을 땅(동 E · 북 N · 위 U)에서 본 것.
+  const xE = cA * cG - sA * sB * sG, xN = sA * cG + cA * sB * sG
+  const yE = -sA * cB, yN = cA * cB
+  const zE = cA * sG + sA * sB * cG, zN = sA * sG - cA * sB * cG, zU = cB * cG
+  // 시선 = 기기 -Z(뒷면 카메라 쪽). 화면 위쪽 = 기기 축을 화면 방향만큼 돌린 것.
+  const fE = -zE, fN = -zN, fU = -zU
+  const s = finite(screenAngleDeg) ? screenAngleDeg * D2R : 0
+  const uE = Math.sin(s) * xE + Math.cos(s) * yE
+  const uN = Math.sin(s) * xN + Math.cos(s) * yN
+  const w = Math.max(0, fU)
+  const hE = fE - w * uE, hN = fN - w * uN
+  if (Math.hypot(hE, hN) < 1e-9) return null
+  return {
+    yaw: wrap360(tidy(Math.atan2(hE, hN) / D2R)),
+    pitch: tidy(Math.asin(Math.min(1, Math.max(-1, fU))) / D2R),
+  }
+}
+
+/** 부동소수 찌꺼기(1e-15 꼴)를 0으로 - 같은 자세는 같은 숫자로 보이게(−0도 0). */
+function tidy(deg: number): number {
+  return Math.round(deg * 1e9) / 1e9 + 0
+}
+
+/** 기기 방향 -> 바라보는 방향(높이는 −10°~90°). 세로로 든 폰이 지평선을 보면 높이 0, 젖힐수록 오른다. */
+export function viewFromOrientation(o: DeviceAngles, screenAngleDeg = 0): View | null {
+  const v = lookFromOrientation(o, screenAngleDeg)
+  return v ? { yaw: v.yaw, pitch: clampPitch(v.pitch) } : null
+}
+
+// iOS `webkitCompassHeading`(북 = 0, 시계 방향): iOS의 alpha는 시작 자세 기준이라 북과의 차이(offset)를 따로 잡는다.
+// 85-는 나침반 값을 방위로 그대로 썼다 - 나침반 값 자체도 폰을 세울 때 튈 수 있어 차이만 천천히 따라간다.
+/** 나침반 차이를 받는 높이 범위(도) - 폰을 대략 세워 든 자세에서만(눕히면 나침반 값이 윗변 기준으로 바뀐다). */
+export const COMPASS_GATE_PITCH = { min: -30, max: 75 } as const
+/** 지금 차이와 이보다 멀면 튄 값으로 보고 버린다(도). */
+export const COMPASS_OUTLIER_DEG = 30
+/** 튄 값이 이만큼 이어지면(30Hz 0.5초) 진짜로 바뀐 것으로 보고 새 값을 받는다. */
+export const COMPASS_RESET_COUNT = 15
+/** 차이를 따라가는 평활 계수. */
+export const COMPASS_ALPHA = 0.1
+
+export interface CompassState {
+  offset: number | null
+  misses: number
+}
+export const COMPASS_NONE: CompassState = { offset: null, misses: 0 }
+
+/** 나침반 값 한 개 -> 다음 차이 상태(순수). 나침반 값이 없으면(Android) 그대로. */
+export function nextCompass(prev: CompassState, heading: number | null | undefined, look: View): CompassState {
+  if (!finite(heading)) return prev
+  const sample = wrap360(heading - look.yaw)
+  if (prev.offset === null) return { offset: sample, misses: 0 }
+  if (look.pitch < COMPASS_GATE_PITCH.min || look.pitch > COMPASS_GATE_PITCH.max) return prev
+  const d = wrap180(sample - prev.offset)
+  if (Math.abs(d) > COMPASS_OUTLIER_DEG) {
+    const misses = prev.misses + 1
+    return misses >= COMPASS_RESET_COUNT ? { offset: sample, misses: 0 } : { offset: prev.offset, misses }
+  }
+  return { offset: wrap360(prev.offset + d * COMPASS_ALPHA), misses: 0 }
+}
+
+/** 시선 + 나침반 차이 -> 화면 방향. */
+export function withCompass(look: View, c: CompassState): View {
+  return { yaw: c.offset === null ? look.yaw : wrap360(look.yaw + c.offset), pitch: clampPitch(look.pitch) }
+}
+
+/**
+ * 지수 평활 한 걸음(방위는 짧은 쪽으로 돈다 - 355° -> 5°는 +10°). 85-b: 각도별 최단 경로를 고른다(slerp 아님) -
+ * 입력이 이제 회전 행렬에서 나온 연속 값이라 방위 · 높이 두 숫자만 평활하면 되고, 화면이 쓰는 것도 이 두 숫자뿐이다.
+ */
 export function smoothView(prev: View, target: View, alpha = SMOOTHING_ALPHA): View {
   return {
     yaw: wrap360(prev.yaw + wrap180(target.yaw - prev.yaw) * alpha),

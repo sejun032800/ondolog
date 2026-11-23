@@ -2,12 +2,13 @@
  * 85- 둘러보기 센서(MASTER 9-8-4 "C08이 보일 때만 리스너 · 기기 안에서만 · 저장 · 전송 0") - 웹 기기 방향 API(`deviceorientation`)만. 새 패키지 0.
  *  - `active`일 때만 리스너를 붙이고, 아니면(나가기 시작 · 앱이 뒤로 · 화면 밖) 바로 뗀다.
  *  - 30Hz로 솎고(모션표) 그리기 프레임마다 지수 평활 α = 0.2. 값은 메모리의 숫자뿐 - 저장소 · 네트워크로 보내는 코드가 이 파일에 없다.
+ *  - 85-b: 세 각도(alpha · beta · gamma) -> 회전 행렬 -> 시선(`lookFromOrientation`) · 화면 방향 보정 · iOS 나침반은 차이만 따라감(`nextCompass`).
  *  - 붙인 뒤 `SENSOR_WAIT_MS` 안에 값이 한 번도 없으면 `none`(센서 없음) -> 부르는 쪽이 끌기 모드로.
  * 시계 · 프레임 · 타이머 · 이벤트 대상은 주입할 수 있다(시험은 실제 시계 0 - 76-j).
  */
 import { useEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
-import { SENSOR_MIN_INTERVAL_MS, SENSOR_WAIT_MS, smoothView, viewFromOrientation, type View } from './tourMath'
+import { COMPASS_NONE, SENSOR_MIN_INTERVAL_MS, SENSOR_WAIT_MS, lookFromOrientation, nextCompass, smoothView, withCompass, type CompassState, type View } from './tourMath'
 
 export interface TourEnv {
   target: Pick<EventTarget, 'addEventListener' | 'removeEventListener'> | null
@@ -16,6 +17,17 @@ export interface TourEnv {
   caf: (id: number) => void
   setTimer: (fn: () => void, ms: number) => unknown
   clearTimer: (h: unknown) => void
+  /** 화면 방향(도, 세로 0 · 가로 90/270). */
+  screenAngle: () => number
+}
+
+/** 지금 화면 방향 - `screen.orientation.angle`, 없으면 옛 `window.orientation`, 그것도 없으면 0. */
+function readScreenAngle(): number {
+  if (typeof window === 'undefined') return 0
+  const a = (window.screen as Screen | undefined)?.orientation?.angle
+  if (typeof a === 'number' && Number.isFinite(a)) return a
+  const legacy = (window as unknown as { orientation?: unknown }).orientation
+  return typeof legacy === 'number' && Number.isFinite(legacy) ? legacy : 0
 }
 
 function defaultEnv(): TourEnv {
@@ -27,6 +39,7 @@ function defaultEnv(): TourEnv {
     caf: (id) => (w?.cancelAnimationFrame ? w.cancelAnimationFrame(id) : clearTimeout(id)),
     setTimer: (fn, ms) => setTimeout(fn, ms),
     clearTimer: (h) => clearTimeout(h as number),
+    screenAngle: readScreenAngle,
   }
 }
 
@@ -96,6 +109,7 @@ export function useSkyOrientation(active: boolean): { view: View | null; status:
     let lastAt = -Infinity
     let frame: number | null = null
     let gotAny = false
+    let compass: CompassState = COMPASS_NONE
 
     const tick = () => {
       frame = null
@@ -110,8 +124,10 @@ export function useSkyOrientation(active: boolean): { view: View | null; status:
       const at = env.now()
       if (at - lastAt < SENSOR_MIN_INTERVAL_MS) return // 30Hz로 솎음
       const o = e as DeviceOrientationEvent & { webkitCompassHeading?: number }
-      const v = viewFromOrientation({ alpha: o.alpha, beta: o.beta, compassHeading: o.webkitCompassHeading ?? null })
-      if (!v) return
+      const look = lookFromOrientation({ alpha: o.alpha, beta: o.beta, gamma: o.gamma }, env.screenAngle())
+      if (!look) return
+      compass = nextCompass(compass, o.webkitCompassHeading, look)
+      const v = withCompass(look, compass)
       lastAt = at
       target = v
       if (!gotAny) {

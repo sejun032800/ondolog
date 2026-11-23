@@ -151,10 +151,14 @@ describe('85- 순수 계산(tourMath)', () => {
     expect(project(pt, { yaw: 180, pitch: 0 }, 2).visible).toBe(false) // 뒤쪽 - 그리지 않는다
   })
 
-  it('기기 방향 -> 바라보는 방향: beta 90 = 지평선 · 더 젖히면 위 · iOS 나침반 우선 · 값 없으면 null', () => {
-    expect(viewFromOrientation({ alpha: 0, beta: 90 })).toEqual({ yaw: 0, pitch: 0 })
-    expect(viewFromOrientation({ alpha: 90, beta: 120 })).toEqual({ yaw: 270, pitch: 30 })
-    expect(viewFromOrientation({ alpha: 90, beta: 200, compassHeading: 45 })).toEqual({ yaw: 45, pitch: 90 })
+  it('기기 방향 -> 바라보는 방향: beta 90 = 지평선 · 더 젖히면 위 · 값 없으면 null(85-b: 회전 행렬 - 나침반은 tourSensor85b)', () => {
+    const v0 = viewFromOrientation({ alpha: 0, beta: 90 })!
+    expect(v0.yaw).toBeCloseTo(0, 6)
+    expect(v0.pitch).toBeCloseTo(0, 6)
+    const v1 = viewFromOrientation({ alpha: 90, beta: 120 })!
+    expect(v1.yaw).toBeCloseTo(270, 6)
+    expect(v1.pitch).toBeCloseTo(30, 6)
+    expect(viewFromOrientation({ alpha: 0, beta: 175 })!.pitch).toBeCloseTo(85, 6) // 거의 꼭대기 - 90에서 멈춤은 clampPitch
     expect(viewFromOrientation({ alpha: null, beta: 90 })).toBeNull()
   })
 

@@ -11,6 +11,34 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `85-b` 둘러보기 센서 안정화 - 튐 · 상하/좌우 섞임 (메인 세션, 2026-11-23, 위임문 `phase-7/85-b-dispatch-tour-sensor-stability.md` · 출처 ROADMAP r147 R147-3) - 완료 · 멈춤 0 (미커밋)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님.
+
+원인 판정(85- 코드, 고치기 전):
+
+| # | 물음 | 판정 | 근거(고치기 전 파일:줄) |
+|---|---|---|---|
+| 가 | 세 각도를 그대로 화면 회전에 쓰나 | **맞음 - 주원인.** 방위 = `360 − alpha`, 높이 = `beta − 90`, gamma는 읽지도 않음. 폰을 세운 자세(beta ≈ 90)는 alpha · gamma가 같은 축(짐벌 잠김)이라 alpha 혼자 크게 흔들리고, 손이 조금 비틀린 채 지평선을 지나면 표현이 바뀌어 alpha가 180° 뒤집힘 -> 방위 띠 튐 · 위아래 기울임이 방위에 섞임 | `tourMath.ts:88-94` · `useSkyOrientation.ts:330` |
+| 나 | 평활이 0/360 경계에서 먼 쪽으로 도나 | **아님.** `smoothView`는 `wrap180`(짧은 쪽) · 멈춤 판정도 짧은 쪽. 다만 입력 자체가 180° 뛰면 짧은 쪽으로도 몇 틱에 걸쳐 크게 돎("북 → 북동 → 남") | `tourMath.ts:97-102` · `useSkyOrientation.ts:322` |
+| 다 | 화면 방향(세로 · 가로) 보정 | **없음**(`screen.orientation` · `window.orientation` 0건) | `web/src/features/sky/` 전체 |
+| 라 | `absolute` / `webkitCompassHeading` | `absolute` 처리 0(`deviceorientationabsolute` 안 들음 - 그대로 둠). iOS는 `webkitCompassHeading`을 **방위로 그대로** 씀(나침반 값의 튐도 그대로 화면에) | `tourMath.ts:89-91` · `useSkyOrientation.ts:329-330` |
+
+고친 곳:
+- `tourMath.ts` `lookFromOrientation`: W3C R = Rz(alpha)·Rx(beta)·Ry(gamma) -> 시선(기기 −Z) · 화면 위쪽(기기 축을 화면 방향만큼 돌림). 방위 = atan2(시선 수평 + max(0, 시선 높이)·(−화면 위쪽 수평)) - 지평선 쪽은 시선만(비틀림 무관), 꼭대기 쪽은 화면 위쪽이 이어 받음(높이 90에서도 끊기지 않음), 순수 위아래 기울임은 두 성분이 같은 방위라 방위 그대로. 높이 = asin(시선 높이). `viewFromOrientation`은 이것 + `clampPitch`.
+- iOS 나침반: `nextCompass` · `withCompass` - alpha 기준(iOS 임의)과 북의 **차이만** 천천히(0.1) 따라감 · 높이 −30°~75°에서만 받음 · 차이에서 30° 넘게 튄 값은 버림 · 15번(0.5초) 이어지면 받아들임. 첫 값은 바로 받음(85- 시험 "나침반 270 -> 서" 그대로 통과).
+- 평활: **각도별 최단 경로**(slerp 아님) - 입력이 이제 연속이고 화면이 쓰는 건 방위 · 높이 두 숫자뿐. α 0.2 · 30Hz 그대로.
+- `useSkyOrientation.ts`: gamma 넘김 · `TourEnv.screenAngle`(기본 `screen.orientation.angle` -> `window.orientation` -> 0, 주입 가능) · 나침반 상태는 효과 안 지역 변수(저장 · 전송 0 그대로).
+- 85- 단위 시험 1건 계약 변경: `viewFromOrientation({alpha: 90, beta: 200, compassHeading: 45})`(W3C 범위 밖 beta · 나침반 인자) 줄을 뺌 -> 나침반은 새 시험에서. 나머지 85- 시험 수정 0.
+- 그대로: 사진 층 고정 · 방위 글자 · 칩 동작 · 모션표 · C08-alt 끌기 · C09 · 화면 모양(`SkyTour.tsx` · `SkyScreen.tsx` · css 변경 0).
+
+시험 `tourSensor85b.vitest.ts`(값 열 = 실제 자세 -> W3C 세 각도, 기기가 고르는 표현 그대로 · 같은 값 열을 85- 계산에 넣어 튐을 보이는 증인 포함 · 문턱 15°/틱 = 450°/초: 둘러보기 회전(≤ 3°/틱)보다 크고 녹화 튐(≥ 30°/틱)보다 작음):
+(a) 세운 채 한 바퀴(비틀림 ±2° · 높이 ±3°) - 틱마다 ≤ 15° · 합 350~362° · 되돌아 도는 틱 0(85-는 > 90° 튐) · (b) β 85↔95 · α · γ 뒤집힘(자연 표현 + 한 틱 걸러 정확히 180° 다른 표현) - 방위 40° ± 1° · (c) 355 ↔ 5 - 북 ±12° 밖 0 · (d) 위아래만 −10 → 85 → −10 - 방위 변화 < 0.5° · (d′) 같은 기울임에 비틀림 2° - < 3°(85-는 180° 뒤집힘) · 가로 화면 90° · 꼭대기 근처 연속 · 같은 자세 다른 표현 = 같은 시선 · iOS 나침반(차이 · 튄 값 버림 · 0.5초 뒤 받음 · 나침반 180° 튐 섞인 한 바퀴).
+
+검증: **`npm run gate` 통과 146.4초**(web tsc 8.1 · Vitest 73 파일 1234 + 1 건너뜀 24.8 · 법무 8/8 4.4 · smoke 42/42 109.1) · 루트 tsc 0 · jest 130 스위트 / 2280 · `build` · `build:trial` · `cap sync android`(맨 끝 한 번). 새 패키지 0 · 서버 0 · LLM 0 · 원격 0 · 새 파일 이름 ASCII.
+
+열린 것: 실기기(폰A S21 · 폰B V40 · iOS) 확인 - 위임문 보고 7번 목록. Android `deviceorientation` alpha가 기기에 따라 상대 기준일 수 있음(`absolute` 미처리 - 85-와 같음, 방위 글자 정확도 문제이지 튐은 아님).
+
 ## `84-h` 시험판 전용 유성 미리 보기 · 0인 조각 빼기 (메인 세션, 2026-11-22, 위임문 `phase-7/84-h-dispatch-meteor-preview-zero-fragments.md` · 출처 ROADMAP r145 R145-1~6) - 완료 · 멈춤 0 (미커밋)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView — 실기기 대체 아님
