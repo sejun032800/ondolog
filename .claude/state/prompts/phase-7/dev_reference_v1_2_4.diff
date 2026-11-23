@@ -1,0 +1,40 @@
+diff -ruN '--exclude=issue' '--exclude=__pycache__' prev/render/compose.py work/render/compose.py
+--- prev/render/compose.py	2026-11-23 21:13:24.101482839 +0900
++++ work/render/compose.py	2026-11-23 21:00:33.222878326 +0900
+@@ -541,8 +541,7 @@
+         regions = facts.regions
+         region_part = f"{', '.join(regions)}, " if regions else ''
+         lead = (f'{month}에 두 사람이 함께 보낸 날은 {facts.period_dates}번이었습니다. '
+-                f'{region_part}{facts.place_count}곳을 거치며 남긴 {len(facts.photos_shown_period)}장의 사진과 '
+-                f'{facts.memos_shown_period}개의 메모를 그대로 실었습니다.')
++                + lead_tail(region_part, facts.place_count, len(facts.photos_shown_period), facts.memos_shown_period))
+         route_headline = f'{month}에 두 사람이 그린 지도'
+         self.say('ondolog', 'fixedFrame', '@da.lead', lead)
+         self.say('ondolog', 'fixedFrame', '@da.routeHeadline', route_headline)
+@@ -550,7 +549,7 @@
+         records = ''
+         if lead_f.memos_total + lead_f.ai_captions_shown > 0:
+             bits = [f'메모 {lead_f.memos_total}' if lead_f.memos_total else '', f'AI 캡션 {lead_f.ai_captions_shown}' if lead_f.ai_captions_shown else '']
+-            records = f'남긴 기록 · 메모 {lead_f.memos_total}' + (f' · AI 캡션 {lead_f.ai_captions_shown}' if lead_f.ai_captions_shown > 0 else '')
++            records = ('남긴 기록 · ' + ' · '.join(b for b in bits if b)) if any(bits) else ''
+ 
+         places = facts.places[:PLACES_CAP]
+         self.omitted_places = len(facts.places) - len(places)
+@@ -609,7 +608,7 @@
+             if isinstance(q, dict):
+                 q['type'] = QUESTION_TYPE_KO.get(q.get('type'), q.get('type'))
+         computed = {'da': {
+-            'routeSummary': f'{facts.region_count}개 지역 · {facts.place_count}개 장소',
++            'routeSummary': ' · '.join(x for x in (f'{facts.region_count}개 지역' if facts.region_count else '', f'{facts.place_count}개 장소' if facts.place_count else '') if x),
+             'routeHeadline': route_headline,
+             'places': places,
+         }}
+@@ -972,7 +971,7 @@
+         photo_headline = type_headline = quote
+     else:
+         photo_headline = type_headline = headline or ''
+-    same = False   # v1.2.4 #h - 표제가 이 달의 말로 바뀌면 인용 줄을 비우고 말한 사람 줄을 쓴다
++    same = (lines is None and bool(quote))   # v1.2.4 #h - 표제가 이 달의 말로 바뀌면 인용 줄을 비우고 말한 사람 줄을 쓴다
+     common = {'quote': '' if same else (quote or ''), 'quoteBy': '' if same else (speaker or ''),
+               'headlineBy': (speaker or '') if same else '', 'temperature': ''}  # 우리의 온도는 지금 늘 없다(일 배치 전)
+     return {
