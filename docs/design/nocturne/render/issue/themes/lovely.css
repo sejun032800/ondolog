@@ -1,0 +1,6 @@
+/* lovely — 기존 발행물 실측(ONDOLOG_Corners_lovely_digital.pdf p11) */
+html[data-theme="lovely"]{
+  --bg:#F7E3E6; --ink:#4A2836; --sub:#8A8072; --acc:#7C5566;
+  --hair:#8A8072; --rule:#E8CBD4;
+  --onPhoto:#F7E3E6;
+}

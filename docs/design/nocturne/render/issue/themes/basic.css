@@ -1,0 +1,6 @@
+/* basic — 기존 발행물 실측(ONDOLOG_Corners_digital.pdf p11) */
+html[data-theme="basic"]{
+  --bg:#F2EDE4; --ink:#2B2723; --sub:#8C8378; --acc:#7E7568;
+  --hair:#8C8378; --rule:#DDD5C8;
+  --onPhoto:#F1ECE4;
+}

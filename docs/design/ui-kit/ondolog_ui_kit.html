@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:'P';src:url('../fonts/Pretendard-Regular.otf');font-weight:400;}
+@font-face{font-family:'P';src:url('../fonts/Pretendard-Medium.otf');font-weight:500;}
+@font-face{font-family:'P';src:url('../fonts/Pretendard-Bold.otf');font-weight:700;}
+@font-face{font-family:'P';src:url('../fonts/Pretendard-Black.otf');font-weight:900;}
+@font-face{font-family:'M';src:url('../fonts/MaruBuri-Light.otf');font-weight:300;}
+@font-face{font-family:'M';src:url('../fonts/MaruBuri-Regular.otf');font-weight:400;}
+:root{
+  --night:#14102E;--deep:#0C0920;--lift:#1F1A3D;--lift2:#2A2350;
+  --text:#F3EFFA;--sub:#B9B2D8;--mute:#8A83AE;--faint:#5C5680;
+  --coral:#FF8E7F;--pink:#F7A8C8;--peri:#9AA2F7;--rule:#2C2650;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+body{background:#0A0818;color:var(--text);font-family:'P',sans-serif;width:1240px;padding:40px;}
+h1{font-size:34px;font-weight:900;letter-spacing:-.02em;}
+h1+p{color:var(--mute);font-size:15px;margin-top:8px;}
+section{margin-top:46px;padding-top:26px;border-top:1px solid var(--rule);}
+h2{font-size:12px;font-weight:700;letter-spacing:.22em;color:var(--coral);}
+h2+p{color:var(--mute);font-size:13px;margin-top:7px;line-height:1.6;}
+.grid{display:flex;flex-wrap:wrap;gap:14px;margin-top:20px;align-items:flex-start;}
+.cell{background:#120F26;border:1px solid var(--rule);border-radius:16px;padding:16px;}
+.nm{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--mute);margin-top:10px;}
+.hex{font-size:11px;color:var(--faint);margin-top:2px;font-variant-numeric:tabular-nums;}
+.sw{width:112px;height:70px;border-radius:10px;border:1px solid rgba(255,255,255,.07);}
+/* ── 컴포넌트 ── */
+.card{background:var(--lift);border-radius:20px;padding:20px;}
+.btn{border-radius:16px;padding:17px 24px;text-align:center;font-size:16px;font-weight:700;
+  background:linear-gradient(135deg,#FF8E7F,#F7A8C8);color:#1A0E1A;}
+.btn2{border-radius:16px;padding:16px 24px;text-align:center;font-size:15px;font-weight:700;
+  background:rgba(243,239,250,.08);color:var(--text);}
+.btn3{font-size:14px;font-weight:700;color:var(--text);}
+.chip{display:inline-block;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;
+  background:rgba(243,239,250,.1);color:var(--sub);}
+.badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;color:#FFD6C8;
+  border:1px solid rgba(255,142,127,.55);border-radius:999px;padding:3px 9px;}
+.prog{height:5px;border-radius:999px;background:var(--rule);overflow:hidden;width:220px;}
+.prog i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#FF8E7F,#F7A8C8);}
+.bars{display:flex;gap:5px;}
+.bars i{width:22px;height:3px;border-radius:999px;background:var(--rule);}
+.bars i.on{background:var(--text);width:30px;}
+.row{display:flex;justify-content:space-between;align-items:flex-start;padding:15px 0;
+  border-bottom:1px solid var(--rule);width:300px;}
+.tab{display:flex;width:330px;border-top:1px solid var(--rule);padding-top:13px;}
+.tab div{flex:1;text-align:center;font-size:12px;font-weight:700;color:var(--faint);}
+.tab div.on{color:var(--text);}
+.hero{font-size:60px;font-weight:900;line-height:1;letter-spacing:-.045em;
+  background:linear-gradient(135deg,#FF8E7F,#F7A8C8);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.hero .u{font-size:25px;font-weight:700;}
+.skel{background:linear-gradient(90deg,#1F1A3D,#2A2350,#1F1A3D);border-radius:8px;}
+.bub-me{max-width:220px;padding:11px 15px;border-radius:20px 20px 6px 20px;
+  background:linear-gradient(135deg,#FF8E7F,#F7A8C8);color:#1A0E1A;font-size:15px;line-height:1.5;}
+.bub-you{max-width:220px;padding:11px 15px;border-radius:20px 20px 20px 6px;
+  background:var(--lift);font-size:15px;line-height:1.5;}
+.inp{width:260px;height:42px;border-radius:999px;background:var(--lift);display:flex;align-items:center;
+  padding:0 16px;font-size:12px;color:var(--mute);font-weight:500;}
+/* ── 하늘 오브젝트 ── */
+.skybox{position:relative;width:170px;height:120px;border-radius:14px;overflow:hidden;
+  background:linear-gradient(180deg,#0B0722,#190E3F);}
+.ds{position:absolute;border-radius:50%;transform:translate(-50%,-50%);background:#fff;}
+.halo{position:absolute;border-radius:50%;transform:translate(-50%,-50%);}
+.spk{position:absolute;height:1px;transform-origin:50% 50%;}
+.ring{position:absolute;border-radius:50%;transform:translate(-50%,-50%);border:.7px solid;}
+.met{position:absolute;height:1.4px;transform-origin:0 50%;border-radius:2px;
+  background:linear-gradient(90deg,#FFFFFF 0%,rgba(236,228,255,.9) 6%,rgba(214,196,255,.45) 34%,rgba(247,168,200,.14) 70%,rgba(247,168,200,0) 100%);}
+.mhead{position:absolute;width:4px;height:4px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);
+  box-shadow:0 0 5px 2px rgba(255,246,252,.95),0 0 16px 5px rgba(196,176,255,.5);}
+.glowb{position:absolute;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,142,127,.22) 0%,rgba(255,142,127,0) 68%);}
+.note{font-size:11px;color:var(--faint);margin-top:8px;line-height:1.5;}
+</style></head>
+<body>
+
+<h1>ONDOLOG UI 키트</h1>
+<p>앱 화면을 구성하는 오브젝트 전부. 값은 <code>tokens.json</code>과 동일하다. 규격 근거는 <code>ONDOLOG_APP_UI_PLAN_v3.md</code>.</p>
+
+<!-- ══ 색 ══ -->
+<section id="s-color">
+<h2>0 1 &nbsp; C O L O R</h2>
+<p>배경 #14102E 기준 대비를 실측한 값이다. 대비 3.0 미만은 텍스트에 쓰지 않는다.</p>
+<div class="grid">
+  <div class="cell"><div class="sw" style="background:#14102E"></div><div class="nm">night</div><div class="hex">#14102E · 기본 배경</div></div>
+  <div class="cell"><div class="sw" style="background:#0C0920"></div><div class="nm">night-deep</div><div class="hex">#0C0920 · 그라디언트 끝</div></div>
+  <div class="cell"><div class="sw" style="background:#1F1A3D"></div><div class="nm">night-lift</div><div class="hex">#1F1A3D · 카드 표면</div></div>
+  <div class="cell"><div class="sw" style="background:#2A2350"></div><div class="nm">night-lift-2</div><div class="hex">#2A2350 · 눌림·선택</div></div>
+  <div class="cell"><div class="sw" style="background:#F3EFFA"></div><div class="nm">text</div><div class="hex">#F3EFFA · 16.2</div></div>
+  <div class="cell"><div class="sw" style="background:#B9B2D8"></div><div class="nm">text-sub</div><div class="hex">#B9B2D8 · 9.1</div></div>
+  <div class="cell"><div class="sw" style="background:#8A83AE"></div><div class="nm">text-mute</div><div class="hex">#8A83AE · 5.2</div></div>
+  <div class="cell"><div class="sw" style="background:#5C5680"></div><div class="nm">text-faint</div><div class="hex">#5C5680 · 2.7 · 선 전용</div></div>
+  <div class="cell"><div class="sw" style="background:#FF8E7F"></div><div class="nm">coral</div><div class="hex">#FF8E7F · 8.3 · 수치</div></div>
+  <div class="cell"><div class="sw" style="background:#F7A8C8"></div><div class="nm">pink</div><div class="hex">#F7A8C8 · 10.0 · 관계</div></div>
+  <div class="cell"><div class="sw" style="background:#9AA2F7"></div><div class="nm">peri</div><div class="hex">#9AA2F7 · 7.8 · 정보</div></div>
+  <div class="cell"><div class="sw" style="background:#2C2650"></div><div class="nm">rule</div><div class="hex">#2C2650 · 구분선</div></div>
+</div>
+</section>
+
+<!-- ══ 그라디언트 ══ -->
+<section id="s-grad">
+<h2>0 2 &nbsp; G R A D I E N T</h2>
+<p>네 개만 정의한다. 그 밖의 그라디언트는 만들지 않는다.</p>
+<div class="grid">
+  <div class="cell"><div class="sw" style="width:230px;background:linear-gradient(180deg,#1B1440,#14102E 46%,#0C0920)"></div>
+    <div class="nm">sky</div><div class="hex">화면 배경 · 180deg</div></div>
+  <div class="cell"><div class="sw" style="width:230px;background:linear-gradient(135deg,#FF8E7F,#F7A8C8)"></div>
+    <div class="nm">warm</div><div class="hex">온도·주요 버튼 · 135deg</div></div>
+  <div class="cell"><div class="sw" style="width:230px;background:linear-gradient(135deg,#F7A8C8,#9AA2F7)"></div>
+    <div class="nm">dawn</div><div class="hex">두 사람 연결 · 135deg</div></div>
+  <div class="cell"><div class="sw" style="width:230px;background:linear-gradient(180deg,rgba(31,26,61,0),#1F1A3D)"></div>
+    <div class="nm">veil</div><div class="hex">사진 위 텍스트 바닥</div></div>
+</div>
+</section>
+
+<!-- ══ 활자 ══ -->
+<section id="s-type">
+<h2>0 3 &nbsp; T Y P E</h2>
+<p>Pretendard 중심. 세리프(MaruBuri)는 <b>두 사람의 원문 인용</b>에만 쓴다 — 잉크 위계의 verbatim.</p>
+<div class="grid" style="gap:24px;">
+  <div class="cell" style="width:100%;">
+    <div style="font-size:72px;font-weight:900;letter-spacing:-.045em;line-height:1;">38<span style="font-size:30px;font-weight:700;">.2°</span></div>
+    <div class="nm">hero · Black 72 / 76 · 단위 42%</div>
+    <div style="font-size:28px;font-weight:700;letter-spacing:-.02em;margin-top:22px;">발행물 테마</div><div class="nm">display · Bold 28 / 38</div>
+    <div style="font-size:19px;font-weight:700;letter-spacing:-.02em;margin-top:18px;">첫 호를 만들고 있어요</div><div class="nm">title · Bold 19 / 28</div>
+    <div style="font-size:16px;line-height:1.62;margin-top:18px;">여섯 가지 모두 넘겨볼 수 있어요.</div><div class="nm">body · Regular 16 / 26</div>
+    <div style="font-size:14px;line-height:1.55;color:var(--sub);margin-top:16px;">두 사람의 8월 대화가 들어가 있습니다.</div><div class="nm">sub · Regular 14 / 22</div>
+    <div style="font-size:12px;font-weight:500;color:var(--mute);margin-top:16px;">사진 18장 · 메모 1</div><div class="nm">caption · Medium 12 / 18</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--mute);margin-top:16px;">I S S U E &nbsp;0 3</div><div class="nm">kicker · Bold 11 · 자간 .18em</div>
+    <div style="font-family:'M';font-size:17px;line-height:1.76;color:var(--sub);margin-top:18px;">기다릴게</div>
+    <div class="nm">quote · MaruBuri 17 / 30 — 원문 전용</div>
+  </div>
+</div>
+</section>
+
+<!-- ══ 버튼 ══ -->
+<section id="s-btn">
+<h2>0 4 &nbsp; B U T T O N</h2>
+<p>라운드 16. 하단 고정 버튼은 전폭. 아이콘 없이 문자만 쓴다.</p>
+<div class="grid">
+  <div class="cell"><div class="btn" style="width:250px;">이 테마로 발행하기</div><div class="nm">primary · warm 그라디언트</div></div>
+  <div class="cell"><div class="btn2" style="width:250px;">공유 카드 만들기</div><div class="nm">secondary · 투명 8%</div></div>
+  <div class="cell"><div style="padding:17px 0;"><span class="btn3">제작 현황 →</span></div><div class="nm">text · 행 우측</div></div>
+  <div class="cell"><div style="display:flex;gap:8px;"><div class="btn2" style="flex:1;padding:12px 18px;font-size:14px;">구독 이어가기</div>
+    <div class="btn2" style="flex:1;padding:12px 18px;font-size:14px;">테마 다시 보기</div></div><div class="nm">pair · 카드 내부</div></div>
+</div>
+</section>
+
+<!-- ══ 배지·칩 ══ -->
+<section id="s-badge">
+<h2>0 5 &nbsp; B A D G E &nbsp;·&nbsp; C H I P</h2>
+<p>자물쇠·경고 아이콘을 쓰지 않는다. 상태는 문자로 전달한다.</p>
+<div class="grid">
+  <div class="cell"><span class="badge">구독</span><div class="nm">lock badge · 잠긴 테마</div></div>
+  <div class="cell"><span class="chip">떨어지는 별을 눌러보세요</span><div class="nm">coach chip · 1회 노출</div></div>
+  <div class="cell"><span class="chip" style="background:rgba(247,168,200,.14);color:#FFD6E6;">그때 그 시절</span><div class="nm">chip accent</div></div>
+  <div class="cell"><span style="font-size:12px;font-weight:500;color:var(--mute);">준비됨</span>
+    &nbsp;&nbsp;<span style="font-size:12px;font-weight:700;color:var(--text);">3문항 남음 →</span>
+    <div class="nm">상태 라벨 · 색이 아니라 농도로 구분</div></div>
+</div>
+</section>
+
+<!-- ══ 카드·행 ══ -->
+<section id="s-card">
+<h2>0 6 &nbsp; C A R D &nbsp;·&nbsp; R O W</h2>
+<p>카드 라운드 20, 내부 여백 20. 리스트 행은 높이 56 이상, 구분선 1px.</p>
+<div class="grid">
+  <div class="cell"><div class="card" style="width:290px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--mute);">I S S U E &nbsp;0 3</div>
+        <div style="font-size:19px;font-weight:900;color:var(--coral);">41%</div></div>
+      <div style="font-size:19px;font-weight:700;margin-top:10px;">9월호를 만들고 있어요</div>
+      <div class="prog" style="margin-top:14px;width:100%;"><i style="width:41%"></i></div>
+    </div><div class="nm">SoftCard · 탭 시 scale 0.98</div></div>
+  <div class="cell">
+    <div class="row"><div><div style="font-size:16px;">우리 사이 인터뷰</div>
+      <div style="font-size:12px;font-weight:500;color:var(--mute);margin-top:3px;">9월 7일까지 답하면 이번 호에 실려요</div></div>
+      <div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;">3문항 남음 →</div></div>
+    <div class="row" style="border:none;"><div><div style="font-size:16px;color:var(--mute);">데이트 아카이브</div>
+      <div style="font-size:12px;font-weight:500;color:var(--mute);margin-top:3px;">사진 18장 · 메모 1</div></div>
+      <div style="font-size:12px;font-weight:500;color:var(--mute);">준비됨</div></div>
+    <div class="nm">CornerStatusRow · 행동 필요 / 완료</div></div>
+</div>
+</section>
+
+<!-- ══ 지표 ══ -->
+<section id="s-meter">
+<h2>0 7 &nbsp; M E T E R &nbsp;·&nbsp; I N D I C A T O R</h2>
+<p>진행률과 온도에는 애니메이션을 넣지 않는다. 인디케이터는 원형을 쓰지 않는다.</p>
+<div class="grid">
+  <div class="cell"><div class="prog"><i style="width:41%"></i></div><div class="nm">ProgressRule · 애니메이션 없음</div></div>
+  <div class="cell"><div class="bars"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div><div class="nm">BarIndicator · 원형 금지</div></div>
+  <div class="cell" style="position:relative;">
+    <div class="glowb" style="width:150px;height:150px;left:50%;top:44px;transform:translateX(-50%);"></div>
+    <div class="hero" style="position:relative;text-align:center;">38<span class="u">.2°</span></div>
+    <div class="nm" style="text-align:center;">GlowNumeral</div></div>
+  <div class="cell"><div style="display:flex;gap:26px;text-align:center;">
+      <div><div style="font-size:26px;font-weight:900;color:var(--coral);">412</div><div class="nm" style="margin-top:4px;">대화</div></div>
+      <div><div style="font-size:26px;font-weight:900;color:var(--coral);">18</div><div class="nm" style="margin-top:4px;">사진</div></div>
+      <div><div style="font-size:26px;font-weight:900;color:var(--coral);">1</div><div class="nm" style="margin-top:4px;">데이트</div></div>
+    </div><div class="nm">MaterialCount · 수치는 coral 전용</div></div>
+</div>
+</section>
+
+<!-- ══ 하늘 ══ -->
+<section id="s-sky">
+<h2>0 8 &nbsp; S K Y &nbsp; O B J E C T</h2>
+<p>데이터 별은 코어 2.2–4.2pt. 배경 별과 구분되는 신호는 <b>회절 십자광</b>과 <b>사진에서 뽑은 후광 색</b>이다.</p>
+<div class="grid">
+  <div class="cell"><div class="skybox" id="sky-a"></div><div class="nm">DateStar · 기본</div>
+    <div class="note">코어 흰색 + 사진색 후광<br>십자광 폭 = 코어 × 8.4</div></div>
+  <div class="cell"><div class="skybox" id="sky-b"></div><div class="nm">DateStar · 메모 있음</div>
+    <div class="note">분홍 고리 = 두 사람이<br>직접 남긴 기록이 있는 날</div></div>
+  <div class="cell"><div class="skybox" id="sky-c"></div><div class="nm">DateStar · 기념일</div>
+    <div class="note">금빛 점선 고리 + 넓은 후광</div></div>
+  <div class="cell"><div class="skybox" id="sky-d"></div><div class="nm">Meteor</div>
+    <div class="note">머리 4px · 꼬리 236px<br>−31도 · 비행 2.4초</div></div>
+  <div class="cell"><div class="skybox" id="sky-e"></div><div class="nm">배경 별 (비상호작용)</div>
+    <div class="note">1–2px · 글로우 없음<br>터치 불가</div></div>
+</div>
+</section>
+
+<!-- ══ 채팅·입력 ══ -->
+<section id="s-chat">
+<h2>0 9 &nbsp; C H A T &nbsp;·&nbsp; I N P U T</h2>
+<p>말풍선 라운드 20, 말꼬리 방향만 6. 최대 폭 76%.</p>
+<div class="grid">
+  <div class="cell"><div style="display:flex;justify-content:flex-end;"><div class="bub-me">오늘 비 온대. 우산 챙겼어?</div></div>
+    <div style="margin-top:8px;"><div class="bub-you">응 챙겼어. 너도 감기 조심해</div></div>
+    <div class="nm">Bubble · me / you</div></div>
+  <div class="cell"><div class="inp">메시지 보내기</div><div class="nm">Input · 라운드 999</div></div>
+  <div class="cell"><div class="tab"><div class="on">메인</div><div>채팅</div><div>피드</div><div>매거진</div><div>설정</div></div>
+    <div class="nm">TabBar · 텍스트만, 아이콘 없음</div></div>
+</div>
+</section>
+
+<!-- ══ 상태 ══ -->
+<section id="s-state">
+<h2>1 0 &nbsp; S T A T E</h2>
+<p>로딩은 스피너가 아니라 뼈대. 빈 상태는 부족을 지적하지 않고 다음 행동을 안내한다.</p>
+<div class="grid">
+  <div class="cell"><div style="width:260px;">
+      <div class="skel" style="height:14px;width:60%;"></div>
+      <div class="skel" style="height:14px;width:85%;margin-top:10px;"></div>
+      <div class="skel" style="height:14px;width:40%;margin-top:10px;"></div>
+    </div><div class="nm">Skeleton · 스피너 금지</div></div>
+  <div class="cell"><div style="width:260px;text-align:center;padding:14px 0;">
+      <div style="width:56px;height:56px;border-radius:50%;border:1px dashed rgba(236,228,255,.3);margin:0 auto;"></div>
+      <div style="font-size:16px;font-weight:700;margin-top:14px;">첫 데이트를 기록하면<br>이 자리에 첫 별이 떠요</div>
+    </div><div class="nm">Empty · 실패로 쓰지 않는다</div></div>
+  <div class="cell"><div style="width:260px;">
+      <div style="font-size:16px;font-weight:700;">이번 호는 기본 테마로 발행돼요</div>
+      <div style="font-size:12px;font-weight:500;color:var(--mute);margin-top:6px;line-height:1.6;">구독 기간이 8월 31일에 끝났어요.</div>
+    </div><div class="nm">Notice · 경고색·느낌표 금지</div></div>
+</div>
+</section>
+
+<script>
+function el(P,cls,css){const d=document.createElement('div');d.className=cls;Object.assign(d.style,css);P.appendChild(d);return d;}
+function star(P,x,y,core,c,opt){
+  opt=opt||{};
+  el(P,'halo',{left:x+'px',top:y+'px',width:(core*10)+'px',height:(core*10)+'px',opacity:.62,
+    background:'radial-gradient(circle,'+c+'AA 0%,'+c+'33 28%,'+c+'00 70%)'});
+  [0,90].forEach(r=>el(P,'spk',{left:(x-core*4.2)+'px',top:y+'px',width:(core*8.4)+'px',opacity:.55,
+    transform:'rotate('+r+'deg)',
+    background:'linear-gradient(90deg,rgba(255,255,255,0),'+c+'CC 45%,#fff 50%,'+c+'CC 55%,rgba(255,255,255,0))'}));
+  el(P,'ds',{left:x+'px',top:y+'px',width:core+'px',height:core+'px',
+    boxShadow:'0 0 3px 1px '+c+', 0 0 7px 2px '+c+'99'});
+  if(opt.memo) el(P,'ring',{left:x+'px',top:y+'px',width:(core*6.4)+'px',height:(core*6.4)+'px',borderColor:'rgba(247,168,200,.5)'});
+  if(opt.anniv){
+    el(P,'halo',{left:x+'px',top:y+'px',width:(core*16)+'px',height:(core*16)+'px',opacity:.5,
+      background:'radial-gradient(circle,rgba(255,214,168,.35) 0%,rgba(255,214,168,0) 65%)'});
+    el(P,'ring',{left:x+'px',top:y+'px',width:(core*10)+'px',height:(core*10)+'px',
+      borderColor:'rgba(255,214,168,.45)',borderStyle:'dashed'});
+  }
+}
+function bg(P,n,seed){let s=seed;const r=()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};
+  for(let i=0;i<n;i++){const d=document.createElement('div');d.className='ds';
+    const sz=r()*1.4+0.6;d.style.width=sz+'px';d.style.height=sz+'px';
+    d.style.left=(r()*170)+'px';d.style.top=(r()*120)+'px';d.style.opacity=(r()*.6+.15).toFixed(2);P.appendChild(d);} }
+bg(document.getElementById('sky-a'),40,7); star(document.getElementById('sky-a'),85,60,3.4,'#E3ACEB');
+bg(document.getElementById('sky-b'),40,11); star(document.getElementById('sky-b'),85,60,3.6,'#ACD7EB',{memo:1});
+bg(document.getElementById('sky-c'),40,19); star(document.getElementById('sky-c'),85,60,4.2,'#EBACC0',{memo:1,anniv:1});
+const d4=document.getElementById('sky-d'); bg(d4,40,23);
+el(d4,'met',{left:'40px',top:'78px',width:'150px',transform:'rotate(-31deg)'});
+el(d4,'mhead',{left:'40px',top:'78px'});
+bg(document.getElementById('sky-e'),130,31);
+</script>
+</body></html>
