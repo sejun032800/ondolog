@@ -11,6 +11,51 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `89-` 우리의 하늘 감성 고도화 — 디자인 patch10 (메인 세션, 2026-11-23, 위임문 `phase-7/89-dispatch-sky-patch10.md` · 함께 `CURRENT_patch10_rows.md` · 출처 ROADMAP r149 R149-6 · R149-8 · R149-9 · r150 R150-2 · R150-6 · MASTER r82/r83 §9-8-4 · 보드 `N-R17b-Our-Sky-3.dc.html`) - 완료 · 멈춤 0(반입 사고는 물은 뒤 복구) (미커밋)
+
+> 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님. ROADMAP r149(진행 중 r150) · MASTER r82(r83) 확인 · 88- 커밋(`f5e9038`) 뒤 시작.
+
+### 0) 반입 사고 · 복구 (Proteur 허가 "되살리고 진행해")
+반입 커밋 `4067ca0`이 `docs/design/`을 갈아 끼워 259파일이 지워져 있었다(nocturne 212 - patch9b 보드 `N-R17-Our-Sky-2` · `screens_index.csv` · `CURRENT.md` 포함 · app 24 · ui-kit 13 · magazine 6 · tokens 3 · 1). 지워진 259파일만 `4067ca0^`에서 되살리고 `docs/CHANGES_patch10.md` -> `docs/design/nocturne/`로 옮김 -> Proteur가 `df376fb`에 함께 커밋(R150-2 재발 방지 규칙).
+
+### ① 반입 확인 · 문서 반입
+| 확인 | 결과 |
+|---|---|
+| `docs/docs` | 없음 |
+| 새 파일 | 보드 · `sky/sky_pano_360.jpg`(3896×1136) · `tools/make_sky_pano.py` · screens 12(새 8 + 바뀐 4: C01_meteor · C08_alt와 각 __anno) · rows csv · CHANGES |
+| 맨 위 | `CHANGES_patch10.md`는 `docs/` 아래에 있었음 -> nocturne로 옮김 · `CURRENT_patch10_rows.md`는 위임서 폴더(맨 위 아님) |
+| patch9b 보드 | 되살림(그대로) |
+
+- 색인 `screens_index.csv`: patch10 6줄 중 **같은 id 2줄 교체**(`C01_meteor` - 위임서 · **`C08_alt`도 같은 id**라 교체 - 같은 id 두 줄 0) · 4줄 덧붙임(C08_front · C08_turning · C08_back · C01_stars) · 124줄 · rows csv 지움.
+- CURRENT: `docs/design/nocturne/CURRENT.md` 끝에 "## 6. patch10" 절로 표 그대로(4열 - 기존 캔버스 표는 3열이라 섞지 않음).
+- DESIGN §6: "### 6-1. 우리의 하늘 — 모션 허용표" 절에 보드 17-d+ 줄 전부. **patch9b 줄("층 분리" 등)은 이 문서에 들어온 적이 없어 바꿀 줄 0**.
+
+### ②~⑥ 바꾼 곳
+| 항목 | 파일:줄 | 내용 |
+|---|---|---|
+| ② 원본 | `web/public/img/sky_pano_360.jpg` | 문서 쪽과 sha256 같음 `4095232c…887a` · 3896 < 4096 · `sky_world.jpg`는 C01 · 메인 하늘(`ui.tsx:46` `SkyLayer` · `App.tsx:142`)에서 계속 씀(지우지 않음) |
+| ② 띠 | `tourMath.ts:18` `CIRC_PT` = 3896 ÷ 1.25 = 3116.8 · 1° = 8.6578pt(보드 8.656 - `360×8.656 = 3116.16`이면 한 바퀴마다 0.64pt 이음매가 생겨 원본 폭 쪽을 따름) · `:205` `bandShiftPt`(−둘레/2, 둘레/2] · `:212` 아래 10° · `:29` 띠 y 844 = 화면 아래(C01 `SkyLayer`가 sky_world 620~1464pt를 아래에 붙이는 것과 같은 자리) · `:277` `groundPath`(보드 그대로) | `SkyTour.tsx:209` 띠 = `<img>` 두 장(−둘레 · 0) + 가림막 .3(C01 veil과 같음) + 배경 별 20 + 지평선 path 두 벌 + 이 달 지면(`MonthField` - C01과 같은 부품 · 같은 CSS 자리) · `translate3d`만 |
+| ② 센서 | `useSkyOrientation.ts:97` · `:132` · `SkyTour.tsx:61` | **85-b 평활 정리: 둘러보기는 `compass: false`** - "처음 만난 쪽" 기준이라 북이 필요 없어 iOS 나침반 차이(느린 따라가기)를 끄고, 평활은 훅의 프레임 평활(α 0.2 · 짧은 쪽) 한 번만. yaw = 지금 − 첫 값 |
+| ③ 별 · 고리 · 달 | `skyGlyphs.tsx`(새) · `skyMath.ts:210` `STAR_GLYPH` · `styles.css:785~` | 3단계 빛 모양 · 그라데이션 화면에 한 번(`SkyGlyphDefs`) · 숨은 `.glow`(가운데 · 위 단계만 .78↔1 · .7↔1) · 고리 SVG 점선 60초 · 달 초승달 + 지구빛 + 후광 8초 |
+| ③ 켜짐 | `skyMath.ts:231` · `SkyScreen.tsx:170` · `cache/cacheShapes.ts:75` · `:119` | 그날(KST) 처음 열 때만 · 45ms · 700ms · `cubic-bezier(.16,1,.3,1)` · 본 날 = 기기 `sky` 범주 `lit:{커플}`(커플 자료 - 로그아웃 · 계정 전환 · 해제 때 지움). **`web/src/cache/cacheShapes.ts` 한 줄 모양 추가(위임서 편집 범위 밖 - 기기 하늘 범주에 두려면 필요)** |
+| ③ 유성 | `Meteor.tsx:119` 꼬리 96 · `:124` 빛 4개 · `styles.css` meteor | 쐐기 꼬리(clip-path 고정) 0.35초 · 빛 0.5초마다(머리 곡선 위 자리) 600ms · 후광 1.6배 150ms → 투명 450ms. 방향 · 색 · 빈도 · 3초 · 줄인 모션 5.2초 그대로 |
+| ④ 이름 · 칩 · 들고 남 | `tourMath.ts:252` 5° 여유 · `:265` 칩 짧은 쪽 · `:62` 800ms · `SkyTour.tsx:90` · `:164` · `SkyScreen.tsx:238` | 이름 하나 + 점 4 · 교차 페이드 240ms + 6pt · C01→C08: 언덕 · 칩 180ms 흐림 → 이름 240ms(180ms 뒤) · C08→C01: 처음 만난 쪽 500ms → 이름 · 띠 180ms → C01 별 · 언덕 다시 |
+| ⑤ 시각 | `skyMath.ts:193` `skyClock` · `SkyScreen.tsx:603`(C04) · `meteorRules.ts:142`(C03) | 경계 표 그대로. C05 사진 시각 · 매거진 · 엔진은 그대로 |
+| ⑥ 반짝임 끔 · 줄인 모션 | `styles.css:893` 등 | 끔 = 별 숨 · 배경 별 · 고리 · 달 후광(켜짐 · 유성 그대로). 줄인 모션 = + 켜짐 · 흐름. H01 줄 문구 "하늘의 별이 천천히 숨 쉬어요" 그대로 |
+
+**디자인과 다른 점(C2에서 볼 것)**: C01 하늘 그림은 `.skyDrift`(1.08배 · 60초 위아래 흐름, `styles.css:773`) 안에 있어 원본 띠와 **한 픽셀까지 같을 수 없다**(보드는 배율 1 · 흐름 0 가정). 들어갈 때 240ms 겹쳐 바뀌게 했다(별 · 라벨 · 달 자리는 같다). C01 지평선은 CSS 언덕 그대로, 둘러보기는 보드 path - 같이 겹쳐 바뀜.
+
+### 시험 · 확인
+- 새 `sky89.vitest.tsx` 28(띠 좌표 · 세로 한도 · 지평선 · 해시 · 이름 경계 · 칩 800ms 짧은 쪽(화면) · 켜짐 하루 한 번(같은 날 0 · 다음 날 · 로그아웃 · 해제 · 계정 전환) · 반짝임 끔 · 줄인 모션 범위 · 시각 표 11 + 2 · V40 정적(키프레임 transform · opacity만 · 띠 will-change 하나 · img 두 장 · 배경 위치 0) · 유성 수치)
+- 고친 시험: `skyTour85`(눈금 · FOV · 투영 시험 -> 띠 · 이름 · 칩 · 끌기 · 나가기 500 + 180ms) · `skyScreen`(45ms · C04 시각) · `meteor84e` · `meteorPreview84h`(C03 시각)
+- 스모크: C08-alt 끌어서 **네 이름 모두** · 원본 실제 로드(3896px) · 눈금 0 · C01 문구 그대로 · 바깥 요청 0
+- **`npm run gate` 153.3초 통과**(web tsc 8.3 · Vitest 1264 + 1 건너뜀 25.2 · 법무 8/8 · smoke 42/42 115.4) · 루트 tsc 0 · jest 2295 · `build:trial` · `cap sync android`
+- 번들(85-b build:trial 대비): 합계 +189,752 B = 원본 +182,230 · JS +5,128(951,629 -> 956,757) · CSS +2,394(73,816 -> 76,210)
+- 새 패키지 0 · 서버 · supabase · 엔진 · render 0 · LLM 0 · 원격 0 · 새 파일 이름 ASCII
+
+### MASTER "0.22초" 줄
+위임서 때 MASTER C01 줄은 "0.22초 간격"이었고 보드대로 45ms로 했다 -> **r83(R150-6)에서 이미 "그날 처음 열 때만 · 45ms · 700ms"로 정정됨**(맞음).
+
 ## `88-` 매거진 틀 v1.2.4 반입 · 렌더 환경 재측정 · 높이 여유 1줄 판정 · E2~E5 (메인 세션, 2026-11-23, 위임문 `phase-7/88-dispatch-render-v1_2_4.md` · 함께 `dev_reference_v1_2_4.diff` · `measure_design_env_v1_2_4.json` · 출처 ROADMAP r149 R149-2 · R149-4 · R149-5 · R149-7 · R149-9 · README v1.2.4 §10 · §11 ⑬ ⑭ · §12) - 완료 · 멈춤 1(⑤ G 1호 · 두 폰 11월호 비교 - 아래) (미커밋)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님. ROADMAP r149 · MASTER r82 확인.

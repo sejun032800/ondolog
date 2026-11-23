@@ -71,6 +71,8 @@ const skyValue = shape({
   tempStatus: recordOf((v) => v === 'ok' || v === 'failed'), moons: arrayOf(shape({ periodStart: isStr, issueNumber: isNum })),
   draftPeriodStart: strOrNull,
 })
+/** 89-: 하늘을 그날 처음 연 날(KST) - 켜짐 연출을 하루 한 번만. scope = `lit:{커플 id}`(커플 자료 - 로그아웃 · 계정 전환 · 해제 때 지워짐). */
+const skyLit = shape({ day: isStr })
 
 // ---- route · push · qkeep ------------------------------------------------
 const routeValue = shape({ route: isStr, at: isNum })
@@ -114,6 +116,7 @@ export function checkFor(kind: keyof typeof CACHE_VERSION, scope?: string): Chec
       if (scope === 'trash') return feedTrash
       return null
     case 'sky':
+      if (scope?.startsWith('lit:')) return skyLit
       return scope ? skyValue : null
     case 'route':
       if (scope === 'boot') return bootRoute

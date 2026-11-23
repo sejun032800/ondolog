@@ -274,10 +274,27 @@ test.describe('79- 화면 스모크', () => {
     }
     await expect(page.getByTestId('sky-drag-hint')).toBeHidden()
     expect(await tour.getAttribute('data-yaw')).not.toBe(yaw0)
+    // 89-(patch10): 하늘 한 장 - 원본이 실제로 읽힌다(3896px · 바깥 요청 0) · 네 방향 이름(눈금 0)
+    const pano = page.locator('[data-testid="sky-band"] img.skyPano').first()
+    await expect.poll(() => pano.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBe(3896)
+    await expect(page.locator('[data-testid="sky-compass"]')).toHaveCount(0)
+    const names = new Set<string>()
+    for (let k = 0; k < 16 && names.size < 4 && box; k += 1) {
+      names.add((await page.getByTestId('sky-dir').textContent()) ?? '')
+      await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(box.x + 20, box.y + box.height / 2, { steps: 8 })   // 손가락 왼쪽 = 오른쪽을 본다
+      await page.mouse.up()
+      await page.waitForTimeout(700)                                             // 관성 600ms
+    }
+    names.add((await page.getByTestId('sky-dir').textContent()) ?? '')
+    expect([...names].filter(Boolean).sort()).toEqual(['나란히 걷던 쪽', '서로 기다리던 쪽', '처음 만난 쪽', '함께 웃던 쪽'])
+    await check(page, w, 'sky-c08-alt-turned')
     await page.getByTestId('sky-close').click()
     await expect(tour).toBeHidden()
     await expect(page.getByTestId('sky-screen')).toBeVisible() // 메인이 아니라 C01
     await expect(chip).toBeVisible()
+    if (await page.getByTestId('sky-hint').count()) await expect(page.getByTestId('sky-hint')).toHaveText('위로 끌면 지난 하늘')   // C01 아래 문구 그대로(R127-3 · R149-6 - 지난 달이 있을 때만 보임)
   })
 
   test('85- 설정 H01: OUR SKY "별 반짝임" 줄', async ({ page }) => {

@@ -16,8 +16,8 @@ import type { SkyData } from './skyData'
 import { SkyScreen } from './SkyScreen'
 import { DEFAULT_SKY_PREFS, readSkyPrefs, useSkyPrefStore } from './skyPrefs'
 import {
-  FOV_H_DEG, FRONT, MOTION_MS, SENSOR_MIN_INTERVAL_MS, SENSOR_WAIT_MS, clampPitch, compassMarks, cubicBezier, decideTourStart, dragView, facingName,
-  moveDeg, offscreenChip, project, skyPointOf, smoothView, viewFromOrientation, wrap180,
+  ENTRY, MOTION_MS, PT_PER_DEG, SENSOR_MIN_INTERVAL_MS, SENSOR_WAIT_MS, chipSide, clampPitch, cubicBezier, decideTourStart, directionIndex, dragBand,
+  smoothView, viewFromOrientation, wrap180,
 } from './tourMath'
 import { setTourEnvForTest, setTourPlatformForTest, useSkyOrientation } from './useSkyOrientation'
 
@@ -141,15 +141,6 @@ describe('85- 순수 계산(tourMath)', () => {
     expect(clampPitch(-30)).toBe(-10)
   })
 
-  it('정면(북 · 높이 0)에서는 1단계 C01과 같은 자리 - 방향이 바뀌면 하늘 층만 움직인다', () => {
-    const pt = skyPointOf({ x: 30, y: 40 }, 2)
-    const front = project(pt, FRONT, 2)
-    expect(front.x).toBeCloseTo(30, 6)
-    expect(front.y).toBeCloseTo(40, 6)
-    const turned = project(pt, { yaw: 13, pitch: 0 }, 2)
-    expect(turned.x).toBeCloseTo(20, 6) // 화면 폭 = 130° -> 13° = 10%
-    expect(project(pt, { yaw: 180, pitch: 0 }, 2).visible).toBe(false) // 뒤쪽 - 그리지 않는다
-  })
 
   it('기기 방향 -> 바라보는 방향: beta 90 = 지평선 · 더 젖히면 위 · 값 없으면 null(85-b: 회전 행렬 - 나침반은 tourSensor85b)', () => {
     const v0 = viewFromOrientation({ alpha: 0, beta: 90 })!
@@ -168,30 +159,28 @@ describe('85- 순수 계산(tourMath)', () => {
     expect(v.yaw).toBeCloseTo(354, 6)
   })
 
-  it('끌기: 손가락 오른쪽 = 하늘도 오른쪽(왼쪽을 본다) · 위아래 끝에서 멈춤', () => {
-    expect(dragView(FRONT, 39, 0, 390).yaw).toBeCloseTo(360 - 13, 6)
-    expect(dragView(FRONT, 0, 10_000, 390).pitch).toBe(90)
-    expect(dragView(FRONT, 0, -10_000, 390).pitch).toBe(-10)
+  it('끌기(89-): 손가락 오른쪽 = 하늘도 오른쪽(왼쪽을 본다) · 위로 끌면 아래를 본다 - 아래 10°까지만 · 위로는 0°', () => {
+    expect(dragBand(ENTRY, 13 * PT_PER_DEG, 0).yaw).toBeCloseTo(360 - 13, 6)
+    expect(dragBand(ENTRY, 0, -10_000).down).toBe(10)
+    expect(dragBand(ENTRY, 0, 10_000).down).toBe(0)
   })
 
-  it('방위 층: 정면 글자만 강조 · 45°마다 긴 눈금 · 20pt 간격 짧은 눈금', () => {
-    const m = compassMarks(0)
-    expect(m.labels.map((l) => l.name)).toEqual(['북서', '북', '북동'])
-    expect(m.labels.filter((l) => l.front).map((l) => l.name)).toEqual(['북'])
-    expect(m.ticks.filter((t) => t.long)).toHaveLength(3)
-    const short = m.ticks.filter((t) => !t.long).map((t) => t.x)
-    expect(short[1] - short[0]).toBeCloseTo((20 / 390) * 100, 6)
-    expect(facingName(268)).toBe('서')
+  it('네 방향 이름(89-): 들어간 쪽 = 처음 만난 쪽 · 90°마다 · 경계 ±45°에 5° 여유', () => {
+    expect([0, 90, 180, 270].map((y) => directionIndex(y, null))).toEqual([0, 1, 2, 3])
+    expect(directionIndex(48, 0)).toBe(0)     // 45° 넘었지만 5° 여유 안 - 그대로
+    expect(directionIndex(51, 0)).toBe(1)     // 50° 넘으면 바뀐다
+    expect(directionIndex(42, 1)).toBe(1)     // 되돌아올 때도 같은 여유(새 이름 가운데에서 40°까지는 그대로)
+    expect(directionIndex(39, 1)).toBe(0)
+    expect(directionIndex(-48, 0)).toBe(0)
+    expect(directionIndex(311, 0)).toBe(0)    // −49°
+    expect(directionIndex(309, 0)).toBe(3)
   })
 
-  it('"이번 달 별 ›": 하나라도 보이면 없음 · 다 밖이면 가까운 가장자리 · 별이 0이면 달', () => {
-    const star = skyPointOf({ x: 50, y: 40 }, 2)
-    expect(offscreenChip([star], FRONT, 2)).toBeNull()
-    expect(offscreenChip([star], { yaw: 270, pitch: 0 }, 2)).toMatchObject({ side: 'right' })
-    expect(offscreenChip([star], { yaw: 90, pitch: 0 }, 2)).toMatchObject({ side: 'left' })
-    // 세로 화면 비율이 낮으면(가로가 넓으면) 위아래로도 벗어난다 -> 아래 가장자리
-    expect(offscreenChip([skyPointOf({ x: 50, y: 40 }, 0.5)], { yaw: 0, pitch: 90 }, 0.5)?.side).toBe('bottom')
-    expect(offscreenChip([], FRONT, 2)).toBeNull()
+  it('"이번 달 별" 칩(89-): 보이는 별이 있으면 없음 · 다 밖이면 처음 만난 쪽으로 가는 짧은 쪽 화살표 · 별이 0이면 없음', () => {
+    expect(chipSide([120], 0)).toBeNull()
+    expect(chipSide([120], 70)).toBe('left')    // 오른쪽으로 돌아 있으면 ‹
+    expect(chipSide([120], 290)).toBe('right')  // 왼쪽으로 돌아 있으면 ›
+    expect(chipSide([], 180)).toBeNull()
   })
 
   it('들어가는 길: 줄인 모션 · API 없음 -> 끌기 / iOS -> C09(거부 뒤 끌기) / Android -> 센서', () => {
@@ -207,8 +196,6 @@ describe('85- 순수 계산(tourMath)', () => {
     expect(e(0)).toBe(0)
     expect(e(1)).toBe(1)
     expect(e(0.5)).toBeGreaterThan(0.8)
-    expect(moveDeg({ yaw: 350, pitch: 0 }, { yaw: 15, pitch: 3 })).toBe(25)
-    expect(FOV_H_DEG).toBe(130)
   })
 })
 
@@ -334,23 +321,23 @@ describe('85- C08-alt 끌기 · C10 처음 한 번', () => {
     expect(screen.queryByTestId('sky-guide')).toBeNull()
   })
 
-  it('첫 끌기에서 힌트가 사라지고 다시 안 나옴 · 끌면 하늘 층만 돈다(사진 층 그대로)', () => {
+  it('첫 끌기에서 힌트가 사라지고 다시 안 나옴 · 끌면 하늘 한 장(원본 · 별 · 지평선 - 띠)이 함께 돈다(89-)', () => {
     fakeEnv()
     writeCache('u1', 'skypref', { seen: true }, 'guide')
-    const { container } = render(<SkyScreen nav={makeFakeNav()} />)
+    render(<SkyScreen nav={makeFakeNav()} />)
     fireEvent.click(tourOpen())
-    const photo = container.querySelector('.sky img') as HTMLImageElement
-    const photoBefore = photo.getAttribute('style')
-    const star = screen.getByTestId('sky-tour-star-2026-10-03')
-    const left0 = star.style.left
+    const band = () => screen.getByTestId('sky-band')
+    const before = band().style.transform
+    expect(band().contains(screen.getByTestId('sky-tour-star-2026-10-03'))).toBe(true)   // 별은 띠의 자식
+    expect(band().querySelectorAll('img.skyPano')).toHaveLength(2)                       // 원본 두 장도 띠의 자식
     const field = tourEl() as HTMLElement
     fireEvent.pointerDown(field, { pointerId: 1, clientX: 200, clientY: 400 })
     fireEvent.pointerMove(field, { pointerId: 1, clientX: 240, clientY: 400 })
     fireEvent.pointerUp(field, { pointerId: 1, clientX: 240, clientY: 400 })
     expect(screen.queryByTestId('sky-drag-hint')).toBeNull()
     expect(readCache('u1', 'skypref', 'dragHint')).toEqual({ seen: true })
-    expect(screen.getByTestId('sky-tour-star-2026-10-03').style.left).not.toBe(left0)
-    expect(photo.getAttribute('style')).toBe(photoBefore)
+    expect(band().style.transform).not.toBe(before)
+    expect(band().style.transform).toMatch(/^translate3d\(/)
   })
 
   it('줄인 모션 -> 끌기 · 관성 없음 · 별 반짝임 없음', () => {
@@ -371,7 +358,7 @@ describe('85- C08-alt 끌기 · C10 처음 한 번', () => {
 })
 
 describe('85- C08 센서 둘러보기', () => {
-  it('센서 값대로 하늘 층이 돈다 · 방위 정면 글자 · D+ · 안내는 숨김 · 머리 "{M}월의 하늘"', () => {
+  it('센서 yaw대로 하늘이 돈다 · 들어간 쪽 = 처음 만난 쪽 · D+ · 안내는 숨김 · 머리 "{M}월의 하늘"(89-)', () => {
     const env = fakeEnv()
     withOrientationApi()
     writeCache('u1', 'skypref', { seen: true }, 'guide')
@@ -384,23 +371,28 @@ describe('85- C08 센서 둘러보기', () => {
     expect(screen.getByTestId('sky-title').textContent).toBe('10월의 하늘')
     env.fire({ alpha: 0, beta: 90 })
     env.flushFrames()
-    expect(screen.getByTestId('sky-compass-front').textContent).toBe('북')
+    expect(screen.getByTestId('sky-dir').textContent).toBe('처음 만난 쪽')
+    expect(screen.queryByTestId('sky-compass')).toBeNull()                 // 눈금 · 방위 글자 0
     env.clock += 100
-    env.fire({ webkitCompassHeading: 270, alpha: 0, beta: 90 })
+    env.fire({ webkitCompassHeading: 123, alpha: 270, beta: 90 })          // 오른쪽으로 90° - 나침반 값은 쓰지 않는다
     env.flushFrames(80)
-    expect(screen.getByTestId('sky-compass-front').textContent).toBe('서')
+    expect(screen.getByTestId('sky-dir').textContent).toBe('함께 웃던 쪽')
+    expect(Number(tourEl()?.getAttribute('data-yaw'))).toBeCloseTo(90, 0)
   })
 
-  it('이번 달 별이 화면 밖이면 가장자리 칩 -> 누르면 0.6초 회전 뒤 별이 보이고 칩이 사라짐', () => {
+  it('이번 달 별이 화면 밖이면 칩 -> 누르면 0.8초 동안 처음 만난 쪽으로 돈 뒤 칩이 사라짐(89-)', () => {
     const env = fakeEnv()
     withOrientationApi()
     writeCache('u1', 'skypref', { seen: true }, 'guide')
     render(<SkyScreen nav={makeFakeNav()} />)
     fireEvent.click(tourOpen())
-    env.fire({ webkitCompassHeading: 180, alpha: 0, beta: 90 }) // 남쪽 - 이번 달 별(정면 ±55°)이 모두 뒤
+    env.fire({ alpha: 0, beta: 90 })
     env.flushFrames()
+    env.clock += 100
+    env.fire({ alpha: 180, beta: 90 })   // 뒤로 180° - 이번 달 별(들어가는 창 안)이 모두 화면 밖
+    env.flushFrames(80)
     expect(screen.getByTestId('sky-tour-chip').textContent).toMatch(/이번 달 별/)
-    expect(screen.queryByTestId('sky-tour-star-2026-10-03')).toBeNull() // 화면 밖 별은 그리지 않는다
+    expect(MOTION_MS.chipTurn).toBe(800)
     fireEvent.click(screen.getByTestId('sky-tour-chip'))
     env.clock += MOTION_MS.chipTurn / 2
     env.flushFrames()
@@ -419,7 +411,11 @@ describe('85- C08 센서 둘러보기', () => {
     env.fire({ alpha: 0, beta: 90 })
     env.flushFrames()
     env.clock += 100
-    env.fire({ alpha: 0, beta: 115 })
+    env.fire({ alpha: 0, beta: 115 })     // 위아래로만 - 89-: 둘러보기는 yaw만 본다(닫히지 않음)
+    env.flushFrames(30)
+    expect(screen.getByTestId('sky-guide')).toBeTruthy()
+    env.clock += 100
+    env.fire({ alpha: 330, beta: 90 })    // 오른쪽으로 30°
     env.flushFrames(30)
     expect(screen.queryByTestId('sky-guide')).toBeNull()
     expect(readCache('u1', 'skypref', 'guide')).toEqual({ seen: true })
@@ -451,7 +447,7 @@ describe('85- C08 센서 둘러보기', () => {
     expect(tourEl()).toBeTruthy()
   })
 
-  it('✕ = C01로(메인 아님) · 나가기 시작 때 리스너 해제 · 180ms 뒤 C01 칩이 돌아온다', () => {
+  it('✕ = C01로(메인 아님) · 나가기 시작 때 리스너 해제 · 처음 만난 쪽으로 500ms + 이름 180ms 뒤 C01 칩이 돌아온다(89-)', () => {
     const env = fakeEnv()
     withOrientationApi()
     writeCache('u1', 'skypref', { seen: true }, 'guide')
@@ -464,6 +460,8 @@ describe('85- C08 센서 둘러보기', () => {
     expect(env.listeners.size).toBe(0) // 나가기 시작 시점에 해제
     expect(tourEl()?.className).toContain('leave')
     act(() => { vi.advanceTimersByTime(MOTION_MS.exit) })
+    expect(tourEl()).toBeTruthy()                       // 아직 돌아가는 중
+    act(() => { vi.advanceTimersByTime(MOTION_MS.exitTurn) })
     expect(tourEl()).toBeNull()
     expect(tourOpen()).toBeTruthy()
   })
@@ -531,7 +529,7 @@ describe('85- 별 반짝임(기기에만)', () => {
     expect(readCache('u1', 'skypref', 'twinkle')).toEqual({ on: false })
     const css = fs.readFileSync(path.join(__dirname, '../../styles.css'), 'utf8')
     expect(css).toMatch(/\.skyScreen\.noTwinkle \.star \{ animation: none !important;/)
-    expect(css).toMatch(/\.skyScreen\.noTwinkle \.skyStar i,[^{]*\{ animation: none !important;/)
+    expect(css).toMatch(/\.skyScreen\.noTwinkle \.skyStar \.glow,[^{]*\{ animation: none !important;/)
   })
 
   it('기기 저장: 사용자 키 · 깨진 값은 기본(켬) · 로그아웃 · 계정 전환 때 지움 · 해제 완료 때 남김', () => {

@@ -1,17 +1,35 @@
 /**
- * 85- 하늘 둘러보기(C08 · C08-alt) 순수 계산 - MASTER 9-8-4 · 보드 `N-R17-Our-Sky-2`(patch9b) 17-a · 17-d 모션표.
+ * 85- · 89- 하늘 둘러보기(C08 · C08-alt) 순수 계산 - MASTER 9-8-4 · 보드 `N-R17b-Our-Sky-3`(patch10) 2-1 · 2-3 · 17-d+ 모션 허용표.
  * 시계 · 랜덤 · 저장 · 전송 없음(같은 입력 -> 같은 출력). 센서 값은 여기서 숫자로만 지나간다.
  *
- * 좌표: 하늘 층의 별 자리는 1단계와 같은 `starPosition`(%)이다. 둘러보기 정면(방위 0 = 북 · 높이 0)에서 C01과 같은 배치로 보이도록
- * 가로 % -> 방위각, 화면은 가로 `FOV_H_DEG`도를 덮는다(보드 C08: 북서 · 북 · 북동이 한 화면 - 45°가 화면 폭의 약 35%).
- * 사진 층(`sky_world.jpg`)은 이 계산을 쓰지 않는다(고정 · 시차 0).
+ * 89-(patch10 2-1 "하늘 한 장"): 원본(`sky_pano_360.jpg`) · 별 · 달 · 라벨 · 지평선이 **한 띠**로 함께 가로 이동한다(patch9b "층 분리"를 대체).
+ *  - 원통 띠: 가로 360° = 원본 폭 3896px ÷ 1.25 = **3116.8pt**(1° = 3116.8 / 360 ≈ 8.658pt - 보드 표기 8.656pt). 둘레를 원본 폭과 같게 둬야
+ *    한 바퀴 돌았을 때 그림이 이음매 없이 같은 자리로 온다(보드의 `360 × 8.656 = 3116.16`을 쓰면 한 바퀴마다 0.64pt 어긋난다).
+ *  - 들어갈 때 바라본 방향 = yaw 0° = 띠 이동 0 = C01 그림(0~45°, 화면 폭 390pt).
+ *  - 세로는 아래로 10°(87pt)까지만(끌기 모드에서만 - 센서는 yaw 하나만, 보드 17-d+ "센서 -> 회전"). 기울기(roll)는 쓰지 않는다.
  */
 
-/** 화면 가로가 덮는 방위(도). 보드 C08 방위 글자 간격(45° ≈ 135pt / 390pt)에서. */
-export const FOV_H_DEG = 130
-/** 위아래 볼 수 있는 범위(도) - 보드 "위아래 −10°~90°에서 멈춤". */
-export const PITCH_MIN_DEG = -10
-export const PITCH_MAX_DEG = 90
+/** 원본 그림(`docs/design/nocturne/sky/sky_pano_360.jpg`와 바이트까지 같은 앱 자산). */
+export const PANO_SRC = './img/sky_pano_360.jpg'
+export const PANO_PX = { width: 3896, height: 1136 } as const
+/** 원본 배율(px / pt) - make_sky_pano.py `S`. */
+export const PANO_SCALE = 1.25
+/** 띠 둘레(pt) = 원본 폭 ÷ 배율. */
+export const CIRC_PT = PANO_PX.width / PANO_SCALE
+/** 원본 높이(pt) - 지평선 아래 −15°까지. */
+export const PANO_HEIGHT_PT = PANO_PX.height / PANO_SCALE
+/** 1° = 몇 pt. */
+export const PT_PER_DEG = CIRC_PT / 360
+/** 화면 폭(pt) - C01 그림이 들어가는 창(0~45°). */
+export const WINDOW_PT = 390
+/**
+ * C01은 `sky_world.jpg`의 620 ~ 1464pt를 화면 아래에 붙여 보인다(`ui.tsx` `SkyLayer` · `viewOffsetPt.sky`). 원본 띠의 맨 위 줄은 sky_world 620pt라
+ * 띠의 y = 844pt 줄이 화면 아래 끝에 온다 - 화면 높이가 달라도 C01과 같은 자리.
+ */
+export const BAND_BOTTOM_PT = 844
+/** 아래로 볼 수 있는 한도(도). */
+export const DOWN_MAX_DEG = 10
+
 /** 지수 평활 계수(모션표 "α = 0.2"). */
 export const SMOOTHING_ALPHA = 0.2
 /** 센서 솎음 - 30Hz(모션표). 이보다 촘촘한 이벤트는 버린다. */
@@ -20,34 +38,39 @@ export const SENSOR_MIN_INTERVAL_MS = 1000 / 30
 export const GUIDE_CLOSE_MOVE_DEG = 20
 /** 센서가 이 시간 안에 값을 한 번도 주지 않으면 센서 없음으로 보고 끌기 모드로(데스크톱 · 센서 없는 기기). */
 export const SENSOR_WAIT_MS = 1200
-/** 방위 눈금 간격(pt, 보드 "20pt 간격"). */
-export const COMPASS_TICK_PT = 20
-/** 기준 화면 폭(pt) - 눈금 간격을 도로 바꿀 때. */
-export const DESIGN_WIDTH_PT = 390
+/** 85-b 시선 계산이 쓰는 높이 범위(도) - 둘러보기 화면은 높이를 쓰지 않는다(89-). */
+export const PITCH_MIN_DEG = -10
+export const PITCH_MAX_DEG = 90
 
-/** 모션표 숫자(ms). */
+/** 모션표 숫자(ms) - patch10 17-d+ 모션 허용표. */
 export const MOTION_MS = {
+  /** C01 -> C08: 칩 · D+ · 안내 사라짐. */
   enterFadeOut: 180,
+  /** C01 -> C08: 이름 · 점 나타남(아래에서 6pt). */
   enterRise: 240,
   enterReduced: 150,
+  /** C08 -> C01: 처음 만난 쪽으로 짧은 쪽 회전. */
+  exitTurn: 500,
+  /** C08 -> C01: 회전 뒤 이름 사라짐. */
   exit: 180,
   exitReduced: 120,
   guideClose: 240,
   dragHintClose: 300,
   reducedFade: 150,
   chipFade: 200,
-  chipTurn: 600,
+  /** "이번 달 별" 칩 - patch9b 600 -> patch10 800(하늘이 함께 돌아 거리가 길어짐). */
+  chipTurn: 800,
+  /** 이름 바뀜 - 교차 페이드 + 6pt 밀림. */
+  nameFade: 240,
   inertia: 600,
 } as const
 
 export interface View {
-  /** 바라보는 방위(도, 0 = 북, 시계 방향). */
+  /** 바라보는 방위(도, 0 = 북 또는 들어갈 때의 방향, 시계 방향). */
   yaw: number
   /** 올려다본 높이(도). */
   pitch: number
 }
-
-export const FRONT: View = { yaw: 0, pitch: 0 }
 
 /** 각도를 (-180, 180]로. */
 export function wrap180(deg: number): number {
@@ -61,24 +84,6 @@ export function wrap360(deg: number): number {
 
 export function clampPitch(pitch: number): number {
   return Math.min(PITCH_MAX_DEG, Math.max(PITCH_MIN_DEG, pitch))
-}
-
-/** 하늘 층 자리(% 0~100) -> 하늘의 방위 · 높이(정면에서 C01 배치 그대로). */
-export function skyPointOf(pos: { x: number; y: number }, heightPerWidth: number): { az: number; alt: number } {
-  const degPerPct = FOV_H_DEG / 100
-  return { az: wrap360((pos.x - 50) * degPerPct), alt: (50 - pos.y) * degPerPct * heightPerWidth }
-}
-
-/**
- * 하늘 점 -> 화면 자리(% 0~100). 화면 밖이면 `visible: false`(그리지 않는다 - V40).
- * `heightPerWidth` = 화면 높이 / 폭(세로 %를 도와 같은 비율로 맞춘다).
- */
-export function project(point: { az: number; alt: number }, view: View, heightPerWidth: number, marginPct = 6): { x: number; y: number; visible: boolean } {
-  const degPerPct = FOV_H_DEG / 100
-  const x = 50 + wrap180(point.az - view.yaw) / degPerPct
-  const y = 50 - (point.alt - view.pitch) / (degPerPct * heightPerWidth)
-  const visible = x >= -marginPct && x <= 100 + marginPct && y >= -marginPct && y <= 100 + marginPct
-  return { x, y, visible }
 }
 
 // ---------------------------------------------------------------------------
@@ -192,76 +197,108 @@ export function smoothView(prev: View, target: View, alpha = SMOOTHING_ALPHA): V
   }
 }
 
-/** 두 방향 사이의 움직임(도) - C10 "20° 넘게". */
-export function moveDeg(a: View, b: View): number {
-  return Math.max(Math.abs(wrap180(a.yaw - b.yaw)), Math.abs(a.pitch - b.pitch))
+// ---------------------------------------------------------------------------
+// 89- 하늘 한 장 - 띠 이동 · 끌기 (patch10 2-1)
+// ---------------------------------------------------------------------------
+
+/** 띠 가로 이동(pt) - 오른쪽을 볼수록 왼쪽으로. 둘레만큼 되돌려 (−둘레/2, 둘레/2]에 둔다(x mod 3116.8 - 숫자가 커지지 않게). */
+export function bandShiftPt(yaw: number): number {
+  let w = ((-yaw * PT_PER_DEG) % CIRC_PT + CIRC_PT) % CIRC_PT
+  if (w > CIRC_PT / 2) w -= CIRC_PT
+  return Math.abs(w) < 1e-9 ? 0 : w
 }
 
-/** 끌기(손가락 이동 px) -> 새 방향. 손가락을 오른쪽으로 끌면 하늘도 오른쪽으로(= 왼쪽을 본다). */
-export function dragView(start: View, dxPx: number, dyPx: number, widthPx: number): View {
-  const degPerPx = FOV_H_DEG / Math.max(1, widthPx)
-  return { yaw: wrap360(start.yaw - dxPx * degPerPx), pitch: clampPitch(start.pitch + dyPx * degPerPx) }
+/** 아래로 본 정도(도)를 0 ~ 10°로. */
+export function clampDown(down: number): number {
+  return Math.min(DOWN_MAX_DEG, Math.max(0, down))
+}
+
+/** 띠 세로 이동(pt) - 아래를 볼수록 위로(87pt까지). */
+export function bandLiftPt(down: number): number {
+  return -clampDown(down) * PT_PER_DEG
+}
+
+export interface BandView {
+  /** 들어갈 때의 방향 기준(도, [0, 360)). */
+  yaw: number
+  /** 아래로 본 정도(도, 0 ~ 10). */
+  down: number
+}
+export const ENTRY: BandView = { yaw: 0, down: 0 }
+
+/** 끌기(손가락 이동 pt) -> 새 방향. 손가락을 오른쪽으로 끌면 하늘도 오른쪽으로(= 왼쪽을 본다) · 위로 끌면 아래를 본다(10°까지). */
+export function dragBand(start: BandView, dxPt: number, dyPt: number): BandView {
+  return { yaw: wrap360(start.yaw - dxPt / PT_PER_DEG), down: clampDown(start.down - dyPt / PT_PER_DEG) }
+}
+
+/** 두 방향 사이(짧은 쪽) 진행 k(0~1). */
+export function lerpBand(a: BandView, b: BandView, k: number): BandView {
+  return { yaw: wrap360(a.yaw + wrap180(b.yaw - a.yaw) * k), down: clampDown(a.down + (b.down - a.down) * k) }
 }
 
 // ---------------------------------------------------------------------------
-// 방위 층(가로만) - 지평선 위 눈금 · 방위 글자
+// 89- 네 방향 이름 (patch10 2-3) - 실제 나침반이 아니다
 // ---------------------------------------------------------------------------
 
-export const COMPASS_NAMES = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'] as const
+/** 고정 문구(데이터 · 사람 이름 · 장소 이름 0). 0° = 들어갈 때 바라본 쪽, 오른쪽으로 90°마다. */
+export const DIRECTION_NAMES = ['처음 만난 쪽', '함께 웃던 쪽', '나란히 걷던 쪽', '서로 기다리던 쪽'] as const
+/** 경계(±45°)에서 깜빡이지 않게 두는 여유(도). */
+export const DIRECTION_HYSTERESIS_DEG = 5
 
-/** 지금 정면 방위 이름(가장 가까운 45°). */
-export function facingName(yaw: number): (typeof COMPASS_NAMES)[number] {
-  return COMPASS_NAMES[Math.round(wrap360(yaw) / 45) % 8]
+/**
+ * 지금 바라보는 쪽의 이름 번호(0~3). 이름마다 가운데 ±45°. 지금 이름(`prev`)의 가운데에서 45° + 5°를 넘어야 바뀐다
+ * (되돌아올 때는 새 이름 가운데에서 40° - 같은 띠의 반대편). `prev`가 없으면 가장 가까운 이름.
+ */
+export function directionIndex(yaw: number, prev: number | null): number {
+  if (prev !== null && Math.abs(wrap180(yaw - prev * 90)) <= 45 + DIRECTION_HYSTERESIS_DEG) return prev
+  return Math.round(wrap360(yaw) / 90) % 4
+}
+
+// ---------------------------------------------------------------------------
+// "이번 달 별" 칩 - 늘 처음 만난 쪽으로
+// ---------------------------------------------------------------------------
+
+/**
+ * 이번 달 별(없으면 달)이 모두 화면 밖이면 칩. 별은 들어가는 창(0~390pt) 안에 있다 - `targetsPt` = 창 안 x(pt).
+ * 화살표는 처음 만난 쪽으로 가는 짧은 쪽(오른쪽으로 돌아 있으면 ‹). 보이는 별이 하나라도 있으면 null.
+ */
+export function chipSide(targetsPt: readonly number[], yaw: number, marginPt = 0): 'left' | 'right' | null {
+  if (targetsPt.length === 0) return null
+  const shift = bandShiftPt(yaw)
+  if (targetsPt.some((x) => x + shift >= -marginPt && x + shift <= WINDOW_PT + marginPt)) return null
+  return wrap180(yaw) > 0 ? 'left' : 'right'
+}
+
+// ---------------------------------------------------------------------------
+// 지평선 · 배경 별 - 띠 위의 모양 (보드 스크립트 그대로)
+// ---------------------------------------------------------------------------
+
+/** 둘레로 이어지는 지평선 path(보드 `groundPath()`) - 0~390pt는 C01 실루엣, 나머지는 낮은 언덕. y는 띠 좌표(pt, 844 = 화면 아래). */
+export function groundPath(): string {
+  let d = 'M0 779 C 60 775, 120 762, 205 761 S 330 768, 390 764'
+  const hills: [number, number][] = [[700, 772], [1050, 758], [1420, 770], [1800, 756], [2200, 769], [2600, 760], [2950, 771], [CIRC_PT, 779]]
+  let px = 390
+  for (const [x, y] of hills) {
+    const m = (px + x) / 2
+    d += ` S ${m} ${y + 6}, ${x} ${y}`
+    px = x
+  }
+  return d
 }
 
 /**
- * 화면 안의 눈금(%) · 방위 글자. 짧은 눈금은 20pt 간격, 방위 자리(45°마다)는 긴 눈금 + 글자. 정면 글자만 강조.
+ * 숨 쉬는 배경 별 20개(patch9b 그대로 · 하늘 띠에 붙음) - 자리는 보드 스크립트 `breathStars`. 띠는 (−둘레/2, 둘레/2 + 화면] 범위를 보이므로
+ * 그 범위에 들도록 별마다 한 자리(둘레/2 ~ 둘레/2 + 390 사이 별만 두 자리). `i` = 별 번호(주기 · 지연 계산용).
  */
-export function compassMarks(yaw: number): { ticks: { x: number; long: boolean }[]; labels: { x: number; name: string; front: boolean }[] } {
-  const degPerPct = FOV_H_DEG / 100
-  const tickDeg = (COMPASS_TICK_PT / DESIGN_WIDTH_PT) * FOV_H_DEG
-  const ticks: { x: number; long: boolean }[] = []
-  const first = Math.ceil((yaw - FOV_H_DEG / 2) / tickDeg)
-  for (let k = first; k * tickDeg <= yaw + FOV_H_DEG / 2; k += 1) ticks.push({ x: 50 + (k * tickDeg - yaw) / degPerPct, long: false })
-  const labels: { x: number; name: string; front: boolean }[] = []
-  const front = facingName(yaw)
-  for (let i = 0; i < 8; i += 1) {
-    const d = wrap180(i * 45 - yaw)
-    if (Math.abs(d) > FOV_H_DEG / 2) continue
-    const x = 50 + d / degPerPct
-    ticks.push({ x, long: true })
-    labels.push({ x, name: COMPASS_NAMES[i], front: COMPASS_NAMES[i] === front })
+export function backgroundStarSpots(): { i: number; x: number; y: number }[] {
+  const out: { i: number; x: number; y: number }[] = []
+  for (let i = 0; i < 20; i += 1) {
+    const x = (i * 157.3) % CIRC_PT
+    const y = 60 + ((i * 97) % 640)
+    if (x <= CIRC_PT / 2 + WINDOW_PT) out.push({ i, x, y })
+    if (x >= CIRC_PT / 2) out.push({ i, x: x - CIRC_PT, y })
   }
-  return { ticks: ticks.sort((a, b) => a.x - b.x), labels: labels.sort((a, b) => a.x - b.x) }
-}
-
-// ---------------------------------------------------------------------------
-// "이번 달 별 ›" - 이번 달 별이 하나도 안 보일 때 가까운 가장자리
-// ---------------------------------------------------------------------------
-
-export type ChipSide = 'left' | 'right' | 'bottom' | 'top'
-
-/**
- * 이번 달 별(없으면 달) 중 하나라도 보이면 null. 아니면 가장 가까운 점과 그쪽 가장자리 · 그 점을 정면에 두는 방향.
- * 가로로 벗어났으면 좌우, 가로는 안인데 위아래로 벗어났으면 위 · 아래.
- */
-export function offscreenChip(
-  targets: readonly { az: number; alt: number }[],
-  view: View,
-  heightPerWidth: number,
-): { side: ChipSide; to: View } | null {
-  if (targets.length === 0) return null
-  if (targets.some((t) => project(t, view, heightPerWidth, 0).visible)) return null
-  let best = targets[0]
-  let bestDist = Infinity
-  for (const t of targets) {
-    const d = Math.abs(wrap180(t.az - view.yaw)) + Math.abs(t.alt - view.pitch)
-    if (d < bestDist) { best = t; bestDist = d }
-  }
-  const dx = wrap180(best.az - view.yaw)
-  const p = project(best, view, heightPerWidth, 0)
-  const side: ChipSide = p.x < 0 || p.x > 100 ? (dx > 0 ? 'right' : 'left') : p.y > 100 ? 'bottom' : 'top'
-  return { side, to: { yaw: wrap360(best.az), pitch: clampPitch(best.alt) } }
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -279,7 +316,7 @@ export function decideTourStart(i: { reduced: boolean; hasApi: boolean; needsPer
 }
 
 // ---------------------------------------------------------------------------
-// 곡선 - cubic-bezier(.2,.8,.2,1)(칩 회전 · 관성)
+// 곡선 - cubic-bezier(.2,.8,.2,1)(칩 회전 · 나가기 회전 · 관성)
 // ---------------------------------------------------------------------------
 
 /** CSS cubic-bezier(x1,y1,x2,y2)의 t(0~1) -> 진행(0~1). 뉴턴법. */
@@ -301,8 +338,3 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t:
 }
 
 export const EASE_TURN = cubicBezier(0.2, 0.8, 0.2, 1)
-
-/** 두 방향 사이(짧은 쪽) 진행 k(0~1). */
-export function lerpView(a: View, b: View, k: number): View {
-  return { yaw: wrap360(a.yaw + wrap180(b.yaw - a.yaw) * k), pitch: clampPitch(a.pitch + (b.pitch - a.pitch) * k) }
-}

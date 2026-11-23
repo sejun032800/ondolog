@@ -124,10 +124,10 @@ describe('84-e 유성 규칙 - 순수 함수', () => {
     }
   })
 
-  it('누를 수 있는 시간 3초 · 줄인 모션 5.2초 · C03 출처 줄은 24시간 표기', () => {
+  it('누를 수 있는 시간 3초 · 줄인 모션 5.2초 · C03 출처 줄 시각은 "밤 11시 12분" 꼴(89- patch10 2-4)', () => {
     expect(pressableMs(false)).toBe(3000)
     expect(pressableMs(true)).toBe(5200)
-    expect(fallenMeta('서영', '2026-09-18T23:12:00+09:00')).toBe('서영 · 9월 18일 23:12')
+    expect(fallenMeta('서영', '2026-09-18T23:12:00+09:00')).toBe('서영 · 9월 18일 밤 11시 12분')
   })
 })
 
@@ -241,7 +241,7 @@ describe('84-e 화면 - C01 유성 · C03 떨어진 말', () => {
     await flush()
     expect(screen.getByTestId('sky-fallen')).toBeTruthy()
     expect(screen.getByTestId('sky-fallen-text').textContent).toBe(LONG)          // 자르지 않는다
-    expect(screen.getByTestId('sky-fallen-meta').textContent).toBe('서영 · 9월 1일 21:30')
+    expect(screen.getByTestId('sky-fallen-meta').textContent).toBe('서영 · 9월 1일 밤 9시 30분')
     expect(screen.getByTestId('sky-fallen-count').textContent).toBe('1 / 1')
     expect((screen.getByTestId('sky-fallen-next') as HTMLButtonElement).disabled).toBe(true)
     expect(screen.queryByText(/채팅에서 보기/)).toBeNull()

@@ -6,6 +6,7 @@
  *  - 고르는 법: 그날 후보를 보낸 시각 순으로 줄 세우고 (커플 + 사람 + KST 날짜) 해시로 하나 - 같은 날 다시 열어도 같은 말이다(난수 0).
  *  - 떨어지는 때: 하늘이 준비된 뒤 4~10초(같은 해시로 정한 값). 누를 수 있는 시간 3초 · 줄인 모션 제자리 빛 5.2초(보드 17-d).
  */
+import { skyClock } from './skyMath'
 
 export interface MeteorCandidate {
   /** 지금 살아 있는 메시지 행의 id. */
@@ -132,11 +133,11 @@ export function pressableMs(reduced: boolean): number {
   return reduced ? METEOR_MS.pressableReduced : METEOR_MS.pressable
 }
 
-/** C03 출처 줄 - "{이름} · {M}월 {D}일 {HH:MM}"(시각은 앱 하늘 화면의 24시간 표기와 같다 - `SkyScreen` `fmtTime`). */
+/** C03 출처 줄 - "{이름} · {M}월 {D}일 밤 9시 30분"(89- patch10 2-4 - 시각은 `skyClock` · KST). */
 export function fallenMeta(name: string, sentAt: string): string {
   const ms = Date.parse(sentAt)
   if (Number.isNaN(ms)) return name
   const k = new Date(ms + 9 * 3_600_000).toISOString()
   const md = `${Number(k.slice(5, 7))}월 ${Number(k.slice(8, 10))}일`
-  return [name, `${md} ${k.slice(11, 16)}`].filter(Boolean).join(' · ')
+  return [name, `${md} ${skyClock(sentAt)}`].filter(Boolean).join(' · ')
 }

@@ -772,30 +772,43 @@ input { font: inherit; }
 .skyScreen { background: #0A0814; overflow: hidden; }
 .skyDrift { position: absolute; inset: 0; transform: scale(1.08); will-change: transform; animation: skyDrift 60s ease-in-out infinite alternate; }
 @keyframes skyDrift { from { transform: scale(1.08) translate3d(0, -2.5%, 0) } to { transform: scale(1.08) translate3d(0, 2.5%, 0) } }
-.skyScreen.still .skyDrift, .skyScreen.still .star, .skyScreen.still .skyStar i, .skyScreen.still .skyStar { animation: none !important; }
-.skyScreen.paused .skyDrift, .skyScreen.paused .star, .skyScreen.paused .skyStar i, .skyScreen.paused .skyStar { animation-play-state: paused !important; }
+.skyScreen.still .skyDrift, .skyScreen.still .star, .skyScreen.still .skyStar .glow, .skyScreen.still .skyStar, .skyScreen.still .skyStar .glowWrap,
+.skyScreen.still .ringMark, .skyScreen.still .moonHalo { animation: none !important; }
+.skyScreen.paused .skyDrift, .skyScreen.paused .star, .skyScreen.paused .skyStar .glow, .skyScreen.paused .skyStar, .skyScreen.paused .skyStar .glowWrap,
+.skyScreen.paused .ringMark, .skyScreen.paused .moonHalo { animation-play-state: paused !important; }
 .skyScroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
 .skyPanel { position: relative; height: 100%; min-height: 100%; overflow: hidden; contain: layout paint; }
 .skyField { position: absolute; inset: 0; transition: transform 700ms cubic-bezier(.2,.8,.2,1), opacity 500ms ease; will-change: transform; }
 .skyField.dim { opacity: .14; }
 .skyMonthLabel { position: absolute; left: 24px; top: 24%; font-size: 10.5px; line-height: 14px; letter-spacing: .4px; color: var(--textMute); }
 .skyStar { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; cursor: pointer; transition: opacity 500ms ease; }
-.skyStar i { display: block; width: var(--s); height: var(--s); border-radius: 50%; background: var(--text); box-shadow: 0 0 calc(var(--s) * 2) calc(var(--s) * .5) rgba(231,217,195,.45); animation: skyTwinkle var(--p) ease-in-out var(--d) infinite alternate; }
-.skyPanel:not(.live) .skyStar i { animation-play-state: paused; }
-@keyframes skyTwinkle { from { opacity: .45; transform: scale(.82) } to { opacity: 1; transform: scale(1.12) } }
-.skyStar.turnOn { animation: skyOn 700ms ease-out both; }
+/* 89- 별 3단계 빛 모양(보드 N-R17b-Our-Sky-3 2-2) - 중심 점(.core)은 늘 켜짐 · 빛살 · 후광(.glow)만 숨 · transform · opacity만 */
+.skyStar .glowWrap { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+.skyStar .glow { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); overflow: visible; display: block; }
+.skyStar .glow.breathe { animation: skyBreath var(--p) ease-in-out var(--d) infinite alternate; }
+.skyStar .core { position: relative; display: block; border-radius: 50%; background: #FFFDF8; }
+.skyPanel:not(.live) .skyStar .glow { animation-play-state: paused; }
+@keyframes skyBreath { from { opacity: .7; transform: translate(-50%, -50%) scale(.78) } to { opacity: 1; transform: translate(-50%, -50%) scale(1) } }
+/* 켜짐 - 하늘을 그날 처음 열 때만 · 날짜 순서대로 별마다 45ms(--on) · 700ms · 후광 크기 .4 -> 1 · 투명 0 -> 1 */
+.skyStar.turnOn { animation: skyOn 700ms cubic-bezier(.16,1,.3,1) var(--on, 0ms) both; }
+.skyStar.turnOn .glowWrap { animation: skyOnGlow 700ms cubic-bezier(.16,1,.3,1) var(--on, 0ms) both; }
 @keyframes skyOn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes skyOnGlow { from { transform: scale(.4) } to { transform: scale(1) } }
 .skyField.zoom .skyStar { opacity: .14; }
 .skyField.zoom .skyStar.sel { opacity: 1; }
-.skyField.zoom .skyStar.sel i { background: radial-gradient(circle at 35% 30%, #fff, var(--rose) 55%, #9C93B4); animation: none; }
-.skyStar .ringMark, .skyRingOnly .ringMark { position: absolute; width: 26px; height: 26px; left: 50%; top: 50%; margin: -13px 0 0 -13px; border-radius: 50%; border: 1px solid rgba(244,185,200,.7); pointer-events: none; }
+.skyField.zoom .skyStar.sel .core { background: radial-gradient(circle at 35% 30%, #fff, var(--rose) 55%, #9C93B4); }
+.skyField.zoom .skyStar.sel .glow { animation: none; }
+.skyStar .ringMark, .skyRingOnly .ringMark { position: absolute; left: 50%; top: 50%; overflow: visible; pointer-events: none; transform: translate(-50%, -50%); animation: skyRingSpin 60s linear infinite; }
+@keyframes skyRingSpin { from { transform: translate(-50%, -50%) rotate(0deg) } to { transform: translate(-50%, -50%) rotate(360deg) } }
 .skyStar .ringLabel, .skyRingOnly .ringLabel { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: -4px; font-size: 10.5px; line-height: 14px; color: var(--textSub); white-space: nowrap; }
 .skyRingOnly { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; pointer-events: none; }
 .skyStarLabel { position: absolute; transform: translate(-50%, 16px); text-align: center; pointer-events: none; white-space: nowrap; }
 .skyStarLabel b { display: block; font-size: 10.5px; line-height: 14px; font-weight: 600; color: var(--text); }
 .skyStarLabel em { display: block; font-style: normal; font-size: 9.5px; line-height: 13px; color: var(--textMute); }
 .skyMoon { position: absolute; right: 12%; top: 58%; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
-.skyMoon i { display: block; width: 24px; height: 24px; border-radius: 50%; box-shadow: inset -8px -3px 0 0 var(--moon); transform: rotate(-24deg); }
+.skyMoon .moonGlyph { display: block; margin: -10px 0; overflow: visible; }
+.skyMoon .moonHalo { animation: skyMoonHalo 8s ease-in-out infinite alternate; }
+@keyframes skyMoonHalo { from { opacity: .556 } to { opacity: 1 } }
 .skyMoon em { font-style: normal; font-size: 10.5px; line-height: 14px; font-weight: 600; color: var(--text); white-space: nowrap; }
 .skyMoon.draft { opacity: .34; }
 .skyMoon.draft em { font-weight: 500; color: var(--textMute); }
@@ -851,7 +864,7 @@ input { font: inherit; }
 .skyThumb { flex: 0 0 auto; width: 56px; height: 64px; border-radius: 8px; overflow: hidden; border: 2px solid transparent; background: rgba(243,239,247,.06); padding: 0; }
 .skyThumb.on { border-color: var(--text); }
 .skyThumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-@media (prefers-reduced-motion: reduce) { .skyDrift, .skyStar i, .skyStar.turnOn { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .skyDrift, .skyStar .glow, .skyStar.turnOn, .skyStar.turnOn .glowWrap, .ringMark, .moonHalo { animation: none; } }
 
 /* ═══ 78- 푸시: I07 앱 안 알림 띠 · I08 미리보기 카드(보드 N-S-I-States) ═══ */
 .pushBand { position: absolute; left: 12px; right: 12px; top: calc(var(--top) + 4px); z-index: 72; display: flex; align-items: center; gap: 14px;
@@ -876,18 +889,31 @@ input { font: inherit; }
   .skyTourBtnText { display: none; }
 }
 .skyScreen.noTwinkle .star { animation: none !important; opacity: .55; }
-.skyScreen.noTwinkle .skyStar i, .skyTour.noTwinkle .skyStar i { animation: none !important; opacity: 1; transform: none; }
+.skyScreen.noTwinkle .skyStar .glow, .skyTour.noTwinkle .skyStar .glow { animation: none !important; opacity: 1; transform: translate(-50%, -50%); }
+.skyScreen.noTwinkle .ringMark, .skyTour.noTwinkle .ringMark { animation: none !important; }
+.skyScreen.noTwinkle .moonHalo, .skyTour.noTwinkle .moonHalo { animation: none !important; opacity: 1; }
 .skyScroll.tourHidden { opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+/* 89- 나가기: 처음 만난 쪽으로 500ms 돈 뒤 C01 별이 다시(띠의 같은 별과 겹쳐 바뀐 것이 보이지 않게) */
+.skyScroll.tourReturning { opacity: 1; pointer-events: none; transition: opacity 180ms ease 500ms; }
+.skyScreen.still .skyScroll.tourReturning { transition-delay: 0s; }
+.skyHorizon { transition: opacity 180ms ease; }
+.skyScreen.touring .skyHorizon { opacity: 0; }
+.skyScreen.tourBack .skyTourBtn { animation: fadeIn 180ms ease-out both; }
 .skyTour { position: absolute; inset: 0; z-index: 2; touch-action: none; overflow: hidden; }
 .skyTour.enter { animation: tourIn 240ms ease-out both; }
 .skyTour.enter.reduced { animation: fadeIn 150ms linear both; }
-.skyTour.leave { animation: tourOut 180ms ease-in both; pointer-events: none; }
-.skyTour.leave.reduced { animation: tourOut 120ms linear both; }
+.skyTour.leave { pointer-events: none; }
+.skyTour.leave .skyDirs, .skyTour.leave .skyDragHint, .skyTour.leave .skyGuide { animation: tourOut 180ms ease-in 500ms both; }
+.skyTour.leave .skyBand { animation: tourOut 180ms ease-in 500ms both; }
+.skyTour.leave.reduced .skyDirs, .skyTour.leave.reduced .skyBand { animation: tourOut 120ms linear both; }
 @keyframes tourIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes tourOut { from { opacity: 1 } to { opacity: 0 } }
-.skyTourField { position: absolute; inset: 0; }
-.skyMonthLabel.tour { left: 0; transform: translate(-50%, -50%); }
-.skyMoon.tour { right: auto; transform: translate(-50%, -12px); }
+/* 89- 하늘 한 장 - 원본 두 장 · 배경 별 · 지평선 · 이 달 지면이 한 띠의 자식(합성층 하나 · translate3d만) */
+.skyBand { position: absolute; left: 0; top: 0; width: 100%; height: 100%; will-change: transform; }
+.skyPano { position: absolute; display: block; max-width: none; user-select: none; pointer-events: none; }
+.skyBandVeil { position: absolute; top: 0; bottom: 0; background: var(--ink); opacity: .3; pointer-events: none; }
+.skyBandGround { position: absolute; overflow: visible; pointer-events: none; }
+.skyBandWindow { position: absolute; left: 0; top: 0; }
 .skyTourChip { position: absolute; top: 46%; z-index: 4; height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--hairline); background: rgba(10,8,20,.4); color: var(--text); font-size: 13px; line-height: 18px; animation: fadeIn 200ms ease both; }
 .skyTourChip.right { right: 12px; }
 .skyTourChip.left { left: 12px; }
@@ -895,15 +921,22 @@ input { font: inherit; }
 .skyTourChip.bottom { top: auto; bottom: calc(var(--bot) + 108px); }
 .skyTourChip.top { top: calc(var(--top) + 96px); }
 .skyTour.reduced .skyTourChip { animation: none; }
-.skyCompass { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; pointer-events: none; z-index: 3; animation: compassRise 240ms ease-out both; }
-.skyTour.reduced .skyCompass { animation: fadeIn 150ms linear both; }
-@keyframes compassRise { from { opacity: 0; transform: translateY(24px) } to { opacity: 1; transform: none } }
-.skyCompass .hill { position: absolute; inset: 22px -8% 0; border-radius: 50% 50% 0 0 / 100% 100% 0 0; background: linear-gradient(#0E0B1C, #07050F); border-top: 1px solid rgba(243,239,247,.22); }
-.skyCompass .ticks { position: absolute; left: 0; right: 0; top: 28px; height: 14px; overflow: hidden; }
-.skyCompass .ticks i { position: absolute; top: 0; width: 1px; height: 6px; background: rgba(243,239,247,.25); }
-.skyCompass .ticks i.long { height: 12px; background: rgba(243,239,247,.45); }
-.skyCompass .dir { position: absolute; bottom: calc(var(--bot) + 10px); transform: translateX(-50%); font-size: 12px; line-height: 16px; color: var(--textMute); white-space: nowrap; }
-.skyCompass .dir.front { color: var(--lilacText, var(--text)); font-weight: 600; }
+/* 89- 네 방향 이름(patch10 2-3) - 지평선 아래 가운데 한 줄(D+ · 안내 자리) · 12.5px 500 lilacText · 4px 점 넷(지금 쪽 lilac, 나머지 .3) · 눈금 0 */
+.skyDirs { position: absolute; left: 0; right: 0; bottom: calc(var(--bot) + 16px); z-index: 3; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  animation: skyDirsRise 240ms ease-out 180ms both; }
+.skyTour.reduced .skyDirs { animation: fadeIn 150ms linear both; }
+@keyframes skyDirsRise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+.skyDirNames { position: relative; height: 17px; width: 100%; }
+.skyDirName { position: absolute; left: 0; right: 0; text-align: center; font-size: 12.5px; line-height: 17px; font-weight: 500; color: var(--lilacText, var(--text)); white-space: nowrap; }
+.skyDirName.in { animation: skyDirIn 240ms ease-out both; }
+.skyDirName.out { animation: skyDirOut 240ms ease-out both; }
+@keyframes skyDirIn { from { opacity: 0; transform: translateX(var(--from)) } to { opacity: 1; transform: none } }
+@keyframes skyDirOut { from { opacity: 1; transform: none } to { opacity: 0; transform: translateX(var(--to)) } }
+.skyTour.reduced .skyDirName.in, .skyTour.reduced .skyDirName.out { animation: none; }
+.skyTour.reduced .skyDirName.out { display: none; }
+.skyDirDots { display: flex; gap: 8px; }
+.skyDirDots i { display: block; width: 4px; height: 4px; border-radius: 50%; background: var(--lilac); opacity: .3; }
+.skyDirDots i.on { opacity: 1; }
 .skyGuide { position: absolute; inset: 0; z-index: 5; background: rgba(10,8,20,.62); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 28px; animation: fadeIn 240ms ease-out both; }
 .skyGuide h2 { margin: 18px 0 0; font-size: 19px; line-height: 26px; font-weight: 600; color: var(--text); }
 .skyGuide p { margin: 10px 0 0; font-size: 14px; line-height: 23px; color: var(--textSub); }
@@ -922,19 +955,27 @@ input { font: inherit; }
 .skyAskNotice { margin: 14px 0 0; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--hairline); background: rgba(243,239,247,.04); font-size: 12.5px; line-height: 19px; color: var(--textSub); }
 .setSkyRow.off { opacity: .4; }
 .setNote { margin: -4px 0 0; padding: 0 4px; font-size: 13px; line-height: 19px; }
-@media (prefers-reduced-motion: reduce) { .skyTour.enter, .skyCompass, .skyGuide, .skyDragHint, .skyTourChip { animation-duration: 150ms !important; } }
+@media (prefers-reduced-motion: reduce) { .skyTour.enter, .skyDirs, .skyGuide, .skyDragHint, .skyTourChip { animation-duration: 150ms !important; } }
 
 /* 84-e 유성(C01 · C08) · 떨어진 말(C03) - MASTER 9-8-4 r80 · 보드 17-b · 17-d. 애니메이션은 transform · opacity만(V40). */
 .meteorLayer { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
 .meteorLayer.paused, .meteorLayer.paused * { animation-play-state: paused !important; }
 .meteorPath { position: absolute; left: 100%; width: 0; height: 0; }
 .meteorHead { position: absolute; left: -32px; top: -32px; width: 64px; height: 64px; border-radius: 50%; border: 0; padding: 0; background: transparent; pointer-events: auto;
-  animation: meteorMove 2400ms cubic-bezier(.3,0,.7,1) both, meteorFade 600ms ease-in 2400ms both; }
-.meteorHeadDot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: #fff;
-  box-shadow: 0 0 6px 2px rgba(255,255,255,.9), 0 0 18px 7px rgba(244,185,200,.55); }
-.meteorTail { position: absolute; left: 50%; top: 50%; width: var(--tail); height: 1.5px; margin-top: -.75px; transform-origin: 0 50%;
+  animation: meteorMove 2400ms cubic-bezier(.3,0,.7,1) both, meteorFade 450ms ease-in 2550ms both; }
+.meteorHeadDot { position: absolute; left: 50%; top: 50%; width: 5.2px; height: 5.2px; margin: -2.6px 0 0 -2.6px; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 5px 2px rgba(255,255,255,.9), 0 0 14px 6px rgba(244,185,200,.55); }
+/* 89- 사라지기 직전 머리가 한 번 밝아짐 - 후광 1 -> 1.6배 150ms(transform만) */
+.meteorHead .meteorHeadDot { animation: meteorFlare 150ms ease-out 2400ms both; }
+@keyframes meteorFlare { from { transform: scale(1) } to { transform: scale(1.6) } }
+.meteorTail { position: absolute; left: 50%; top: 50%; width: var(--tail); height: 2.2px; margin-top: -1.1px; transform-origin: 0 50%;
   transform: rotate(var(--ang)) scaleX(0); background: linear-gradient(90deg, rgba(255,255,255,.95), rgba(255,255,255,0));
-  animation: meteorTailGrow 400ms ease-out both, meteorTailShrink 600ms ease-in 2400ms forwards; }
+  clip-path: polygon(0 0, 100% 50%, 0 100%);   /* 89- 가늘어지는 쐐기(머리 쪽 2.2 -> 0) - 모양은 고정, 움직임은 transform만 */
+  animation: meteorTailGrow 350ms ease-out both, meteorTailShrink 600ms ease-in 2400ms forwards; }
+/* 89- 흘린 빛 - 지나간 자리에 남아 600ms에 사라짐(.9pt 점) */
+.meteorSpark { position: absolute; width: 1.8px; height: 1.8px; margin: -.9px 0 0 -.9px; border-radius: 50%; background: #FCE4EC; opacity: 0; pointer-events: none;
+  animation: meteorSpark 600ms ease-out forwards; }
+@keyframes meteorSpark { from { opacity: var(--o) } to { opacity: 0 } }
 @keyframes meteorMove { from { transform: translate3d(0, 0, 0) } to { transform: translate3d(var(--dx), var(--dy), 0) } }
 @keyframes meteorFade { from { opacity: 1 } to { opacity: 0 } }
 @keyframes meteorTailGrow { from { transform: rotate(var(--ang)) scaleX(0) } to { transform: rotate(var(--ang)) scaleX(1) } }

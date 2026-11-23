@@ -181,3 +181,53 @@ export function pullState(i: PullInput): PullState {
   if (i.dy <= PULL_DEADZONE_PX) return NO_PULL
   return { active: true, offset: Math.min(140, Math.round((i.dy - PULL_DEADZONE_PX) * 0.55)), armed: i.dy >= PULL_THRESHOLD_PX }
 }
+
+// ---------------------------------------------------------------------------
+// 89- 시각 표기(patch10 2-4) - C03 출처 줄 · C04 인용 출처 줄만. 매거진 지면 숫자 칸(14:20)과 엔진 검사는 그대로.
+// ---------------------------------------------------------------------------
+
+/**
+ * "밤 9시 30분" 꼴(KST). 12시간제 · 0분이면 "분"을 쓰지 않는다. 구간: 00:00–02:59 밤(PM 확인 ①) · 03–05 새벽 · 06–10 아침 · 11–16 낮 · 17–20 저녁 · 21–23 밤.
+ * 시각을 읽을 수 없으면 빈 글자.
+ */
+export function skyClock(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const ms = Date.parse(iso)
+  if (Number.isNaN(ms)) return ''
+  const k = new Date(ms + 9 * 3_600_000)
+  const h = k.getUTCHours()
+  const m = k.getUTCMinutes()
+  const part = h < 3 ? '밤' : h < 6 ? '새벽' : h < 11 ? '아침' : h < 17 ? '낮' : h < 21 ? '저녁' : '밤'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${part} ${h12}시${m > 0 ? ` ${m}분` : ''}`
+}
+
+// ---------------------------------------------------------------------------
+// 89- 별 · 고리 모양(patch10 2-2 "모양 명세") · 켜짐 연출
+// ---------------------------------------------------------------------------
+
+/** 별 3단계 = 빛의 모양 3단계(크기 단계의 뜻 = 그 달 안 온도 순위는 그대로). 단위 pt. */
+export const STAR_GLYPH = {
+  4: { core: 3, halo: 7, ray: 0, diag: 0, haloAlpha: 0.35, warm: false },
+  5: { core: 4, halo: 10, ray: 14, diag: 0, haloAlpha: 0.45, warm: false },
+  8: { core: 6, halo: 17, ray: 30, diag: 12, haloAlpha: 0.55, warm: true },
+} as const satisfies Record<StarSize, { core: number; halo: number; ray: number; diag: number; haloAlpha: number; warm: boolean }>
+
+/** 숨 쉬는 별은 가운데 · 위 단계만(중심 점은 늘 켜짐 - 빛살 · 후광만). */
+export function starBreathes(size: StarSize): boolean {
+  return size !== 4
+}
+
+/** 기념일 고리 반지름(pt) - 위 단계 별은 18, 그 밖 14. */
+export function ringRadius(size: StarSize | null): number {
+  return size === 8 ? 18 : 14
+}
+
+/** 별 켜짐 - 날짜 순서대로 별마다 45ms 간격 · 700ms(보드 17-d+). */
+export const STAR_ON_STEP_MS = 45
+export const STAR_ON_MS = 700
+
+/** 하늘을 **그날 처음** 열 때만 켜짐 연출(같은 날 다시 열면 없음). `lastLitDay` = 기기의 하늘 범주에 둔 마지막 날(KST). */
+export function shouldLightUp(lastLitDay: string | null | undefined, today: string): boolean {
+  return lastLitDay !== today
+}

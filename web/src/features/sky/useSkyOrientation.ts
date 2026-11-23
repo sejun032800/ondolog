@@ -91,7 +91,10 @@ export type SensorStatus = 'waiting' | 'live' | 'none'
  * 센서 -> 평활된 방향. `active`가 거짓이면 리스너 0 · 프레임 0.
  * 반환: 지금 방향(처음 값이 오기 전 null) · 상태 · 첫 값(C10 "20° 움직임" 기준).
  */
-export function useSkyOrientation(active: boolean): { view: View | null; status: SensorStatus; first: View | null } {
+export function useSkyOrientation(active: boolean, opts: { compass?: boolean } = {}): { view: View | null; status: SensorStatus; first: View | null } {
+  // 89-: 둘러보기는 "들어갈 때 바라본 쪽 = 0°"라 북이 필요 없다 -> `compass: false`면 iOS 나침반 차이(nextCompass)를 쓰지 않는다.
+  //   그러면 평활은 아래 프레임 평활(α 0.2 · 짧은 쪽) 한 번뿐이다(나침반 차이의 느린 따라가기가 yaw 위에 겹치지 않는다).
+  const useCompass = opts.compass !== false
   const [view, setView] = useState<View | null>(null)
   const [status, setStatus] = useState<SensorStatus>('waiting')
   const firstRef = useRef<View | null>(null)
@@ -126,7 +129,7 @@ export function useSkyOrientation(active: boolean): { view: View | null; status:
       const o = e as DeviceOrientationEvent & { webkitCompassHeading?: number }
       const look = lookFromOrientation({ alpha: o.alpha, beta: o.beta, gamma: o.gamma }, env.screenAngle())
       if (!look) return
-      compass = nextCompass(compass, o.webkitCompassHeading, look)
+      if (useCompass) compass = nextCompass(compass, o.webkitCompassHeading, look)
       const v = withCompass(look, compass)
       lastAt = at
       target = v
@@ -147,7 +150,7 @@ export function useSkyOrientation(active: boolean): { view: View | null; status:
       env.clearTimer(wait)
       if (frame !== null) env.caf(frame)
     }
-  }, [active])
+  }, [active, useCompass])
 
   return { view, status, first }
 }

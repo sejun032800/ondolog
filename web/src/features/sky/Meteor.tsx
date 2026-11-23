@@ -4,6 +4,8 @@
  *  - 유성: 오른쪽 위 가장자리 -> 왼쪽 아래, 각도 25~35° · 흰 꼬리 · 흰 점 머리 + rose 후광. 머리 이동 2.4초 `cubic-bezier(.3,0,.7,1)` ·
  *    꼬리는 처음 0.4초에 끝 길이까지 · 사라짐 0.6초 `ease-in`(투명도 1 -> 0, 꼬리는 머리 쪽으로 줄어듦) · 누를 수 있는 시간 3초.
  *    누르는 범위 = 머리를 따라다니는 지름 64pt 원. 애니메이션은 transform · opacity만(V40에서 끊김 없이) · 한 번에 하나 · 화면이 가려지면 멈춘다.
+ *  - 89-(patch10 2-2 · 17-d+): 모양만 새로 - 꼬리는 가늘어지는 쐐기(머리 쪽 2.2pt -> 0) 0 -> 96pt(처음 0.35초) · 빛 4개를 0.5초마다 흘림(각 600ms에 사라짐) ·
+ *    사라지기 = 머리 후광 1 -> 1.6배 150ms 뒤 전체 투명 450ms(합 0.6초) · 꼬리는 머리 쪽으로 줄어듦. 방향 · 색 · 빈도 · 누를 시간 3초는 그대로.
  *  - 줄인 모션: 꼬리 · 이동 없이 제자리 빛(흰 점 + rose 후광 + 바깥 고리) - 나타남 0.6 · 머묾 4 · 사라짐 0.6 = 누를 수 있는 시간 5.2초. 자리는 유성이 지났을 길의 중간.
  *  - C03: FALLEN WORDS · "{n} / {N}"(지금까지 잡은 말 전체 중 위치 - 방금 잡은 말이 N) · 원문(자르지 않음 · 길면 이 화면 안에서 스크롤) ·
  *    출처 "{이름} · {M}월 {D}일 {HH:MM}" · ‹ 이전 말 / 다음 말 ›(끝이면 흐림) · "지나가는 유성을 누르면 떠요" · ✕.
@@ -14,6 +16,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { useBackHandler } from '../../platform/backStack'
 import { readMeteorMemory, useFallenWords, useMeteorCandidates, writeMeteorMemory } from './meteorData'
 import { fallenMeta, markCaught, markDropped, planMeteor, pressableMs, type MeteorCandidate, type MeteorPlan } from './meteorRules'
+import { cubicBezier } from './tourMath'
 
 export const METEOR_COPY = {
   a11y: '떨어지는 유성 - 누르면 떨어진 말이 열려요',
@@ -112,7 +115,18 @@ export function useMeteorDrop(input: MeteorDropInput): MeteorDrop {
 /** 보드 C01_meteor - 꼬리 시작 y 98pt(✕ · 칩 아래). 머리가 지나는 길이 = 화면 폭의 70%. */
 const START_Y = 98
 const TRAVEL_RATIO = 0.7
-const TAIL = 140
+/** 89- patch10 - 꼬리 길이 96pt. */
+const TAIL = 96
+/** 머리 이동 곡선(84-e 그대로) - 흘린 빛 자리를 같은 곡선으로 잡는다. */
+const HEAD_MS = 2400
+const HEAD_EASE = cubicBezier(0.3, 0, 0.7, 1)
+/** 빛 4개를 0.5초마다 흘린다(각 600ms에 사라짐) - 시작 투명도는 보드 그대로(.7 · .5 · .35 · .2 - 뒤로 갈수록 옅게가 아니라 흘린 순서대로). */
+export const METEOR_SPARKS = [
+  { atMs: 500, opacity: 0.7 },
+  { atMs: 1000, opacity: 0.5 },
+  { atMs: 1500, opacity: 0.35 },
+  { atMs: 2000, opacity: 0.2 },
+] as const
 
 export function MeteorLayer(props: { plan: MeteorPlan; reduced: boolean; paused: boolean; onCatch: () => void; onEnd: () => void }) {
   const { plan, reduced, paused, onCatch, onEnd } = props
@@ -144,6 +158,18 @@ export function MeteorLayer(props: { plan: MeteorPlan; reduced: boolean; paused:
         </button>
       ) : (
         <div className="meteorPath" style={style} aria-hidden="false">
+          {METEOR_SPARKS.map((sp) => {
+            const k = HEAD_EASE(sp.atMs / HEAD_MS)
+            return (
+              <i
+                key={sp.atMs}
+                className="meteorSpark"
+                style={{ left: `${(dx * k).toFixed(1)}px`, top: `${(dy * k).toFixed(1)}px`, '--o': sp.opacity, animationDelay: `${sp.atMs}ms` } as CSSProperties}
+                aria-hidden="true"
+                data-testid="sky-meteor-spark"
+              />
+            )
+          })}
           <button type="button" className="meteorHead" onClick={onCatch} aria-label={METEOR_COPY.a11y} data-testid="sky-meteor" data-mode="fall">
             <i className="meteorTail" aria-hidden="true" />
             <i className="meteorHeadDot" aria-hidden="true" />

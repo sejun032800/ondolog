@@ -1,15 +1,17 @@
 /**
- * 85- 하늘 둘러보기 - C08(센서) · C08-alt(끌기) · C10(처음 한 번 안내) · "이번 달 별 ›". MASTER 9-8-4 · 보드 `N-R17-Our-Sky-2`(patch9b) 17-a.
- *  - 층 분리: 하늘 사진(`sky_world.jpg`, 부모의 `SkyLayer`)은 이 컴포넌트가 건드리지 않는다(고정 · 시차 0).
- *    이 컴포넌트는 하늘 층(별 · 달 · 라벨)과 방위 층(지평선 위 눈금 · 방위 글자)만 그리고 돌린다.
- *  - 머리 · ✕는 부모(`SkyScreen`)가 그대로 그린다. ✕ · 뒤로 = C01로(부모).
- *  - 센서 값은 메모리 숫자뿐(`useSkyOrientation`) - 저장 · 전송 0. 봤음 표시만 기기에(`skyPrefs`).
- *  - 화면 밖 별은 그리지 않는다(V40). 반짝임은 투명도 · 크기만(1단계 CSS 그대로), 토글 끔 · 줄인 모션이면 멈춤.
+ * 85- · 89- 하늘 둘러보기 - C08(센서) · C08-alt(끌기) · C10(처음 한 번 안내) · "이번 달 별" 칩. MASTER 9-8-4 · 보드 `N-R17b-Our-Sky-3`(patch10) 2-1 · 2-3 · 17-d+.
+ *  - 하늘 한 장(patch9b "층 분리" 대체): 원본(`sky_pano_360.jpg` `<img>` 두 장) · 배경 별 20 · 지평선 실루엣 · 이 달 지면(별 · 달 · 라벨 - C01과 같은 `MonthField`)이
+ *    **한 띠의 자식**이다. 띠는 `transform: translate3d`만 바뀐다(배경 위치 애니메이션 0 · 합성층 하나 - V40).
+ *  - 좌표: 1° = 3116.8 / 360pt · 둘레 3116.8pt · x는 (−둘레/2, 둘레/2]로 되돌림 · 들어갈 때 바라본 쪽 = 0° = C01 그림. 세로는 끌기에서 아래 10°까지만.
+ *  - 센서는 85-b의 yaw 하나만(들어갈 때의 yaw = 0°) · 나침반 차이 보정은 쓰지 않는다(`useSkyOrientation(…, { compass: false })` - 평활은 α 0.2 한 번).
+ *  - 바라보는 쪽 이름 하나(네 방향 - 실제 나침반 아님) + 4px 점 4개 · 바뀔 때 교차 페이드 240ms + 6pt 밀림 · 경계 ±45°에 5° 여유.
+ *  - "이번 달 별" 칩: 늘 처음 만난 쪽으로 짧은 쪽 800ms. 나가기(✕ · 뒤로): 처음 만난 쪽으로 짧은 쪽 500ms -> 이름 180ms 사라짐(부모가 그 뒤 C01로).
+ *  - 머리 · ✕는 부모(`SkyScreen`)가 그대로 그린다. 센서 값은 메모리 숫자뿐 - 저장 · 전송 0. 봤음 표시만 기기에(`skyPrefs`).
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  EASE_TURN, FRONT, GUIDE_CLOSE_MOVE_DEG, MOTION_MS, compassMarks, dragView, lerpView, moveDeg, offscreenChip, project, skyPointOf, wrap180, wrap360,
-  type View,
+  BAND_BOTTOM_PT, CIRC_PT, DIRECTION_NAMES, EASE_TURN, ENTRY, GUIDE_CLOSE_MOVE_DEG, MOTION_MS, PANO_HEIGHT_PT, PANO_SRC, WINDOW_PT,
+  backgroundStarSpots, bandLiftPt, bandShiftPt, chipSide, directionIndex, dragBand, groundPath, lerpBand, wrap180, wrap360, type BandView,
 } from './tourMath'
 import { tourEnv, useSkyOrientation } from './useSkyOrientation'
 
@@ -23,56 +25,74 @@ export const TOUR_COPY = {
   chip: '이번 달 별',
 } as const
 
-export interface TourStar {
-  date: string
-  pos: { x: number; y: number }
-  size: number
-  period: number
-  delay: number
-  label: string
-}
-
 export interface TourProps {
   mode: 'sensor' | 'drag'
-  /** 나가기 시작 - 리스너는 이때 뗀다(모션표 "나가기 시작 시점에 해제"). */
+  /** 나가기 시작 - 리스너는 이때 뗀다(모션표 "나가기 시작 시점에 해제"). 처음 만난 쪽으로 돌아간 뒤 부모가 없앤다. */
   leaving: boolean
   reduced: boolean
   twinkle: boolean
-  stars: readonly TourStar[]
-  monthLabel: string
-  warmest: { date: string; title: string; caption: string } | null
-  moon: { label: string; draft: boolean } | null
+  /** 들어가는 창(0~390pt) 안의 이 달 지면 - C01과 같은 부품. */
+  field: ReactNode
+  /** 칩이 찾는 자리 - 이번 달 별(없으면 달)의 창 안 x(pt). */
+  targetsPt: readonly number[]
   guideSeen: boolean
   dragHintSeen: boolean
   onGuideSeen: () => void
   onDragHintSeen: () => void
   /** 센서가 값을 주지 않음(센서 없음) - 끌기 모드로. */
   onNoSensor: () => void
-  onStar: (date: string) => void
 }
 
-const MOON_POS = { x: 88, y: 58 }
-const LABEL_POS = { x: 14, y: 24 }
+const GROUND = groundPath()
+const BG_STARS = backgroundStarSpots()
 
 export function SkyTour(props: TourProps) {
-  const { mode, leaving, reduced, stars } = props
+  const { mode, leaving, reduced } = props
   const rootRef = useRef<HTMLDivElement>(null)
-  const [hpw, setHpw] = useState(844 / 390)
+  const [box, setBox] = useState({ w: 390, h: 844 })
   useLayoutEffect(() => {
     const r = rootRef.current?.getBoundingClientRect()
-    if (r && r.width > 0 && r.height > 0) setHpw(r.height / r.width)
+    if (r && r.width > 0 && r.height > 0) setBox({ w: r.width, h: r.height })
   }, [])
+  const s = box.w / WINDOW_PT   // px / pt
 
-  // ── 바라보는 방향 = 바탕(센서 또는 끌기) + 덧(칩 회전) ──
+  // ── 바라보는 쪽 = 바탕(센서 yaw 또는 끌기) + 덧(칩 · 나가기 회전) ──
   const sensorOn = mode === 'sensor' && !leaving
-  const sensor = useSkyOrientation(sensorOn)
-  const [dragBase, setDragBase] = useState<View>(FRONT)
-  const [offset, setOffset] = useState<View>(FRONT)
-  const base = mode === 'sensor' ? (sensor.view ?? FRONT) : dragBase
-  const view: View = { yaw: wrap360(base.yaw + offset.yaw), pitch: Math.min(90, Math.max(-10, base.pitch + offset.pitch)) }
+  const sensor = useSkyOrientation(sensorOn, { compass: false })
+  const sensorYaw = sensor.view && sensor.first ? wrap360(sensor.view.yaw - sensor.first.yaw) : 0
+  const [dragBase, setDragBase] = useState<BandView>(ENTRY)
+  const [offset, setOffset] = useState(0)
+  const base: BandView = mode === 'sensor' ? { yaw: sensorYaw, down: 0 } : dragBase
+  const yaw = wrap360(base.yaw + offset)
 
   const onNoSensor = props.onNoSensor
   useEffect(() => { if (mode === 'sensor' && sensor.status === 'none') onNoSensor() }, [mode, sensor.status, onNoSensor])
+
+  // ── 움직임(칩 · 나가기 · 관성) - 주입한 프레임으로 ──
+  const anim = useRef<number | null>(null)
+  const stopAnim = () => {
+    if (anim.current !== null) tourEnv().caf(anim.current)
+    anim.current = null
+  }
+  useEffect(() => () => stopAnim(), [])
+  const run = (ms: number, step: (k: number) => void) => {
+    stopAnim()
+    const env = tourEnv()
+    const t0 = env.now()
+    const tick = () => {
+      const k = Math.min(1, (env.now() - t0) / ms)
+      step(EASE_TURN(k))
+      anim.current = k < 1 ? env.raf(tick) : null
+    }
+    anim.current = env.raf(tick)
+  }
+  /** 처음 만난 쪽(yaw 0)으로 짧은 쪽 회전 - 덧(offset)만 움직인다. */
+  const turnHome = (ms: number) => {
+    const from = offset
+    const to = offset - wrap180(yaw)
+    if (reduced || ms <= 0) { setOffset(to); return }
+    run(ms, (k) => setOffset(from + (to - from) * k))
+  }
 
   // ── C10 처음 한 번 ──
   const [guideOpen, setGuideOpen] = useState(!props.guideSeen)
@@ -82,23 +102,15 @@ export function SkyTour(props: TourProps) {
     onGuideSeen()
   }, [onGuideSeen])
   useEffect(() => {
-    if (!guideOpen || mode !== 'sensor' || !sensor.first || !sensor.view) return
-    if (moveDeg(sensor.first, sensor.view) > GUIDE_CLOSE_MOVE_DEG) closeGuide()
-  }, [guideOpen, mode, sensor.first, sensor.view, closeGuide])
+    if (!guideOpen || mode !== 'sensor' || !sensor.view || !sensor.first) return
+    if (Math.abs(wrap180(sensorYaw)) > GUIDE_CLOSE_MOVE_DEG) closeGuide()
+  }, [guideOpen, mode, sensor.view, sensor.first, sensorYaw, closeGuide])
 
   // ── C08-alt 끌기 + 관성 ──
   const [hintOpen, setHintOpen] = useState(!props.dragHintSeen)
-  const drag = useRef<{ id: number; x: number; y: number; start: View; lastX: number; lastY: number; lastAt: number; vx: number; vy: number } | null>(null)
-  const anim = useRef<number | null>(null)
-  const stopAnim = () => {
-    if (anim.current !== null) tourEnv().caf(anim.current)
-    anim.current = null
-  }
-  useEffect(() => () => stopAnim(), [])
-  const width = () => rootRef.current?.getBoundingClientRect().width || 390
-
+  const drag = useRef<{ id: number; x: number; y: number; start: BandView; lastX: number; lastY: number; lastAt: number; vx: number; vy: number } | null>(null)
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (mode !== 'drag' || guideOpen) return
+    if (mode !== 'drag' || guideOpen || leaving) return
     stopAnim()
     const now = tourEnv().now()
     drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, start: dragBase, lastX: e.clientX, lastY: e.clientY, lastAt: now, vx: 0, vy: 0 }
@@ -113,7 +125,7 @@ export function SkyTour(props: TourProps) {
     d.lastX = e.clientX
     d.lastY = e.clientY
     d.lastAt = now
-    setDragBase(dragView(d.start, e.clientX - d.x, e.clientY - d.y, width()))
+    setDragBase(dragBand(d.start, (e.clientX - d.x) / s, (e.clientY - d.y) / s))
     if (hintOpen && (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4)) {
       setHintOpen(false)
       props.onDragHintSeen()
@@ -124,43 +136,61 @@ export function SkyTour(props: TourProps) {
     if (!d || d.id !== e.pointerId) return
     drag.current = null
     if (reduced) return // 줄인 모션: 관성 없음
-    const from = dragView(d.start, d.lastX - d.x, d.lastY - d.y, width())
+    const from = dragBand(d.start, (d.lastX - d.x) / s, (d.lastY - d.y) / s)
     // 관성 600ms - 놓을 때 속도로 0.3초 더 간 자리까지 cubic-bezier(.2,.8,.2,1)
-    const to = dragView(from, d.vx * 300, d.vy * 300, width())
-    animate(from, to, MOTION_MS.inertia, setDragBase)
+    const to = dragBand(from, (d.vx * 300) / s, (d.vy * 300) / s)
+    run(MOTION_MS.inertia, (k) => setDragBase(lerpBand(from, to, k)))
   }
 
-  const animate = (from: View, to: View, ms: number, apply: (v: View) => void) => {
-    stopAnim()
-    const env = tourEnv()
-    const t0 = env.now()
-    const step = () => {
-      const k = Math.min(1, (env.now() - t0) / ms)
-      apply(lerpView(from, to, EASE_TURN(k)))
-      anim.current = k < 1 ? env.raf(step) : null
-    }
-    anim.current = env.raf(step)
-  }
+  // ── 나가기: 처음 만난 쪽으로 짧은 쪽 500ms(아래로 본 것도 제자리로) ──
+  const leftOnce = useRef(false)
+  useEffect(() => {
+    if (!leaving || leftOnce.current) return
+    leftOnce.current = true
+    drag.current = null
+    const fromDown = dragBase.down
+    const from = offset
+    const to = offset - wrap180(yaw)
+    if (reduced) { setOffset(to); setDragBase((b) => ({ ...b, down: 0 })); return }
+    run(MOTION_MS.exitTurn, (k) => {
+      setOffset(from + (to - from) * k)
+      setDragBase((b) => ({ ...b, down: fromDown * (1 - k) }))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaving])
 
-  // ── 하늘 층 자리(프레임당 한 번 계산) ──
-  const points = useMemo(() => stars.map((s) => ({ s, pt: skyPointOf(s.pos, hpw) })), [stars, hpw])
-  const placed = points.map(({ s, pt }) => ({ s, p: project(pt, view, hpw) }))
-  const moonPt = useMemo(() => skyPointOf(MOON_POS, hpw), [hpw])
-  const labelPt = useMemo(() => skyPointOf(LABEL_POS, hpw), [hpw])
-  const moonP = props.moon ? project(moonPt, view, hpw) : null
-  const labelP = project(labelPt, view, hpw)
-  const warm = props.warmest ? placed.find((x) => x.s.date === props.warmest?.date) ?? null : null
+  // ── 바라보는 쪽 이름(5° 여유) · 바뀔 때 앞 이름은 밀려 사라진다 ──
+  const nameRef = useRef<number | null>(null)
+  const idx = directionIndex(yaw, nameRef.current)
+  const [names, setNames] = useState<{ cur: number; prev: number | null; dir: 1 | -1; seq: number }>({ cur: idx, prev: null, dir: 1, seq: 0 })
+  useEffect(() => {
+    const before = nameRef.current
+    nameRef.current = idx
+    if (before === null || before === idx) return
+    setNames((n) => ({ cur: idx, prev: before, dir: wrap180((idx - before) * 90) > 0 ? 1 : -1, seq: n.seq + 1 }))
+  }, [idx])
+  useEffect(() => {
+    if (names.prev === null) return
+    const t = window.setTimeout(() => setNames((n) => (n.seq === names.seq ? { ...n, prev: null } : n)), MOTION_MS.nameFade)
+    return () => window.clearTimeout(t)
+  }, [names.prev, names.seq])
 
-  // ── "이번 달 별 ›" ──
-  const targets = stars.length > 0 ? points.map((x) => x.pt) : props.moon ? [moonPt] : []
-  const chip = offscreenChip(targets, view, hpw)
-  const turnTo = (to: View) => {
-    const goal: View = { yaw: wrap180(to.yaw - base.yaw), pitch: to.pitch - base.pitch }
-    if (reduced) setOffset(goal)
-    else animate(offset, goal, MOTION_MS.chipTurn, setOffset)
-  }
+  // ── "이번 달 별" 칩 ──
+  const chip = leaving ? null : chipSide(props.targetsPt, yaw)
 
-  const compass = compassMarks(view.yaw)
+  // ── 띠 ──
+  const shiftPx = bandShiftPt(yaw) * s
+  const liftPx = bandLiftPt(base.down) * s
+  const bandTop = box.h - BAND_BOTTOM_PT * s   // 띠 y(pt) 0 줄의 화면 자리 - C01처럼 화면 아래에 맞춘다
+  const bandStyle = { transform: `translate3d(${shiftPx.toFixed(2)}px, ${liftPx.toFixed(2)}px, 0)` } as CSSProperties
+  const panoStyle = (copy: number): CSSProperties => ({ left: `${(copy * CIRC_PT * s).toFixed(2)}px`, top: `${bandTop.toFixed(2)}px`, width: `${(CIRC_PT * s).toFixed(2)}px`, height: `${(PANO_HEIGHT_PT * s).toFixed(2)}px` })
+  const bgStars = useMemo(() => BG_STARS.map((p, k) => (
+    <span
+      key={k}
+      className="star"
+      style={{ left: `${(p.x * s).toFixed(1)}px`, top: `${(bandTop + p.y * s).toFixed(1)}px`, width: 1.5, height: 1.5, '--p': `${(9 + (p.i % 4)) / 2}s`, '--d': `${-((p.i * 997) % 4500)}ms` } as CSSProperties}
+    />
+  )), [s, bandTop])
   const still = reduced || !props.twinkle
 
   return (
@@ -169,54 +199,53 @@ export function SkyTour(props: TourProps) {
       className={`skyTour ${leaving ? 'leave' : 'enter'} ${reduced ? 'reduced' : ''} ${still ? 'noTwinkle' : ''}`}
       data-testid="sky-tour"
       data-mode={mode}
-      data-yaw={view.yaw.toFixed(1)}
-      data-pitch={view.pitch.toFixed(1)}
+      data-yaw={yaw.toFixed(1)}
+      data-down={base.down.toFixed(1)}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <div className="skyTourField" data-testid="sky-tour-field">
-        {labelP.visible ? <span className="skyMonthLabel tour" style={{ left: `${labelP.x}%`, top: `${labelP.y}%` }} data-testid="sky-tour-label">{props.monthLabel}</span> : null}
-        {placed.filter((x) => x.p.visible).map(({ s, p }) => (
-          <button
-            key={s.date}
-            type="button"
-            className="skyStar"
-            style={{ left: `${p.x}%`, top: `${p.y}%`, '--s': `${s.size}px`, '--p': `${s.period}s`, '--d': `${s.delay}s` } as CSSProperties}
-            data-testid={`sky-tour-star-${s.date}`}
-            aria-label={s.label}
-            onClick={() => props.onStar(s.date)}
-          ><i /></button>
-        ))}
-        {warm && warm.p.visible && props.warmest ? (
-          <span className="skyStarLabel" style={{ left: `${warm.p.x}%`, top: `${warm.p.y}%` }} data-testid="sky-tour-warmest">
-            <b>{props.warmest.title}</b>
-            <em>{props.warmest.caption}</em>
-          </span>
-        ) : null}
-        {props.moon && moonP?.visible ? (
-          <span className={`skyMoon tour ${props.moon.draft ? 'draft' : 'published'}`} style={{ left: `${moonP.x}%`, top: `${moonP.y}%` }} data-testid="sky-tour-moon">
-            <i />
-            <em>{props.moon.label}</em>
-          </span>
-        ) : null}
+      <div className="skyBand" style={bandStyle} data-testid="sky-band" data-shift={bandShiftPt(yaw).toFixed(2)}>
+        <img className="skyPano" src={PANO_SRC} alt="" draggable={false} style={panoStyle(-1)} />
+        <img className="skyPano" src={PANO_SRC} alt="" draggable={false} style={panoStyle(0)} />
+        <div className="skyBandVeil" style={{ left: `${(-CIRC_PT * s).toFixed(2)}px`, width: `${(2 * CIRC_PT * s).toFixed(2)}px` }} />
+        {bgStars}
+        <svg
+          className="skyBandGround"
+          style={{ left: `${(-CIRC_PT * s).toFixed(2)}px`, top: `${bandTop.toFixed(2)}px`, width: `${(2 * CIRC_PT * s).toFixed(2)}px`, height: `${(BAND_BOTTOM_PT * s).toFixed(2)}px` }}
+          viewBox={`${-CIRC_PT} 0 ${2 * CIRC_PT} ${BAND_BOTTOM_PT}`}
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="skyGroundFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#0E0B19" /><stop offset="1" stopColor="#06050B" /></linearGradient>
+          </defs>
+          {[-CIRC_PT, 0].map((o) => (
+            <g key={o} transform={`translate(${o} 0)`}>
+              <path d={`${GROUND} L${CIRC_PT} ${BAND_BOTTOM_PT} L0 ${BAND_BOTTOM_PT}Z`} fill="url(#skyGroundFill)" />
+              <path d={GROUND} fill="none" stroke="rgba(201,193,218,.45)" vectorEffect="non-scaling-stroke" />
+            </g>
+          ))}
+        </svg>
+        <div className="skyBandWindow" style={{ width: `${box.w}px`, height: `${box.h}px` }} data-testid="sky-tour-field">{props.field}</div>
       </div>
 
       {chip ? (
-        <button type="button" className={`skyTourChip press ${chip.side}`} onClick={() => turnTo(chip.to)} data-testid="sky-tour-chip" data-side={chip.side}>
-          {chip.side === 'left' ? `‹ ${TOUR_COPY.chip}` : `${TOUR_COPY.chip} ›`}
+        <button type="button" className={`skyTourChip press ${chip}`} onClick={() => turnHome(MOTION_MS.chipTurn)} data-testid="sky-tour-chip" data-side={chip}>
+          {chip === 'left' ? `‹ ${TOUR_COPY.chip}` : `${TOUR_COPY.chip} ›`}
         </button>
       ) : null}
 
-      <div className="skyCompass" aria-hidden="true" data-testid="sky-compass">
-        <div className="hill" />
-        <div className="ticks">
-          {compass.ticks.map((t, i) => <i key={i} className={t.long ? 'long' : ''} style={{ left: `${t.x}%` }} />)}
+      <div className="skyDirs" aria-live="polite" data-testid="sky-dirs">
+        <div className="skyDirNames">
+          {names.prev !== null ? (
+            <span key={`p${names.seq}`} className="skyDirName out" style={{ '--to': `${-6 * names.dir}px` } as CSSProperties} aria-hidden="true">{DIRECTION_NAMES[names.prev]}</span>
+          ) : null}
+          <span key={`c${names.seq}`} className={`skyDirName ${names.seq > 0 ? 'in' : ''}`} style={{ '--from': `${6 * names.dir}px` } as CSSProperties} data-testid="sky-dir" data-index={names.cur}>{DIRECTION_NAMES[names.cur]}</span>
         </div>
-        {compass.labels.map((l) => (
-          <span key={l.name} className={`dir ${l.front ? 'front' : ''}`} style={{ left: `${l.x}%` }} data-testid={l.front ? 'sky-compass-front' : undefined}>{l.name}</span>
-        ))}
+        <div className="skyDirDots" aria-hidden="true" data-testid="sky-dir-dots">
+          {DIRECTION_NAMES.map((n, k) => <i key={n} className={k === names.cur ? 'on' : ''} />)}
+        </div>
       </div>
 
       {mode === 'drag' && hintOpen && !guideOpen ? (
@@ -239,9 +268,9 @@ export function SkyTour(props: TourProps) {
 }
 
 function HandIcon({ big }: { big?: boolean }) {
-  const s = big ? 40 : 22
+  const sz = big ? 40 : 22
   return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11" />
       <path d="M12 10.5V9a1.5 1.5 0 0 1 3 0v2" />
       <path d="M15 11a1.5 1.5 0 0 1 3 0v3.5a5.5 5.5 0 0 1-5.5 5.5h-.8a5 5 0 0 1-3.9-1.9L5 14.5a1.4 1.4 0 0 1 2.1-1.8L9 14" />

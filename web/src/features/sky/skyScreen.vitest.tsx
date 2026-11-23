@@ -69,13 +69,14 @@ describe('C01 이달의 하늘', () => {
     expect(vi.mocked(nav.back)).toHaveBeenCalled()
   })
 
-  it('별이 날짜 순서대로 0.22초 간격으로 켜지고 크기는 그 달 안 순위(38.4 -> 8px · 36.5 -> 5px)', () => {
+  it('별이 날짜 순서대로 45ms 간격으로 켜지고(89- patch10 - 그날 처음 열 때) 크기는 그 달 안 순위(38.4 -> 8px · 36.5 -> 5px)', () => {
     hoisted.data = monthly()
     render(<SkyScreen nav={makeFakeNav()} />)
     const a = screen.getByTestId('sky-star-2026-10-03')
     const b = screen.getByTestId('sky-star-2026-10-18')
-    expect(a.style.animationDelay).toBe('0s')
-    expect(b.style.animationDelay).toBe('0.22s')
+    expect(a.className).toContain('turnOn')
+    expect(a.style.getPropertyValue('--on')).toBe('0ms')
+    expect(b.style.getPropertyValue('--on')).toBe('45ms')
     expect(a.getAttribute('data-size')).toBe('8')
     expect(b.getAttribute('data-size')).toBe('5')
     expect(Number(a.getAttribute('data-period'))).toBeGreaterThanOrEqual(2.8)
@@ -170,7 +171,7 @@ describe('C04 그날', () => {
     expect(screen.getByTestId('sky-temp').textContent).toBe('그날의 온도 38.4°')
     expect(screen.getByTestId('sky-day-title').textContent).toBe('망원')
     expect(screen.getByTestId('sky-memo').textContent).toContain('“여기 케이크 진짜 맛있었어”')
-    expect(screen.getByTestId('sky-memo').textContent).toContain('서영 · 18:30')
+    expect(screen.getByTestId('sky-memo').textContent).toContain('서영 · 저녁 6시 30분')   // 89- patch10 2-4
     expect(screen.getByTestId('sky-counts').textContent).toBe('사진 2 · 메모 1 · 10월의 1번째 별')
     // 마무리 질문 같은 답변 입력은 없다 - 입력창 0
     expect(document.querySelectorAll('input, textarea').length).toBe(0)
@@ -290,7 +291,7 @@ describe('줄인 모션', () => {
     const root = screen.getByTestId('sky-screen')
     expect(root.className).toContain('still')
     expect(screen.getByTestId('sky-star-2026-10-03').className).not.toContain('turnOn')
-    expect(screen.getByTestId('sky-star-2026-10-03').style.animationDelay).toBe('')
+    expect(screen.getByTestId('sky-star-2026-10-03').style.getPropertyValue('--on')).toBe('')
     expect(screen.getByTestId('sky-month-2026-10').className).not.toContain('flow')
     expect(screen.getByTestId('sky-star-2026-10-18')).toBeTruthy()
   })
