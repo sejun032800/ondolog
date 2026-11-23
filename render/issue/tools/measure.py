@@ -25,6 +25,7 @@ TMP = PAGES / '_measure.html'
 SAMPLE = '../images/sample/da_01.jpg'
 STEP = 5
 MAX_CHARS = 420
+SAFETY_LINES = 1   # v1.2.4 README §12 - 낱말 단위 줄바꿈 여유
 
 # 견본 문장 — 시험 데이터(tests/fixtures.py)의 온전한 메모 · 대화 문장과 짧은 채팅 말투를 섞었다. 여러 시작점에서 잘라 쓴다
 CORPUS = ' '.join([
@@ -91,7 +92,11 @@ def line_table(page, sel: str, sampler=samples, max_chars: int = MAX_CHARS, step
         got = page.evaluate(LINES_JS, [sel, texts])
         chars.append(c); lines.append(max(got))
         prev = c
-    return {'chars': chars, 'lines': lines}
+    # v1.2.4 - 낱말 단위 줄바꿈(keep-all)에서는 줄 끝 낱말 길이에 따라 같은 글자 수라도 한 줄이 더 꺾인다.
+    # 견본 밖 문장 3,000개로 잰 결과 위 덮개보다 많아야 +1줄(약 9%) - 두 줄 이상인 칸에 여유 SAFETY_LINES 줄을 더해 적는다
+    # 한 줄 칸이라도 바로 다음 칸이 두 줄이면(한 줄의 끝자락) 같은 여유를 준다
+    safe = [l + SAFETY_LINES if (l >= 2 or (i + 1 < len(lines) and lines[i + 1] >= 2)) else l for i, l in enumerate(lines)]
+    return {'chars': chars, 'lines': safe, 'sampledLines': lines}
 
 
 def fit_box(page, sel: str, box: str, unit: str) -> dict:

@@ -24,6 +24,10 @@
 @page{size:A4;margin:0}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+/* v1.2.4 (#e) - 낱말 단위 줄바꿈. 한글 낱말 중간에서 줄이 바뀌지 않게 하고(keep-all),
+   띄어쓰기 없이 한 칸보다 긴 덩어리(ㅋㅋㅋ…, 주소)만 칸 끝에서 꺾는다(break-word). **모든 글 칸에 적용** — 틀 하나하나에 넣지 않는다.
+   바뀐 칸의 높이 표는 렌더 환경에서 다시 잰다(README §12) */
+body{word-break:keep-all;overflow-wrap:break-word}
 body{
   width:210mm;height:297mm;position:relative;overflow:hidden;
   background:var(--bg);color:var(--ink);

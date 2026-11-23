@@ -46,13 +46,14 @@
     <section>
       <span class="lbl sec">문장의 출처</span>
       <!-- 막대 폭(숫자 0~100)과 글자("34%")는 경로가 다르다(#6). data-width는 숫자 경로만 받는다 -->
+      <!-- v1.2.4 (#b) - 막대는 flex라 글자 사이 공백이 사라진다. 띄어 쓰기는 gap이 맡는다(데이터에 공백을 넣지 않는다) -->
       <div style="display:flex;height:30px;border:.6px solid var(--ink)">
         <div data-width="@note.ratioPeopleWidth" style="width:42%;background:var(--ink);color:var(--bg);
-             font-size:12px;font-weight:700;display:flex;align-items:center;padding-left:12px;
+             font-size:12px;font-weight:700;display:flex;align-items:center;gap:.35em;padding-left:12px;
              min-width:0;overflow:hidden;white-space:nowrap">두 사람 <span
              data-slot="@note.ratioPeople">42%</span></div>
         <div data-width="@note.ratioOndologWidth" style="width:58%;background:repeating-linear-gradient(45deg,var(--rule) 0 1px,transparent 1px 6px);
-             font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:flex-end;
+             font-size:12px;font-weight:700;display:flex;align-items:center;gap:.35em;justify-content:flex-end;
              padding-right:12px;min-width:0;overflow:hidden;white-space:nowrap">온도록 <span
              data-slot="@note.ratioOndolog">58%</span></div>
       </div>
