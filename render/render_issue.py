@@ -53,9 +53,10 @@ REPO = HERE.parent
 sys.path.insert(0, str(HERE))
 
 from compose import ComposeError, Composition, PageSpec, choose_variant, compose_issue  # noqa: E402
-from render_feedback import FeedbackStop, render_with_feedback  # noqa: E402
+from render_feedback import FeedbackStop, has_items, render_with_feedback  # noqa: E402
 from page_audit import (  # noqa: E402
-    audit_page, compare_with_design, design_audit_js, mark_original_overset, original_clipped, original_overset, recorded_clipped,
+    audit_page, compare_with_design, design_audit_js, mark_original_overset, original_clipped, original_overset, overset_by_page,
+    recorded_clipped, route,
 )
 from slot_fill import fill  # noqa: E402
 from measure_env import env_warnings  # noqa: E402
@@ -408,8 +409,22 @@ def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
 # ① b: `note.html` 막대 `gap:.35em` - 렌더러가 간격을 또 넣으면 두 번 띄워진다, E2).
 
 
+# 92- 개발 임시 수정(틀 수정 전까지 - 2.0 디자인 묶음 정정 항목, 틀 `render/issue/`은 고치지 않는다).
+# 근거: v1.2.4 README §10 ① a 규칙 "띄어쓰기 없는 덩어리만 칸 끝에서 꺾는다"(`base.css` body `overflow-wrap:break-word`).
+# 그런데 위치를 왼쪽만 정한 상자 · 줄 안 상자는 칸 너비를 **가장 긴 덩어리 폭**(min-content - break-word는 이 폭을 줄이지 않는다)으로 잡아,
+# 덩어리(ㅋ×34 · 긴 주소)가 칸 끝에서 꺾이지 않고 판면 밖(safe)으로 나간다(92- 덩어리 탐침). 그런 증상이 나온 **사람 · 온도록이 쓴 글 칸**에만
+# `overflow-wrap:anywhere`를 건다 - 덩어리만 칸 끝에서 꺾이고(낱말 단위 줄바꿈 keep-all은 그대로), 띄어 쓴 글의 줄바꿈은 바뀌지 않는다.
+# 작업 폴더의 `base.css` 사본 끝에만 붙는다(지면 HTML · 틀 0). 이 뒤에도 남는 넘침은 되받기 · 실패 그대로(판면 이탈 판정 예외 0).
+DEV_TEMP_CSS_92 = (
+    '\n/* 92- 개발 임시(틀 수정 전) - v1.2.4 README §10 ① a: 띄어쓰기 없는 덩어리만 칸 끝에서 꺾음. 덩어리가 칸 밖으로 나가던 글 칸에만 */\n'
+    '[data-slot=".userNotes[0].text"],[data-slot=".text"],[data-slot=".basis"],[data-slot="payload.theme.headline"],'
+    '[data-slot=".value"],[data-slot="@issue.names"],[data-slot="@issue.nickname"]{overflow-wrap:anywhere}\n'
+)
+
+
 def prepare_work(work: Path) -> None:
-    """작업 폴더에 스타일·테마·폰트를 복사한다. **견본 사진(images/)은 복사하지 않는다.** 틀은 그대로 복사한다(덧붙이는 CSS 0 - 88-)."""
+    """작업 폴더에 스타일·테마·폰트를 복사한다. **견본 사진(images/)은 복사하지 않는다.** 틀은 그대로 복사하고,
+    `base.css` 사본 끝에만 92- 개발 임시 CSS(`DEV_TEMP_CSS_92`)를 붙인다(지면 HTML · 틀 원본은 그대로)."""
     if work.exists():
         shutil.rmtree(work)
     (work / 'pages').mkdir(parents=True)
@@ -420,6 +435,8 @@ def prepare_work(work: Path) -> None:
             shutil.copytree(src, work / name)
         else:
             shutil.copy2(src, work / name)
+    with open(work / 'base.css', 'a', encoding='utf-8', newline='\n') as fh:
+        fh.write(DEV_TEMP_CSS_92)
 
 
 COVER_QUOTE_MAX_LINES = 2   # README v1.2.3 §11 ⑫ - 표지 이 달의 말은 두 줄까지(넘으면 줄째 지운다 - 원문을 자르지 않는다, R136-2 ③)
@@ -722,7 +739,9 @@ def gate_failure(audit: dict[str, Any], issue_id: str) -> Optional[str]:
     `render_issue`와 로컬 시험 호(`local_volumes.py`)가 **같은 이 함수**로 가른다.
 
     - 원문이 잘렸다(`originalClipped`, R29-3)
-    - 원문 필드가 든 상자가 넘쳤다(`originalOverset`, R49-1) - 온도록 문장만 든 상자의 넘침은 `audit.json` 기록만이다
+    - 원문 필드가 든 상자가 넘쳤다(`originalOverset`, R49-1)
+    - 92-(R152-2): 넘침 · 잘림 · 겹침 중 처리 길이 '실패'인 것(`blocked` - 자리가 정해진 지면의 넘침 · 겹침 · 틀 안전망 밖의 숨김 잘림),
+      또는 되받기 뒤에도 '되받기' 길의 결과가 남았다. 사유는 지면 · 칸 종류 · 수뿐(원문 · id 0). 기록만 남는 넘침은 없다.
     """
     reasons: list[str] = []
     if audit['originalClipped']:
@@ -732,6 +751,13 @@ def gate_failure(audit: dict[str, Any], issue_id: str) -> Optional[str]:
         reasons.append(f"원문 필드가 든 상자가 판면을 넘었다 (호 {issue_id}): " + '; '.join(
             f"{c['n']}쪽 {c['stem']} 상자 {c.get('t')} (내용 {c.get('need')}px / 상자 {c.get('have')}px, 원문 슬롯 {', '.join(c['originalSlots'])})"
             for c in audit['originalOverset']))
+    blocked = audit.get('blocked', [])
+    if blocked:
+        reasons.append('넘침 · 잘림 · 겹침을 받을 길이 없는 칸이 있다(옮길 수 없는 자리): ' + '; '.join(
+            f"{b['n']}쪽 {b['stem']} {b['k']}" for b in blocked))
+    left = audit.get('feedbackLeft', [])
+    if left:
+        reasons.append('되받기 길의 넘침 · 겹침이 남았다: ' + '; '.join(f"{b['n']}쪽 {b['stem']} {b['k']}" for b in left))
     return ' | '.join(reasons) if reasons else None
 
 
@@ -742,6 +768,10 @@ def audit_summary(composition: Composition, results: list[dict[str, Any]], issue
     recorded: list[dict[str, Any]] = []
     overset_originals: list[dict[str, Any]] = []
     extra = clipped_original_slots(composition)
+    routed: list[tuple] = []
+    blocked: list[dict[str, Any]] = []
+    feedback_pages: set[int] = set()
+    feedback_left: list[dict[str, Any]] = []
     for n, (spec, res) in enumerate(zip(composition.pages, results), 1):
         for f in res['findings']:
             totals[f['k']] = totals.get(f['k'], 0) + 1
@@ -749,15 +779,30 @@ def audit_summary(composition: Composition, results: list[dict[str, Any]], issue
         recorded += [{'n': n, 'stem': spec.stem, **f} for f in recorded_clipped(res['findings'], extra)]
         overset_originals += [{'n': n, 'stem': spec.stem, **f} for f in original_overset(res['findings'])]
         pages.append({'n': n, 'stem': spec.stem, 'findings': res['findings'], 'designAudit': res['design']})
+        # 92- 처리 길 - 원문 잘림 · 원문 상자 넘침은 위 두 목록이 이미 막으므로 여기서 다시 세지 않는다(같은 결과를 두 번 막지 않게)
+        movable = has_items(spec)
+        routed.append((n, spec.stem, movable, res['findings']))
+        for f in res['findings']:
+            way = route(f, movable, extra)
+            if way == 'fail' and not (f['k'] == 'clipped' or (f['k'] == 'overset' and f.get('originalSlots'))):
+                blocked.append({'n': n, 'stem': spec.stem, 'k': f['k']})
+            elif way == 'feedback':
+                feedback_pages.add(n)
+                feedback_left.append({'n': n, 'stem': spec.stem, 'k': f['k']})
     return {
         'issueId': issue_id,
         'theme': composition.theme,
-        'note': '기존 기준 위반은 렌더를 실패시키지 않고 기록한다 - 운영자가 보고 판단한다',
+        'note': '넘침 · 잘림 · 겹침은 되받기 · 실패 · 틀 축소로 처리한다(92-, oversetByPage). 그 밖의 기준(대비 · 활자 크기 · 깨진 그림)은 기록한다 - 운영자가 보고 판단한다',
         'totals': totals,
         'designAuditSame': all(p['designAudit'].get('same', True) for p in pages),
         'originalClipped': originals,
         'originalOverset': overset_originals,
         'recordedClipped': recorded,
+        # 92-(R152-2) - 넘침 · 잘림 · 겹침의 처리 길. 숫자 · 지면 이름 · 종류만(원문 · id 0)
+        'oversetByPage': overset_by_page(routed, extra),
+        'blocked': blocked,
+        'feedbackPages': sorted(feedback_pages),
+        'feedbackLeft': feedback_left,
         'pages': pages,
     }
 
@@ -906,7 +951,8 @@ def upload_render(api: Api, issue_id: str, out: Path, drawn: dict[str, Any], say
                     # R84-1 · R84-2 - 숫자만(날짜 · id · 파일 이름 없음): 뺀 기사 수 · 대표 사진을 대체 규칙으로 정한 기사 수
                     'droppedArticles': composition.report['droppedArticles'],
                     'heroFallbackArticles': composition.report['heroFallbackArticles']},
-        'renderFeedback': drawn['feedback'],   # 88-b - 숫자만
+        'renderFeedback': drawn['feedback'],   # 88-b - 숫자만(92-: 첫 그림의 oversetByPage 포함)
+        'oversetByPage': audit['oversetByPage'],   # 92- 마지막 그림의 지면별 넘침 · 잘림 · 겹침 수 -> 처리 길(숫자만)
         'measureEnvWarnings': composition.report.get('measureEnvWarnings', []),   # 84-d2 R138-2 ① - 높이 표를 잰 환경과 다르면 경고(멈춤 아님)
         'sizes': sizes,
         'bucketPaths': [f'{folder}/{pdf_name}'] + [f'{folder}/{n}' for n in image_names],
@@ -931,6 +977,7 @@ def local_summary(drawn: dict[str, Any], seconds: float) -> dict[str, Any]:
         'coverHeadlineFrom': comp.report.get('coverHeadlineFrom'),
         'coverQuoteRemoved': comp.report.get('coverQuoteRemoved'),
         'renderFeedback': drawn['feedback'],
+        'oversetByPage': audit['oversetByPage'],   # 92- 숫자 · 지면 이름 · 종류만
         'originalOverset': len(audit['originalOverset']),
         'originalClipped': len(audit['originalClipped']),
         'seconds': round(seconds, 1),
@@ -955,9 +1002,11 @@ def render_local(api: ReadOnlyApi, issue_id: str, out: Path, image_width: int = 
 
 
 LOCAL_STOP_KINDS = (
+    ('되받기 길의 넘침', '되받기 뒤에도 넘침 · 겹침이 남았다'),   # 92- - 아래 '되받기'보다 먼저 본다
     ('되받기', '렌더 되받기로도 원문 상자 넘침을 풀지 못했다'),
     ('원문이 지면에서 잘렸다', '원문이 지면에서 잘렸다'),
     ('원문 필드가 든 상자가', '원문 상자가 판면을 넘었다'),
+    ('받을 길이 없는 칸', '옮길 수 없는 칸이 넘치거나 겹쳤다'),
     ('지면을 짤 수 없다', '지면을 짤 수 없다(한 항목이 한 면보다 큼 등)'),
     ('이미 발행된 호', '이미 발행된 호'),
     ('없는 호', '호를 찾지 못했다'),

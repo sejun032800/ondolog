@@ -90,7 +90,8 @@ class NoteBarSpacing(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             work = Path(d) / 'work'
             r.prepare_work(work)
-            self.assertEqual((work / 'base.css').read_bytes(), (r.ISSUE_DIR / 'base.css').read_bytes())
+            # 92- - 틀 사본 + 개발 임시 CSS 한 덩어리(`DEV_TEMP_CSS_92`)뿐. 그 밖에 덧붙이는 CSS 0
+            self.assertEqual((work / 'base.css').read_bytes(), (r.ISSUE_DIR / 'base.css').read_bytes() + r.DEV_TEMP_CSS_92.encode('utf-8'))
         self.assertFalse(hasattr(r, 'DEV_TEMP_CSS_84G'))
         self.assertIn('word-break:keep-all', (r.ISSUE_DIR / 'base.css').read_text(encoding='utf-8'))
 

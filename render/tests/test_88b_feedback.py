@@ -95,7 +95,7 @@ class Loop(unittest.TestCase):
 
     def test_no_overflow_no_feedback(self):
         (comp, _f, _r, _a, summary), calls = self.run_loop(0, lambda n: {})
-        self.assertEqual(summary, {'rounds': 0, 'moved': {}, 'dropped': {}})
+        self.assertEqual(summary, {'rounds': 0, 'moved': {}, 'dropped': {}, 'oversetByPage': []})   # 92- 첫 그림 지면별 넘침 수(없으면 빈 목록)
         self.assertEqual(calls, {'draw': 1, 'measure': 1})   # 항목 지면은 늘 잰다 - 넘침이 없으면 끝
 
     def test_one_round_then_clean(self):

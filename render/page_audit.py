@@ -12,12 +12,21 @@
   overset(원문) `overset` 상자 안에 원문 슬롯(`ORIGINAL_SLOTS`)이 들었으면 **실패**(R49-1) - 잘린 원문과 같은 원칙이다. 온도록 문장만 든 상자의 overset은 기록이다.
                  어느 쪽인지는 `clipped`와 **같은 표시**(`ORIGINAL_SLOTS`, 슬롯 이름)로 가른다 - 원문 슬롯 목록은 이 파일 한 곳에만 있다.
   clipped        `.clamp1~4`가 글자를 잘랐다 - 넘침 안전망이 작동한 자리. **두 사람이 쓴 원문(`ORIGINAL_SLOTS`)이 잘렸으면 실패**(R29-3),
-                 온도록이 쓴 문장이 잘렸으면 기록이다(README §12). 어느 쪽인지는 잘린 요소의 `data-slot`으로 가른다.
+                 온도록이 쓴 문장이 잘렸으면 틀의 안전망(README §12 "안전망을 남긴 것")이 처리한 것이다. 어느 쪽인지는 잘린 요소의 `data-slot`으로 가른다.
+  hidden         92-(R152-2): `.clamp*`가 아닌 `overflow:hidden|clip` 칸 안에서 글자가 보이지 않게 잘렸다(가로 말줄임 · 한 줄 막대 등).
+                 사진 틀(`.ph`)과 지면 틀(`body` - 그쪽은 `overflow`)은 뺀다.
+
+92- 넘침 · 잘림 · 겹침의 처리(`route`) - **기록만은 없다**(R152-2):
+  되받기(feedback)  항목을 옮길 수 있는 지면(타임라인 · 인용 · 기사 - `render_feedback.has_items`)의 overflow · safe · overset · overlap · text-overlap.
+                    되받기가 풀지 못하면 렌더 실패(`FeedbackStop`).
+  실패(fail)        자리가 정해진 지면의 같은 다섯 종류 · 원문이 잘림(clipped · hidden) · 틀 안전망 밖의 hidden.
+  축소(shrink)      틀이 일부러 줄여 보이는 칸(기존 길): 온도록 문장의 `.clamp*`(README §12 표) · 이달의 우리 사진 위 AI 캡션 말줄임(`.ai-txt`, README §12) ·
+                    발행 노트 출처 막대 글자(`note.html` 막대 칸 `min-width:0;overflow:hidden;white-space:nowrap` - 좁은 막대에서 글자를 숨기는 틀 규칙).
 
 앞의 다섯(overflow·tiny·contrast·overset·overlap)은 디자인의 `render/issue/tools/audit.py`와 **같은 판정**이어야 한다.
 `compare_with_design`이 같은 지면에 두 검사를 모두 돌려 결과가 같은지 본다(디자인 검사기는 `tools/audit.py`의 `AUDIT`을 그대로 읽는다).
 
-**기존 기준 위반은 렌더를 실패시키지 않는다** - 결과를 파일에 남기고 운영자가 판단한다.
+넘침 · 잘림 · 겹침(`OVERSET_KINDS`)은 아래 92- 처리 길로 간다. **그 밖의 기준(대비 · 활자 크기 · 깨진 그림)은 렌더를 실패시키지 않는다** - 결과를 파일에 남기고 운영자가 판단한다.
 """
 
 from __future__ import annotations
@@ -162,7 +171,7 @@ EXTRA_JS = r"""
     if (area > 0) out.push({k: 'text-overlap', t: ownText(ea).slice(0, 14) + ' ∩ ' + ownText(eb).slice(0, 14), area: area});
   }
 
-  // clipped - line-clamp가 글자를 잘랐다. 어떤 슬롯의 글자인지(`slot`)를 함께 남긴다 - 원문이면 실패, 온도록 문장이면 기록
+  // clipped - line-clamp가 글자를 잘랐다. 어떤 슬롯의 글자인지(`slot`)를 함께 남긴다 - 원문이면 실패, 온도록 문장이면 틀 축소(README §12)
   const slotOf = el => {
     const s = el.hasAttribute('data-slot') ? el : el.querySelector('[data-slot]');
     return s ? s.getAttribute('data-slot') : '';
@@ -170,6 +179,21 @@ EXTRA_JS = r"""
   document.querySelectorAll('.clamp1, .clamp2, .clamp3, .clamp4').forEach(el => {
     if (el.scrollHeight - el.clientHeight > 1) {
       out.push({k: 'clipped', t: (el.textContent || '').trim().slice(0, 24), slot: slotOf(el), need: el.scrollHeight, have: el.clientHeight});
+    }
+  });
+
+  // hidden (92-) - clamp가 아닌 숨김 칸에서 글자가 잘렸다. 어떤 칸인지(`cls` · 막대 칸이면 `dw`)와 그 안의 원문 슬롯(`slots`)을 남긴다.
+  const hid = v => v === 'hidden' || v === 'clip';
+  document.querySelectorAll('body *').forEach(el => {
+    if (el.matches('.clamp1, .clamp2, .clamp3, .clamp4, .ph, style, script')) return;
+    const cs = getComputedStyle(el);
+    if (!(hid(cs.overflowX) || hid(cs.overflowY))) return;
+    if (!(el.textContent || '').trim()) return;
+    const dx = el.scrollWidth - el.clientWidth, dy = el.scrollHeight - el.clientHeight;
+    if (dx > 1 || dy > 1) {
+      const slots = [...new Set([el, ...el.querySelectorAll('[data-slot]')].filter(s => s.hasAttribute('data-slot')).map(s => s.getAttribute('data-slot')))];
+      out.push({k: 'hidden', t: (el.textContent || '').trim().slice(0, 24), cls: String(el.className || el.tagName.toLowerCase()),
+        dw: el.getAttribute('data-width') || '', slots, need: Math.max(el.scrollWidth, el.scrollHeight), have: Math.max(el.clientWidth, el.clientHeight)});
     }
   });
   return out;
@@ -233,9 +257,57 @@ def original_clipped(findings: list, extra_original_slots: Any = ()) -> list:
 
 
 def recorded_clipped(findings: list, extra_original_slots: Any = ()) -> list:
-    """잘린 온도록 문장 - 기록만 한다(README §12 안전망)."""
+    """잘린 온도록 문장 - 틀의 안전망(README §12)이 처리한 것(92- `route` = 'shrink'). 목록은 audit.json에 남는다."""
     slots = ORIGINAL_SLOTS | frozenset(extra_original_slots)
     return [f for f in findings if f['k'] == 'clipped' and f.get('slot') not in slots]
+
+
+# ---------------------------------------------------------------------------
+# 92- 처리 길(R152-2) - 넘침 · 잘림 · 겹침은 모두 되받기 · 실패 · 틀 축소 중 하나로 간다. 기록만은 없다.
+# ---------------------------------------------------------------------------
+
+OVERSET_KINDS = ('overflow', 'safe', 'overset', 'overlap', 'text-overlap', 'clipped', 'hidden')
+ROUTES = ('feedback', 'fail', 'shrink')
+# 발행 노트 출처 막대 칸(note.html - 좁은 막대에서 글자를 숨기는 틀 규칙)
+NOTE_BAR_WIDTHS = frozenset({'@note.ratioPeopleWidth', '@note.ratioOndologWidth'})
+
+
+def route(finding: dict, movable: bool, extra_original_slots: Any = ()) -> str | None:
+    """검사 결과 하나의 처리 길 - 'feedback' | 'fail' | 'shrink'. 넘침 · 잘림 · 겹침이 아니면 None(대비 · 활자 크기 · 깨진 그림은 이 위임 밖).
+
+    `movable`: 이 지면에 옮길 수 있는 항목이 있다(`render_feedback.has_items`). 판정은 순수하다(같은 입력 -> 같은 결과)."""
+    k = finding.get('k')
+    if k not in OVERSET_KINDS:
+        return None
+    originals = ORIGINAL_SLOTS | frozenset(extra_original_slots)
+    if k == 'clipped':
+        return 'fail' if finding.get('slot') in originals else 'shrink'
+    if k == 'hidden':
+        if any(s in originals for s in finding.get('slots') or []):
+            return 'fail'
+        cls = str(finding.get('cls') or '').split()
+        if 'ai-txt' in cls or finding.get('dw') in NOTE_BAR_WIDTHS:
+            return 'shrink'
+        return 'fail'
+    return 'feedback' if movable else 'fail'
+
+
+def overset_by_page(pages: list, extra_original_slots: Any = ()) -> list:
+    """지면별 넘침 · 잘림 · 겹침 수와 처리 길 수 - 숫자만(원문 · id 0). `pages` = [(번호, 지면 이름, 옮길 수 있음, 검사 결과)].
+    결과가 하나도 없는 지면은 넣지 않는다."""
+    out = []
+    for n, stem, movable, findings in pages:
+        found: dict[str, int] = {}
+        routes = {r: 0 for r in ROUTES}
+        for f in findings:
+            way = route(f, movable, extra_original_slots)
+            if way is None:
+                continue
+            found[f['k']] = found.get(f['k'], 0) + 1
+            routes[way] += 1
+        if found:
+            out.append({'n': n, 'stem': stem, 'found': dict(sorted(found.items())), **routes})
+    return out
 
 
 def _norm(findings: list) -> list:

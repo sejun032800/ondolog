@@ -8,6 +8,8 @@
      (b) 잰 자리의 합이 그 섹션의 가용 높이(지면 짜기가 쓰는 바로 그 값 - 타임라인 953 · 인용 940/841/778 · 글만 있는 기사 592.5)를 넘고
          예측보다 큰 항목이 있는 지면 또는 (c) 사진 아래 메모 칸이 판면 아래(1047)를 넘은 지면. 없으면 끝(되받기 0).
      (b)는 인용면처럼 높이가 정해진 상자가 아니라 지면 검사의 overset에 걸리지 않는 넘침도 잡는다(88-b에서 찾음 - 인용면 넘침은 overflow · overlap으로만 나왔다).
+     또는 (d) 92-(R152-2): 지면 검사가 넘침 · 겹침(overflow · safe · overset · overlap · text-overlap)을 낸 항목 지면(`feedbackPages`,
+         `page_audit.route` = 'feedback') - 기록만 남기지 않고 되받기로 보낸다. 풀지 못하면 아래 4.처럼 실패.
      예측보다 큰 항목만 그 높이로 바꿔 끼워(`measured.active`) 다시 짜고 다시 그린다 - 다음 면으로 넘어가고, 섹션의 면 상한 안에 자리가
      없으면 지금 규칙대로 싣지 않고 발행 노트 "싣지 않은 것"에 적힌다(compose · facts의 기존 길 그대로).
      사진 아래 메모 칸은 틀에서 자리가 정해져 옮길 수 없다 - 기존 길(D5 · `facts.article_photo_view`)로 싣지 않고 발행 노트에.
@@ -72,6 +74,11 @@ def _items(spec: Any) -> list[tuple[str, str, list]]:
         if da.get('articlePhotos'):
             out.append(('photoMemo', 'caption', [p.get('_fbKey') if p.get('caption') else None for p in da['articlePhotos']]))
     return out
+
+
+def has_items(spec: Any) -> bool:
+    """이 지면에 옮길 수 있는 항목이 있는가(92- - 넘침 · 겹침을 되받기로 보낼지 실패로 보낼지 가른다)."""
+    return bool(_items(spec))
 
 
 def item_pages(comp: Composition) -> list[int]:
@@ -144,11 +151,13 @@ def placements(comp: Composition) -> dict[str, tuple]:
     return out
 
 
-def summarize(first: dict[str, tuple], final: dict[str, tuple], rounds: int) -> dict[str, Any]:
-    """렌더 요약의 숫자 - 되받기 횟수 · 옮긴 항목 수 · 되받기로 싣지 않게 된 항목 수(종류별). 원문 · id 0."""
+def summarize(first: dict[str, tuple], final: dict[str, tuple], rounds: int, overset_first: Optional[list] = None) -> dict[str, Any]:
+    """렌더 요약의 숫자 - 되받기 횟수 · 옮긴 항목 수 · 되받기로 싣지 않게 된 항목 수(종류별) · 92- 첫 그림의 지면별 넘침 · 잘림 · 겹침 수와
+    처리 길(`oversetByPage` - 되받기 · 실패 · 틀 축소 수). 원문 · id 0."""
     moved = Counter(measured.kind_of(k) for k, where in first.items() if k in final and final[k] != where)
     dropped = Counter(measured.kind_of(k) for k in first if k not in final)
-    return {'rounds': rounds, 'moved': dict(sorted(moved.items())), 'dropped': dict(sorted(dropped.items()))}
+    return {'rounds': rounds, 'moved': dict(sorted(moved.items())), 'dropped': dict(sorted(dropped.items())),
+            'oversetByPage': list(overset_first or [])}
 
 
 def render_with_feedback(compose_fn: Callable[[], Composition], draw: Callable[[Composition], tuple],
@@ -161,6 +170,7 @@ def render_with_feedback(compose_fn: Callable[[], Composition], draw: Callable[[
     first: Optional[dict[str, tuple]] = None
     rounds = 0
     added: dict[str, float] = {}
+    overset_first: Optional[list] = None
     while True:
         with measured.active(overrides):
             try:
@@ -175,12 +185,14 @@ def render_with_feedback(compose_fn: Callable[[], Composition], draw: Callable[[
         if first is None:
             first = place
         files, results, audit = draw(comp)
+        if overset_first is None:
+            overset_first = audit.get('oversetByPage', [])
         if audit['originalClipped']:
-            return comp, files, results, audit, summarize(first, place, rounds)   # 잘림은 되받기로 풀 수 없다 - 지금처럼 gate가 멈춘다
-        overset_pages = {o['n'] for o in audit['originalOverset']}
+            return comp, files, results, audit, summarize(first, place, rounds, overset_first)   # 잘림은 되받기로 풀 수 없다 - 지금처럼 gate가 멈춘다
+        overset_pages = {o['n'] for o in audit['originalOverset']} | set(audit.get('feedbackPages', []))
         pages, found = overflowing(comp, measure(comp, files, item_pages(comp)), estimates, overset_pages)
         if not pages:
-            return comp, files, results, audit, summarize(first, place, rounds)
+            return comp, files, results, audit, summarize(first, place, rounds, overset_first)
         stems = sorted({comp.pages[n - 1].stem for n in pages})
         if rounds >= max_rounds:
             raise FeedbackStop(f"되받기 {rounds}번 뒤에도 넘친다 (지면 {', '.join(stems)})")

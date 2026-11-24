@@ -27,6 +27,16 @@ export const PREVIEW_MARKERS = [
   'settings-row-sky-meteor-preview',
 ]
 
+/**
+ * 92-(R154-5): 스모크 전용 진입 파일(`smoke/entry.tsx` - 가짜 서버 표 · RPC 기록을 창에 여는 파일)에만 있는 이름.
+ * 앱 출시 빌드(`build`)와 시험 빌드(`build:trial`)에는 하나도 없어야 하고, 스모크 결과물에는 모두 있어야 한다(검사가 살아 있는지 - 음성 대조).
+ * 이 이름이 `smoke/entry.tsx` 밖 앱 코드에 없다는 것은 `src/app/smokeIsolation.vitest.ts`가 본다.
+ */
+export const ENTRY_MARKERS = [
+  '__ONDOLOG_SMOKE_TABLES__', // entry.tsx - 가짜 서버 표(90-)
+  '__ONDOLOG_SMOKE_RPC__', // entry.tsx - RPC 기록(80-)
+]
+
 /** 폴더 안 글 파일(.js · .css · .html · .json · .map)에서 표지를 찾는다. 돌려주는 값: [{ file, marker }]. */
 export function scanForMarkers(dir, markers = SMOKE_MARKERS) {
   const hits = []

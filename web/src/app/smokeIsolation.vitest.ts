@@ -3,13 +3,16 @@
  *  - 앱 빌드의 입구는 `index.html` -> `./src/main.tsx` 하나이고, `src/` 안 어떤 앱 파일도 `smoke/`를 가져오지 않는다(시험 파일 제외).
  *  - 앱 설정(`vite.config.ts`)은 스모크를 모른다(스모크 설정이 앱 설정을 가져다 쓰는 한 방향만).
  *  - `web/dist`가 있으면(마지막 `build` 또는 `build:trial` 결과) 스모크 표지가 0이다. 실제 번들 검색은 `npm run smoke:webkit`이 시험 빌드를 따로 내서 한 번 더 한다.
+ *  - 92-(R154-5): 스모크 진입 파일(`smoke/entry.tsx`) 표지(`ENTRY_MARKERS`)는 그 파일에만 있고(앱 코드 0), 들어 있는 번들에서는 검사가 잡는다(음성 대조).
+ *    실제 출시 · 시험 빌드 검색은 `smoke/run.mjs` 3c.
  */
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error - 일반 JS 모듈(스모크 실행기와 같은 표지 목록 한 벌)
-import { SMOKE_MARKERS, scanForMarkers } from '../../smoke/markers.mjs'
+import { ENTRY_MARKERS, SMOKE_MARKERS, scanForMarkers } from '../../smoke/markers.mjs'
 
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -45,5 +48,34 @@ describe('79- 스모크 격리(새지 않음)', () => {
     const dist = path.join(webDir, 'dist')
     if (!fs.existsSync(path.join(dist, 'index.html'))) return // 아직 빌드 전(새로 받은 저장소) - smoke:webkit이 따로 확인한다
     expect(scanForMarkers(dist)).toEqual([])
+    expect(scanForMarkers(dist, ENTRY_MARKERS)).toEqual([])
+  })
+
+  it('92- 진입 파일 표지는 smoke/entry.tsx에 모두 있고 앱 코드 · 앱 입구 · 앱 설정에는 0', () => {
+    const entry = fs.readFileSync(path.join(webDir, 'smoke', 'entry.tsx'), 'utf8')
+    for (const m of ENTRY_MARKERS as string[]) expect(entry).toContain(m)
+    const files = appSourceFiles(path.join(webDir, 'src'))
+    const bad = files.filter((f) => (ENTRY_MARKERS as string[]).some((m) => fs.readFileSync(f, 'utf8').includes(m)))
+    expect(bad.map((f) => path.relative(webDir, f))).toEqual([])
+    for (const f of ['index.html', 'vite.config.ts']) {
+      const t = fs.readFileSync(path.join(webDir, f), 'utf8')
+      for (const m of ENTRY_MARKERS as string[]) expect(t).not.toContain(m)
+    }
+  })
+
+  it('92- 음성 대조: 진입 파일 내용이 든 번들 폴더는 검사가 잡고(표지 모두), 빼면 0', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ondolog-entry-check-'))
+    try {
+      fs.mkdirSync(path.join(dir, 'assets'))
+      const entry = fs.readFileSync(path.join(webDir, 'smoke', 'entry.tsx'), 'utf8')
+      fs.writeFileSync(path.join(dir, 'assets', 'index-abc123.js'), `console.log(1);${entry}`)
+      fs.writeFileSync(path.join(dir, 'index.html'), '<script src="./assets/index-abc123.js"></script>')
+      const hits = scanForMarkers(dir, ENTRY_MARKERS) as { file: string; marker: string }[]
+      expect(new Set(hits.map((h) => h.marker))).toEqual(new Set(ENTRY_MARKERS as string[]))
+      fs.writeFileSync(path.join(dir, 'assets', 'index-abc123.js'), 'console.log(1)')
+      expect(scanForMarkers(dir, ENTRY_MARKERS)).toEqual([])
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

@@ -11,6 +11,74 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `92-` (E0) 13지면 넘침 · 잘림 · 겹침 → 되받기 / 실패 / 틀 축소 · 스모크 진입 파일 운영 번들 검사 (메인 세션, 2026-11-24, 위임문 `phase-7/92-dispatch-overset-all-pages-smoke-bundle.md` · ROADMAP r156 R152-2 · R154-5 · R155-6 · R29-3) - 완료 · 멈춤 1(덩어리 판면 이탈 - 물은 뒤 PM 답대로 렌더러 임시 CSS) · 렌더 · 게이트 스크립트만 (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-24-r156` - 통과. LLM 0 · 서버 0 · 원격 0 · 마이그레이션 0 · 앱 화면 0 · 틀(`render/issue/`) 0.
+
+### 검사 종류와 판정 자리 (공통 - `render/page_audit.py`)
+
+| 종류 | 판정(파일:줄) | 92- 전 | 92- 뒤 |
+|---|---|---|---|
+| overflow 지면 밖 | `AUDIT_JS` :73 | 기록만 | 항목 지면 = 되받기 · 그 밖 = 실패 |
+| safe 판면 이탈 | `EXTRA_JS` :136 | 기록만 | 같음 |
+| overset 상자 넘침 | `AUDIT_JS` :94 (+원문 슬롯 `mark_original_overset`) | 원문 = 되받기/실패 · 온도록만 = 기록만 | 항목 지면 = 되받기 · 그 밖 = 실패(원문은 전처럼) |
+| overlap · text-overlap 겹침 | :104 · :161 | 기록만 | 항목 지면 = 되받기 · 그 밖 = 실패 |
+| clipped `.clamp*` 잘림 | :174 | 원문 = 실패 · 온도록 = 기록만 | 원문 = 실패 · 온도록 = 틀 축소(README §12 안전망 표) |
+| **hidden** clamp 밖 숨김 잘림(새) | :185 | **잡지 못함** | 원문 슬롯 = 실패 · `.ai-txt` 말줄임 · 발행 노트 막대 = 틀 축소 · 그 밖 = 실패 |
+
+처리 길 한 곳: `page_audit.route` :275 · 지면별 수 `overset_by_page` :295 · 항목 지면 판정 `render_feedback.has_items` :79 · 되받기로 보냄 `render_feedback.py:192`(`feedbackPages`) · 실패 사유 `render_issue.gate_failure` :737(`blocked` :754 · `feedbackLeft` :758 - 지면 · 칸 종류만) · 지면별 길 `audit_summary` :783~:802.
+
+### 13지면 표 (전 → 후)
+
+| 지면 | 옮길 항목 | 숨김 · clamp 칸(틀 CSS) | 원문/AI | 넘침 · 겹침 결과(전 → 후) | 잘림 결과(전 → 후) | 시험 |
+|---|---|---|---|---|---|---|
+| cover-photo | 없음 | `@cover.headline` clamp2 | AI(이 달의 말로 바뀐 호는 원문 - 실패) | 기록만 → 실패 | 원문 실패 · AI 기록만 → 원문 실패 · AI 틀 축소 | AllPages · Clipping |
+| cover-type | 없음 | `@cover.headline` clamp3 | 같음 | 기록만 → 실패 | 같음 | 같음 |
+| contents | 없음 | 없음 | - | 기록만 → 실패 | - | AllPages |
+| note | 없음 | 출처 막대 두 칸 `overflow:hidden;nowrap`(note.html:51-57) | 계산 글자(%) | 기록만 → 실패 | 잡지 못함 → 틀 축소 | AllPages · `test_note_ratio_bar_label_hidden_shrinks` |
+| da-opener | 없음 | `@da.lead` clamp2 · 대표 기사 제목 clamp2 | AI | 기록만 → 실패 | AI 기록만 → 틀 축소 | AllPages · Clipping |
+| da-timeline | 구간(tl) | 없음 | 원문 메모 | 원문 상자만 되받기 · 나머지 기록만 → 모두 되받기(못 풀면 실패) | - | AllPages · `test_feedback_pages_end_in_failure_when_no_item_can_move` |
+| da-places | 없음 | `@da.routeHeadline` clamp1 · 질문 `.text` clamp3 | AI 제목 · `.text`는 원문 슬롯 목록(R29-3) | 기록만 → 실패 | 원문 실패 · AI 기록만 → 원문 실패 · AI 틀 축소 | AllPages · `test_original_question_text_clamp_fails_the_render` |
+| da-article | 글만 기사 구간(as) · 사진 메모(ph) | 기사 제목 clamp2 · `.aiCaption` clamp3 | AI | 기록만 → 되받기(못 풀면 실패) | AI 기록만 → 틀 축소 | AllPages · Clipping |
+| sw-opener | 없음 | 없음 | - | 기록만 → 실패 | - | AllPages |
+| sw-quotes | 대화(qt) | 없음 | 원문 | 88-b (b) 되받기 · 나머지 기록만 → 모두 되받기(못 풀면 실패) | - | AllPages |
+| tm-lead | 없음 | `payload.theme.headline` clamp2 | AI | 기록만 → 실패 | AI 기록만 → 틀 축소 | AllPages · Clipping |
+| tm-articles | 없음 | 제목 clamp2 · 본문 clamp4 · 사진 위 `.ai-txt` 말줄임(tm-articles.html:38) | AI | 기록만 → 실패 | clamp AI 기록만 → 틀 축소 · `.ai-txt` 잡지 못함 → 틀 축소 | AllPages · `test_ai_caption_ellipsis_is_detected_as_hidden_and_shrinks` |
+| back | 없음 | `@back.closing` clamp2 | 고정 문구 | 기록만 → 실패 | 기록만 → 틀 축소 | AllPages · Clipping |
+
+**기록만 = 0**(13지면 모두). 기록만 남는 것은 넘침 밖 기준(대비 · 활자 크기 · 깨진 그림)뿐이다.
+원문 칸을 틀이 줄여 보이는 곳: **da-places `.text` clamp3**(원문 슬롯 목록 `ORIGINAL_SLOTS`에 든 칸 - 잘리면 렌더 실패, 지금도 그랬다) · 표지 표제가 이 달의 말로 바뀐 호의 `@cover.headline` clamp2/3(잘리면 실패 - `clipped_original_slots`). 그 밖 clamp는 모두 AI · 고정 문구.
+AI 칸 상한(84-c · 코너 스키마/프롬프트): 데이트 기사 제목 20자(`dateArchive.ts:79` 스키마) · 구간 AI 캡션 30자 · 이달의 우리 headline 16자 · 소기사 제목 20자 · closing 42자. batch4의 40자 제목은 디자인 대조 견본(상한 밖)이라 clamp(틀 축소) 1건이 그대로 난다.
+**찾은 것**: 띄어쓰기 없는 긴 덩어리는 위치가 정해진 상자(왼쪽만 정한 `.ab`)를 가장 긴 덩어리 폭만큼 넓혀 clamp가 아니라 판면 밖 넘침(overflow · safe)으로 나타난다 - 92- 뒤에는 그것도 실패로 간다(`test_unbreakable_chunk_in_a_clamp_box_overflows_and_fails_not_recorded`).
+
+### 바꾼 곳
+
+- `render/page_audit.py`: hidden 검사(:185) · `route`(:275) · `overset_by_page`(:295) · 머리말.
+- `render/render_feedback.py`: `has_items`(:79) · 첫 그림 `oversetByPage`를 요약에(`summarize`) · `feedbackPages`를 되받기 대상에(:192).
+- `render/render_issue.py`: `audit_summary`에 `oversetByPage` · `blocked` · `feedbackPages` · `feedbackLeft`(:783~:802) · `gate_failure` 사유 둘(:754 · :758) · 올림 보고 · `--local-only` 요약에 `oversetByPage` · 멈춤 한 줄 종류 둘 · **92- 개발 임시 CSS `DEV_TEMP_CSS_92`(:418, 작업 폴더 `base.css` 사본 끝에만 :439)**.
+- `render/tests/test_88_v124.py`: 작업 폴더 `base.css` = 틀 + `DEV_TEMP_CSS_92` 한 덩어리.
+- `render/tests/test_88b_feedback.py`: 요약 비교에 `oversetByPage: []` 한 칸.
+- 새 시험 `render/tests/test_92_overset_routes.py`.
+- `web/smoke/markers.mjs` `ENTRY_MARKERS` · `web/smoke/run.mjs` 3c · `web/src/app/smokeIsolation.vitest.ts` 두 시험.
+
+`oversetByPage` 모양(숫자 · 지면 이름 · 종류만): `[{"n": 3, "stem": "note", "found": {"overflow": 1, "safe": 1}, "feedback": 0, "fail": 2, "shrink": 0}]` - 결과가 없는 지면은 넣지 않는다. 자리: `audit.json`(마지막 그림) · `renderFeedback.oversetByPage`(첫 그림) · 올림 보고 · `--local-only` 한 줄.
+
+### 멈춤 1 — 띄어쓰기 없는 덩어리의 판면 이탈 (PM 답: 렌더러 임시 CSS · 판정 예외 0)
+
+- 찾은 것: 92- 규칙 뒤 88-b 덩어리 견본 시험 3개가 실패 - 타임라인 메모의 `ㅋ`×34 · 긴 주소가 칸 끝에서 꺾이지 않고 판면 오른쪽을 약 33px 넘었다(759 > 726.5, 종이 안 · 잘림 없음). 92- 전에는 safe 기록만이었다.
+- 원인(틀): 위치를 왼쪽만 정한 상자 · 줄 안 상자는 칸 너비를 가장 긴 덩어리 폭(min-content)으로 잡는데, `base.css` body `overflow-wrap:break-word`는 그 폭을 줄이지 않는다.
+- 처리(PM 답): 틀은 고치지 않고 렌더러 임시 CSS `DEV_TEMP_CSS_92`(`render_issue.py:418`) - 덩어리가 칸 밖으로 나가던 **사람 · 온도록 글 칸**에만 `overflow-wrap:anywhere`: `.userNotes[0].text` · `.text` · `.basis` · `payload.theme.headline` · `.value` · `@issue.names` · `@issue.nickname`. keep-all 그대로. safe 판정 예외 0 - 임시 CSS 뒤에도 남는 넘침은 되받기 · 실패.
+- 덩어리 탐침(13지면 · 시험 호 4권 · 덩어리 3종을 글 칸마다): 임시 CSS 뒤 칸 안에 들어옴 = 타임라인 메모 · 표지 이름 · 별명 · 데이트 질문 `.text` · `.basis`(부분). 처음부터 이상 없음 = 인용 턴 · 단문 · 기사 메모 · 사진 아래 메모 · 근거 줄 · 표지 이 달의 말.
+- **임시 CSS로도 남는 칸(틀 결함 - 실패로 감)**: `back.html:26-29` 꼬리 상자(`left:0;right:0` 지면 전폭 - 별명 · 이름 · `@back.closing`) · `tm-lead.html:19-22` 표제 상자(`.ab` 왼쪽만 · 폭 없음 - `payload.theme.headline`) · `tm-lead.html:29-33` 요약 수치(`flex:none` - `.value`) · 계산 값 칸(쪽 번호 · 수 · 시각 - 덩어리가 들어올 길 없음, 탐침에서만). `tm-articles .photoAiCaption`은 말줄임(hidden - 틀 축소).
+- 시험: 88-b 덩어리 시험 3개 기대 그대로 통과 · `ChunkWrap` 2개(덩어리 메모가 칸 안에서 꺾임 · 예측을 낮춰 꺾인 줄이 예측보다 높으면 되받기가 잡음).
+
+### 시험 · 검증
+
+- 새 시험 `render/tests/test_92_overset_routes.py` 19개 - Routes 6(처리 길 표 · 사유에 원문 · id 0) · AllPages 3(13지면 넘침 견본 · 겹침 견본 · 항목 지면 넘침이 못 풀리면 FeedbackStop) · Clipping 7(clamp 칸 전부 · 덩어리는 넘침으로 실패 · da-places `.text` 원문 잘림 실패 · `.ai-txt` 말줄임 틀 축소 · 발행 노트 막대 틀 축소 · 틀 밖 숨김 실패) · CleanVolumes 1(photo · type · edge · batch4 실패 0 · 되받기 0) · ChunkWrap 2.
+- 렌더 시험 전체 **425 통과(1586초)**. 시험 호 11권(photo · type · skip · vol1~5 · edge · batch4) 92- 전 기준선 대비 **지면 HTML 바이트 · 되받기 요약 · 검사 결과 모두 같음**(batch4 = 디자인 대조 40자 제목 clamp 1건 - 틀 축소).
+- `npm run gate` **169.4초 통과**(web tsc 10.2초 · Vitest 1281 + 1 · 법무 8/8 · smoke 44/44 · 새 줄 "진입 파일 0 / 스모크 결과물 진입 파일 있음 / 출시 빌드 진입 파일 0").
+- ④ 번들 검사: `web/smoke/markers.mjs:35` `ENTRY_MARKERS`(`__ONDOLOG_SMOKE_TABLES__` · `__ONDOLOG_SMOKE_RPC__` - `entry.tsx`에만) · `web/smoke/run.mjs:64 · :69`(시험 빌드 0) · `:73-75`(스모크 결과물에 모두 - 실제 번들 음성 대조) · `:82 · :85`(출시 빌드 0) · `web/src/app/smokeIsolation.vitest.ts:54`(그 파일에만 · 앱 코드 0) · `:66`(진입 파일 내용을 넣은 번들 폴더는 잡고 빼면 0).
+
 ## `90-` 해제 받은 쪽 유예 화면(H14) 한 번 - 앱이 켜진 동안 상태가 바뀌어도 (메인 세션, 2026-11-24, 위임문 `phase-7/90-dispatch-dissolution-notice-partner.md` · ROADMAP r153 R153-2 · R153-4 · R117-2 · R119-5) - 완료 · 멈춤 1(입력 보호 - 물은 뒤 PM 답대로 진행) · 앱(web)만 · 서버 · LLM · 마이그레이션 · 푸시 0 (미커밋)
 
 시작 확인: `DOC_REVISION: 2026-11-24-r153` - 통과.
