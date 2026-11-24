@@ -24,6 +24,7 @@ from typing import Any, Optional
 sys.dont_write_bytecode = True
 
 from heights import ARTICLE_STOPS_CAPACITY, article_stop_height, photo_caption_fits  # noqa: E402
+import measured  # noqa: E402  (88-b 렌더 되받기 - 그린 결과로 잰 높이)
 
 UNNAMED_PLACE = '이름을 남기지 않은 곳'   # R50-3
 PHOTOS_PER_STOP = 3                       # CORNER_LAYOUT §3-1 "4 이상은 상위 3장만"
@@ -158,7 +159,8 @@ def article_photo_view(article: dict) -> tuple:
         memos = memo_notes(stop)
         caption = _caption_of(stop)
         for k, photo in enumerate(valid_photos(stop)):
-            item = {'path': photo['path'], 'caption': '', 'authorName': '', 'aiCaption': '', '_memo': None}
+            item = {'path': photo['path'], 'caption': '', 'authorName': '', 'aiCaption': '', '_memo': None,
+                    '_fbKey': f'ph:{measured.article_key(article)}:{len(out)}'}   # 88-b 되받기 열쇠(지면에 그리지 않는 칸)
             if k == 0 and memos:
                 item['_memo'] = memos[0]
             elif k == 0 and caption:
@@ -170,7 +172,8 @@ def article_photo_view(article: dict) -> tuple:
         memo = item.pop('_memo')
         if memo is None:
             continue
-        if photo_caption_fits(memo['text'], len(out)):
+        # 88-b: 그린 결과 칸에 들어가지 않았던 메모는 기존 길(D5)로 - 싣지 않고 발행 노트에(옮길 수 없는 칸 · 원문을 자르지 않는다)
+        if photo_caption_fits(memo['text'], len(out)) and not measured.unfit(item['_fbKey']):
             item['caption'] = memo['text']
             author = memo.get('authorName')
             item['authorName'] = author if isinstance(author, str) else ''
@@ -192,7 +195,8 @@ def article_stops_view(article: dict) -> tuple:
     반환: (실린 구간 보기 목록, 싣지 못한 원본 구간 목록).
     """
     shown, dropped, used = [], [], 0.0
-    for s in as_list(article.get('stops')):
+    akey = measured.article_key(article)
+    for n_s, s in enumerate(as_list(article.get('stops'))):
         if not isinstance(s, dict):
             continue
         memos = memo_notes(s)
@@ -201,13 +205,14 @@ def article_stops_view(article: dict) -> tuple:
             dropped.append(s)
             continue
         place = place_label(s)   # 84-d2(R138-4) - 이름 없는 경유지도 줄을 빼지 않고 UNNAMED_PLACE로 싣는다(README v1.2.3 §10 ① 확정). 높이도 그 글자로 잰다
-        h = article_stop_height(memos[0]['text'] if memos else None, caption, place)
+        key = f'as:{akey}:{n_s}'
+        h = measured.bump(key, article_stop_height(memos[0]['text'] if memos else None, caption, place))   # 88-b 되받기
         if used + h > ARTICLE_STOPS_CAPACITY:
             dropped.append(s)
             continue
         used += h
         shown.append({'time': hhmm_of(s.get('time')), 'placeName': place, 'userNotes': memos,
-                      'aiCaption': caption or None})
+                      'aiCaption': caption or None, '_fbKey': key})
     return shown, dropped
 
 

@@ -17,6 +17,13 @@ service_role 키 (CLAUDE.md 절대 규칙 7): 환경변수 `ONDOLOG_SUPABASE_URL
 
 사용 (저장소 루트에서):
     render/.venv/Scripts/python.exe render/render_issue.py --issue-id <uuid>
+    render/.venv/Scripts/python.exe render/render_issue.py --local-only --issue-id <uuid> --out <저장소 밖 폴더>   (88-b 읽기 전용 - 아래)
+
+88-b(R150-3 · R150-4):
+- 렌더 되받기(`render_feedback.py`): 원문 상자가 넘친 지면이 나오면 그 지면의 항목을 실제로 재어 다시 나눠 다시 그린다(최대 2번). 두 모드 공통.
+- `--local-only`: **읽기 전용 로컬 렌더** - 발행된 호도 받는다(이 모드에서만 "이미 발행된 호" 거부를 건너뜀). 업로드 0 · 행 변경 0 · 쓰는 호출 0:
+  읽기 함수 셋만 가진 `ReadOnlyApi`만 받고(`render_local`), 업로드 경로(`upload_render`)는 이 모드에서 부르지 않는다. 출력은 `--out`(저장소 밖만).
+  화면에는 쪽 수 · 되받기 숫자 · 넘침 0 여부 · 걸린 시간만(호 id · 사용자 · 커플 · 주소 · 키 · 서명 URL 0).
 산출은 `render/out/<issue_id>/`(추적 안 함)에 남고, 같은 PDF·이미지가 버킷에도 올라간다.
     issue.pdf · page-NN.jpg · audit.json(지면 검사) · compose.json(지면 구성·문장 출처 근거)
 """
@@ -46,6 +53,7 @@ REPO = HERE.parent
 sys.path.insert(0, str(HERE))
 
 from compose import ComposeError, Composition, PageSpec, choose_variant, compose_issue  # noqa: E402
+from render_feedback import FeedbackStop, render_with_feedback  # noqa: E402
 from page_audit import (  # noqa: E402
     audit_page, compare_with_design, design_audit_js, mark_original_overset, original_clipped, original_overset, recorded_clipped,
 )
@@ -254,6 +262,34 @@ def _in(ids: list[str]) -> str:
 
 def _chunks(values: list[str], size: int = 100) -> list[list[str]]:
     return [values[i:i + size] for i in range(0, len(values), size)]
+
+
+class ReadOnlyApi:
+    """88-b `--local-only`가 받는 유일한 클라이언트 - **읽기 함수 셋만**(select · select_all · storage_get). 쓰는 함수(update · storage_put ·
+    storage_remove · storage_list(목록은 업로드 전에만 씀))는 속성 자체가 없어, 잘못 불려도 쓰기 전에 AttributeError로 멈춘다."""
+
+    READ_METHODS = ('select', 'select_all', 'storage_get')
+
+    def __init__(self, api: Any) -> None:
+        self._api = api
+
+    def select(self, table: str, query: str) -> list[dict[str, Any]]:
+        return self._api.select(table, query)
+
+    def select_all(self, table: str, query: str, page: int = 1000) -> list[dict[str, Any]]:
+        return self._api.select_all(table, query, page)
+
+    def storage_get(self, bucket: str, path: str) -> Optional[bytes]:
+        return self._api.storage_get(bucket, path)
+
+
+def assert_outside_repo(out: Path) -> Path:
+    """`--out`은 저장소 밖 폴더만(사진 원본 · PDF · PNG가 git 근처에 남지 않게). 저장소 자체 · 그 안이면 멈춘다."""
+    resolved = Path(out).expanduser().resolve()
+    repo = REPO.resolve()
+    if resolved == repo or repo in resolved.parents:
+        raise StopError('--out은 저장소 밖 폴더여야 한다')
+    return resolved
 
 
 def collect_materials(api: Any, issue: dict[str, Any], couple: dict[str, Any]) -> dict[str, int]:
@@ -742,8 +778,10 @@ def connect() -> tuple[Api, str, list[str]]:
     return Api(url, key), ref, [key]
 
 
-def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpeg_quality: int = JPEG_QUALITY,
-                 say=print) -> dict[str, Any]:
+def compose_and_draw(api: Any, issue_id: str, out: Path, allow_published: bool, image_width: int = IMAGE_WIDTH_PX,
+                     jpeg_quality: int = JPEG_QUALITY, say=print) -> dict[str, Any]:
+    """읽기 + 지면 짜기 + 그리기(되받기 포함) + 로컬 파일. **원격에 쓰지 않는다**(`api`에서 select · select_all · storage_get만 부른다).
+    `allow_published`는 88-b `--local-only`만 참 - 다른 모드의 "이미 발행된 호" 거부는 그대로다."""
     issues = api.select('issues', f'select=*&id=eq.{urllib.parse.quote(issue_id)}')
     if not issues:
         raise StopError(f'없는 호다 ({issue_id})')
@@ -754,31 +792,44 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
     couple = couples[0]
     if not has_test_mark(couple.get('nickname')):
         raise StopError(f"렌더 명령은 시험 커플에만 돈다 - couples.nickname에 '{TEST_MARK}'가 없다 (couple {couple['id']})")
-    if issue.get('published_at') is not None:
+    if issue.get('published_at') is not None and not allow_published:
         raise StopError(f'이미 발행된 호다 - 렌더는 발행 전에 한 번이다 ({issue_id})')
 
     corners = api.select('corners', f'select=*&issue_id=eq.{issue_id}&order=seq.asc')
+    if allow_published:
+        # 발행된 호의 코너는 status가 published다(022 fn_publish_issue) - 읽기 전용 렌더는 그 내용을 그대로 ready로 보고 짠다(행은 바꾸지 않는다)
+        corners = [{**c, 'status': 'ready'} if c.get('status') == 'published' else c for c in corners]
     if not any(c.get('status') == 'ready' for c in corners):
         raise StopError(f'ready 코너가 없어 지면을 만들지 않는다 ({issue_id})')
     dpi = read_digital_dpi(api)   # 74-h5b - 읽지 못하면 여기서 멈춘다(작업 폴더를 만들기 전)
+    names = couple_names(api, couple)
+    materials = collect_materials(api, issue, couple)
+
+    work = out / 'work'
+    templates = load_templates()
+    photo_box: dict[str, Any] = {}
+
+    def compose_fn() -> Composition:
+        return compose_issue(issue, couple, names, corners, materials)
+
+    def draw(comp: Composition) -> tuple:
+        prepare_work(work)
+        settle_cover(comp, templates, work, say)
+        files = build_pages(comp, templates, work, issue, lambda dest: api.storage_get(MAGAZINE_BUCKET, dest))
+        photo_box['report'] = fit_photos(files, work, dpi)
+        results = render_pages(files, image_width, jpeg_quality)
+        return files, results, audit_summary(comp, results, issue_id)
 
     try:
-        composition = compose_issue(issue, couple, couple_names(api, couple), corners, collect_materials(api, issue, couple))
+        composition, files, results, audit_pre, feedback = render_with_feedback(compose_fn, draw, say=say)
     except ComposeError as e:
         raise StopError(f'지면을 짤 수 없다: {e}') from None
+    except FeedbackStop as e:
+        raise StopError(f'렌더 되받기로 넘침을 풀지 못했다: {e}') from None
+    composition.report['renderFeedback'] = feedback   # 88-b - 숫자만(되받기 횟수 · 종류별 옮김 · 싣지 않음)
     note_measure_env(composition, say)
 
-    out = OUT_ROOT / issue_id
-    work = out / 'work'
-    prepare_work(work)
-    templates = load_templates()
-    settle_cover(composition, templates, work, say)
-    files = build_pages(composition, templates, work, issue, lambda dest: api.storage_get(MAGAZINE_BUCKET, dest))
-    photo_report = fit_photos(files, work, dpi)
-
-    results = render_pages(files, image_width, jpeg_quality)
     pdf, page_counts = merge_pdf([r['pdf'] for r in results])
-    audit_pre = audit_summary(composition, results, issue_id)
     failure = gate_failure(audit_pre, issue_id)   # 원문이 잘리거나 원문 상자가 넘친 지면은 만들지 않는다(R29-3 · R49-1) - 운영자가 본다
     if failure:
         raise StopError(failure)
@@ -799,13 +850,28 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
     image_names = [ascii_name(f'page-{i:02d}.jpg') for i in range(1, len(images) + 1)]
     for name, img in zip(image_names, images):
         (out / name).write_bytes(img)
-    audit = audit_pre
-    (out / 'audit.json').write_text(json.dumps(audit, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    (out / 'audit.json').write_text(json.dumps(audit_pre, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (out / 'compose.json').write_text(json.dumps({
         'issueId': issue_id, 'report': composition.report, 'sentences': composition.sentences,
         'shownPhotos': composition.shown_photos,
     }, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    sizes = size_report(pdf, images, photo_report)
+    return {'issue': issue, 'composition': composition, 'audit': audit_pre, 'pdf': pdf, 'pdfName': pdf_name, 'images': images,
+            'imageNames': image_names, 'photoReport': photo_box.get('report', {}), 'feedback': feedback}
+
+
+def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpeg_quality: int = JPEG_QUALITY,
+                 say=print) -> dict[str, Any]:
+    """초안 호 하나를 렌더하고 올린다(운영자 명령 3). 발행된 호는 거부한다."""
+    out = OUT_ROOT / issue_id
+    drawn = compose_and_draw(api, issue_id, out, allow_published=False, image_width=image_width, jpeg_quality=jpeg_quality, say=say)
+    return upload_render(api, issue_id, out, drawn, say)
+
+
+def upload_render(api: Api, issue_id: str, out: Path, drawn: dict[str, Any], say=print) -> dict[str, Any]:
+    """버킷 업로드 + issues 세 필드 - **쓰는 경로는 여기 한 곳**. `--local-only`는 이 함수를 부르지 않는다."""
+    issue, composition, audit = drawn['issue'], drawn['composition'], drawn['audit']
+    pdf, pdf_name, images, image_names = drawn['pdf'], drawn['pdfName'], drawn['images'], drawn['imageNames']
+    sizes = size_report(pdf, images, drawn['photoReport'])
     say(json.dumps({'sizes': sizes}, ensure_ascii=False))
     assert_pdf_within_limit(pdf)   # 74-h5b ④ - 업로드 전에 멈춘다(로컬 산출물은 위에 남아 운영자가 본다)
 
@@ -840,6 +906,7 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
                     # R84-1 · R84-2 - 숫자만(날짜 · id · 파일 이름 없음): 뺀 기사 수 · 대표 사진을 대체 규칙으로 정한 기사 수
                     'droppedArticles': composition.report['droppedArticles'],
                     'heroFallbackArticles': composition.report['heroFallbackArticles']},
+        'renderFeedback': drawn['feedback'],   # 88-b - 숫자만
         'measureEnvWarnings': composition.report.get('measureEnvWarnings', []),   # 84-d2 R138-2 ① - 높이 표를 잰 환경과 다르면 경고(멈춤 아님)
         'sizes': sizes,
         'bucketPaths': [f'{folder}/{pdf_name}'] + [f'{folder}/{n}' for n in image_names],
@@ -849,21 +916,91 @@ def render_issue(api: Api, issue_id: str, image_width: int = IMAGE_WIDTH_PX, jpe
     return report
 
 
+def local_summary(drawn: dict[str, Any], seconds: float) -> dict[str, Any]:
+    """88-b `--local-only` 화면 요약 - 숫자만(호 id · 사용자 · 커플 · 주소 · 키 · 서명 URL · 원문 0). 비교용으로 발행본 쪽 수(issues 행 읽기)도 숫자로."""
+    comp, audit = drawn['composition'], drawn['audit']
+    stems = [p.stem for p in comp.pages]
+    note = next((p.computed.get('note', {}) for p in comp.pages if p.stem == 'note'), {})
+    return {
+        'pageCount': len(drawn['images']),
+        'publishedPageCount': drawn['issue'].get('page_count'),
+        'timelinePages': comp.report.get('timelinePages'),
+        'quotePages': comp.report.get('quotePages'),
+        'quotesShown': sum(len(p.corner['payload']['main']) for p in comp.pages if p.stem == 'sw-quotes'),
+        'notUsedLines': len([x for x in note.get('notUsed', []) if x != '모두 실었습니다']),
+        'coverHeadlineFrom': comp.report.get('coverHeadlineFrom'),
+        'coverQuoteRemoved': comp.report.get('coverQuoteRemoved'),
+        'renderFeedback': drawn['feedback'],
+        'originalOverset': len(audit['originalOverset']),
+        'originalClipped': len(audit['originalClipped']),
+        'seconds': round(seconds, 1),
+    }
+
+
+def render_local(api: ReadOnlyApi, issue_id: str, out: Path, image_width: int = IMAGE_WIDTH_PX, jpeg_quality: int = JPEG_QUALITY,
+                 say=print) -> dict[str, Any]:
+    """88-b 읽기 전용 로컬 렌더 - 발행된 호도 받는다 · 업로드 0 · 행 변경 0 · 출력은 저장소 밖 `out`만. `upload_render`를 부르지 않는다."""
+    import time as _time
+
+    if not isinstance(api, ReadOnlyApi):
+        raise StopError('읽기 전용 렌더는 ReadOnlyApi만 받는다')
+    out = assert_outside_repo(out)
+    out.mkdir(parents=True, exist_ok=True)
+    t0 = _time.monotonic()
+    drawn = compose_and_draw(api, issue_id, out, allow_published=True, image_width=image_width, jpeg_quality=jpeg_quality,
+                             say=lambda s: None)   # 중간 줄(표지 정리 등)도 화면에 내지 않는다 - 숫자 요약만
+    summary = local_summary(drawn, _time.monotonic() - t0)
+    say(json.dumps(summary, ensure_ascii=False))
+    return summary
+
+
+LOCAL_STOP_KINDS = (
+    ('되받기', '렌더 되받기로도 원문 상자 넘침을 풀지 못했다'),
+    ('원문이 지면에서 잘렸다', '원문이 지면에서 잘렸다'),
+    ('원문 필드가 든 상자가', '원문 상자가 판면을 넘었다'),
+    ('지면을 짤 수 없다', '지면을 짤 수 없다(한 항목이 한 면보다 큼 등)'),
+    ('이미 발행된 호', '이미 발행된 호'),
+    ('없는 호', '호를 찾지 못했다'),
+    ('시험 커플', '시험 커플이 아니다'),
+    ('--out', '--out은 저장소 밖 폴더여야 한다'),
+)
+
+
+def local_stop_line(message: str) -> str:
+    """`--local-only` 멈춤 한 줄 - 종류만(호 id · 원문 · 장소 · 정황 글 0). 자세한 사유는 `--out`의 audit.json(저장소 밖)에서 사람이 본다."""
+    for needle, line in LOCAL_STOP_KINDS:
+        if needle in message:
+            return line
+    return '렌더를 멈췄다'
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description='초안 호를 디지털 PDF + 페이지 이미지로 렌더한다(진짜 지면).')
     parser.add_argument('--issue-id', required=True)
     parser.add_argument('--image-width', type=int, default=IMAGE_WIDTH_PX)
     parser.add_argument('--jpeg-quality', type=int, default=JPEG_QUALITY)
+    parser.add_argument('--local-only', action='store_true', help='88-b 읽기 전용 로컬 렌더(발행된 호도 받음 · 업로드 0 · 행 변경 0)')
+    parser.add_argument('--out', help='--local-only 출력 폴더(저장소 밖만)')
     args = parser.parse_args(argv)
+    if args.local_only and not args.out:
+        parser.error('--local-only에는 --out(저장소 밖 폴더)이 필요하다')
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
     secrets: list[str] = []
     try:
         api, ref, secrets = connect()
         print(redact(f'접속 대상: 개발 프로젝트 {DEVELOPMENT_PROJECT_NAME} - 확인됨 (프로젝트 ref는 출력하지 않는다)', secrets))
-        render_issue(api, args.issue_id, args.image_width, args.jpeg_quality, say=lambda s: print(redact(s, secrets)))
+        if args.local_only:
+            # 88-b - 읽기 함수 셋만 가진 감싸개만 넘긴다(쓰는 경로 `upload_render`는 이 갈래에 없다)
+            render_local(ReadOnlyApi(api), args.issue_id, Path(args.out), args.image_width, args.jpeg_quality,
+                         say=lambda s: print(redact(s, secrets)))
+        else:
+            render_issue(api, args.issue_id, args.image_width, args.jpeg_quality, say=lambda s: print(redact(s, secrets)))
     except StopError as e:
-        print(redact(f'멈춤: {e}', secrets), file=sys.stderr)
+        if args.local_only:
+            print(redact(f'멈춤: {local_stop_line(str(e))}', secrets), file=sys.stderr)
+        else:
+            print(redact(f'멈춤: {e}', secrets), file=sys.stderr)
         return 2
     return 0
 

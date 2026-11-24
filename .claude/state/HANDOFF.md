@@ -11,6 +11,54 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `88-b` 렌더 되받기 · 읽기 전용 로컬 렌더 (메인 세션, 2026-11-24, 위임문 `phase-7/88-b-dispatch-render-feedback-local-render (1).md` · ROADMAP r150 R150-2~5) - 완료 · 멈춤 0 · 실행은 Proteur (미커밋)
+
+- 되받기(`render/render_feedback.py` · `measured.py`): 그린 뒤 항목 지면(타임라인 · 인용 · 글만 있는 기사 · 사진 기사)의 항목이 차지한 자리를 Chromium에서 잰다. (a) originalOverset 지면 (b) 잰 합 > 그 섹션 가용 높이(지면 짜기와 같은 값) + 예측보다 큰 항목 (c) 사진 아래 메모가 판면 아래(1047)를 넘음 -> 예측보다 큰 항목만 잰 높이로 바꿔 끼워 다시 짜고 그림 · 최대 2번 · 못 풀면 실패(종류 · 횟수만). 옮길 수 없는 사진 아래 메모 칸 = 기존 D5 길(싣지 않고 발행 노트). 한 면보다 큰 항목 = 지금 규칙(타임라인 · 인용 실패 / 글만 있는 기사 싣지 않음). 열쇠 `_fbKey`(compose.py:429 · :628 · facts.py:163 · :209)는 HTML에 나오지 않음.
+- **찾은 것**: 인용면 넘침은 지면 검사의 overset(원문)에 안 걸린다(overflow · overlap만) - 지금 gate가 못 막던 길. (b)가 잡는다(과소 견본 짝수 턴 4개 권: 되받기 1번 · 대화 1개 옮김 · 넘침 0).
+- 읽기 전용: `render/.venv/Scripts/python.exe render/render_issue.py --local-only --issue-id $iid --out <저장소 밖>` - `ReadOnlyApi`(render_issue.py:267, select · select_all · storage_get만) · 발행된 호 허용은 이 모드만(:795) · published 코너는 메모리에서만 ready로(:801) · 업로드는 `upload_render`(:870) 한 곳, 이 갈래에 없음 · `--out` 저장소 안 거부(:286) · 화면은 숫자 요약만 · 멈춤은 종류 한 줄(:969).
+- 시험 `render/tests/test_88b_feedback.py` 24 통과(Loop 5 · Overrides 7 · Rendered 5 · LocalOnly 7). 시드 8권 되받기 0 · 넘침 0 · HEAD 대비 지면 HTML 바이트까지 같음 · vol3-fail 그대로 실패.
+- 검증: 렌더 시험 전체 **407 통과**(814초) · `npm run gate` **162.6초** 통과(Vitest 1264 + 1 · 법무 8/8 · smoke 42/42).
+
+### 88-b 실행 명령 (Proteur · 시작 메뉴 PowerShell · 저장소 맨 위 · **한 창** · 한 줄씩) — 읽기 전용 로컬 렌더 두 번
+
+쓰는 것: 원격 **0**(읽기만 - `ReadOnlyApi`) · 출력은 저장소 밖 `%USERPROFILE%\ondolog-local-render\…`. LLM 0.
+
+**1) 창 준비 · 보안 입력** (키는 기존 렌더용 **`render_2026_11`** - 새 키를 만들지 않는다):
+```
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+function m { process { "$_" -replace '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}','<id>' -replace '[\w.+-]+@[\w-]+\.[\w.-]+','<email>' } }
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+$out = Join-Path $env:USERPROFILE 'ondolog-local-render'
+```
+→ `True`일 때만 다음으로.
+
+**2) 호 고르기** (id를 화면에 찍지 않는다 - 변수에만. 발행 때 남은 로컬 결과 파일 `scripts\ops\out\publish-*.json`에서):
+```
+$pub = Get-ChildItem scripts\ops\out\publish-*.json | Sort-Object LastWriteTime | ForEach-Object { Get-Content $_ -Raw -Encoding UTF8 | ConvertFrom-Json }
+$gcid = ((Get-Content scripts\ops\out\seed-m2b-2025.json -Raw -Encoding UTF8 | ConvertFrom-Json).couples | Where-Object { $_.label -eq 'G' -and $_.nickname -eq 'test-m2b-G' }).id
+$gid = @($pub | Where-Object { $_.issue.couple_id -eq $gcid -and $_.issue.period_start -like '2025-09*' })[-1].issueId
+$pid2 = @($pub | Where-Object { $_.issue.period_start -like '2026-11*' })[-1].issueId
+[bool]$gid; [bool]$pid2
+```
+→ `True` 둘. G 1호 = 시드 G 커플의 2025-09 발행본 · 두 폰 11월호 = 2026-11 발행본 중 가장 최근(11/22, 9쪽).
+
+**3) 렌더 두 번**:
+```
+render\.venv\Scripts\python.exe render\render_issue.py --local-only --issue-id $gid --out "$out\g1" 2>&1 | m
+render\.venv\Scripts\python.exe render\render_issue.py --local-only --issue-id $pid2 --out "$out\phone-nov" 2>&1 | m
+```
+→ 줄마다 숫자 요약 하나(`pageCount` · `publishedPageCount` · `timelinePages` · `quotePages` · `quotesShown` · `notUsedLines` · `coverHeadlineFrom` · `coverQuoteRemoved` · `renderFeedback` · `originalOverset` · `originalClipped` · `seconds`). **이 두 줄을 PE에게.** 멈추면 `멈춤: <종류>` 한 줄만.
+PDF는 `Invoke-Item "$out\g1\issue.pdf"` · `Invoke-Item "$out\phone-nov\issue.pdf"`로 눈으로 본다(PE에 보내지 않음). 휴지통에서 옛 `render\out`(84-h G1 · phone-nov)을 찾았으면 쪽 수 · 표지 · 근거 줄을 눈으로 비교.
+
+**4) 끝내기**: 창을 닫고 시작 메뉴 새 창에서
+```
+[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY; [bool]$env:ONDOLOG_SUPABASE_URL
+```
+→ 둘 다 `False`.
+
+
 ## `89-` 우리의 하늘 감성 고도화 — 디자인 patch10 (메인 세션, 2026-11-23, 위임문 `phase-7/89-dispatch-sky-patch10.md` · 함께 `CURRENT_patch10_rows.md` · 출처 ROADMAP r149 R149-6 · R149-8 · R149-9 · r150 R150-2 · R150-6 · MASTER r82/r83 §9-8-4 · 보드 `N-R17b-Our-Sky-3.dc.html`) - 완료 · 멈춤 0(반입 사고는 물은 뒤 복구) (미커밋)
 
 > 이 컴퓨터(Windows)의 Playwright WebKit ≠ iOS Safari · WKWebView - 실기기 대체 아님. ROADMAP r149(진행 중 r150) · MASTER r82(r83) 확인 · 88- 커밋(`f5e9038`) 뒤 시작.
@@ -3428,6 +3476,8 @@ git commit -m "74-h5b render: fit page photos to slot size x digital dpi, strip 
 ```
 
 다른 PC에서 렌더하려면 커밋 뒤 한 번: `render/.venv/Scripts/python.exe -m pip install -r render/requirements.txt`
+
+- (88-b · R150-2) **Windows 한글(cp949) PC에서는 `pip install` 전에 `$env:PYTHONUTF8 = '1'`**(`requirements.txt` 한글 주석). 이 창에서만 쓰는 값 - User/Machine 환경 변수에 남기지 않는다.
 
 ### 74-h5b 다음 실행 (커밋 뒤 Proteur가 따로 지시할 때만 - R53-6 · R84-7, 위임문 §5)
 

@@ -27,6 +27,7 @@ from typing import Any, Optional
 sys.dont_write_bytecode = True
 
 from romanize import romanize_place  # noqa: E402
+import measured  # noqa: E402  (88-b 렌더 되받기 - 그린 결과로 잰 높이)
 import heights  # noqa: E402  (README v1.2.3 §12 - 높이의 원본은 실측 표 `measure.json`이다. 값을 여기 옮겨 적지 않는다)
 from facts import (  # noqa: E402  (호의 사실 - 지면의 수치 · 목록은 모두 여기서 한 번 계산한다. 아래 이름은 compose에서도 쓸 수 있게 다시 내보낸다)
     ARTICLE_PHOTOS, PHOTOS_PER_STOP, PLACES_CAP, UNNAMED_PLACE, FactsError, IssueFacts, article_photo_view, article_photos, article_stops_view,
@@ -248,8 +249,9 @@ def stop_height(stop: dict) -> int:
     지면이 그리는 메모는 첫 메모 하나이고, 메모가 없을 때만 AI 캡션을 그린다. 장소 이름이 길면 왼쪽 단이 높이를 정할 수 있다."""
     photos = min(len(valid_photos(stop)), PHOTOS_PER_STOP)
     memos = memo_notes(stop)
-    return heights.timeline_stop_height(photos, memos[0]['text'] if memos else None,
-                                        None if memos else stop.get('aiCaption'), stop.get('placeName'))
+    predicted = heights.timeline_stop_height(photos, memos[0]['text'] if memos else None,
+                                             None if memos else stop.get('aiCaption'), stop.get('placeName'))
+    return measured.bump(stop.get('_fbKey'), predicted)   # 88-b: 그린 결과가 예측보다 컸던 구간은 잰 높이로
 
 
 def split_timeline(stops: list) -> tuple:
@@ -422,8 +424,9 @@ class _Builder:
         # 타임라인 분할(README §5) - 메모 없는 그림 메모 stop은 보기 사본에서 메모로 세지 않는다.
         # 구간 라벨 `사진 3 / 4`(R50-2)의 숫자는 호의 사실(`facts.stop_photo_counts`)에서 온다 - 여기서 세지 않는다.
         view_stops = []
-        for s in stops:
+        for n_stop, s in enumerate(stops):
             v = copy.deepcopy(s)
+            v['_fbKey'] = f'tl:{n_stop}'   # 88-b 되받기 열쇠(지면에 그리지 않는 칸)
             v['userNotes'] = memo_notes(s)
             # 84-d2(R138-4) - 이름 없는 경유지 = "이름을 남기지 않은 곳"(README v1.2.3 §10 ① 확정 - 타임라인 · 장소 목록 · 경로 모두 같은 말).
             # 틀의 장소 줄은 data-optional이라 빈 값이면 줄째 빠졌다. 구간 높이도 이 글자로 잰다(`stop_height`가 보기 사본을 잰다)
@@ -615,12 +618,15 @@ class _Builder:
         # 인용면 나눔(README v1.2.3 §12) - 대화 높이를 더해 가용 높이(단문 0개 940 · 1~3개 841 · 4개 이상 778)를 넘으면 **대화 단위로** 다음 면. 단문은 마지막 면에만.
         names = [f"{i + 1}번째 대화({str(m.get('context') or '')[:20]})" for i, m in enumerate(mains)]
         try:
-            groups = pack_quotes([conversation_height(m) for m in mains], len(subs), names)
+            groups = pack_quotes([measured.bump(f'qt:{n_m}', conversation_height(m)) for n_m, m in enumerate(mains)], len(subs), names)
         except ComposeError as e:
             raise ComposeError(f"호 {self.issue.get('id')}: 다정한 말들 {e}") from None
         for n, group in enumerate(groups):
             last = n == len(groups) - 1
-            pages.append(PageSpec('sw-quotes', view([mains[i] for i in group], subs if last else []), {}, {}, 'sweet_words'))
+            qv = view([mains[i] for i in group], subs if last else [])
+            for m_view, i_m in zip(qv['payload']['main'], group):
+                m_view['_fbKey'] = f'qt:{i_m}'   # 88-b 되받기 열쇠(지면에 그리지 않는 칸)
+            pages.append(PageSpec('sw-quotes', qv, {}, {}, 'sweet_words'))
         self.quote_page_count = len(groups)
         for m in mains:
             self.say('ondolog', 'context', 'sweet_words.main.context', m.get('context'))

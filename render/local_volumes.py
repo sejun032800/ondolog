@@ -44,6 +44,7 @@ from bs4 import BeautifulSoup  # noqa: E402
 import fixtures as fx  # noqa: E402
 import render_issue as r  # noqa: E402
 from compose import ComposeError, compose_issue, stop_height  # noqa: E402
+from render_feedback import render_with_feedback  # noqa: E402
 
 OUT_DEFAULT = HERE / 'out' / '55-3-local'
 NAMES = [fx.A, fx.B]
@@ -184,17 +185,28 @@ def render_volume(name: str, scenario: dict, out_root: Path, say) -> dict[str, A
     out = out_root / name
     out.mkdir(parents=True, exist_ok=True)
     couple = {**fx.COUPLE_ROW, 'magazine_theme': scenario['theme']}
-    comp = compose_issue(fx.ISSUE_ROW, couple, NAMES, scenario['corners'], scenario.get('materials', MATERIALS))
     templates = r.load_templates()
-    env_warn = r.note_measure_env(comp, say)   # 84-d2 R138-2 ① - 높이 표를 잰 환경과 다르면 경고(멈춤 아님)
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp) / 'work'
-        r.prepare_work(work)
-        cover = r.settle_cover(comp, templates, work, say)
-        files = r.build_pages(comp, templates, work, fx.ISSUE_ROW, lambda dest: fx.png(1200, 1600, hue=sum(map(ord, dest)) % 80))
-        html_by_page = [f.read_text(encoding='utf-8') for f in files]
-        results = r.render_pages(files, with_png=True)   # R50-7 쪽 그림 - PNG도 같은 렌더 결과에서
-        timeline = measure_timeline(comp, files)
+        box: dict[str, Any] = {}
+
+        def compose_fn() -> Any:
+            return compose_issue(fx.ISSUE_ROW, couple, NAMES, scenario['corners'], scenario.get('materials', MATERIALS))
+
+        def draw(c: Any) -> tuple:
+            r.prepare_work(work)
+            box['cover'] = r.settle_cover(c, templates, work, say)
+            fs = r.build_pages(c, templates, work, fx.ISSUE_ROW, lambda dest: fx.png(1200, 1600, hue=sum(map(ord, dest)) % 80))
+            box['html'] = [f.read_text(encoding='utf-8') for f in fs]
+            res = r.render_pages(fs, with_png=True)   # R50-7 쪽 그림 - PNG도 같은 렌더 결과에서
+            box['timeline'] = measure_timeline(c, fs)
+            return fs, res, r.audit_summary(c, res, name)
+
+        # 88-b(R150-3) - 실제 렌더와 같은 되받기(`render_feedback`) - 넘침이 없으면 되받기 0, 한 번 그린 결과 그대로
+        comp, files, results, _audit, feedback = render_with_feedback(compose_fn, draw, say=say)
+        comp.report['renderFeedback'] = feedback
+        env_warn = r.note_measure_env(comp, say)   # 84-d2 R138-2 ① - 높이 표를 잰 환경과 다르면 경고(멈춤 아님)
+        cover, html_by_page, timeline = box['cover'], box['html'], box['timeline']
     pdf, counts = r.merge_pdf([x['pdf'] for x in results])
     if counts != [1] * len(counts):
         raise r.StopError(f'한 지면이 PDF 한 쪽이 아니다 {counts}')
