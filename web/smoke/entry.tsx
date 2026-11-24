@@ -20,6 +20,8 @@ const seed = makeSeed(world === 'account', { meteor: params.get('meteor') === '1
 // 80-: 시험이 RPC 호출(특히 오류 기록 `log_app_error`)을 읽는 곳 - 스모크 빌드에만 있다.
 const rpcLog: { fn: string; args: unknown }[] = []
 ;(window as unknown as Record<string, unknown>).__ONDOLOG_SMOKE_RPC__ = rpcLog
+// 90-: 시험이 "상대 폰에서 일어난 일"(해제 요청 · 취소)을 가짜 서버 행에 직접 적는 곳 - 스모크 빌드에만 있다.
+;(window as unknown as Record<string, unknown>).__ONDOLOG_SMOKE_TABLES__ = seed.tables
 setSupabaseForTest(makeFakeClient({
   ...seed,
   // 서명 주소 = 스모크 서버 안의 자리 그림(만든 그림, 네트워크 0).

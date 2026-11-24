@@ -14,10 +14,46 @@
  *      조합 중이 아니었으면 stale을 만들지 않는다(다음 타이핑을 먹지 않는다).
  *    - 엔터는 조합 중이어도 같은 규칙으로 한 번 보낸다. 보낸 뒤 값이 비므로 두 번째 엔터는 빈 입력이라 무시되고, 잔여 글자만 남았을 때도 보내지 않는다(빈 말풍선 0).
  *    - 공백만 있는 입력은 보내지 않는다(`canSendBody` - 화면 · 훅 · API가 쓰는 단 하나의 규칙).
+ * ③ 쓰던 글 남기기(90- 입력 보호): 입력 칸이 화면에서 빠질 때(다른 화면이 위에 쌓임 · 탭 옮김 · 유예로 잠김) 친 글을 **메모리 한 칸**에 두고,
+ *    칸이 다시 붙을 때 비어 있으면 채운다. 기기 저장 0. 주인 = 계정 + 커플 - 로그아웃 · 계정 전환 · 커플이 바뀜(해제 완료 포함)이면 버린다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent, TouchEvent } from 'react'
 import { canSendBody } from '@/utils/chatMessages'
+import { useAuthStore } from '../auth/stores'
+import { useCoupleStore } from '../stores/coupleStore'
+
+/** ③ 쓰던 글 한 칸(메모리뿐). 주인(`계정|커플`)이 지금과 다르면 쓰지 않고 버린다. */
+let draft: { owner: string; text: string } | null = null
+let watching = false
+
+/** 지금 주인 - 계정이 없거나 커플(연결 또는 유예 중인 같은 커플)이 없으면 null(남기지 않는다). */
+function draftOwnerNow(): string | null {
+  const userId = useAuthStore.getState().userId
+  if (!userId) return null
+  const c = useCoupleStore.getState()
+  const coupleKey = c.coupleId ?? c.graceCoupleId
+  return coupleKey ? `${userId}|${coupleKey}` : null
+}
+
+/** 로그아웃 · 계정 전환 · 커플이 바뀌면(읽기가 끝난 값 기준) 남긴 글을 바로 버린다. 앱 생애에 한 번 단다. */
+function watchDraftOwner(): void {
+  if (watching) return
+  watching = true
+  useAuthStore.subscribe((s, prev) => {
+    if (s.userId !== prev.userId) draft = null
+  })
+  useCoupleStore.subscribe((s) => {
+    if (!draft) return
+    if (s.status !== 'connected' && s.status !== 'disconnected') return // 읽는 중 - 판단을 미룬다
+    if (draftOwnerNow() !== draft.owner) draft = null
+  })
+}
+
+/** 시험용: 남긴 글(없으면 null). */
+export function chatDraftForTest(): string | null {
+  return draft?.text ?? null
+}
 
 /** 묵은 조합(`stale`)을 잔여로 알아보는 판단. 시험이 직접 부르는 순수 함수. */
 export type ResidueVerdict =
@@ -108,8 +144,29 @@ export function useChatComposer(onSend: (text: string) => void) {
   const setInput = useCallback((el: HTMLInputElement | null) => {
     detach.current?.()
     detach.current = null
+    const prevEl = elRef.current
     elRef.current = el
-    if (!el) return
+    if (!el) {
+      // ③ 칸이 빠진다 - 친 글을 남긴다(묵은 조합 잔여만 있으면 친 글이 아니다). 비웠으면 남긴 것도 버린다.
+      const owner = draftOwnerNow()
+      if (prevEl && owner) {
+        const raw = prevEl.value
+        const residue = state.current.stale !== null && raw === state.current.stale
+        if (canSendBody(raw) && !residue) {
+          watchDraftOwner()
+          draft = { owner, text: raw }
+        } else if (draft?.owner === owner) {
+          draft = null
+        }
+      }
+      return
+    }
+    // ③ 칸이 붙는다 - 비어 있고 같은 주인이 남긴 글이 있으면 채운다(한 번 쓰면 비운다 - 다시 빠질 때 새로 남긴다).
+    if (draft && el.value === '' && draft.owner === draftOwnerNow()) {
+      el.value = draft.text
+      draft = null
+      setHasText(canSendBody(el.value))
+    }
     const s = state.current
 
     const onCompositionStart = () => { s.composing = true }

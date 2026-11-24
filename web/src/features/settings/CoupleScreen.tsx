@@ -27,6 +27,7 @@ import { getSupabase } from '../../auth/client'
 import { useAuthStore } from '../../auth/stores'
 import { CoupleGate } from '../../components/CoupleGate'
 import type { Nav } from '../../navigation'
+import { onAppResume } from '../../platform/appResume'
 import { useBackHandler } from '../../platform/backStack'
 import { useCoupleStore } from '../../stores/coupleStore'
 import { useDissolutionStore } from '../../stores/dissolutionStore'
@@ -86,6 +87,8 @@ export function CoupleScreen({ nav }: { nav: Nav }) {
   }
   // 열릴 때마다 다시 읽는다(RN useFocusEffect). 이미 읽은 값은 비우지 않는다.
   useEffect(reload, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 90-: 이 화면에 머문 채 앱이 다시 앞으로 오면 한 번 더 읽는다 - 그 사이 개시자가 해제를 취소했으면 유예 표시가 남지 않고 연결 모습으로 바뀐다.
+  useEffect(() => (userId ? onAppResume(reload) : undefined), [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const namedPartnerId = dissolution?.partnerId ?? partnerId
   useEffect(() => {

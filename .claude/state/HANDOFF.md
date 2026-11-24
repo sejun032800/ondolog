@@ -11,6 +11,173 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `90-` 해제 받은 쪽 유예 화면(H14) 한 번 - 앱이 켜진 동안 상태가 바뀌어도 (메인 세션, 2026-11-24, 위임문 `phase-7/90-dispatch-dissolution-notice-partner.md` · ROADMAP r153 R153-2 · R153-4 · R117-2 · R119-5) - 완료 · 멈춤 1(입력 보호 - 물은 뒤 PM 답대로 진행) · 앱(web)만 · 서버 · LLM · 마이그레이션 · 푸시 0 (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-24-r153` - 통과.
+
+- **원인**(코드): 웹에는 `couples` 실시간 구독이 없다(018 publication = messages · stories뿐). 받은 쪽 해제 상태는 다시 읽기로만 들어온다 - 탭 진입 · 앱 복귀 `couple/useCoupleRefresh.ts:17-18`(→ `stores/coupleRefresh.ts:13`), 연결 회복 `app/useAccountData.ts:54`, 변경 안내 알림의 커플 읽기 `push/usePushSetup.ts:99`(커플만). 그런데 해제 알림은 **자기가 읽은 때만** 판단했다(옛 `useDissolutionNotice.ts:41` 탭 처음 · `:42-45` visibilitychange). 다른 길이 스토어를 바꾸면 메인 "유예" 줄(`tabs/MainTab.tsx:44-45`)은 바뀌어도 H14는 뜨지 않았다. 개시자 · 해제 id 판정(`src/services/dissolutionCore.ts:111-115`)은 맞다.
+- **고침** `web/src/features/settings/useDissolutionNotice.ts`: 판단 한 곳 `consider`(:35-43 - 같은 id 한 번 · 개시자 0 · 시트 열림이면 미룸) + 해제 스토어 구독(:64) · 커플이 유예로 바뀌면 다시 읽기(:68-69) · 시트가 닫힌 첫 순간(:72). 기존 두 때(탭 처음 :58 · 다시 보임 :60) 그대로. 기기 저장 0(id는 메모리 `shownRef`).
+- **입력 보호**(멈춤 1 → PM 답 "채팅 글 기억 + 시트면 미룸"): 지금 쌓기는 입력을 못 지켰다 - 경로마다 화면을 새로 그림(`App.tsx:224` `key={location.key}`) → 채팅 입력칸(비제어) 글 사라짐, 경로가 바뀌면 시트 닫음(`App.tsx:128`, B4) → 데이트 기록 시트 사라짐.
+  - 채팅: **범위 밖 파일** `web/src/platform/useChatComposer.ts` - 칸이 빠질 때 친 글을 메모리 한 칸에(:149-161), 다시 붙을 때 비어 있고 주인이 같으면 채움(:164-168). 주인 = `계정|커플`(:31-37, 유예 중엔 같은 커플 id `graceCoupleId`). 로그아웃 · 계정 전환 · 커플이 바뀜 · 해제 완료면 바로 버림(:40-53). 기기 저장 0. 탭을 옮겼다 돌아와도 글이 남는다(새 동작).
+  - 시트(데이트 기록 · 커플 안내): 열려 있으면 H14를 미루고 닫힌 첫 순간 1번. 탭 밖 전체 화면(데이트 기록 화면 등)은 원래 꺼져 있다가 탭으로 돌아온 첫 순간 1번.
+  - 유예 중 채팅 탭은 잠긴 문(`ChatView.tsx:507` CoupleGate)이라 H14에서 돌아와도 입력칸은 안 보인다. 글은 메모리에 남아 있다가 취소로 다시 연결되면 채워진다.
+- **취소되면**: H14 화면(`web/src/features/settings/CoupleScreen.tsx:91`)에 앱 복귀 때 다시 읽기를 더함(모양 · 문구 0). 취소 뒤 다시 읽으면 화면은 닫히지 않고 **연결 모습(커플 카드 · 날짜 · 닉네임 줄)으로 바뀐다**(지금 설정 화면 규칙). 실시간이 없어 앱이 앞에 있는 채로는 다음 다시 읽기(복귀 · 재진입 · 연결 회복)까지 유예가 보일 수 있다.
+- **시험**: `web/src/features/settings/dissolutionNotice90.vitest.tsx` 15건(옛 훅으로 돌리면 9건 실패 · CoupleScreen 줄 없이 #7 실패 확인). 스모크 `web/smoke/screens.smoke.ts:532` 1건(WebKit · Chromium) + `web/smoke/entry.tsx:24` 가짜 서버 행을 시험이 바꾸는 자리(스모크 빌드에만).
+- **남은 것**: 앱을 켠 채 아무 일도 없으면(탭 이동 · 복귀 · 연결 회복 0) 받은 쪽은 다음 다시 읽기까지 모른다 - `couples` 실시간 publication(서버)이나 폰 알림(M4 목록)이 있어야 닫힌다. 이번 범위 밖.
+- 설정 파일 변경 0(package.json · app.json · eas.json · tsconfig.json). 새 패키지 0. `build.gradle` 변경 0.
+
+## C3 정리 — 시험 계정 정리 준비 `91-` (메인 세션, 2026-11-24, 위임문 `phase-7/91-dispatch-c3-cleanup-prep.md` · ROADMAP r152 · r153 R153-3 · R143-6 ④ · R62-2) - 준비 완료 · **새 코드 0** · 멈춤 1(아래 "범위 밖 시험 계정") · 실행은 Proteur (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-24-r153`(≥ r152) - 통과. 원격 읽기 · 쓰기 0 · LLM 0 · web 0 · 마이그레이션 0 · 허용 목록 파일 열람 · 변경 0.
+
+### 지우는 길 (조사 결과 · 파일:줄)
+
+- **시드 사용자에게 auth 이메일이 있다.** A · B · C · F = `scripts/ops/seedTestData.ts:139`(`test-m2b-${role}@example.com`) · `:141`(`auth.admin.createUser`, `email_confirm: true`) · 역할 `:429-449`(a1·a2=A, b1·b2=B, c1·c2=C, f1·f2=F). G = `scripts/ops/seedCouple2025.ts:26-27`(`test-m2b-g1/g2@example.com`) · 계정 생성 `seedTestData.ts:372`. 목록 파일 두 개의 `users[].email`도 같은 10개(직접 확인 - 커플마다 서로 다른 두 사람).
+- **그래서 기존 `resetTestAccount.ts` 커플 모드로 그대로 지운다 - 추가 0.** 커플 하나 = 이메일 둘 한 번(`resetTestAccount.ts:248` `parseAnyResetArgs` · `:268` `runCoupleReset`). 잠금 `:270`(허용 목록 · `project=` 대조, 접속 전 - `resetAllowlist.ts:73` · 목록 밖 `:93`) · 정확히 2명 `:281` · 제3자 연결 거부 `:291` · 같은 커플 `:293` · 발행 호는 `--with-issues` 없으면 거부 `:297` · 순서 Storage 6버킷(`:85`, 마이그레이션 015 버킷 6개와 같음) → 호 `:330` → 커플 `:331`(cascade 13표) → 두 인증 사용자 `:333`. 출력은 종류별 건수 · 예/아니오뿐.
+- 시드 C(해제 유예)도 같은 코어로 바로 지운다 - `execute_dissolution` · `apply_retention_policy` · `run_due_dissolutions` 부르지 않음(R34-3). F의 경보는 `ops_alerts.couple_id` · `issue_id` 모두 cascade(`supabase/migrations/022_publish_path.sql:87-88`).
+- 위임서의 "새 추가 조건"(시드 목록 파일 커플 id만 · 별명 `test`)은 새 코드가 없어 쓰지 않았다. 같은 구실을 하는 것은 **허용 목록에 시드 10개 이메일을 사람이 적는 것**(목록 밖이면 접속 전 전체 거부)이다. 시드 이메일은 저장소 코드에 있는 가짜 주소라 명령에 그대로 쓴다.
+- 묶음 ① 두 폰 커플(C2 4부 새 가입)은 같은 커플 모드 · `$e1` `$e2`(`Read-Host`). 발행 호 유무는 미리 보기 "발행 호 있음"이 알려 준다 - `--with-issues`를 붙여 미리 보기해도 발행 호가 없으면 아무 차이가 없다.
+
+### 멈춤 1 — 범위 밖 시험 계정 (PM 결정 필요)
+
+위임서 "그 밖의 사용자 행은 없어야 한다(있으면 멈추고 보고)"의 전제가 저장소 기록과 맞지 않는다. 검증 스크립트들이 원격 개발 DB에 시험 계정을 만들고 **지우지 않았다**: `verifyU1Main.ts`(`test-61-*`) · `verifyU4Chat.ts`(`test-62-chat-*`) · `verifyU6Signup.ts`(`test-63-signup-<시각>`, 실행마다 새로) · `verifyExistingAccount.ts`(`test-64-*`) · `verifyCoupleConnect.ts` · `verifyU6Part2.ts`(`test-66-*`) · `verify67Settings.ts`(`test-67-*`) · `verifyDissolution68.ts`(`test-68-*`) · `verifyLabels69.ts`(`test-69-*`) · `verifyDescriptions70.ts`(`test-70-*`, R47-1 "남긴다") · `verifyDeleteOwnEntry.ts`(`test-57-*`) · `verifyU2Record.ts`(`test-u2-*`) · `render/seed_render_tests.py`(`test-55-2-*` · `test-55-3-*`). HANDOFF 기록도 "지우지 않음"(이 파일 `test-61` · `test-62` · `test-63` · `test-64` · `test-u2` 절). 이름에 시각이 붙은 것이 많아 허용 목록으로 하나씩 적기 어렵다.
+- 원격을 읽지 않았으므로 몇 개가 남았는지는 모른다 - 아래 확인 질의 Q1의 `other_test_users`가 그 수다.
+- 지금 C3 명령은 위임서 범위(①②③)만 지운다. 그 밖의 시험 계정을 C3에 넣을지 · 넣는다면 어떤 길(새 잠금)로 할지는 PM 결정. 새 길은 만들지 않았다.
+
+### Proteur 명령 순서 (저장소 맨 위 폴더 · PowerShell)
+
+**0. 허용 목록에 시드 10줄 더하기(메모장).** `notepad "$env:USERPROFILE\.ondolog\reset-allowlist.txt"` → 맨 아래에 아래 10줄을 붙이고 저장(UTF-8). `project=` 줄 · 두 폰 이메일 줄은 그대로 둔다.
+
+```
+test-m2b-a1@example.com
+test-m2b-a2@example.com
+test-m2b-b1@example.com
+test-m2b-b2@example.com
+test-m2b-c1@example.com
+test-m2b-c2@example.com
+test-m2b-f1@example.com
+test-m2b-f2@example.com
+test-m2b-g1@example.com
+test-m2b-g2@example.com
+```
+
+**1. 새 창 · 값 넣기 · 확인.** 붙여넣기는 마우스 오른쪽 클릭. 첫 줄에 프로젝트 주소, 둘째 줄에 운영용 secret key **`ops_2026_11`**.
+
+```
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+$env:ONDOLOG_SUPABASE_URL.StartsWith('https://')
+$env:ONDOLOG_SUPABASE_URL.EndsWith('.supabase.co')
+$h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
+$al = Join-Path $env:USERPROFILE '.ondolog\reset-allowlist.txt'
+Test-Path $al
+$e1 = Read-Host '폰 A 카카오 이메일'
+$e2 = Read-Host '폰 B 카카오 이메일'
+```
+
+확인 네 줄(`StartsWith` · `StartsWith` · `EndsWith` · `Test-Path`)이 모두 True일 때만 진행.
+
+**2. 미리 보기 - 묶음 ① 두 폰 커플(아무것도 지우지 않음).**
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts $e1 $e2 --with-issues
+```
+
+**3. 미리 보기 - 묶음 ② · ③ 시드 A · B · C · F · G(다섯 번, 각 결과 위에 커플 이름이 찍힘).**
+
+```
+foreach ($k in 'a','b','c','f','g') { "== 시드 커플 $($k.ToUpper())"; deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts "test-m2b-${k}1@example.com" "test-m2b-${k}2@example.com" --with-issues }
+```
+
+- 정상: 여섯 묶음 모두 "미리 보기(커플 모드, 지우지 않음)" + 종류별 건수 + `auth 사용자: 2`. 시드 기대(목록 파일 기준, 그 뒤 생성 · 발행이 더한 호 · 코너 · 매거진 파일은 더 있을 수 있음): A·B 각 메시지 302 · 기록 18 · 데이트 4 / C 호 1 / F 호 4 · 경보 1 / G 메시지 302 · 발행 호 1.
+- "거부: …"가 하나라도 나오면 그 문장만 보낸다(이메일 · ref는 문구에 안 나옴).
+
+**4. 여기서 멈추고 PE 확인.** 보낼 것은 종류 · 건수 줄과 "== 시드 커플 X" 줄뿐. 창은 그대로 둔다. 같은 창에서 SQL Editor로 Q0(아래)를 한 번 돌려 `demo_responses` 수를 적어 둔다.
+
+**5. apply(PE가 "진행"이라고 한 뒤에만).**
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts $e1 $e2 --with-issues --apply
+foreach ($k in 'a','b','c','f','g') { "== 시드 커플 $($k.ToUpper())"; deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts "test-m2b-${k}1@example.com" "test-m2b-${k}2@example.com" --with-issues --apply }
+```
+
+- 정상: 여섯 묶음 모두 "실행(커플 모드): 지운 수" · 건수가 미리 보기와 같음 · 끝 줄 "완료". 중간에 "중단: …"이 나오면 그 줄만 보낸다(Storage를 먼저 지우므로 같은 명령을 다시 쳐도 안전 - 남은 것만 지움).
+
+**6. 창 닫기 · 확인.** 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` · `[bool]$env:ONDOLOG_SUPABASE_URL` → 둘 다 False.
+
+**7. 확인 질의(Supabase 대시보드 SQL Editor · 읽기만 · 숫자만).** 아래 Q1 · Q2 · Q3.
+
+**8. 허용 목록 정리(메모장).** `notepad "$env:USERPROFILE\.ondolog\reset-allowlist.txt"` → **`project=`로 시작하는 줄만 남기고 이메일 줄을 모두 지운다**(두 폰 이메일 - **특히 Proteur 본인 카카오 이메일은 반드시** - 와 0단계의 시드 10줄). 저장. 그러면 실제 커플이 된 뒤 초기화 · 폰 커플 생성(51-③ `--allow-phone-test-couple`)이 그 계정을 건드릴 수 없다(목록 밖 = 접속 전 거부).
+
+**9. 허용 목록 확인(새 창 - 키는 넣지 않는다).** 잠금은 접속 전에 판정하므로 주소만 있으면 된다.
+
+```
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
+$al = Join-Path $env:USERPROFILE '.ondolog\reset-allowlist.txt'
+$e1 = Read-Host '폰 A 카카오 이메일'
+$e2 = Read-Host '폰 B 카카오 이메일'
+foreach ($e in @($e1, $e2, 'test-m2b-a1@example.com')) { deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestAccount.ts $e }
+```
+
+- 정상: 세 번 모두 **`거부: 허용 목록에 없는 이메일이다`**. 다른 거부 문장(예: "project= 줄이 없다")이면 8단계에서 `project=` 줄까지 지운 것 - 되살린다. 창을 닫고 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_URL` → False.
+
+### 확인 질의 (SQL Editor · 읽기만 · 결과는 숫자만)
+
+Q0 - apply **전** 한 번(4단계):
+
+```sql
+select count(*) as demo_responses from public.demo_responses;
+```
+
+Q1 - 사용자 · 커플 분류(apply 뒤):
+
+```sql
+select
+  (select count(*) from auth.users where email like 'test-m2b-%@example.com') as seed_users,
+  (select count(*) from auth.users where email like 'test-%@example.com' and email not like 'test-m2b-%') as other_test_users,
+  (select count(*) from auth.users where email is null or email not like 'test-%@example.com') as non_test_users,
+  (select count(*) from public.couples where nickname like 'test-m2b-%') as seed_couples,
+  (select count(*) from public.couples where nickname is null or nickname not like 'test%') as non_test_couples,
+  (select count(*) from public.demo_responses) as demo_responses;
+```
+
+정상: `seed_users` 0 · `non_test_users` 0(두 폰 카카오 계정이 여기에 들어 있었다) · `seed_couples` 0 · `demo_responses` = Q0. `other_test_users`는 위 "멈춤 1"의 수 - 0이 아니면 PM 결정 전까지 그대로 둔다. `non_test_couples`가 0이 아니면 그 커플은 범위 밖 시험 계정 것이거나 별명 없는 커플 - 건수만 PE에게.
+
+Q2 - 표별 남은 행(apply 뒤):
+
+```sql
+select t, n from (
+  select 'profiles' t, count(*) n from public.profiles union all
+  select 'couples', count(*) from public.couples union all
+  select 'issues', count(*) from public.issues union all
+  select 'corners', count(*) from public.corners union all
+  select 'messages', count(*) from public.messages union all
+  select 'data_entries', count(*) from public.data_entries union all
+  select 'stories', count(*) from public.stories union all
+  select 'dates', count(*) from public.dates union all
+  select 'date_stops', count(*) from public.date_stops union all
+  select 'couple_dissolutions', count(*) from public.couple_dissolutions union all
+  select 'ops_alerts', count(*) from public.ops_alerts union all
+  select 'personality_profiles', count(*) from public.personality_profiles union all
+  select 'personality_assessments', count(*) from public.personality_assessments union all
+  select 'push_tokens', count(*) from public.push_tokens union all
+  select 'notification_settings', count(*) from public.notification_settings union all
+  select 'demo_responses (남김)', count(*) from public.demo_responses union all
+  select 'push_daily (남김)', count(*) from public.push_daily union all
+  select 'app_error_daily (남김)', count(*) from public.app_error_daily
+) x order by t;
+```
+
+Q3 - Storage 버킷별 남은 파일:
+
+```sql
+select bucket_id, count(*) as n from storage.objects group by bucket_id order by bucket_id;
+```
+
+정상(Q1 `other_test_users` = 0일 때): Q2의 `(남김)` 세 줄 밖은 모두 0 · Q3은 행 0(매거진 · 사진 0). `other_test_users`가 0이 아니면 그 계정들의 행 · 파일이 남는 것이 정상이다(범위 밖) - 숫자만 PE에게. `push_daily` · `app_error_daily`는 개인 정보 없는 날짜별 숫자라 기본 남김(지울지는 PM).
+
 ## `88-b` 렌더 되받기 · 읽기 전용 로컬 렌더 (메인 세션, 2026-11-24, 위임문 `phase-7/88-b-dispatch-render-feedback-local-render (1).md` · ROADMAP r150 R150-2~5) - 완료 · 멈춤 0 · 실행은 Proteur (미커밋)
 
 - 되받기(`render/render_feedback.py` · `measured.py`): 그린 뒤 항목 지면(타임라인 · 인용 · 글만 있는 기사 · 사진 기사)의 항목이 차지한 자리를 Chromium에서 잰다. (a) originalOverset 지면 (b) 잰 합 > 그 섹션 가용 높이(지면 짜기와 같은 값) + 예측보다 큰 항목 (c) 사진 아래 메모가 판면 아래(1047)를 넘음 -> 예측보다 큰 항목만 잰 높이로 바꿔 끼워 다시 짜고 그림 · 최대 2번 · 못 풀면 실패(종류 · 횟수만). 옮길 수 없는 사진 아래 메모 칸 = 기존 D5 길(싣지 않고 발행 노트). 한 면보다 큰 항목 = 지금 규칙(타임라인 · 인용 실패 / 글만 있는 기사 싣지 않음). 열쇠 `_fbKey`(compose.py:429 · :628 · facts.py:163 · :209)는 HTML에 나오지 않음.
@@ -3823,7 +3990,7 @@ eset-allowlist.txt`. 저장소 안에 두지 않는다.
 | H16 회원 탈퇴 | `features/settings/WithdrawScreen.tsx` + `PhraseConfirm.tsx` · 경로 `settings-withdraw` | 같음(7일 뒤 지워지는 것 · 남는 것(커플일 때만) · "연결도 함께 해제돼요" · PDF 안내 · 확인어 `탈퇴합니다`) |
 | 탈퇴 유예 화면(RN `withdraw-cancel`) | `features/settings/WithdrawCancelScreen.tsx` · 경로 `withdraw-cancel` | 보드에 없어 H14 유예 화면 형식을 빌림(RN 동일): WITHDRAWING · 남은 날짜 · 안내 3줄 · [탈퇴 취소하기] · [로그아웃]. 로그인 · 앱 시작 때 단계보다 먼저 |
 | H19 앱 정보 · 문의 | `features/settings/AboutScreen.tsx` · 경로 `settings-about` | 같음(글자표 + 버전 · 문의하기 · 이용약관 · 개인정보 처리방침). "· 최신"과 오픈소스 라이선스는 뺌(RN 동일). 버전 = `web/package.json` |
-| 해제 알림 | `features/settings/useDissolutionNotice.ts`(Shell, 탭 화면에서만) | RN `useDissolutionNotice`와 같음(상대가 요청했으면 앱에 들어올 때 처음 한 번 H14 유예 화면, 내가 개시자면 0, 같은 해제 id는 한 번) |
+| 해제 알림 | `features/settings/useDissolutionNotice.ts`(Shell, 탭 화면에서만) | RN `useDissolutionNotice`와 같음(상대가 요청했으면 앱에 들어올 때 처음 한 번 H14 유예 화면, 내가 개시자면 0, 같은 해제 id는 한 번) · 90-: 앱이 켜진 동안 해제 상태가 바뀌어도(다른 다시 읽기) 한 번 · 시트가 열려 있으면 닫힐 때까지 미룸 |
 | 본인 기록 삭제 | `features/feed/DateDetailScreen.tsx`(`⋯` + 확인 시트) · RPC `fn_delete_own_entry` | E03 행 참조. 내 사진 · 메모에만 진입점, 확인 전 호출 0 |
 | 사진 큐 | `web/src/photoQueue/*`(`photoQueueHub` · `photoQueueStore` · `webPhotoFs` · `usePhotoQueueResume`) | 보드 화면 없음(채팅 사진 · 스토리의 영속 큐). 앱을 다시 켜면 이어 보냄 |
 | EXIF | `features/feed/photoPicker.ts`(`exifr@7.1.3` lite) | 보드 화면 없음. 촬영 시각만 읽고 위치는 읽지 않음([74-4]) |
@@ -4516,7 +4683,7 @@ R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 �
 
 ## U7 해제 · 탈퇴 앱 (`68-` 1부, 2026-10-26, ui-builder) - 원격 미적용(027 대기), 회귀 스크립트 작성만, 실기기 미확인
 - 내부 결정: **연결 해제 문구**는 보드 · MASTER에 없어 H16 보드 형식으로 `연결 해제합니다`로 정함(`src/utils/dissolution.ts` `UNLINK_PHRASE`) - PM이 다른 문구를 원하면 한 줄. 탈퇴 문구는 보드 `탈퇴합니다`.
-- 내부 결정: **상대가 해제를 처음 보는 곳** = 탭이 열릴 때 · 앱 복귀 때 `useDissolutionNotice`가 상대(개시자 아님)에게 커플 화면(`/settings-couple`)을 한 번 푸시(해제 id당 앱을 켠 동안 한 번). 설정 > 연인 줄로 언제든 다시 본다. 푸시 알림 없음.
+- 내부 결정: **상대가 해제를 처음 보는 곳** = 탭이 열릴 때 · 앱 복귀 때(90-: + 앱이 켜진 동안 해제 상태가 바뀌는 순간) `useDissolutionNotice`가 상대(개시자 아님)에게 커플 화면(`/settings-couple`)을 한 번 푸시(해제 id당 앱을 켠 동안 한 번). 설정 > 연인 줄로 언제든 다시 본다. 푸시 알림 없음.
 - 내부 결정: 상대 쪽 유예 화면은 보드가 없어 개시자 화면에서 [취소]를 뺀 형태 + 문장만 상대 시점(`서영님이 연결 해제를 요청했어요`, 탈퇴로 생긴 해제는 `탈퇴를 요청했어요`). 탈퇴로 생긴 해제(reason = withdrawal)는 개시자 화면에도 [취소]를 두지 않는다(027 22023, 탈퇴 취소로만 되돌림).
 - 내부 결정: 탈퇴 유예 화면(`withdraw-cancel`)은 보드가 없어 H14 유예 화면 형식 + [로그아웃] 보조 버튼(나갈 길이 없으면 갇힘 - 보드에 없는 추가이니 PM 확인). 취소 뒤 `resolveResumePath`로 원래 진행 단계.
 - 내부 결정: 해제 요청 화면은 보드가 없어 `settings-unlink` 한 화면 안에서 안내 -> 문구 입력 두 단계(H04 힌트 · H14 · H16 문장 재사용). PDF 저장 안내 줄은 매거진 탭으로 간다(`pdf_print_path` 참조 없음).
@@ -4855,6 +5022,7 @@ R48 추가 수정 (2026-11-01) - 디자인 v1.2.3 전 임시 규칙과 확인 �
 - 안전 정지 경보: `usage_over`, `detail = { stage: 'input_halt', cornerType, estimatedInputTokens, limit }`. 같은 호에 열린 경보가 있으면 생성 명령도 돌지 않는다(반복 방지). 소속 위반(`CoupleMembershipError`)은 `couple_membership` 경보(`detail`에 위반 레코드 ID)를 남기고 던진다.
 - 샘플 코너가 재료 0이면 골격의 선행 검사가 호출 전에 `skipped(insufficient_input)`로 멈춘다. 샘플 17-5는 근거가 둘보다 적으면 `{"kind":"none"}`을 낸다.
 - 시험 데이터: `seedTestData.ts`가 커플 A(생성 시험, 초안으로 남김)·B(생성->발행, `magazine_theme='neon'`)·C(해제 유예)·F(예외·동시 발행 호 넷). 목록은 `scripts/ops/out/seed-m2b.json`(gitignore) - **지우지 않는다.** F의 열린 경보 `usage_over`는 시험용으로 열어 둔 채다. 커플 A의 초안 호는 `55-` 조판 시험에 쓸 수 있다(발행은 조판 뒤).
+  - **정정(2026-11-24, `91-`): "지우지 않는다"는 C3 전까지의 규칙이다. C3(R143-6 ④)에서 A · B · C · F와 G(`seed-m2b-2025.json`)를 모두 지운다** - 명령은 맨 위 "C3 정리" 절.
 - 테스트 위치: `scripts/ops/operatorPath.test.ts`(메모리 저장소 `opsMemoryStore.ts`, 27건), `supabase/functions/_shared/mediaPath.test.ts`(5건), `inputPrefilter.test.ts`에 R20-1 1건. `scripts/ops`는 두 tsc 모두에서 제외라 이 파일들의 타입은 게이트가 아니라 `deno check --config supabase/functions/deno.json scripts/ops/*.ts`로 확인했다.
 - 변경한 설정 파일: 없음(package.json·app.json·eas.json·tsconfig.json·deno.json 무변경). `deno check`가 만든 `supabase/functions/deno.lock`은 지웠다.
 

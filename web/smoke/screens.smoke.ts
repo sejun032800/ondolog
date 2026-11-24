@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { METEOR_TEXT, PREVIEW_LONG_TEXT } from './seed'
+import { COUPLE, METEOR_TEXT, PREVIEW_LONG_TEXT, YOU } from './seed'
 
 const ROOT = process.env.ONDOLOG_SMOKE_ROOT ?? path.join(os.tmpdir(), 'ondolog-smoke')
 const SHOTS = path.join(ROOT, 'shots')
@@ -527,6 +527,47 @@ test.describe('79- 화면 스모크', () => {
     await page.getByTestId('profile-withdraw').click()
     await seen(page.getByTestId('withdraw-phrase-input'))
     await check(page, w, 'settings-withdraw')
+  })
+
+  test('90- 해제 받은 쪽: 채팅에 쓰던 중 상대가 해제 요청 -> 복귀 때 H14(상대 쪽) 1번 · 뒤로 · 취소 뒤 쓰던 글 그대로', async ({ page }) => {
+    const w = await openAccount(page)
+    await tab(page, 'chat')
+    const input = page.getByTestId('chat-input')
+    await seen(input)
+    await input.fill('보내기 전 글')
+    // 상대 폰에서 해제 요청(가짜 서버 행) -> 앱이 다시 보임(복귀 · 탭 진입이 부르는 다시 읽기)
+    await page.evaluate(({ you, couple }) => {
+      const t = (window as unknown as { __ONDOLOG_SMOKE_TABLES__: Record<string, Record<string, unknown>[]> }).__ONDOLOG_SMOKE_TABLES__
+      t.couples.find((c) => c.id === couple)!.status = 'dissolving'
+      t.couple_dissolutions.push({
+        id: 'smoke-dissolution-1', couple_id: couple, initiated_by: you, reason: 'unlink', executed_at: null, cancelled_at: null,
+        requested_at: new Date().toISOString(), purge_scheduled_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+      })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }, { you: YOU, couple: COUPLE })
+    await seen(page.getByTestId('grace-card'))
+    await expect(page.locator('[data-screen]').first()).toHaveAttribute('data-screen', 'settings-couple')
+    await expect(page.getByTestId('grace-cancel-reason')).toBeVisible() // 상대 쪽(취소 버튼 없음)
+    await check(page, w, 'settings-couple-grace-partner')
+    await settle(page)
+    await page.getByRole('button', { name: '뒤로' }).first().click()
+    await settle(page)
+    await expect(page.locator('[data-screen]').first()).toHaveAttribute('data-screen', 'chat')
+    // 같은 해제는 다시 띄우지 않는다
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+    await settle(page)
+    await expect(page.locator('[data-screen]').first()).toHaveAttribute('data-screen', 'chat')
+    // 개시자가 취소 -> 복귀 때 다시 읽어 연결로 -> 쓰던 글이 그대로
+    await page.evaluate(({ couple }) => {
+      const t = (window as unknown as { __ONDOLOG_SMOKE_TABLES__: Record<string, Record<string, unknown>[]> }).__ONDOLOG_SMOKE_TABLES__
+      t.couples.find((c) => c.id === couple)!.status = 'active'
+      for (const d of t.couple_dissolutions) d.cancelled_at = new Date().toISOString()
+      document.dispatchEvent(new Event('visibilitychange'))
+    }, { couple: COUPLE })
+    await seen(page.getByTestId('chat-input'))
+    await expect(page.getByTestId('chat-input')).toHaveValue('보내기 전 글')
+    expect(w.errors, '콘솔 오류 · 처리 안 된 거부 0').toEqual([])
+    expect(w.external, '원격 요청 0').toEqual([])
   })
 
   test('저장소가 막혀도(사생활 보호 모드 · 할당량) 앱이 멈추지 않는다', async ({ page }) => {
