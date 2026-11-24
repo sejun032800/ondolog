@@ -1,0 +1,277 @@
+{
+  "corner_id": "love_dna",
+  "page_title": "두 사람의 결",
+  "page_title_source": "기획서 1절 표 #4 (코드 · 틀에는 아직 없음)",
+  "pages": {
+    "min": 2,
+    "max": 2,
+    "note": "CORNER_LAYOUT 3-2 고정 2면(대형숫자면 · 축 비교면)"
+  },
+  "publish_condition": "두 사람 모두 성격 데이터가 있을 때 (기획서 1절 #4)",
+  "skip_note": "성격 정보가 아직 없어 싣지 않았습니다 (기획서 2절 4.)",
+  "llm_calls": 1,
+  "base_structure": "docs/ONDOLOG_CORNER_CONTENT.md §3 LoveDnaPayload",
+  "fields": [
+    {
+      "path": "payload.score.total",
+      "type": "number",
+      "source": "src/engine/dnaScore.ts:250 computeDnaTotalScore",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        50,
+        100
+      ],
+      "decimals": 1,
+      "trace": "base + chatDelta -> clamp (dnaScore.ts:100)"
+    },
+    {
+      "path": "payload.score.base",
+      "type": "number",
+      "source": "src/engine/dnaScore.ts:161 computeDnaBaseScore + src/engine/typeAffinity.ts:73 resolveTypeAffinity",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        61,
+        69
+      ],
+      "decimals": 0,
+      "trace": "두 사람 typeAffinity 범주 -> 61/65/69 (MASTER 17-2)"
+    },
+    {
+      "path": "payload.score.chatDelta",
+      "type": "number",
+      "source": "src/engine/dnaScore.ts:203 computeChatDelta (UNRESOLVED dnaScore.chatDelta)",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        -10,
+        25
+      ],
+      "decimals": 1,
+      "trace": "TBD - v0 산출식 2.0-A (입력 지표가 아직 없음, survey ③)"
+    },
+    {
+      "path": "payload.score.previousTotal",
+      "type": "number|null",
+      "source": "DB dna_scores.total_score 전월 (008_metrics.sql:115)",
+      "deterministic": true,
+      "required": false
+    },
+    {
+      "path": "payload.score.delta",
+      "type": "number|null",
+      "source": "total - previousTotal",
+      "deterministic": true,
+      "required": false,
+      "decimals": 1
+    },
+    {
+      "path": "payload.score.coeffVersion",
+      "type": "string",
+      "source": "app_config (값 없음 - TBD) · dna_scores.breakdown.coeffVersion",
+      "deterministic": true,
+      "required": true,
+      "sample_value": "dna_v0"
+    },
+    {
+      "path": "payload.partners[]",
+      "type": "array",
+      "source": "DB personality_profiles (supabase/migrations/004_personality.sql:50) · DB love_type_labels (supabase/migrations/004_personality.sql:91)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "path": "payload.partners[].labelKo",
+      "type": "string",
+      "source": "DB love_type_labels (supabase/migrations/004_personality.sql:91) label_ko",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.partners[].bigFive",
+      "type": "object",
+      "source": "DB personality_assessments (supabase/migrations/004_personality.sql:4) big_o~big_n",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        0,
+        100
+      ]
+    },
+    {
+      "path": "payload.bigFiveComparison[]",
+      "type": "array",
+      "source": "계산(두 사람 bigFive 차이) - TBD 엔진 함수 없음",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 5,
+        "max": 5
+      }
+    },
+    {
+      "path": "payload.sternbergOverlap",
+      "type": "object",
+      "source": "DB personality_assessments (supabase/migrations/004_personality.sql:4) stern_* · note는 llm",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.attachmentCombo.pairLabel",
+      "type": "string",
+      "source": "DB personality_assessments (supabase/migrations/004_personality.sql:4) attachment",
+      "deterministic": true,
+      "required": true,
+      "tone": "명사형"
+    },
+    {
+      "path": "payload.attachmentCombo.headline",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": true,
+      "max_chars": 30,
+      "tone": "합니다체",
+      "checks": [
+        "말투(84-c)",
+        "숫자·시각 대조(84-c)",
+        "요일(84-c)",
+        "금지어"
+      ]
+    },
+    {
+      "path": "payload.attachmentCombo.body",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": true,
+      "max_chars": 120,
+      "tone": "합니다체",
+      "checks": [
+        "말투(84-c)",
+        "숫자·시각 대조(84-c)",
+        "요일(84-c)",
+        "금지어"
+      ]
+    },
+    {
+      "path": "payload.strengths[]",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": true,
+      "max_chars": 40,
+      "tone": "합니다체",
+      "checks": [
+        "말투(84-c)",
+        "숫자·시각 대조(84-c)",
+        "요일(84-c)",
+        "금지어"
+      ],
+      "count": {
+        "min": 2,
+        "max": 4
+      }
+    },
+    {
+      "path": "payload.complements[]",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": true,
+      "max_chars": 40,
+      "tone": "합니다체",
+      "checks": [
+        "말투(84-c)",
+        "숫자·시각 대조(84-c)",
+        "요일(84-c)",
+        "금지어"
+      ],
+      "count": {
+        "min": 2,
+        "max": 4
+      },
+      "extra_rule": "\"부족\" · \"안 맞음\" 금지 (CORNER_CONTENT 3-2)"
+    },
+    {
+      "path": "payload.actionTips[].text",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": false,
+      "max_chars": 40,
+      "tone": "해요체",
+      "checks": [
+        "말투(84-c)",
+        "숫자·시각 대조(84-c)",
+        "요일(84-c)",
+        "금지어"
+      ],
+      "count": {
+        "min": 0,
+        "max": 2
+      },
+      "condition": "total <= 60일 때만 · affects는 chat_factors 키와 대응"
+    },
+    {
+      "path": "payload.explain",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": true,
+      "max_chars": 120,
+      "tone": "합니다체",
+      "checks": [
+        "말투(84-c)",
+        "숫자·시각 대조(84-c)",
+        "요일(84-c)",
+        "금지어"
+      ],
+      "extra_rule": "기획서 4절 \"DNA 설명\" 1회 - 산출 설명 문장"
+    }
+  ],
+  "sample": {
+    "payload": {
+      "score": {
+        "total": 71.4,
+        "base": 65,
+        "chatDelta": 6.4,
+        "previousTotal": null,
+        "delta": null,
+        "coeffVersion": "dna_v0"
+      },
+      "partners": [
+        {
+          "name": "가람",
+          "labelKo": "예시 라벨 하나"
+        },
+        {
+          "name": "나래",
+          "labelKo": "예시 라벨 둘"
+        }
+      ],
+      "strengths": [
+        "둘 다 조용한 시간을 편하게 여깁니다",
+        "계획을 말로 먼저 맞춥니다"
+      ],
+      "complements": [
+        "결정의 속도가 서로 다릅니다",
+        "쉬는 방식이 다릅니다"
+      ],
+      "actionTips": []
+    }
+  },
+  "open_questions": [
+    "chatDelta v0 산출식의 입력 지표(다정 발화 비율 · 왕복 리듬 · 티키타카 성공률)가 결정론 함수로 아직 없다 - messages.warmth_score는 채팅 태깅 LLM 0(R124-2)이라 비어 있다",
+    "base 계수 61/65/69 · 델타 범위가 app_config에 없다(010_app_config.sql:13 시드에 dna 키 없음) - 코드 상수로 둘지 app_config 키를 더할지",
+    "explain(산출 설명) 문장을 LLM으로 쓸지, 결정론 문장 틀로 쓸지 - 기획서 LLM 1회와 CORNER_CONTENT 구조(explain 칸 없음)가 다르다",
+    "bigFiveComparison.relation(aligned/complementary) 판정 기준(차이 몇 이상이면 벌어짐)이 문서에 없다",
+    "빅5 5축 · 스턴버그 삼각형은 MASTER 17-2 지면 구성 7요소인데 CORNER_LAYOUT 3-2는 2면 - 스턴버그 삼각형 자리가 지면 매핑 표에 없다"
+  ],
+  "common_rules": "contracts/README.md"
+}

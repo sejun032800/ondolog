@@ -1,0 +1,191 @@
+{
+  "corner_id": "league_monthly",
+  "also": "league_weekly 카드(그달 주간 스탯 카드)를 같은 별지에 묶음 (기획서 2절 5.)",
+  "page_title": "연애리그",
+  "page_title_note": "별지 - 본지 쪽 수 · 4의 배수 · 36쪽 상한에서 제외 (기획서 3절)",
+  "pages": {
+    "min": 1,
+    "max": 2,
+    "note": "기획서 1절 #5 \"1~2면\". CORNER_LAYOUT 3-5(1~2) · 3-6(2~3)과 다름 - open_questions"
+  },
+  "publish_condition": "채팅이 있는 주가 2주 이상 (기획서 1절 #5)",
+  "skip_note": "TBD - 기획서에 문장 없음",
+  "llm_calls": 1,
+  "base_structure": "docs/ONDOLOG_CORNER_CONTENT.md §4 LeagueWeeklyPayload · §5 LeagueMonthlyPayload",
+  "fields": [
+    {
+      "path": "payload.season.weekCount",
+      "type": "number",
+      "source": "그달 주 수(KST) - TBD 엔진 함수 없음",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        2,
+        6
+      ]
+    },
+    {
+      "path": "payload.weeklyCards[]",
+      "type": "array",
+      "source": "DB stat_snapshots(period_type=weekly) (008_metrics.sql:29)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 2,
+        "max": 6
+      }
+    },
+    {
+      "path": "payload.weeklyCards[].cards[].stats",
+      "type": "object",
+      "source": "src/engine/leagueStats.ts:147 computeSixStats",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        0,
+        100
+      ],
+      "decimals": 0
+    },
+    {
+      "path": "payload.weeklyCards[].cards[].ovr",
+      "type": "number",
+      "source": "src/engine/leagueStats.ts:203 computeOvrRawScore -> src/engine/normPercentile.ts:143 lookupCompositePercentile -> src/engine/leagueStats.ts:267 mapPercentileToOvr",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        0,
+        120
+      ],
+      "decimals": 0,
+      "trace": "성격 → 6각 스탯 → 원점수 → 규준 백분위(norm-synthetic-v3) → OVR"
+    },
+    {
+      "path": "payload.weeklyCards[].cards[].shrunk",
+      "type": "boolean",
+      "source": "TBD: leagueStats.shrinkage v0 (UNRESOLVED)",
+      "deterministic": true,
+      "required": true,
+      "trace": "채팅 관측으로 스탯을 갱신하는 함수가 아직 없다"
+    },
+    {
+      "path": "payload.weeklyCards[].matchReport.items[]",
+      "type": "array",
+      "source": "DB match_reports.metrics (008_metrics.sql:84) - 산출 엔진 없음(TBD MASTER 17-3)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 11,
+        "max": 11
+      },
+      "extra_rule": "measured=true는 실측 채팅 항목만 (CORNER_CONTENT 4-2)"
+    },
+    {
+      "path": "payload.statChanges[]",
+      "type": "array",
+      "source": "stat_snapshots.delta + llm 해설",
+      "deterministic": false,
+      "required": true,
+      "count": {
+        "min": 0,
+        "max": 3
+      }
+    },
+    {
+      "path": "payload.statChanges[].explanation",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": true,
+      "max_chars": 120,
+      "tone": "합니다체",
+      "checks": [
+        "말투(84-c)",
+        "숫자·시각 대조(84-c)",
+        "요일(84-c)",
+        "금지어"
+      ],
+      "extra_rule": "상황 귀속 · 태도 지목 금지 · 근거 없으면 생성 안 함 (MASTER 17-3 변동 해설 규격)"
+    },
+    {
+      "path": "payload.statChanges[].evidence[]",
+      "type": "array",
+      "source": "DB messages(원문 발췌) · 지표",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 1,
+        "max": 3
+      }
+    },
+    {
+      "path": "payload.statChanges[].evidence[].excerpt",
+      "type": "string",
+      "source": "DB messages.body",
+      "deterministic": true,
+      "required": false,
+      "original": true,
+      "original_rule": "원문 불변 · 자르지 않음(R29-3)",
+      "input_limit_suggestion": "채팅 입력 상한 그대로"
+    },
+    {
+      "path": "payload.statBreakdown[].contributions[].share",
+      "type": "number",
+      "source": "src/engine/leagueStats.ts:147 computeSixStats 가중치",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        0,
+        1
+      ],
+      "decimals": 2,
+      "extra_rule": "합 1.0±0.01"
+    },
+    {
+      "path": "payload.publishMode",
+      "type": "string",
+      "source": "app_config publish.mode (010_app_config.sql:15 시드는 compressed)",
+      "deterministic": true,
+      "required": true,
+      "sample_value": "production"
+    }
+  ],
+  "sample": {
+    "payload": {
+      "season": {
+        "label": "2026년 9월",
+        "weekCount": 4
+      },
+      "weeklyCards": [
+        {
+          "weekLabel": "9월 1주차",
+          "cards": [
+            {
+              "name": "가람",
+              "ovr": 88,
+              "stats": {
+                "pus": 61,
+                "emp": 72,
+                "att": 40,
+                "def": 70,
+                "tac": 55,
+                "rea": 80
+              }
+            }
+          ]
+        }
+      ],
+      "statChanges": [],
+      "publishMode": "production"
+    }
+  },
+  "open_questions": [
+    "shrinkage v0: 사전 분산은 규준 파일(stats.*.stdDev)에 있으나, 채팅 관측으로 스탯을 갱신하는 관측식 자체가 없다(leagueStats.ts:14 \"구현하지 않음\")",
+    "매치 리포트 11항목 산출 엔진이 없다(점유율 · 티키타카 등 실측 항목 포함) - 2.0-A 범위에 넣을지",
+    "별지 쪽 수: 기획서 1~2면 vs CORNER_LAYOUT 주간 1~2 + 월간 2~3면",
+    "positionCode 네이밍 체계 미확정(CORNER_CONTENT §10) - 2.0에서 null 유지 여부",
+    "app_config publish.mode 시드가 compressed - 운영 값은 원격(읽지 않음), 기획서는 production",
+    "스킵 시 발행 노트 문장이 기획서에 없다"
+  ],
+  "common_rules": "contracts/README.md"
+}

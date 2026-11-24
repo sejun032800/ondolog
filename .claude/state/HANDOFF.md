@@ -11,6 +11,18 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `2.0-0` 매거진 2.0 현황 조사 · 코너별 데이터 계약 초안 · iOS 준비 읽기 (메인 세션, 2026-11-25, 위임문 `phase-7/m20-0-dispatch-magazine-2-0-survey.md` · ROADMAP r156 R156-2~10 · R155-3 · R155-4 · MASTER r84) - 완료 · 멈춤 0 · 읽기 전용(코드 0 · 원격 0 · LLM 0) (미커밋)
+
+시작 확인: ROADMAP `r156` · MASTER `r84` · 기획서 `docs/ONDOLOG_magazine_2_0_plan.md` 있음 - 통과.
+
+- 산출물: `docs/magazine-2-0/survey-2-0-0.md`(①~④ · ⑥ 표 + PM 결정 목록) · `docs/magazine-2-0/contracts/README.md`(공통 규칙) · `contracts/*.json` 14개(참고 `date_archive` + 코너 9 + 부속 4 · 모두 JSON 읽기 통과 · 예시는 합성).
+- 현황: 완성 0 · 엔진만 2(DNA `dnaScore.ts` · 리그 `leagueStats.ts`) · 표만 1(발행 노트 기존 지면) · 없음 10. 생성 · 저장 스키마 · 렌더러 모두 3코너 전용(`generateIssue.ts:72` · `cornerTitles.ts:18` · `compose.py:39`).
+- 매거진 제작 탭(D02) 없음 - 매거진 탭 = 서재 하나(`web/src/tabs/MagazineTab.tsx`). 시안 D02 · D03 · G01~G11 = `docs/design/nocturne/screens/`.
+- `UNRESOLVED` 3키(`unresolved.ts:50-63`) · MASTER 16-2와 짝 맞음. **chatDelta v0 입력 지표(다정 비율 · 왕복 · 티키타카)가 결정론 함수로 없다** - 기획서 전제와 다름(`messages.warmth_score` 비어 있음 · 태깅 LLM 0). shrinkage 사전 분산은 규준 파일에 있음 · 관측 쪽 없음.
+- 스키마: 인터뷰 3표 · 게스트 2표 · 협찬 · 열람실 집계 없음 · 셋로그 `entry_type` enum 값 없음(`002_enums.sql:10`) · DNA 계수 app_config 키 없음 · 산출 4표는 같음.
+- 차이 목록 a~d(PE) 확인 + 메인 세션 e~o(게스트 AI 필터 · 응답 상한 · 리그 지면 수 · 다음 호 예고 vs MASTER r63(틀 · 시험이 금지를 지킴) · "부록 A" 참조 없음 · 부재 지면 3-7 vs 빠짐 · 인터뷰 미완 회차 · 생일 사용 동의 등).
+- iOS: `web/ios` 없음 · 카카오 = Supabase OAuth 웹 리디렉트 + `ondolog://` 스킴(네이티브 SDK 아님 - iOS는 `CFBundleURLTypes`만) · **푸시: iOS에서 `@capacitor/push-notifications` 토큰은 APNs 토큰 - 서버는 FCM V1이라 FCM 변환 단계 필요(새 의존성 또는 AppDelegate 코드 · Mac)** · 센서 권한 이미 처리(`useSkyOrientation.ts:70-86` · `SkyScreen.tsx:230`) · 번들 id `com.ondolog.app.web` 일치.
+
 ## `92-` (E0) 13지면 넘침 · 잘림 · 겹침 → 되받기 / 실패 / 틀 축소 · 스모크 진입 파일 운영 번들 검사 (메인 세션, 2026-11-24, 위임문 `phase-7/92-dispatch-overset-all-pages-smoke-bundle.md` · ROADMAP r156 R152-2 · R154-5 · R155-6 · R29-3) - 완료 · 멈춤 1(덩어리 판면 이탈 - 물은 뒤 PM 답대로 렌더러 임시 CSS) · 렌더 · 게이트 스크립트만 (미커밋)
 
 시작 확인: `DOC_REVISION: 2026-11-24-r156` - 통과. LLM 0 · 서버 0 · 원격 0 · 마이그레이션 0 · 앱 화면 0 · 틀(`render/issue/`) 0.

@@ -1,0 +1,66 @@
+{
+  "corner_id": "colophon",
+  "kind": "부속",
+  "page_title": "판권",
+  "page_title_note": "\"판권 · 정오\" 한 면 - 지면 제목 확정 TBD",
+  "pages": {
+    "min": 1,
+    "max": 1
+  },
+  "publish_condition": "매호",
+  "skip_note": "없음",
+  "llm_calls": 0,
+  "fields": [
+    {
+      "path": "payload.issueLabel",
+      "type": "string",
+      "source": "DB issues (supabase/migrations/009_magazine.sql:4) period_start · issue_type",
+      "deterministic": true,
+      "required": true,
+      "extra_rule": "호 번호 · 발행일은 지면에 찍지 않는다(MASTER 16-2 r63 표지 규칙) - 판권도 같은지 TBD"
+    },
+    {
+      "path": "payload.names",
+      "type": "string",
+      "source": "couples.nickname · profiles.display_name",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.engineVersions",
+      "type": "object",
+      "source": "dna_scores.engine_version · stat_snapshots.engine_version · coeffVersion",
+      "deterministic": true,
+      "required": false
+    },
+    {
+      "path": "payload.correction",
+      "type": "string",
+      "source": "고정: 정정 창구 \"설정 › 문의\"",
+      "deterministic": true,
+      "required": true,
+      "tone": "합니다체"
+    },
+    {
+      "path": "payload.theme",
+      "type": "string",
+      "source": "issues.theme",
+      "deterministic": true,
+      "required": true
+    }
+  ],
+  "sample": {
+    "payload": {
+      "issueLabel": "2026년 9월호",
+      "names": "예시 커플 · 가람 · 나래",
+      "correction": "정정은 설정 › 문의로 알려 주세요.",
+      "theme": "basic"
+    }
+  },
+  "open_questions": [
+    "판권에 계수 · 엔진 버전을 싣는지(재현성 표시)",
+    "\"정오\"는 지난 호 정정 내용을 싣는 칸인지 창구 안내만인지",
+    "정정 창구: 지금 앱은 설정 › 앱 정보 › 문의하기(mailto, web/src/features/settings/AboutScreen.tsx:56)뿐 - 기획서 \"설정 › 문의\"와 경로 이름이 다르다. 호 단위 정정 화면은 없다"
+  ],
+  "common_rules": "contracts/README.md"
+}

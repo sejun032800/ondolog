@@ -1,0 +1,63 @@
+{
+  "corner_id": "next_issue",
+  "kind": "부속",
+  "page_title": "다음 호 예고",
+  "pages": {
+    "min": 1,
+    "max": 1
+  },
+  "publish_condition": "매호",
+  "skip_note": "없음",
+  "llm_calls": 0,
+  "fields": [
+    {
+      "path": "payload.month",
+      "type": "string",
+      "source": "issue.period_end 다음 달",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.milestones[]",
+      "type": "array",
+      "source": "src/utils/relationshipDays.ts:29 computeDaysTogetherKst 등 - 달 단위 목록 함수 TBD",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 0,
+        "max": 4
+      }
+    },
+    {
+      "path": "payload.openingCorners[]",
+      "type": "array",
+      "source": "다음 달 발행 조건 예측(특별 게스트 · 인터뷰 회차)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 0,
+        "max": 3
+      },
+      "tone": "명사형"
+    }
+  ],
+  "sample": {
+    "payload": {
+      "month": "2026-10",
+      "milestones": [
+        {
+          "label": "500일",
+          "date": "2026-10-27"
+        }
+      ],
+      "openingCorners": [
+        "특별 게스트"
+      ]
+    }
+  },
+  "open_questions": [
+    "MASTER r63 \"다음 호를 약속하는 표시 금지\"(back.html \"NEXT ISSUE\" 줄을 뺀 근거 - render/issue/pages/back.html:24 주석 · render/tests/test_compose.py:507)와 충돌 - PM 정리 필요",
+    "\"열릴 코너\"를 미리 말하면 조건을 못 채웠을 때 약속이 깨진다 - 표현 범위"
+  ],
+  "common_rules": "contracts/README.md"
+}

@@ -1,0 +1,125 @@
+{
+  "corner_id": "date_archive",
+  "status": "reference (지금 렌더러가 받는 모양 - 형식 맞춤용)",
+  "page_title": "함께한 하루",
+  "page_title_source": "src/types/corners/cornerTitles.ts:26",
+  "pages": {
+    "min": 3,
+    "max": 8,
+    "note": "da-opener 1 + da-timeline 1~2 + da-places 1 + da-article 기사 수(render/compose.py date_archive_pages :400)"
+  },
+  "publish_condition": "그달 실을 만한 데이트 기록이 있을 때",
+  "skip_note": "실을 만한 데이트 기록을 찾지 못했습니다 (render/compose.py:59)",
+  "llm_calls": 1,
+  "schema": "src/types/corners/storedContent.ts DateArchivePayloadSchema · supabase/functions/_shared/corners/dateArchive.ts",
+  "fields": [
+    {
+      "path": "payload.articles[]",
+      "type": "array",
+      "source": "llm 선택(dateId) + 서버 조립",
+      "deterministic": false,
+      "required": true,
+      "count": {
+        "min": 1,
+        "max": "TBD(합계 지면 상한)"
+      }
+    },
+    {
+      "path": "payload.articles[].title",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": true,
+      "max_chars": 20,
+      "tone": "명사형",
+      "checks": [
+        "스키마 stringMaxCodePoints(20) (dateArchive.ts:79)",
+        "84-c 검사"
+      ]
+    },
+    {
+      "path": "payload.articles[].stops[]",
+      "type": "array",
+      "source": "DB date_stops",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 1,
+        "max": "TBD"
+      }
+    },
+    {
+      "path": "payload.articles[].stops[].userNotes[0].text",
+      "type": "string",
+      "source": "DB data_entries.text_content (memo)",
+      "deterministic": true,
+      "required": false,
+      "original": true,
+      "original_rule": "원문 불변 · 자르지 않음(R29-3)",
+      "input_limit_suggestion": "앱 메모 입력 상한(지금 값 그대로)"
+    },
+    {
+      "path": "payload.articles[].stops[].aiCaption",
+      "type": "string|null",
+      "source": "llm (userNotes 없는 구간만)",
+      "deterministic": false,
+      "required": false,
+      "max_chars": 30,
+      "tone": "명사형"
+    },
+    {
+      "path": "payload.articles[].stops[].photos[]",
+      "type": "array<PhotoRef>",
+      "source": "DB data_entries(photo)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 0,
+        "max": 3
+      },
+      "aspect_info": true,
+      "aspect_note": "PhotoRef.width/height 있음"
+    },
+    {
+      "path": "payload.articles[].closingQuestions[]",
+      "type": "array",
+      "source": "llm",
+      "deterministic": false,
+      "required": true,
+      "count": {
+        "min": 3,
+        "max": 3
+      },
+      "tone": "해요체"
+    }
+  ],
+  "sample": {
+    "payload": {
+      "articles": [
+        {
+          "dateOn": "2026-09-12",
+          "title": "골목 끝 서점까지 걸은 날",
+          "featured": true,
+          "stops": [
+            {
+              "seq": 0,
+              "time": "14:20",
+              "placeName": "예시역",
+              "userNotes": [],
+              "aiCaption": "역 앞에서 만난 오후",
+              "photos": [
+                {
+                  "path": "x/e01.jpg",
+                  "width": 1200,
+                  "height": 1600
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "open_questions": [],
+  "common_rules": "contracts/README.md"
+}

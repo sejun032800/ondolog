@@ -1,0 +1,80 @@
+{
+  "corner_id": "publication_note",
+  "kind": "부속(기존 note 지면의 새 줄)",
+  "page_title": "발행 노트(지금 그대로)",
+  "pages": {
+    "min": 1,
+    "max": 1
+  },
+  "publish_condition": "매호",
+  "skip_note": "없음",
+  "llm_calls": 0,
+  "existing": "render/issue/pages/note.html · render/compose.py 발행 노트 조립(CORNER_LABELS :40 · 스킵 문장 :58-60)",
+  "fields": [
+    {
+      "path": "payload.materials.personality",
+      "type": "string",
+      "source": "personality_profiles 두 사람 유무",
+      "deterministic": true,
+      "required": true,
+      "tone": "명사형",
+      "sample_value": "성격 정보 2명"
+    },
+    {
+      "path": "payload.materials.setlog",
+      "type": "string",
+      "source": "data_entries entry_type='setlog' 건수 (TBD enum)",
+      "deterministic": true,
+      "required": true,
+      "tone": "명사형"
+    },
+    {
+      "path": "payload.materials.interviewAnswers",
+      "type": "string",
+      "source": "interview_answers 건수 (TBD 표)",
+      "deterministic": true,
+      "required": true,
+      "tone": "명사형"
+    },
+    {
+      "path": "payload.materials.guestMessages",
+      "type": "string",
+      "source": "guest_responses 받은 수 · 실은 수 (TBD 표)",
+      "deterministic": true,
+      "required": true,
+      "tone": "명사형"
+    },
+    {
+      "path": "payload.notUsed[]",
+      "type": "array",
+      "source": "빠진 코너와 이유 - 기획서 문장 그대로",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 0,
+        "max": 12
+      }
+    }
+  ],
+  "skip_sentences_from_plan": {
+    "love_dna": "성격 정보가 아직 없어 싣지 않았습니다",
+    "over_shoulder": "어깨너머는 함께하는 커플이 더 모이면 열립니다",
+    "others": "TBD - 기획서에 문장 없음(league · rough_guess · offline_setlog · couple_interview · special_guest · sponsored · appendix 엽서)"
+  },
+  "sample": {
+    "payload": {
+      "materials": {
+        "personality": "성격 정보 2명",
+        "setlog": "셋로그 3건"
+      },
+      "notUsed": [
+        "어깨너머 — 어깨너머는 함께하는 커플이 더 모이면 열립니다"
+      ]
+    }
+  },
+  "open_questions": [
+    "빠진 코너 문장 7종 확정(PM)",
+    "재료 줄이 늘면 note.html 한 면에 들어가는지(높이 표 · R152-2)"
+  ],
+  "common_rules": "contracts/README.md"
+}

@@ -1,0 +1,71 @@
+{
+  "corner_id": "sponsored",
+  "page_title": "협찬",
+  "pages": {
+    "min": 1,
+    "max": 1
+  },
+  "publish_condition": "그달 협찬이 있을 때만 (기획서 1절 #12)",
+  "skip_note": "TBD - 빠질 때 발행 노트에 적을지(협찬 없음은 독자에게 사유가 아님)",
+  "llm_calls": 0,
+  "fields": [
+    {
+      "path": "payload.label",
+      "type": "string",
+      "source": "고정 \"협찬\"",
+      "deterministic": true,
+      "required": true,
+      "extra_rule": "필수 · 숨기지 않음(기획서 2절 12.)",
+      "sample_value": "협찬"
+    },
+    {
+      "path": "payload.brand",
+      "type": "string",
+      "source": "TBD 표: sponsor_slots (운영 스크립트로만 쓰기 · 앱 쓰기 0 · RLS)",
+      "deterministic": true,
+      "required": true,
+      "max_chars": 20
+    },
+    {
+      "path": "payload.headline",
+      "type": "string",
+      "source": "sponsor_slots",
+      "deterministic": true,
+      "required": true,
+      "max_chars": 30,
+      "tone": "합니다체"
+    },
+    {
+      "path": "payload.body",
+      "type": "string",
+      "source": "sponsor_slots",
+      "deterministic": true,
+      "required": false,
+      "max_chars": 200,
+      "tone": "합니다체"
+    },
+    {
+      "path": "payload.image",
+      "type": "PhotoRef|null",
+      "source": "sponsor_slots (매거진 버킷 경로)",
+      "deterministic": true,
+      "required": false,
+      "aspect_info": true
+    }
+  ],
+  "sample": {
+    "payload": {
+      "label": "협찬",
+      "brand": "예시상점",
+      "headline": "예시상점이 이 지면을 함께합니다",
+      "body": null,
+      "image": null
+    }
+  },
+  "open_questions": [
+    "sponsor_slots 열(기간 · 대상 범위 · 문구 검수자)",
+    "협찬 문구에도 84-c 검사(말투 · 금지어)를 거는지",
+    "커플 데이터로 고르지 않음 - \"전 커플 동일 슬롯\"인지 확인"
+  ],
+  "common_rules": "contracts/README.md"
+}

@@ -1,0 +1,120 @@
+{
+  "corner_id": "offline_setlog",
+  "page_title": "각자의 하루",
+  "pages": {
+    "min": 1,
+    "max": 2,
+    "note": "그달 대표 하루 1~2면 (기획서 2절 7.)"
+  },
+  "publish_condition": "그달 셋로그 1건 이상 (기획서 1절 #7) · 한쪽만 있으면 한쪽 열만 (MASTER 17-7)",
+  "skip_note": "TBD - 기획서에 문장 없음",
+  "llm_calls": "0~1 (캡션 없으면 0)",
+  "fields": [
+    {
+      "path": "payload.day",
+      "type": "string",
+      "source": "TBD 엔진: 대표 하루 선별 (MASTER 17-7 우선순위 4단)",
+      "deterministic": true,
+      "required": true,
+      "extra_rule": "결정론 · 동률 규칙 필요"
+    },
+    {
+      "path": "payload.columns[]",
+      "type": "array",
+      "source": "DB data_entries (supabase/migrations/006_archive.sql:89) entry_type='setlog' (enum 값 없음 - 002_enums.sql:10)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 1,
+        "max": 2
+      },
+      "extra_rule": "userId 기준, 좌우 배치는 렌더러"
+    },
+    {
+      "path": "payload.columns[].entries[]",
+      "type": "array",
+      "source": "DB data_entries (supabase/migrations/006_archive.sql:89)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 0,
+        "max": "TBD(한 열 최대)"
+      }
+    },
+    {
+      "path": "payload.columns[].entries[].time",
+      "type": "string",
+      "source": "data_entries.captured_at (EXIF)",
+      "deterministic": true,
+      "required": true,
+      "extra_rule": "HH:MM"
+    },
+    {
+      "path": "payload.columns[].entries[].photo",
+      "type": "PhotoRef",
+      "source": "data_entries.storage_path · width · height",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 1,
+        "max": 1
+      },
+      "aspect_info": true
+    },
+    {
+      "path": "payload.columns[].entries[].text",
+      "type": "string",
+      "source": "data_entries.text_content",
+      "deterministic": true,
+      "required": true,
+      "original": true,
+      "original_rule": "원문 불변 · 자르지 않음(R29-3)",
+      "input_limit_suggestion": "한 문장 - 제안 60자(앱 입력에서 막음)"
+    },
+    {
+      "path": "payload.overlaps[]",
+      "type": "array",
+      "source": "TBD 엔진: 같은 시간대(±30분?) 두 사람 기록",
+      "deterministic": true,
+      "required": false,
+      "count": {
+        "min": 0,
+        "max": 3
+      }
+    }
+  ],
+  "sample": {
+    "payload": {
+      "day": "2026-09-17",
+      "columns": [
+        {
+          "name": "가람",
+          "entries": [
+            {
+              "time": "08:20",
+              "photo": {
+                "path": "x/s1.jpg",
+                "width": 1200,
+                "height": 1600
+              },
+              "text": "지하철에서 책 읽는 중"
+            }
+          ]
+        },
+        {
+          "name": "나래",
+          "entries": []
+        }
+      ],
+      "overlaps": []
+    }
+  },
+  "open_questions": [
+    "data_entries.entry_type enum에 'setlog'가 없다 - 마이그레이션으로 값 추가(MASTER 761 '새 테이블 0')",
+    "셋로그 사진이 피드 · 데이트 아카이브 · 사진 한 장 후보에 섞이지 않게 거르는 규칙(지금 질의는 entry_type 구분 없음)",
+    "겹친 시간대 허용 폭(MASTER는 \"같은 시간대\" - 분 단위 기준 없음)",
+    "LLM 0~1회의 캡션이 무엇인지(MASTER 17-7 AI 역할은 배치만 - 사진 설명 금지)",
+    "매일 알림(기본 꺼짐) 설정 저장 위치 - notification_settings에 칸 추가 필요"
+  ],
+  "common_rules": "contracts/README.md"
+}

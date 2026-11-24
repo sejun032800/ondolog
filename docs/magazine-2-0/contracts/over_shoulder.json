@@ -1,0 +1,106 @@
+{
+  "corner_id": "over_shoulder",
+  "page_title": "어깨너머",
+  "pages": {
+    "min": 1,
+    "max": 1
+  },
+  "publish_condition": "활성 커플 100쌍 이상 + 칸마다 20쌍 이상 (기획서 2절 10.)",
+  "skip_note": "어깨너머는 함께하는 커플이 더 모이면 열립니다 (기획서 2절 10.)",
+  "llm_calls": 0,
+  "privacy": {
+    "cell_min_couples": 20,
+    "corner_min_active_couples": 100,
+    "rule": "칸마다 20쌍 미만이면 그 칸을 지운다 · 활성 100쌍 미만이면 코너가 빠진다 · 집계 표에 커플 id 칸 0 · 다른 커플의 글·사진·잡지 0"
+  },
+  "fields": [
+    {
+      "path": "payload.activeCouples",
+      "type": "number",
+      "source": "TBD 집계 표(이름 미정 - 기획서 \"집계 표 1\")",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        100,
+        null
+      ]
+    },
+    {
+      "path": "payload.cells[]",
+      "type": "array",
+      "source": "TBD 집계 표",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 1,
+        "max": "TBD"
+      }
+    },
+    {
+      "path": "payload.cells[].key",
+      "type": "string",
+      "source": "TBD - 어떤 집계를 실을지 목록 없음",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.cells[].n",
+      "type": "number",
+      "source": "TBD 집계 표",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        20,
+        null
+      ],
+      "extra_rule": "20 미만이면 칸 삭제"
+    },
+    {
+      "path": "payload.cells[].ratio",
+      "type": "number",
+      "source": "TBD 집계 표",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        0,
+        1
+      ],
+      "decimals": 2
+    },
+    {
+      "path": "payload.ourValue",
+      "type": "number|null",
+      "source": "이 커플 값(자기 데이터) - 비교 표기 여부 TBD",
+      "deterministic": true,
+      "required": false
+    }
+  ],
+  "sample_synthetic_aggregate": {
+    "note": "시험용 합성 집계 - 실제 커플 데이터 0",
+    "payload": {
+      "activeCouples": 128,
+      "cells": [
+        {
+          "key": "dates_per_month",
+          "label": "한 달 데이트 기록 수",
+          "n": 64,
+          "ratio": 0.42
+        },
+        {
+          "key": "dates_per_month_5plus",
+          "label": "5번 이상",
+          "n": 12,
+          "ratio": null,
+          "dropped": true
+        }
+      ]
+    }
+  },
+  "open_questions": [
+    "어떤 집계를 실을지(칸 목록)가 MASTER · 기획서에 없다",
+    "이 커플 값을 나란히 싣는가 - \"다른 커플과 비교하는 순간 경쟁\"(MASTER 17-2 절대평가 원칙)과 충돌 여부",
+    "집계 표 이름 · 갱신 주기 · \"활성 커플\" 정의",
+    "처리방침 익명 통계 조항(법무 검토 2)"
+  ],
+  "common_rules": "contracts/README.md"
+}

@@ -1,0 +1,129 @@
+{
+  "corner_id": "rough_guess",
+  "page_title": "어림짐작",
+  "pages": {
+    "min": 1,
+    "max": 1
+  },
+  "publish_condition": "성격 데이터 + 채팅 (기획서 1절 #6) · 채팅 30건 미만이면 4·5·6·7 제외 (MASTER 17-9)",
+  "skip_note": "TBD - 기획서에 문장 없음(성격 정보 없음은 DNA와 같은 문장 후보)",
+  "llm_calls": 1,
+  "fields": [
+    {
+      "path": "payload.disclaimer",
+      "type": "string",
+      "source": "고정 문구(MASTER 17-9 \"재미로만 봐주세요\")",
+      "deterministic": true,
+      "required": true,
+      "tone": "합니다체"
+    },
+    {
+      "path": "payload.items[]",
+      "type": "array",
+      "source": "TBD: src/engine/roughGuess.ts (MASTER 17-9 구현 위치 - 파일 없음)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 4,
+        "max": 8
+      },
+      "extra_rule": "채팅 30건 미만이면 1·2·3·8만(4개)"
+    },
+    {
+      "path": "payload.items[].subject",
+      "type": "string",
+      "source": "DB profiles.display_name",
+      "deterministic": true,
+      "required": true,
+      "extra_rule": "50% 미만이면 주체를 바꿔 표기 · 차이 10%p 미만이면 \"비슷합니다\"(기획서 2절 6.)"
+    },
+    {
+      "path": "payload.items[].percent",
+      "type": "number",
+      "source": "TBD 엔진 (성격 벡터 기반 1·2·3 · 채팅 실측 4·5·6)",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        50,
+        100
+      ],
+      "decimals": 0
+    },
+    {
+      "path": "payload.items[].measured",
+      "type": "boolean",
+      "source": "실측 항목(4·5·6·7) true / 추정 false",
+      "deterministic": true,
+      "required": true,
+      "extra_rule": "표기로 구분(기획서 2절 6.)"
+    },
+    {
+      "path": "payload.busiestDay.date",
+      "type": "string",
+      "source": "TBD 엔진: messages.sent_at 일별 건수 최대 (KST)",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.busiestDay.line",
+      "type": "string",
+      "source": "llm",
+      "deterministic": false,
+      "required": false,
+      "max_chars": 20,
+      "tone": "합니다체",
+      "checks": [
+        "말투(84-c)",
+        "숫자·시각 대조(84-c)",
+        "요일(84-c)",
+        "금지어"
+      ],
+      "extra_rule": "\"그날은 OO 얘기가 오갔습니다\" · 추출 불가 시 null"
+    },
+    {
+      "path": "payload.monthlyTopic.id",
+      "type": "number",
+      "source": "TBD: selectMonthlyTopic(hash(coupleId+period)) % 12 (MASTER 17-9) · 주제 풀 src/constants/roughGuessTopics.ts 없음",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        1,
+        12
+      ]
+    }
+  ],
+  "sample": {
+    "payload": {
+      "disclaimer": "재미로만 봐주세요. 진짜로 재는 건 아닙니다.",
+      "items": [
+        {
+          "key": "confess_first",
+          "subject": "가람",
+          "percent": 71,
+          "measured": false
+        },
+        {
+          "key": "talk_first",
+          "subject": "나래",
+          "percent": 55,
+          "measured": true,
+          "similar": true
+        }
+      ],
+      "busiestDay": {
+        "date": "2026-09-14",
+        "line": "그날은 이사 얘기가 오갔습니다"
+      },
+      "monthlyTopic": {
+        "id": 3
+      }
+    }
+  },
+  "open_questions": [
+    "항목 1~3 · 8의 산출식(확률로 바꾸는 식)이 MASTER에 입력 변수만 있고 수식 없음 - v0 계수 결정 필요",
+    "\"비슷해요\" 10%p 규칙을 게이지(5·6) · 좌우 비교(4)에도 거는지",
+    "hashString 함수 · 주제 풀 12종 문장(출력 예)을 상수 파일로 확정할 PM 승인",
+    "7번 LLM 입력(하루치 대화)을 원격 LLM에 보내는 범위 - 개인정보 처리방침과 대조"
+  ],
+  "common_rules": "contracts/README.md"
+}

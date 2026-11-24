@@ -1,0 +1,72 @@
+{
+  "corner_id": "appendix",
+  "page_title": "부록",
+  "pages": {
+    "min": 1,
+    "max": 2,
+    "note": "달력 1 + 사진 엽서 1(사진 0장이면 엽서 면만 빠짐)"
+  },
+  "publish_condition": "매호 (기획서 1절 #11)",
+  "skip_note": "(엽서 면만) TBD 문장",
+  "llm_calls": 0,
+  "fields": [
+    {
+      "path": "payload.calendar.month",
+      "type": "string",
+      "source": "다음 달(issue.period_end + 1일, KST)",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.calendar.marks[]",
+      "type": "array",
+      "source": "src/utils/relationshipDays.ts:29 computeDaysTogetherKst · profiles.birth_date - 달 단위 목록 함수 TBD",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 0,
+        "max": "TBD"
+      }
+    },
+    {
+      "path": "payload.calendar.marks[].label",
+      "type": "string",
+      "source": "결정론(\"500일\" · \"2주년\" · 생일)",
+      "deterministic": true,
+      "required": true,
+      "tone": "명사형"
+    },
+    {
+      "path": "payload.postcards[]",
+      "type": "array<PhotoRef>",
+      "source": "TBD 선별: 그달 사진 2장 (data_entries photo)",
+      "deterministic": true,
+      "required": false,
+      "count": {
+        "min": 0,
+        "max": 2
+      },
+      "aspect_info": true
+    }
+  ],
+  "sample": {
+    "payload": {
+      "calendar": {
+        "month": "2026-10",
+        "marks": [
+          {
+            "date": "2026-10-27",
+            "label": "500일"
+          }
+        ]
+      },
+      "postcards": []
+    }
+  },
+  "open_questions": [
+    "엽서 사진 2장 선별 규칙(결정론)",
+    "인쇄해 붙이는 판형 - 디지털 PDF에서 재단선 표기",
+    "생일 표시 동의 범위(special_guest와 같음)"
+  ],
+  "common_rules": "contracts/README.md"
+}

@@ -1,0 +1,111 @@
+{
+  "corner_id": "special_guest",
+  "page_title": "특별 게스트",
+  "pages": {
+    "min": 1,
+    "max": 2
+  },
+  "publish_condition": "기념일이 있는 달(100일 단위 · 연 단위 · 양쪽 생일) + 양쪽 승인된 메시지 1개 이상 (기획서 1절 #9)",
+  "skip_note": "TBD - 기획서에 문장 없음",
+  "llm_calls": 0,
+  "fields": [
+    {
+      "path": "payload.milestone.label",
+      "type": "string",
+      "source": "src/utils/relationshipDays.ts:29 computeDaysTogetherKst · profiles.birth_date (003_profiles.sql:7) - 달 단위 기념일 목록 함수 TBD",
+      "deterministic": true,
+      "required": true,
+      "tone": "명사형"
+    },
+    {
+      "path": "payload.questions[]",
+      "type": "array",
+      "source": "TBD 표: guest_invites.question_ids · custom_question",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 1,
+        "max": 3
+      }
+    },
+    {
+      "path": "payload.questions[].custom",
+      "type": "string",
+      "source": "guest_invites.custom_question",
+      "deterministic": true,
+      "required": false,
+      "original": true,
+      "original_rule": "원문 불변 · 자르지 않음(R29-3)",
+      "input_limit_suggestion": "제안 60자"
+    },
+    {
+      "path": "payload.responses[]",
+      "type": "array",
+      "source": "TBD 표: guest_responses (approved_by_a AND approved_by_b)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 1,
+        "max": 10
+      }
+    },
+    {
+      "path": "payload.responses[].nickname",
+      "type": "string",
+      "source": "guest_responses.nickname",
+      "deterministic": true,
+      "required": true,
+      "original": true,
+      "original_rule": "원문 불변 · 자르지 않음(R29-3)",
+      "input_limit_suggestion": "20자 (MASTER 17-8)"
+    },
+    {
+      "path": "payload.responses[].text",
+      "type": "string",
+      "source": "guest_responses.answer_text",
+      "deterministic": true,
+      "required": true,
+      "original": true,
+      "original_rule": "원문 불변 · 자르지 않음(R29-3)",
+      "input_limit_suggestion": "제안 300자(웹 페이지에서 막음)"
+    },
+    {
+      "path": "payload.responderCount",
+      "type": "number",
+      "source": "count(승인된 응답 작성자)",
+      "deterministic": true,
+      "required": true,
+      "range": [
+        1,
+        10
+      ]
+    }
+  ],
+  "sample": {
+    "payload": {
+      "milestone": {
+        "label": "500일"
+      },
+      "questions": [
+        {
+          "text": "두 사람을 처음 봤을 때 어땠나요?"
+        }
+      ],
+      "responses": [
+        {
+          "nickname": "예시 동기",
+          "text": "처음부터 편해 보였어요"
+        }
+      ],
+      "responderCount": 1
+    }
+  },
+  "open_questions": [
+    "링크 만료: MASTER 7일 vs 기획서 그달 말(차이 b)",
+    "AI 1차 필터(MASTER 17-8 \"욕설·혐오 자동 제외\") vs 기획서 LLM 0 - 필터를 규칙(금지어)으로 할지",
+    "생일을 기념일로 쓰는 것: birth_date는 \"나이 확인용\"(003_profiles.sql:7 주석) - 동의 · 처리방침 범위",
+    "웹 페이지 호스팅(Edge Function 서빙 vs 별도) · 응답 상한 10명 확정",
+    "싣지 않은 글 정리 시점(호 발행 뒤) - 보관 배치 설계"
+  ],
+  "common_rules": "contracts/README.md"
+}
