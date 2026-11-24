@@ -43,6 +43,7 @@ HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이
 위임서 "그 밖의 사용자 행은 없어야 한다(있으면 멈추고 보고)"의 전제가 저장소 기록과 맞지 않는다. 검증 스크립트들이 원격 개발 DB에 시험 계정을 만들고 **지우지 않았다**: `verifyU1Main.ts`(`test-61-*`) · `verifyU4Chat.ts`(`test-62-chat-*`) · `verifyU6Signup.ts`(`test-63-signup-<시각>`, 실행마다 새로) · `verifyExistingAccount.ts`(`test-64-*`) · `verifyCoupleConnect.ts` · `verifyU6Part2.ts`(`test-66-*`) · `verify67Settings.ts`(`test-67-*`) · `verifyDissolution68.ts`(`test-68-*`) · `verifyLabels69.ts`(`test-69-*`) · `verifyDescriptions70.ts`(`test-70-*`, R47-1 "남긴다") · `verifyDeleteOwnEntry.ts`(`test-57-*`) · `verifyU2Record.ts`(`test-u2-*`) · `render/seed_render_tests.py`(`test-55-2-*` · `test-55-3-*`). HANDOFF 기록도 "지우지 않음"(이 파일 `test-61` · `test-62` · `test-63` · `test-64` · `test-u2` 절). 이름에 시각이 붙은 것이 많아 허용 목록으로 하나씩 적기 어렵다.
 - 원격을 읽지 않았으므로 몇 개가 남았는지는 모른다 - 아래 확인 질의 Q1의 `other_test_users`가 그 수다.
 - 지금 C3 명령은 위임서 범위(①②③)만 지운다. 그 밖의 시험 계정을 C3에 넣을지 · 넣는다면 어떤 길(새 잠금)로 할지는 PM 결정. 새 길은 만들지 않았다.
+- **규칙(91-b · R154-7)**: 앞으로 원격에 시험 계정을 만드는 스크립트는 끝에 스스로 지우거나, 패턴 모드(`scripts/ops/resetTestPattern.ts`)의 대상이 되는 이메일 모양(`test-<영숫자 · - · _ · .>@example.com`)을 쓴다. 위 스크립트들은 고치지 않는다(동결 · 실제 커플 뒤 원격 시험은 따로 정함). → 지우는 길은 아래 "91-b" 절.
 
 ### Proteur 명령 순서 (저장소 맨 위 폴더 · PowerShell)
 
@@ -177,6 +178,57 @@ select bucket_id, count(*) as n from storage.objects group by bucket_id order by
 ```
 
 정상(Q1 `other_test_users` = 0일 때): Q2의 `(남김)` 세 줄 밖은 모두 0 · Q3은 행 0(매거진 · 사진 0). `other_test_users`가 0이 아니면 그 계정들의 행 · 파일이 남는 것이 정상이다(범위 밖) - 숫자만 PE에게. `push_daily` · `app_error_daily`는 개인 정보 없는 날짜별 숫자라 기본 남김(지울지는 PM).
+
+## `91-b` 범위 밖 시험 계정 지우기 — 패턴 모드 · 네 겹 잠금 (메인 세션, 2026-11-24, 위임문 `phase-7/91-b-dispatch-pattern-test-accounts.md` · ROADMAP r154 R154-7 · R154-9 · R34-3 · R56-5) - 길 완료 · 원격 0 · 실행은 Proteur (미커밋)
+
+시작 확인: `DOC_REVISION: 2026-11-24-r154` - 통과. 원격 읽기 · 쓰기 0 · LLM 0 · web 0 · 마이그레이션 0.
+
+- **새 파일** `scripts/ops/resetTestPattern.ts`(패턴 모드 · 실행 진입점) · 시험 `resetTestPattern.test.ts`(루트 jest) · `resetTestPatternCheck.ts`(Deno) · 가짜 저장소 `resetTestPatternFake.ts`(시험 보조). **바꾼 파일** `resetAllowlist.ts`(이메일 줄 없이 `project=`만 보는 문 `makeProjectGate` - 기존 문과 같은 판정 함수를 나눠 씀) · `resetTestAccount.ts`(`envOrUndefined` · `readAllowlistText` 내보내기만). 지우는 일은 기존 port(`makePort`)의 `removeFiles` · `deleteRows` · `deleteUser` 그대로 - 새 삭제 로직 0.
+- **네 겹**: 1 이메일 모양 `PATTERN_EMAIL`(`test-[a-z0-9._-]+@example.com`, 대소문자 무시, 끝까지 일치) · 2 `project=` 잠금(접속 전, 이메일 줄 0이어도 통과) · 3 `--created-before`(KST 그날 0시, 필수 - 없거나 모양 · 날짜가 틀리면 접속 전 거부. 만든 시각을 모르면 대상 아님) · 4 미리 보기 기본, apply는 `--expect-users N` 필수 · 다시 센 수와 다르면 거부.
+- **전체 거부**(미리 보기 · apply): 대상의 커플(상태 무관)에 대상 밖 사람 / 사용자 칸 엮임 두 방향 - 대상이 대상 밖 커플 행의 작성자 · 정한 사람(couples 사귄 날짜 두 칸 · 닉네임 바꾼 사람 · 해제 요청자 · 기록 · 메시지 · 스토리 · 장소 작성자 · 스탯) 이거나, 지울 커플 행에 대상 밖 사람이 작성자. 칸 목록은 마이그레이션 005 · 006 · 007 · 008 · m3 · g1 · m1에서 읽음.
+- **사용자에 묶이지 않은 커플**: g1(`20261116170000_g1_member_set_null.sql`)이 couples 두 칸을 `on delete set null`로 바꿔, 두 사람이 지워진 커플 행이 남을 수 있다. 패턴 모드는 **세기만 하고 지우지 않는다**(미리 보기 · 실행 줄 "사용자에 묶이지 않은 커플(지우지 않음): N"). 0이 아니면 숫자만 PE에게(PM 결정).
+- 실행 뒤 줄: "대상 밖 사용자 실행 뒤: N"(전과 다르면 경고 한 줄) · "남은 대상 사용자: N"(0이어야 함). 중간에 끊기면 같은 명령을 남은 수로(`--expect-users`는 미리 보기를 다시 보고) 다시 친다.
+
+### 91-b 실행 (Proteur · C3 apply 뒤 · 저장소 맨 위 폴더 · PowerShell)
+
+**1. 새 창 · 값 넣기 · 확인.** 첫 줄 프로젝트 주소, 둘째 줄 운영용 secret key **`ops_2026_11`**. 허용 목록 파일은 C3 8단계대로 `project=` 줄만 있으면 된다(이메일 줄 0).
+
+```
+$env:ONDOLOG_SUPABASE_URL = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY = [Net.NetworkCredential]::new('', (Read-Host -AsSecureString)).Password
+$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY.StartsWith('sb_secret_')
+$env:ONDOLOG_SUPABASE_URL.StartsWith('https://')
+$env:ONDOLOG_SUPABASE_URL.EndsWith('.supabase.co')
+$h = ([Uri]$env:ONDOLOG_SUPABASE_URL).Host
+$al = Join-Path $env:USERPROFILE '.ondologeset-allowlist.txt'
+Test-Path $al
+```
+
+확인 네 줄이 모두 True일 때만 진행.
+
+**2. 미리 보기(아무것도 지우지 않음).**
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestPattern.ts --created-before 2026-11-25
+```
+
+- 정상(C3 뒤 읽기 숫자 기준): `대상 사용자: 63` · `그중 시드(test-m2b): 0` · `대상 밖 사용자(남김): 0` · couples = 26 − "사용자에 묶이지 않은 커플" · couple_dissolutions 4 · issues 8 · corners 24 · messages 165 · data_entries 131 · dates 29 · date_stops 50 · stories 7 · profiles 60 · personality_assessments 29 · personality_profiles 17 · Storage entries 97 · magazine 175 · messages 8 · stories 7(묶이지 않은 커플의 행 · 파일은 이 수에서 빠진다).
+- `non_test_couples` 8(또는 9)이 couples 수에 다 들어가는지 본다 - 들어가지 않으면 그 커플은 대상 밖 사람과 엮였거나 묶이지 않은 커플이다. 대상 밖과 엮였으면 **"거부: …" 한 줄**이 나와야 맞다.
+- "거부: …"가 나오면 그 문장만 보낸다.
+
+**3. 여기서 멈추고 PE 확인.** 보낼 것은 종류 · 건수 줄뿐. 창은 그대로.
+
+**4. apply(PE가 "진행"이라고 한 뒤에만).** N = 미리 보기의 `대상 사용자` 수.
+
+```
+deno run --no-check --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/resetTestPattern.ts --created-before 2026-11-25 --expect-users N --apply
+```
+
+- 정상: "실행(패턴 모드): 지운 수" · 건수가 미리 보기와 같음 · `대상 밖 사용자 실행 뒤: 0` · `남은 대상 사용자: 0` · 끝 줄 "완료". "중단: …"이면 그 줄만 보내고, 2단계 미리 보기를 다시 본 뒤 새 N으로 4단계를 다시 친다(남은 것만 지움).
+
+**5. 창 닫기 · 확인.** 새 창에서 `[bool]$env:ONDOLOG_SUPABASE_SERVICE_ROLE_KEY` · `[bool]$env:ONDOLOG_SUPABASE_URL` → 둘 다 False.
+
+**6. 확인 질의**(SQL Editor · 읽기만 · 숫자만) - 위 "C3 정리" 절의 Q1 · Q2 · Q3 그대로. 정상: Q1 `other_test_users` 0 · `non_test_users` 0 · `seed_users` 0 · `non_test_couples` 0(묶이지 않은 커플이 남았으면 그 수) · `demo_responses` = 169(C3 Q0) / Q2 `(남김)` 세 줄 밖 모두 0(묶이지 않은 커플이 남았으면 couples · 그 하위 행) / Q3 행 0(같은 예외).
 
 ## `88-b` 렌더 되받기 · 읽기 전용 로컬 렌더 (메인 세션, 2026-11-24, 위임문 `phase-7/88-b-dispatch-render-feedback-local-render (1).md` · ROADMAP r150 R150-2~5) - 완료 · 멈춤 0 · 실행은 Proteur (미커밋)
 

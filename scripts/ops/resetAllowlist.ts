@@ -69,26 +69,45 @@ export interface ResetGateInput {
 /** 초기화 문(gate): 이메일들을 받아 거부 이유(한 줄) 또는 null(통과). 접속 전에 부른다. */
 export type ResetGate = (emails: readonly string[]) => string | null
 
+/** 목록 파일 · project= 줄 · 접속 URL 판정(이메일 판정 전까지). 통과면 목록, 아니면 거부 이유. */
+function checkProject(input: ResetGateInput): { readonly list: ResetAllowlist } | { readonly reason: string } {
+  if (input.allowlistText === null) return { reason: '허용 목록 파일이 없거나 읽을 수 없다(저장소 밖 로컬 파일이 필요하다)' }
+  let list: ResetAllowlist
+  try {
+    list = parseAllowlist(input.allowlistText)
+  } catch (error) {
+    if (error instanceof OpsStopError) return { reason: error.message }
+    throw error
+  }
+  if (list.projects.size === 0) return { reason: '허용 목록에 개발 프로젝트 표시(project= 줄)가 없다' }
+  if (input.url === undefined || input.url.trim().length === 0) return { reason: '접속 URL 환경변수가 없다' }
+  let ref: string
+  try {
+    ref = projectRefFromUrl(input.url)
+  } catch {
+    return { reason: '접속 URL 모양이 틀렸다' }
+  }
+  if (!list.projects.has(ref)) return { reason: '개발 프로젝트가 아니다(허용 목록의 project와 다르다)' }
+  return { list }
+}
+
+/**
+ * 91-b 패턴 모드의 문: 목록 파일 · `project=` 잠금만 본다(이메일 줄은 쓰지 않는다 - 이메일 줄이 0이어도 통과).
+ * 거부 이유(한 줄) 또는 null(통과). 접속 전에 부른다. 판정 순서 · 문구는 `makeResetGate`와 같다.
+ */
+export function makeProjectGate(input: ResetGateInput): () => string | null {
+  return () => {
+    const checked = checkProject(input)
+    return 'reason' in checked ? checked.reason : null
+  }
+}
+
 /** 허용 목록 · 접속 URL로 문을 만든다. 판정은 순수하다(같은 입력 -> 같은 결과). */
 export function makeResetGate(input: ResetGateInput): ResetGate {
   return (emails) => {
-    if (input.allowlistText === null) return '허용 목록 파일이 없거나 읽을 수 없다(저장소 밖 로컬 파일이 필요하다)'
-    let list: ResetAllowlist
-    try {
-      list = parseAllowlist(input.allowlistText)
-    } catch (error) {
-      if (error instanceof OpsStopError) return error.message
-      throw error
-    }
-    if (list.projects.size === 0) return '허용 목록에 개발 프로젝트 표시(project= 줄)가 없다'
-    if (input.url === undefined || input.url.trim().length === 0) return '접속 URL 환경변수가 없다'
-    let ref: string
-    try {
-      ref = projectRefFromUrl(input.url)
-    } catch {
-      return '접속 URL 모양이 틀렸다'
-    }
-    if (!list.projects.has(ref)) return '개발 프로젝트가 아니다(허용 목록의 project와 다르다)'
+    const checked = checkProject(input)
+    if ('reason' in checked) return checked.reason
+    const list = checked.list
     if (emails.length === 0) return '이메일이 없다'
     if (emails.some((e) => !list.emails.has(e.trim().toLowerCase()))) return '허용 목록에 없는 이메일이다'
     return null

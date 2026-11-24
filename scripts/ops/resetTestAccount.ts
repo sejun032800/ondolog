@@ -422,8 +422,8 @@ export function makePort(client: Db): ResetPort {
   }
 }
 
-/** 권한이 없거나 없는 변수면 undefined(던지지 않는다 -> 문이 거부한다). */
-function envOrUndefined(name: string): string | undefined {
+/** 권한이 없거나 없는 변수면 undefined(던지지 않는다 -> 문이 거부한다). 91-b 패턴 모드도 쓴다. */
+export function envOrUndefined(name: string): string | undefined {
   try {
     return Deno.env.get(name)
   } catch {
@@ -431,8 +431,8 @@ function envOrUndefined(name: string): string | undefined {
   }
 }
 
-/** 허용 목록 파일 본문. 경로를 모르거나 · 없거나 · 읽기 권한이 없으면 null(-> 거부). 경로는 출력하지 않는다. */
-async function readAllowlistText(): Promise<string | null> {
+/** 허용 목록 파일 본문. 경로를 모르거나 · 없거나 · 읽기 권한이 없으면 null(-> 거부). 경로는 출력하지 않는다. 91-b 패턴 모드도 쓴다. */
+export async function readAllowlistText(): Promise<string | null> {
   const path = resolveAllowlistPath(envOrUndefined)
   if (path === null) return null
   try {
