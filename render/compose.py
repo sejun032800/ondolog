@@ -27,6 +27,9 @@ from typing import Any, Optional
 sys.dont_write_bytecode = True
 
 from romanize import romanize_place  # noqa: E402
+from compose20 import LABELS20, Pages20, is_issue20  # noqa: E402  (2.0-A1 새 지면 - appendix가 있는 호만)
+from page_plan import BODY_PAGE_CAP, plan_pages  # noqa: E402  (2.0-A1 쪽 수 규칙)
+from promise_check import promise_violations, visible_strings  # noqa: E402  (R157-7 약속 문장 금지)
 import measured  # noqa: E402  (88-b 렌더 되받기 - 그린 결과로 잰 높이)
 import heights  # noqa: E402  (README v1.2.3 §12 - 높이의 원본은 실측 표 `measure.json`이다. 값을 여기 옮겨 적지 않는다)
 from facts import (  # noqa: E402  (호의 사실 - 지면의 수치 · 목록은 모두 여기서 한 번 계산한다. 아래 이름은 compose에서도 쓸 수 있게 다시 내보낸다)
@@ -789,14 +792,34 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
 
     body_pages = {'date_archive': da_pages, 'sweet_words': sw_pages, 'this_month': tm_pages}
     ordered = [t for t in CORNER_ORDER if body_pages[t]]
+    sections = [(t, body_pages[t]) for t in ordered]
+
+    # 2.0-A1(위임 m20-a1 ⑦ ⑧): `appendix` 코너가 ready인 호만 - 새 지면(임시 틀) · 쪽 수 규칙(4의 배수 · 36쪽). 그 밖의 호는 이 가지를 지나지 않는다.
+    p20 = Pages20(b) if is_issue20(b) else None
+    plan = None
+    if p20 is not None:
+        dna, rough, appx, nxt = p20.dna_pages(), p20.rough_pages(), p20.appendix_pages(), p20.next_month_pages()
+        # ⑥ 새 재료 줄은 발행 노트(디자인 틀 · 한 면 고정)에 넣으면 AI 안내 줄과 겹친다(지면 검사 실패 - 92- 실측: 1줄까지만 들어감) ->
+        # 「발행 노트 · 이어서」 임시 면으로 되받는다(R152-2 되받기 · 틀 0). 디자인 묶음 5가 노트 안에 자리를 그리면 없앤다.
+        note_more = p20.note_more_page()
+        base_count = 3 + 1 + sum(len(ps) for _, ps in sections) + len(dna) + len(rough) + len(appx) + len(nxt) + 1 + 1   # + 이어서 1 + 판권 1 + 뒤표지 1
+        plan = plan_pages(base_count, len(p20.photo_break_candidates()))
+        if plan.over:
+            raise ComposeError(f'본지가 {BODY_PAGE_CAP}쪽을 {plan.over}쪽 넘는다 - 사진 한 장은 0면이고 이달의 우리는 2면 고정이라 더 줄일 곳이 없다(기획서 3절)')
+        breaks = p20.photo_break_pages(plan.photo_breaks)
+        colophon = p20.colophon_pages(plan.colophon_split)
+        # 지면 순서(기획서 3절): … 이달의 우리 → [사진 한 장] → 두 사람의 결 → 어림짐작 → [사진 한 장] → 부록 → 다음 달 → 판권 정오 → 뒤표지
+        tail = [('photo_break', breaks[:1]), ('love_dna', dna), ('rough_guess', rough), ('photo_break', breaks[1:2]),
+                ('appendix', appx), ('next_month', nxt), ('colophon', colophon)]
+        sections += [(k, ps) for k, ps in tail if ps]
 
     # 쪽 번호(README §11 ⑦) - **표지를 뺀 본문 기준 1부터**: 목차 01, 발행 노트 02, 이후 지면 순서. 표지 2종과 뒤표지에는 폴리오가 없다.
     # 빠진 코너는 번호를 다시 매긴다. (쪽 번호 = 표지부터 센 장 번호 - 1)
-    stems = ['cover', 'contents', 'note']
+    stems = ['cover', 'contents', 'note'] + (['body'] if p20 is not None else [])
     first_page = {}
-    for t in ordered:
-        first_page[t] = len(stems)   # 이 코너 첫 지면의 쪽 번호 = (len(stems) + 1) - 1
-        stems.extend(['body'] * len(body_pages[t]))
+    for t, ps in sections:
+        first_page.setdefault(t, len(stems))   # 이 코너 첫 지면의 쪽 번호 = (len(stems) + 1) - 1
+        stems.extend(['body'] * len(ps))
     stems.append('back')
 
     iv = b.issue_values()
@@ -807,6 +830,9 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
         header = as_dict(b.ready[t].get('header'))
         toc.append({'title': header.get('cornerName') or CORNER_LABELS[t], 'desc': toc_desc(b, t, payload, header),
                     'page': f'{first_page[t]:02d}'})
+    if p20 is not None:
+        for key, desc in p20.toc:
+            toc.append({'title': LABELS20[key][0], 'desc': desc, 'page': f'{first_page[key]:02d}'})
 
     closing = f'{b.end_month}월의 온도를\n여기에 두고 갑니다'
     b.say('ondolog', 'fixedFrame', '@back.closing', closing.replace('\n', ' '))
@@ -819,8 +845,10 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     pages.append(PageSpec('contents', None, {**base, 'contents': {'photo': contents_photo or ''}}, {}, None))
     note_index = len(pages)
     pages.append(PageSpec('note', None, {}, {}, None))  # 발행 노트는 마지막에 채운다(실린 것을 센 뒤)
-    for t in ordered:
-        pages.extend(body_pages[t])
+    if p20 is not None:
+        pages.append(note_more)   # 2.0-A1 「발행 노트 · 이어서」 - 아래에서 채운다
+    for _t, ps in sections:
+        pages.extend(ps)
     pages.append(PageSpec('back', None, {**base, 'back': {
         'photo': back_photo or '', 'closing': closing}}, {}, None))   # R50-5: 다음 호를 약속하는 표시(NEXT ISSUE)는 싣지 않는다
 
@@ -831,6 +859,19 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     assert len(pages) == len(stems)
 
     note = _note_values(b, pages)
+    if p20 is not None:   # ⑥ 발행 노트 새 줄 - 재료 표 · 빠진 코너
+        note_more.computed['tp']['rows'] = p20.note_rows(plan.photo_breaks if plan else 0)
+        lines = p20.empty_lines()
+        if lines:
+            note['emptyCorners'] = [x for x in note['emptyCorners'] if x != '이번 호에는 없습니다'] + lines
+    # R157-7 약속 문장 금지 - 뒤표지 · 발행 노트 · 다음 달(사실은 허용, 약속 문장은 0). 걸리면 렌더를 멈춘다
+    for page_ in [pages[-1], *[p_ for p_ in pages if p_.stem in ('tp-next-month', 'tp-note-more')]]:
+        found = promise_violations(' '.join(visible_strings(page_.computed)))
+        if found:
+            raise ComposeError(f'약속 문장 금지 - {page_.stem}: {found}')
+    found = promise_violations(' '.join(visible_strings(note)))
+    if found:
+        raise ComposeError(f'약속 문장 금지 - note: {found}')
     pages[note_index].computed.update({'note': note})
     pages[note_index].widths = dict(getattr(b, 'note_widths', {}))
 
@@ -854,6 +895,9 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
         'absentCorners': [t for t in CORNER_ORDER if t in b.corner_rows and t not in b.ready],
         'sentences': _sentence_summary(b.sentences),
     })
+    if plan is not None:
+        report['pagePlan'] = {'base': plan.base, 'photoBreaks': plan.photo_breaks, 'colophonSplit': plan.colophon_split,
+                              'total': plan.total, 'short': plan.short, 'multipleOf4': plan.total % 4 == 0}
     return Composition(pages, b.theme, list(b.shown), b.sentences, report)
 
 

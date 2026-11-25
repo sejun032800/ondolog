@@ -10,7 +10,7 @@
  *
  * 사용 (저장소 루트에서; 호스트는 ONDOLOG_SUPABASE_URL의 것 하나만 허용한다):
  *   샘플:
- *   deno run --no-lock --config supabase/functions/deno.json \
+ *   deno run --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json \
  *     --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY \
  *     --allow-net=$h \
  *     --allow-read=supabase/.temp/linked-project.json --allow-write=scripts/ops/out \
@@ -18,6 +18,8 @@
  *   실제(84-a): 위에 `--allow-env`에 `ONDOLOG_LLM_API_KEY` · `--allow-net`에 `api.anthropic.com`을 더하고 `--mode live`.
  *   84-f(R141-2): 실제 모드는 `--allow-read`에 `scripts/ops/out`도 더한다 - 로컬 시드 목록(`seed-m2b*.json`)의 커플 id만 대상으로 받는다
  *   (못 읽으면 목록이 비어 실제 모드는 멈춘다 - fail-closed).
+ *   2.0-A1(m20-a1): `--unstable-sloppy-imports`가 **필요하다** - 생성이 `src/engine/`의 2.0 엔진(채팅 지표 · 두 사람의 결 · 어림짐작 · 부록)을
+ *   부르고 그 파일들은 확장자 없는 import를 쓴다(`resetTestAccount.ts` · `purgeWithdrawn.ts`와 같은 실행 꼴). 빠뜨리면 실행 전에 Deno가 멈춘다.
  * 기간은 `[start, end)` KST 반열린 구간이고 운영자가 넘긴다.
  *
  * 51- ③(R141-3 · R143-4) 두 폰 커플 길 - `--allow-phone-test-couple`(값 없는 플래그). `--couple-id`는 주지 않는다(허용 목록으로 찾는다).

@@ -70,6 +70,7 @@ MAGAZINE_BUCKET = 'magazine'
 LINKED_PROJECT_FILE = REPO / 'supabase' / '.temp' / 'linked-project.json'
 ISSUE_DIR = HERE / 'issue'
 PAGES_DIR = ISSUE_DIR / 'pages'
+TEMP_PAGES_DIR = HERE / 'temp_pages'   # 2.0-A1 임시 틀(위임 m20-a1 ⑧)
 TOOLS_DIR = ISSUE_DIR / 'tools'
 ASSETS = ('base.css', 'themes', 'fonts')  # 작업 폴더로 복사하는 것 - 견본 사진(images/)은 복사하지 않는다
 SAMPLE_MARK = 'images/sample'
@@ -382,7 +383,11 @@ def ascii_name(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 def load_templates(pages_dir: Path = PAGES_DIR) -> dict[str, str]:
-    return {p.stem: p.read_text(encoding='utf-8') for p in sorted(pages_dir.glob('*.html'))}
+    out = {p.stem: p.read_text(encoding='utf-8') for p in sorted(pages_dir.glob('*.html'))}
+    # 2.0-A1 임시 틀(`render/temp_pages/` - 디자인 틀과 섞지 않는 별도 폴더, 이름은 `tp-` 앞머리). 디자인 v2.0.0 반입 때 교체
+    if pages_dir == PAGES_DIR:
+        out.update({p.stem: p.read_text(encoding='utf-8') for p in sorted(TEMP_PAGES_DIR.glob('*.html'))})
+    return out
 
 
 # 디자인 v1.2.3에서 틀이 맡게 된 개발 임시 처리 - 렌더러에서 없앴다(README §10 ① · D7 · D8):

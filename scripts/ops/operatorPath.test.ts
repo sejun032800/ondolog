@@ -53,6 +53,10 @@ function datasetWorld(tables = buildTables(), couple = testCouple()) {
   return { store, media, tables }
 }
 
+/** 2.0-A1: 3코너(지면 순서 1~3)의 계약만 본다 - 뒤의 2.0 코너 3행(두 사람의 결 · 어림짐작 · 부록)은 '2.0-A1' 시험이 본다. */
+const THREE = new Set(['date_archive', 'sweet_words', 'this_month'])
+const isThree = (c: { corner_type?: string; cornerType?: string }) => THREE.has(c.corner_type ?? c.cornerType ?? '')
+
 describe('생성 - 샘플 출력 모드, 기존 검증기 그대로', () => {
   it('시험 데이터 한 달: 코너 3종이 ready가 되고 미디어가 목적지로 복제된다', async () => {
     const { store, media } = datasetWorld()
@@ -64,12 +68,16 @@ describe('생성 - 샘플 출력 모드, 기존 검증기 그대로', () => {
       ['date_archive', 'ready'],
       ['sweet_words', 'ready'],
       ['this_month', 'ready'],
+      // 2.0-A1: 합성 데이터셋에 성격 데이터가 없다 -> 두 코너는 호출 전 빠짐 · 부록은 결정론으로 ready
+      ['love_dna', 'skipped_insufficient_input'],
+      ['rough_guess', 'skipped_insufficient_input'],
+      ['appendix', 'ready'],
     ])
     // P0: 초안 행, 압축 모드, 번호 없음 / 기간의 끝은 포함 날짜
     expect(store.issues).toHaveLength(1)
     expect(store.issues[0]).toMatchObject({ publish_mode: 'compressed', published_at: null, issue_number: null, period_end: `${FIXTURE_YEAR}-09-30` })
     // 저장: 샘플 표시와 요청 수 0
-    for (const c of store.corners) {
+    for (const c of store.corners.filter(isThree)) {
       expect(c.status).toBe('ready')
       expect(c.engine_version).toBe(SAMPLE_ENGINE_VERSION)
       expect(c.generation_attempts).toBe(0)
@@ -89,7 +97,7 @@ describe('생성 - 샘플 출력 모드, 기존 검증기 그대로', () => {
     expect(report.media.missingSources).toEqual([])
     // 제외 건수와 추정 토큰이 보고에 있다
     expect(report.exclusions).toEqual(expect.objectContaining({ trivialMessages: 0, messagesWithoutBody: 0 }))
-    for (const c of report.corners) expect(c.estimatedInputTokens).toBeGreaterThan(0)
+    for (const c of report.corners.filter(isThree)) expect(c.estimatedInputTokens).toBeGreaterThan(0)
   })
 
   it('다시 돌려도 같다 - 초안 행·코너 행이 늘지 않고, 성공한 코너는 다시 만들지 않으며, 복제는 건너뛴다', async () => {
@@ -97,9 +105,9 @@ describe('생성 - 샘플 출력 모드, 기존 검증기 그대로', () => {
     await generateSampleIssue({ store, media }, PARAMS)
     const second = await generateSampleIssue({ store, media }, PARAMS)
     expect(store.issues).toHaveLength(1)
-    expect(store.corners).toHaveLength(3)
+    expect(store.corners).toHaveLength(6) // 3코너 + 2.0-A1 3행
     expect(second.issueCreated).toBe(false)
-    expect(second.corners.every((c) => c.outcome === 'kept_ready')).toBe(true)
+    expect(second.corners.filter(isThree).every((c) => c.outcome === 'kept_ready')).toBe(true)
     expect(second.media.copied).toBe(0)
     expect(second.media.alreadyPresent).toBeGreaterThan(0)
   })
@@ -128,9 +136,12 @@ describe('생성 - 샘플 출력 모드, 기존 검증기 그대로', () => {
       'skipped_insufficient_input',
       'skipped_insufficient_input',
       'skipped_insufficient_input',
+      'skipped_insufficient_input',
+      'skipped_insufficient_input',
+      'ready', // 부록은 매호(달력 · 판권 - 사진 0장이면 엽서만 빠짐)
     ])
     expect(report.corners.every((c) => c.sampleResponses === 0)).toBe(true)
-    expect(store.corners.every((c) => c.status === 'skipped' && c.skip_reason === 'insufficient_input')).toBe(true)
+    expect(store.corners.filter((c) => c.corner_type !== 'appendix').every((c) => c.status === 'skipped' && c.skip_reason === 'insufficient_input')).toBe(true)
   })
 
   it('샘플 출력은 입력이 바뀌어도(코너마다) 기존 검증기를 통과한다 - 입력 한 건짜리도', async () => {
@@ -237,7 +248,7 @@ describe('R20-2 안전 정지 - pending + usage_over 경보, 호출 0건, 발행
     expect(month).toMatchObject({ outcome: 'halted_pending', status: 'pending', sampleResponses: 0 }) // 호출 0건
     expect(store.corners.find((c) => c.corner_type === 'this_month')).toMatchObject({ status: 'pending', skip_reason: null, content: {} })
     // 나머지 코너는 그대로 만들어진다(안전 정지는 그 코너만)
-    expect(report.corners.filter((c) => c.outcome === 'ready').map((c) => c.cornerType)).toEqual(['date_archive', 'sweet_words'])
+    expect(report.corners.filter(isThree).filter((c) => c.outcome === 'ready').map((c) => c.cornerType)).toEqual(['date_archive', 'sweet_words'])
 
     // 경보 1건 - 숫자와 종류뿐
     expect(store.alerts).toHaveLength(1)

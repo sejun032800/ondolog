@@ -15,7 +15,7 @@
     {
       "path": "payload.photo",
       "type": "PhotoRef",
-      "source": "TBD 선별: 그달 사진 1장(지면에 안 실린 것 우선?)",
+      "source": "src/engine/issueSupplements.ts choosePhotoBreaks - 엽서 아닌 사진 중 다른 코너에 안 실린 것 먼저 → 찍은 시각 순 · 위치 정보 0",
       "deterministic": true,
       "required": true,
       "count": {
@@ -26,8 +26,8 @@
     },
     {
       "path": "payload.caption",
-      "type": "string|null",
-      "source": "날짜 · 장소(결정론)",
+      "type": "string",
+      "source": "사용자가 사진에 남긴 글 원문(data_entries.text_content, 자르지 않음) → 없으면 \"MM.DD · 장소\" → \"MM.DD\"",
       "deterministic": true,
       "required": false,
       "tone": "명사형"
@@ -48,5 +48,10 @@
     "두 장일 때 서로 다른 사진 보장",
     "셋로그 사진을 후보에 넣는지"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "a1_implemented": {
+    "by": "m20-a1 (2026-11-26)",
+    "stored_at": "appendix 행 payload.photoBreaks[] (최대 2)",
+    "use": "쪽 수 맞춤(render/page_plan.py)만 - 이달의 우리 뒤 · 어림짐작 뒤"
+  }
 }

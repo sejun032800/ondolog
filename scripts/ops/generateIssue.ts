@@ -29,9 +29,12 @@
 import {
   CoupleMembershipError,
   InvalidCornerContextError,
+  NO_ID_REFERENCES,
   runCornerModule,
+  validateCornerResponse,
   type CornerContext,
   type CornerModule,
+  type CornerResponseSpec,
 } from '../../supabase/functions/_shared/cornerPipeline.ts'
 import { assembleCornerInput, type AssembledInput, type InputExclusions } from '../../supabase/functions/_shared/inputAssembly.ts'
 import { saveCornerFailure, saveCornerSuccess } from '../../supabase/functions/_shared/saveCornerResult.ts'
@@ -39,6 +42,36 @@ import { INPUT_TOKEN_STOP_BAND, estimateRequestTokens } from '../../supabase/fun
 import { dateArchiveModule } from '../../supabase/functions/_shared/corners/dateArchive.ts'
 import { sweetWordsModule } from '../../supabase/functions/_shared/corners/sweetWords.ts'
 import { thisMonthModule } from '../../supabase/functions/_shared/corners/thisMonth.ts'
+import { loveDnaModule, type LoveDnaInput } from '../../supabase/functions/_shared/corners/loveDna.ts'
+import { roughGuessModule, type RoughGuessInput } from '../../supabase/functions/_shared/corners/roughGuess.ts'
+import { assembleIssueExtras } from '../../supabase/functions/_shared/extrasAssembly.ts'
+import { periodLabelOf } from '../../supabase/functions/_shared/periodLabel.ts'
+import { NEW_PAGE_TITLES } from '../../src/types/corners/cornerTitles.ts'
+import {
+  AppendixPayloadSchema,
+  AppendixStoredSchema,
+  CORNER_SCHEMA_VERSION,
+  type AppendixPayload,
+  type AppendixStored,
+} from '../../src/types/corners/storedContent.ts'
+// 2.0-A1 엔진(`src/engine/` - 확장자 없는 import를 갖는 파일이라 Deno 실행은 `--unstable-sloppy-imports`가 필요하다. 명령은 `generateIssueCli.ts` 머리말)
+import { computeChatMetrics } from '../../src/engine/chatMetrics.ts'
+import { computeLoveDnaFacts } from '../../src/engine/loveDna.ts'
+import { computeRoughGuess } from '../../src/engine/roughGuess.ts'
+import type { CoupleProfiles } from '../../src/engine/coupleProfile.ts'
+import { kstDayKey } from '../../src/engine/temperature.ts'
+import {
+  choosePhotoBreaks,
+  choosePostcards,
+  colophonFacts,
+  monthCalendar,
+  nextMonthFacts,
+  nextMonthOf,
+  type PhotoCandidate,
+} from '../../src/engine/issueSupplements.ts'
+// 판권 정정 창구의 문의 메일 = 운영 문의 상수 하나(값을 새로 쓰지 않는다 - 위임 ⑤)
+import { LEGAL_CONTACT_EMAIL } from '../../web/src/legal/consent.ts'
+import { mediaPathsOf } from './mediaCopy.ts'
 import { copyIssueMedia, type MediaCopyReport } from './mediaCopy.ts'
 import { OpsStopError, assertTestCouple } from './opsGuards.ts'
 import { assertLiveTargetAllowed } from './phoneTestCouple.ts'
@@ -66,10 +99,22 @@ import {
   createSampleLlmClient,
   sampleDateArchive,
   sampleSweetWords,
+  sampleLoveDna,
+  sampleRoughGuess,
   sampleThisMonth,
 } from './sampleOutputs.ts'
 
 type CornerKind = 'date_archive' | 'sweet_words' | 'this_month'
+/** 2.0-A1(위임 `m20-a1`): 두 사람의 결 · 어림짐작(LLM 1회씩) · 부록(LLM 0 - 부속 3종 · 발행 노트 재료 포함). */
+type Corner20Kind = 'love_dna' | 'rough_guess' | 'appendix'
+type ReportCornerKind = CornerKind | Corner20Kind
+
+/** LLM 경로 코너 하나(3코너 표와 2.0 표가 같은 모양). */
+interface LlmCornerEntry {
+  readonly kind: CornerKind | Exclude<Corner20Kind, 'appendix'>
+  readonly module: CornerModule<any, any, any>
+  readonly sampleOf: (input: any) => unknown
+}
 
 interface CornerEntry {
   readonly kind: CornerKind
@@ -94,6 +139,47 @@ export const CORNER_TABLE: readonly CornerEntry[] = [
     sampleOf: sampleThisMonth,
   },
 ]
+
+/** 2.0 코너 지면 순서(seq 4 · 5 · 6). */
+export const CORNER_20_ORDER: readonly Corner20Kind[] = ['love_dna', 'rough_guess', 'appendix']
+export const LOVE_DNA_ENTRY: LlmCornerEntry = { kind: 'love_dna', module: loveDnaModule, sampleOf: sampleLoveDna }
+export const ROUGH_GUESS_ENTRY: LlmCornerEntry = { kind: 'rough_guess', module: roughGuessModule, sampleOf: sampleRoughGuess }
+/** 부록(LLM 0) 행의 `engine_version`. */
+export const SUPPLEMENTS_ENGINE_VERSION = 'm20-a1-supplements-v1'
+
+export interface Magazine20Summary {
+  readonly personality: { readonly a: boolean; readonly b: boolean }
+  readonly chatMessages: number
+  readonly chatSessions: number
+  readonly loveDna: 'material' | 'no_personality'
+  readonly roughGuess: 'material' | 'no_personality' | 'little_chat'
+}
+
+/** 지난 달 호의 두 사람의 결 일치율(저장된 코너 값). 없으면 null(첫 호). */
+/** 부록의 검증 명세 - "LLM 응답" 자리에 엔진이 만든 JSON이 들어간다(LLM 0). ID 참조 0 · 문장 칸 0. */
+function APPENDIX_SPEC(context: CornerContext): CornerResponseSpec<AppendixPayload, AppendixStored> {
+  const titles = NEW_PAGE_TITLES.appendix
+  return {
+    llmSchema: AppendixPayloadSchema,
+    isExplicitEmpty: () => false,
+    references: NO_ID_REFERENCES,
+    derive: (value) => ({
+      ok: true,
+      value: { schemaVersion: CORNER_SCHEMA_VERSION, header: { cornerName: titles.cornerName, title: titles.pageTitle, periodLabel: periodLabelOf(context) }, payload: value },
+    }),
+    storedSchema: AppendixStoredSchema,
+  }
+}
+
+async function previousDnaTotal(store: OpsStore, params: GenerateParams): Promise<number | null> {
+  const [y, m] = params.periodStart.split('-').map(Number)
+  const prev = m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, '0')}-01`
+  const issue = await store.findIssue({ coupleId: params.coupleId, issueType: 'monthly', periodStart: prev })
+  if (issue === null) return null
+  const row = (await store.listCorners(issue.id)).find((c) => c.corner_type === 'love_dna' && (c.status === 'ready' || c.status === 'published'))
+  const total = (row?.content as { payload?: { score?: { total?: unknown } } } | null | undefined)?.payload?.score?.total
+  return typeof total === 'number' ? total : null
+}
 
 export interface GenerateParams {
   readonly coupleId: string
@@ -138,7 +224,7 @@ export type CornerOutcomeLabel =
   | 'halted_pending'
 
 export interface CornerReport {
-  readonly cornerType: CornerKind
+  readonly cornerType: ReportCornerKind
   readonly cornerId: string
   readonly outcome: CornerOutcomeLabel
   readonly status: string
@@ -168,6 +254,8 @@ export interface GenerateReport {
   readonly corners: readonly CornerReport[]
   readonly alertIds: readonly string[]
   readonly media: MediaCopyReport
+  /** 2.0-A1 재료(숫자만 - 원문 · id 0). 월간 호가 아니면 null. */
+  readonly magazine20: Magazine20Summary | null
 }
 
 const KST = '+09:00'
@@ -315,16 +403,16 @@ export async function generateIssue(
   const reports: CornerReport[] = []
   const alertIds: string[] = []
   let regenerated = false
-  for (const entry of CORNER_TABLE) {
-    const row = rows.get(entry.kind) as CornerRow
-    const input = entry.inputOf(assembled)
+  /** 코너 하나(LLM 경로)를 골격으로 돌린다 - 3코너와 2.0 코너가 같은 길(시간 · 비용 · 사용량 · 저장 · 경보)을 쓴다.
+   *  `noClientWithoutMaterial`: 2.0 코너만 true - 재료가 없으면 실제 클라이언트를 만들지 않는다(호출 0은 같다). */
+  const runLlmCorner = async (entry: LlmCornerEntry, row: CornerRow, input: unknown, noClientWithoutMaterial: boolean): Promise<CornerReport> => {
     const estimate = entry.module.hasMaterial(input)
       ? estimateRequestTokens(entry.module.buildRequest(input, context), INPUT_TOKEN_STOP_BAND)
       : null
 
     // 이미 성공한 코너는 다시 만들지 않는다(17-0-6 멱등).
     if (row.status === 'ready' || row.status === 'published') {
-      reports.push({
+      return {
         cornerType: entry.kind,
         cornerId: row.id,
         outcome: 'kept_ready',
@@ -334,8 +422,22 @@ export async function generateIssue(
         sampleResponses: 0,
         realApiCalls: 0,
         detail: null,
-      })
-      continue
+      }
+    }
+
+    // 2.0-A1: 이미 빠짐(insufficient_input)으로 저장됐고 지금도 재료가 없으면 다시 쓰지 않는다 - 변화 없는 재실행이 렌더를 무효로 하지 않게.
+    if (noClientWithoutMaterial && estimate === null && row.status === 'skipped' && row.skip_reason === 'insufficient_input') {
+      return {
+        cornerType: entry.kind,
+        cornerId: row.id,
+        outcome: 'skipped_insufficient_input',
+        status: row.status,
+        skipReason: row.skip_reason,
+        estimatedInputTokens: null,
+        sampleResponses: 0,
+        realApiCalls: 0,
+        detail: null,
+      }
     }
 
     // 84-a: 1호 20분 - 마감이 지났으면 남은 코너를 시작하지 않는다(pending 그대로 · 경보).
@@ -347,7 +449,7 @@ export async function generateIssue(
         detail: { stage: SAFETY_STOP.issueTime, cornerType: entry.kind },
       })
       alertIds.push(alert.id)
-      reports.push({
+      return {
         cornerType: entry.kind,
         cornerId: row.id,
         outcome: 'halted_pending',
@@ -357,18 +459,19 @@ export async function generateIssue(
         sampleResponses: 0,
         realApiCalls: 0,
         detail: SAFETY_STOP.issueTime,
-      })
-      continue
+      }
     }
 
     // 샘플 응답은 이 실행의 입력에서 만든다. 재료가 없으면 골격의 선행 검사(`hasMaterial`)가 호출 전에 멈춘다.
-    const sample = live === null ? createSampleLlmClient(JSON.stringify(entry.sampleOf(input))) : null
+    // 2.0 코너(`noClientWithoutMaterial`)는 재료가 없으면 실제 클라이언트를 만들지 않는다 - 골격이 호출 전에 멈추므로 샘플 자리로 충분하다.
+    const offline = live === null || (noClientWithoutMaterial && estimate === null)
+    const sample = offline ? createSampleLlmClient(JSON.stringify(entry.sampleOf(input))) : null
     // 84-a 실제 모드: 코너 8분 · 1호 20분 · 1호 $2를 시도 직전마다 본다. 사용량은 응답마다 더한다.
     let cornerUsage: LlmUsage = ZERO_USAGE
     let cornerAttempts = 0
     let cornerLatencyMs = 0
     let client: LlmClient
-    if (live !== null && model !== null && meter !== null && issueDeadline !== null) {
+    if (!offline && live !== null && model !== null && meter !== null && issueDeadline !== null) {
       const activeModel = model
       const activeMeter = meter
       const activeIssueDeadline = issueDeadline
@@ -429,7 +532,7 @@ export async function generateIssue(
       if (entry.kind === 'date_archive') {
         await store.setCornerSourceDates(row.id, dateIdsOf(result.content))
       }
-      reports.push({
+      return {
         cornerType: entry.kind,
         cornerId: row.id,
         outcome: 'ready',
@@ -439,7 +542,7 @@ export async function generateIssue(
         sampleResponses,
         realApiCalls: cornerAttempts,
         detail: null,
-      })
+      }
     } else if (result.outcome === 'failure') {
       regenerated = true
       await saveCornerFailure(store.cornersTable, {
@@ -451,7 +554,7 @@ export async function generateIssue(
       })
       const used = usageRecord(result.reason)
       if (used !== null) await store.setCornerUsage(row.id, used)
-      reports.push({
+      return {
         cornerType: entry.kind,
         cornerId: row.id,
         outcome: result.reason === 'insufficient_input' ? 'skipped_insufficient_input' : 'failed',
@@ -461,7 +564,7 @@ export async function generateIssue(
         sampleResponses,
         realApiCalls: cornerAttempts,
         detail: result.detail,
-      })
+      }
     } else {
       // 안전 정지(R20-2 · 84-a): 코너는 pending 그대로(content · 사유를 쓰지 않는다), 운영 경보 usage_over. ID·숫자·종류뿐.
       const detail: Record<string, unknown> =
@@ -472,7 +575,7 @@ export async function generateIssue(
       alertIds.push(alert.id)
       const used = usageRecord(result.haltedFor)
       if (used !== null && cornerAttempts > 0) await store.setCornerUsage(row.id, used)
-      reports.push({
+      return {
         cornerType: entry.kind,
         cornerId: row.id,
         outcome: 'halted_pending',
@@ -482,7 +585,122 @@ export async function generateIssue(
         sampleResponses,
         realApiCalls: cornerAttempts,
         detail: result.detail,
-      })
+      }
+    }
+  }
+  for (const entry of CORNER_TABLE) {
+    reports.push(await runLlmCorner(entry, rows.get(entry.kind) as CornerRow, entry.inputOf(assembled), false))
+  }
+
+  // ── 2.0-A1: 두 사람의 결 · 어림짐작 · 부록(월간 호만). 3코너는 위에서 이미 끝났다 - 이 아래는 3코너의 입력 · 결과를 바꾸지 않는다 ──
+  let magazine20: Magazine20Summary | null = null
+  if (params.cadence === 'monthly') {
+    const extras = await assembleIssueExtras(store.assemblyClient, context, assembled.photos.map((p) => p.id))
+    const profiles: CoupleProfiles = extras.profiles
+    const metrics = computeChatMetrics(extras.chatEvents, extras.people)
+    const periodEnd = inclusiveEndDate(params.periodEndExclusive)
+
+    // 2.0 코너 행(없는 것만). 지면 순서 seq는 3코너 뒤(4 · 5 · 6).
+    for (const [index, kind] of CORNER_20_ORDER.entries()) {
+      if (!rows.has(kind)) {
+        rows.set(
+          kind,
+          await store.insertCorner({
+            couple_id: params.coupleId,
+            issue_id: issue.id,
+            corner_type: kind,
+            seq: CORNER_TABLE.length + index + 1,
+            period_start: params.periodStart,
+            period_end: periodEnd,
+          }),
+        )
+      }
+    }
+
+    // 두 사람의 결 - 지난 호 값은 저장된 지난 코너에서(첫 호면 null).
+    const dna = computeLoveDnaFacts(profiles, await previousDnaTotal(store, params))
+    const dnaInput: LoveDnaInput = { facts: dna.ok ? { ...dna.facts, partners: [...dna.facts.partners], bigFive: [...dna.facts.bigFive] } : null }
+    reports.push(await runLlmCorner(LOVE_DNA_ENTRY, rows.get('love_dna') as CornerRow, dnaInput, true))
+
+    // 어림짐작 - 7번 LLM 입력은 그날(KST) 메시지만.
+    const guess = computeRoughGuess({ profiles, metrics, coupleId: params.coupleId, period: params.periodStart.slice(0, 7) })
+    const guessInput: RoughGuessInput =
+      guess.ok && guess.facts.busiestDay !== null
+        ? {
+            facts: {
+              disclaimer: guess.facts.disclaimer,
+              footnote: guess.facts.footnote,
+              items: [...guess.facts.items],
+              busiestDay: guess.facts.busiestDay,
+              monthlyTopic: guess.facts.monthlyTopic,
+            },
+            dayMessages: assembled.messages.filter((m) => kstDayKey(m.source.at) === (guess.facts.busiestDay as { date: string }).date),
+          }
+        : { facts: null, dayMessages: [] }
+    reports.push(await runLlmCorner(ROUGH_GUESS_ENTRY, rows.get('rough_guess') as CornerRow, guessInput, true))
+
+    // 부록(+ 부속 · 발행 노트 재료) - LLM 0 · 결정론. 다른 코너에 실린 사진은 3코너 저장 뒤에 읽는다.
+    const appendixRow = rows.get('appendix') as CornerRow
+    const current = new Map((await store.listCorners(issue.id)).map((c) => [c.id, c]))
+    const appendixNow = current.get(appendixRow.id) ?? appendixRow
+    if (appendixNow.status === 'ready' || appendixNow.status === 'published') {
+      reports.push({ cornerType: 'appendix', cornerId: appendixRow.id, outcome: 'kept_ready', status: appendixNow.status, skipReason: null, estimatedInputTokens: null, sampleResponses: 0, realApiCalls: 0, detail: null })
+    } else {
+      const shownElsewhere = new Set<string>()
+      for (const c of current.values()) {
+        if ((c.corner_type === 'date_archive' || c.corner_type === 'this_month') && c.status === 'ready') {
+          for (const p of mediaPathsOf(c.corner_type, c.content)) shownElsewhere.add(p)
+        }
+      }
+      const candidates: PhotoCandidate[] = assembled.photos.map((p) => {
+        const d = extras.photoDetails.get(p.id)
+        return {
+          entryId: p.id,
+          path: p.source.path,
+          width: d?.width ?? 0,
+          height: d?.height ?? 0,
+          capturedAt: p.source.at,
+          // 세부 행이 없으면(조회 사이에 지워짐 등) 위치를 모르는 것으로 보고 뺀다.
+          hasLocation: d === undefined ? true : d.hasLocation,
+          note: d?.note ?? null,
+          placeName: d?.placeName ?? null,
+        }
+      }).filter((c) => c.width > 0 && c.height > 0)
+      const postcards = choosePostcards(candidates)
+      const payload = {
+          calendar: monthCalendar(nextMonthOf(periodEnd), extras.relationshipStart),
+          postcards,
+          photoBreaks: choosePhotoBreaks(candidates, postcards, shownElsewhere),
+          nextMonth: nextMonthFacts(periodEnd, extras.relationshipStart),
+          colophon: colophonFacts({
+            periodStart: params.periodStart,
+            periodEnd,
+            editionNumber: issue.issue_number,
+            names: extras.names,
+            nickname: extras.nickname,
+            contactEmail: LEGAL_CONTACT_EMAIL,
+          }),
+          noteMaterials: {
+            personality: { a: profiles.a !== null, b: profiles.b !== null },
+            chatSessions: metrics.sessionCount,
+            chatMessages: metrics.messageCount,
+            chatMetricsVersion: metrics.version,
+            photosCollected: assembled.photos.length,
+          },
+      }
+      // 결정론 값도 정식 검증 길(`validateCornerResponse` - 금지 키 · Zod · 파생 · 저장 스키마 · 브랜드)로만 저장한다(브랜드 캐스트 0).
+      const validated = validateCornerResponse(JSON.stringify(payload), APPENDIX_SPEC(context), context, [])
+      if (!validated.ok) throw new OpsStopError(`부록 content가 검증을 통과하지 못했다 (${validated.reason}) - 엔진 결과를 확인`)
+      await saveCornerSuccess(store.cornersTable, { cornerId: appendixRow.id, content: validated.content, coeffBundle: undefined, generationAttempts: 0, engineVersion: SUPPLEMENTS_ENGINE_VERSION })
+      regenerated = true
+      reports.push({ cornerType: 'appendix', cornerId: appendixRow.id, outcome: 'ready', status: 'ready', skipReason: null, estimatedInputTokens: null, sampleResponses: 0, realApiCalls: 0, detail: null })
+    }
+    magazine20 = {
+      personality: { a: profiles.a !== null, b: profiles.b !== null },
+      chatMessages: metrics.messageCount,
+      chatSessions: metrics.sessionCount,
+      loveDna: dna.ok ? 'material' : dna.skip,
+      roughGuess: guess.ok ? 'material' : guess.skip,
     }
   }
 
@@ -519,6 +737,7 @@ export async function generateIssue(
     corners: finalReports,
     alertIds,
     media: mediaReport,
+    magazine20,
   }
 }
 

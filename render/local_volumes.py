@@ -56,6 +56,8 @@ VOLUMES = [
     ('vol4-timeline-overflow', lambda: fx.timeline_overflow_scenario('basic')),   # v1.2.3 - 통과하는 권(D13)
     ('vol5-batch2', lambda: fx.batch2_scenario('lovely')),                        # 디자인 v1.2.3 대조 권
     ('vol6-batch4', lambda: fx.batch4_scenario('basic')),                         # 88- 디자인 v1.2.4 대조 권(E5) - 메모 0 · 지역 0 · 이달의 우리 없음 · 긴 제목
+    ('vol7-m20a1', lambda: fx.m20_scenario('basic')),                             # 2.0-A1 임시 틀 권(위임 m20-a1 ⑧) - 새 지면 9종 · 쪽 수 규칙 24쪽
+    ('vol7b-m20a1-ondol', lambda: fx.m20_scenario('ondol', photo_breaks=0, dna=False, rough=False)),   # 2.0-A1 - 빠짐 · 사진 없어 4의 배수 못 맞춤(short)
 ]
 FAIL_VOLUME = ('vol3-fail', lambda: fx.long_original_scenario('ondol', with_overlong=True))
 MATERIALS = {'messages': 120, 'photos': 20, 'dates': 3, 'memos': 4}

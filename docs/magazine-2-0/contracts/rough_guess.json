@@ -5,8 +5,8 @@
     "min": 1,
     "max": 1
   },
-  "publish_condition": "성격 데이터 + 채팅 (기획서 1절 #6) · 채팅 30건 미만이면 4·5·6·7 제외 (MASTER 17-9)",
-  "skip_note": "TBD - 기획서에 문장 없음(성격 정보 없음은 DNA와 같은 문장 후보)",
+  "publish_condition": "두 사람 성격 데이터 + 실측 항목(4~7) 1개 이상(사실상 그달 메시지 30건 이상) - 기획서 1절이 MASTER \"1·2·3·8만\" 폴백보다 앞선다",
+  "skip_note": "성격 정보 없음: \"성격 정보가 아직 없어 싣지 않았습니다\"(DNA와 같은 문장) · 채팅 부족: \"이번 달 대화가 적어 싣지 않았습니다\"(메인 세션 제안 - PM 확인)",
   "llm_calls": 1,
   "fields": [
     {
@@ -20,12 +20,12 @@
     {
       "path": "payload.items[]",
       "type": "array",
-      "source": "TBD: src/engine/roughGuess.ts (MASTER 17-9 구현 위치 - 파일 없음)",
+      "source": "src/engine/roughGuess.ts computeRoughGuess (1~6번 - 8번은 monthlyTopic.item · 7번은 busiestDay)",
       "deterministic": true,
       "required": true,
       "count": {
-        "min": 4,
-        "max": 8
+        "min": 3,
+        "max": 6
       },
       "extra_rule": "채팅 30건 미만이면 1·2·3·8만(4개)"
     },
@@ -50,9 +50,9 @@
       "decimals": 0
     },
     {
-      "path": "payload.items[].measured",
-      "type": "boolean",
-      "source": "실측 항목(4·5·6·7) true / 추정 false",
+      "path": "payload.items[].source",
+      "type": "'estimate'|'measured'",
+      "source": "1~3 · 8 = estimate(성격만) · 4~6 = measured(src/engine/chatMetrics.ts)",
       "deterministic": true,
       "required": true,
       "extra_rule": "표기로 구분(기획서 2절 6.)"
@@ -60,7 +60,7 @@
     {
       "path": "payload.busiestDay.date",
       "type": "string",
-      "source": "TBD 엔진: messages.sent_at 일별 건수 최대 (KST)",
+      "source": "src/engine/chatMetrics.ts busiestDay (KST 하루 메시지 수 최대 · 동점이면 이른 날)",
       "deterministic": true,
       "required": true
     },
@@ -83,7 +83,7 @@
     {
       "path": "payload.monthlyTopic.id",
       "type": "number",
-      "source": "TBD: selectMonthlyTopic(hash(coupleId+period)) % 12 (MASTER 17-9) · 주제 풀 src/constants/roughGuessTopics.ts 없음",
+      "source": "src/engine/roughGuess.ts selectMonthlyTopic = fnv1a32(couple_id + YYYY-MM) % 12 · 주제 풀 src/constants/roughGuessTopics.ts(v0 초안 - PM 승인)",
       "deterministic": true,
       "required": true,
       "range": [
@@ -125,5 +125,20 @@
     "hashString 함수 · 주제 풀 12종 문장(출력 예)을 상수 파일로 확정할 PM 승인",
     "7번 LLM 입력(하루치 대화)을 원격 LLM에 보내는 범위 - 개인정보 처리방침과 대조"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "a1_implemented": {
+    "by": "m20-a1 (2026-11-26)",
+    "stored_schema": "src/types/corners/storedContent.ts RoughGuessPayloadSchema",
+    "llm_module": "supabase/functions/_shared/corners/roughGuess.ts (LLM 1회 - busiestDay.line, 입력은 그날 메시지만 · 꼴/판정 낱말 검사)",
+    "similar_rule": "확률 · 비율 항목 차이 10%p 미만 · 답장 속도(시간)는 상대 차이 10% 미만",
+    "percent_formula_v0": "P(A) = clamp(50 + 50(s_A − s_B), 0, 100) · s = 입력 성향(0~1) 평균 - PM 승인 대상",
+    "added_fields": [
+      "payload.items[].kind",
+      "payload.items[].line",
+      "payload.items[].similar",
+      "payload.items[].a/b(측정 항목)",
+      "payload.busiestDay.count",
+      "payload.footnote"
+    ]
+  }
 }

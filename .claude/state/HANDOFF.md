@@ -11,6 +11,44 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `2.0-A1` 매거진 2.0 엔진 1부 - 채팅 지표 · 두 사람의 결 · 어림짐작 · 부록 · 부속 3종 · 발행 노트 줄 · 쪽 수 규칙 · 임시 틀 (메인 세션, 2026-11-26, 위임문 `phase-7/m20-a1-dispatch-engines.md` · ROADMAP r157 R157-3~9 · MASTER r85) - ⑨ 멈춤(chatDelta v0 숫자 PM 승인 대기) (미커밋)
+
+시작 확인: ROADMAP `DOC_REVISION: 2026-11-25-r157` · MASTER `2026-11-25-r85` · 계약 JSON 14 + README - 통과. 기획서 머리말은 아직 r156 표기(내용은 R157 행이 우선 - 생일 0 · 「다음 달」로 읽음).
+LLM 실제 호출 0 · 원격 0 · 마이그레이션 0 · 앱(web) 0 · 새 패키지 0 · 설정 파일 0. **`chatDelta`는 아직 `UNRESOLVED` 그대로**(throw 시험 3곳 그대로 통과).
+
+### ① 채팅 지표 엔진 `src/engine/chatMetrics.ts`
+- 상수 한 곳 `CHAT_METRICS_V0`(:53 - 묶음 공백 6시간 · 묶음 2개 미만이면 ①~④ 없음) · 진입 `computeChatMetrics`(:153) · 이모지 판정 하나 `hasEmoji`(:118, `\p{Extended_Pictographic}`).
+- 지표: 왕복 리듬(바뀐 자리마다 앞사람 마지막 → 새 사람 첫 메시지, 묶음 안 · 중앙값/사분위 R-7 · 답한 사람별) · 주고받기 비율(Σ바뀜 ÷ Σ(n−1)) · 먼저 말 거는 쪽(묶음 첫 메시지) · 이모지 비율(본문 메시지 분모) · 가장 말이 많았던 날(KST · 동점이면 이른 날).
+- 세는 것: 삭제 0(입력 조립이 뺌) · 사진(본문 없는) 메시지는 차례로 센다 · 이모지 분모에선 뺀다 · 시스템 메시지 종류는 스키마에 없음 · 두 사람 아닌 id 0. 결과 = 숫자만(원문 · id 0 - 시험).
+- 시험 `__tests__/engine/chatMetrics.test.ts` 16(견본 기대값 · 6시간 경계 · 묶음 부족 · 한 사람만 · 메시지 0 · 동점/KST · 결정론).
+
+### ②~⑤ 엔진 · 코너
+| 무엇 | 파일:줄 |
+|---|---|
+| 두 사람의 결 숫자 칸(기저만 · `chatApplied=false` · `dna_base_only` · 지난 호 대비 · 빅5 가까움<15 · 스턴버그 겹침=작은 값 · 팁 60 이하) | `src/engine/loveDna.ts:110` · 계수 상수 :40 |
+| 두 사람의 결 LLM 1회(설명 · 애착 해설 · 강점 · 보완 · 팁=`tryTogether` 키) | `supabase/functions/_shared/corners/loveDna.ts:222` |
+| 어림짐작 8항목(추정 1~3 · 8 / 실측 4~7 · 비슷함 10%p · 주어 바꾸기 · `fnv1a32 % 12`) | `src/engine/roughGuess.ts:209` · 주제 풀 `src/constants/roughGuessTopics.ts` |
+| 어림짐작 7번 LLM 1회(그날 메시지만 · 꼴 · 판정 낱말) | `supabase/functions/_shared/corners/roughGuess.ts:121` |
+| 부록 · 부속(달력 · 관계 기념일만 · 엽서 · 사진 한 장 · 다음 달 · 판권) | `src/engine/issueSupplements.ts:123~253` |
+| 2.0 입력 조립(성격 · 채팅 지표 입력 · 사진 위치/글/장소, birth_date 0) | `supabase/functions/_shared/extrasAssembly.ts:109` |
+| 파이프라인(3코너 길을 `runLlmCorner`로 묶음 - 3코너 동작 그대로 · 2.0 블록 · 부록은 `validateCornerResponse` 정식 길 · 빠짐 재실행 무쓰기) | `scripts/ops/generateIssue.ts:408` · :428 · :595 · `APPENDIX_SPEC` :160 · 지난 호 :174 |
+| 부록 사진 복제 | `scripts/ops/mediaCopy.ts:52` |
+| 저장 스키마 · 제목 표 · 값 규칙 | `storedContent.ts:287/358/387` · `cornerTitles.ts:40` · `valueChecks.ts:151~170` |
+| 렌더 2.0 지면 · 쪽 수 · 약속 검사 · 임시 틀 | `render/compose20.py` · `render/page_plan.py` · `render/promise_check.py` · `render/compose.py:798~` · `render/render_issue.py:73/389` · `render/temp_pages/tp-*.html` 10 |
+
+- **운영 명령 변경**: 생성 CLI는 이제 `--unstable-sloppy-imports`가 필요하다(`generateIssueCli.ts` 머리말 - 2.0 엔진이 확장자 없는 import). 빼면 Deno가 실행 전에 멈춘다(확인함).
+- 부속 3종 · 발행 노트 재료는 enum이 없어 `appendix` 행에 함께(마이그레이션 0).
+- 발행 노트 새 줄 3개는 노트 틀에 넣으면 AI 안내 줄과 겹침(실측: 1줄까지) → 「발행 노트 · 이어서」 임시 면(`tp-note-more`)으로 되받음.
+- 뒤표지 틀 주석 한 곳(`back.html:24`, PM 승인) · 시험 2개 뜻 변경(`test_compose.py:507` · `test_facts.py:397`).
+
+### 검증
+- 루트 tsc 0 · deno check(바뀐 `_shared` 3 · ops 4, ops는 sloppy) 0 · jest 136 스위트 / 2441 통과 · 렌더 시험 443 통과(1325초) · `npm run gate` 157.9초 통과(smoke 44/44).
+- 기존 3코너 회귀 0: 시드 11 시나리오 채운 HTML이 HEAD와 바이트 같음(뒤표지만 승인된 주석 한 줄 차이 - 주석 빼면 같음) · ops 시험의 3코너 기대값 그대로 · `m20a1Pipeline.test.ts` "2.0 재료 있든 없든 3코너 같음".
+- 2.0 권 실제 렌더(로컬 · 합성 `vol7-m20a1` 24쪽 · `vol7b-m20a1-ondol` 20쪽): 넘침 · 잘림 · 겹침 0 · 사실 어긋남 0 · 목차 8항목 들어감.
+
+### ⑨ 멈춤 - PM 승인 대기
+chatDelta v0 안(보고서) · 어림짐작 v0 식 · 주제 풀 문장 · 지면 제목 "판권 정오" · 발행일 미표기 · 채팅 부족 빠짐 문장 · 쪽 수 short 처리. 승인 뒤 같은 세션에서 `UNRESOLVED` 해소 → 시험 3곳 v0 시험으로.
+
 ## `2.0-0` 매거진 2.0 현황 조사 · 코너별 데이터 계약 초안 · iOS 준비 읽기 (메인 세션, 2026-11-25, 위임문 `phase-7/m20-0-dispatch-magazine-2-0-survey.md` · ROADMAP r156 R156-2~10 · R155-3 · R155-4 · MASTER r84) - 완료 · 멈춤 0 · 읽기 전용(코드 0 · 원격 0 · LLM 0) (미커밋)
 
 시작 확인: ROADMAP `r156` · MASTER `r84` · 기획서 `docs/ONDOLOG_magazine_2_0_plan.md` 있음 - 통과.

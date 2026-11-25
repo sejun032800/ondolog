@@ -49,6 +49,14 @@ export function mediaPathsOf(cornerType: string, content: unknown): string[] {
         }
       }
     }
+  } else if (cornerType === 'appendix') {
+    // 2.0-A1 부록: 사진 엽서 · 사진 한 장(부속). `storedContent.ts` `AppendixPayloadSchema`.
+    for (const photo of arrayOf(payload.postcards)) {
+      if (isRecord(photo) && typeof photo.path === 'string') paths.push(photo.path)
+    }
+    for (const brk of arrayOf(payload.photoBreaks)) {
+      if (isRecord(brk) && isRecord(brk.photo) && typeof brk.photo.path === 'string') paths.push(brk.photo.path)
+    }
   }
   return paths
 }

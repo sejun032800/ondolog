@@ -144,3 +144,39 @@ export const THIS_MONTH_VALUE_RULES: readonly ValueRule[] = [
   { path: 'articles[].body', maxLength: 240 },
   { path: 'closing', maxLength: 42 },
 ]
+
+/**
+ * 2.0-A1 두 사람의 결(LLM 1회 - 설명 문장). 길이 = 계약 `docs/magazine-2-0/contracts/love_dna.json` `max_chars`.
+ */
+export const LOVE_DNA_VALUE_RULES: readonly ValueRule[] = [
+  { path: 'explain', maxLength: 120 },
+  { path: 'attachmentCombo.headline', maxLength: 30 },
+  { path: 'attachmentCombo.body', maxLength: 120 },
+  { path: 'strengths[]', maxLength: 40 },
+  { path: 'complements[]', maxLength: 40 },
+  { path: 'tryTogether[]', maxLength: 40 },
+]
+
+/** 2.0-A1 어림짐작 7번 한 줄(MASTER 17-9 "한 줄, 20자 내외" · 계약 `rough_guess.json` 20). */
+export const ROUGH_GUESS_VALUE_RULES: readonly ValueRule[] = [{ path: 'line', maxLength: 20 }]
+
+/**
+ * 판정 금지 낱말 - 코너별 덧붙임(부분 문자열). 근거:
+ * - 두 사람의 결: CORNER_CONTENT 3-2 "\"부족\" · \"안 맞음\" 금지"(계약 `love_dna.json` complements extra_rule) · MASTER 17-2
+ *   "낮은 점수를 '안 맞는다'는 판정이 아니라"
+ * - 어림짐작 7번: MASTER 17-9 "판정 금지 - '다퉜습니다' 같은 서술 금지"
+ */
+export const LOVE_DNA_JUDGEMENT_WORDS: readonly string[] = ['부족', '안 맞', '맞지 않', '안맞', '궁합이 나쁘', '문제']
+export const ROUGH_GUESS_JUDGEMENT_WORDS: readonly string[] = ['다퉜', '다툼', '싸웠', '싸움', '갈등', '서운']
+
+/** 칸 값들에서 코너별 판정 낱말을 찾는다 - "칸: 금지 표현" 꼴(문장 0). 따옴표 안 원문 인용은 검사 밖. */
+export function findJudgementWords(llmOutput: unknown, paths: readonly string[], words: readonly string[]): string[] {
+  const out: string[] = []
+  for (const path of paths) {
+    for (const value of valuesAt(llmOutput, path)) {
+      const unquoted = withoutQuoted(value)
+      for (const w of words) if (unquoted.includes(w)) out.push(`${path}: 판정 표현 「${w}」`)
+    }
+  }
+  return out
+}

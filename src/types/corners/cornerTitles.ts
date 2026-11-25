@@ -28,5 +28,23 @@ export const CORNER_TITLES: Readonly<Record<CornerTypeId, CornerTitles>> = {
   this_month: { cornerName: '이달의 우리', pageTitle: '이달의 우리' },
 }
 
+/**
+ * 매거진 2.0-A1 새 지면의 이름 · 제목(기획서 1절 · ROADMAP R157-7 「다음 달」). 위 3코너 표(`CORNER_TITLES`)와 따로 둔다 —
+ * 앱(`magazineApi.ts`)이 읽는 3코너 표와 그 시험을 바꾸지 않기 위해서다.
+ * - 코너(`corner_type` 값이 있는 것): `love_dna` · `rough_guess` · `appendix`.
+ * - 부속(DB 코너 값 0 - `appendix` 행에 함께 실림): `photo_break` · `next_month` · `colophon`.
+ * - 「판권 · 정오」는 가운뎃점이 지면 제목 형식(`^[가-힣 ]{1,7}$`)에 걸려 지면 제목을 "판권 정오"로 둔다(코너 이름은 기획서 그대로 - PM 확인 대상).
+ */
+export type NewPageId = 'love_dna' | 'rough_guess' | 'appendix' | 'photo_break' | 'next_month' | 'colophon'
+
+export const NEW_PAGE_TITLES: Readonly<Record<NewPageId, CornerTitles>> = {
+  love_dna: { cornerName: '우리의 연애 DNA', pageTitle: '두 사람의 결' },
+  rough_guess: { cornerName: '얼렁뚱땅 어림짐작', pageTitle: '어림짐작' },
+  appendix: { cornerName: '잡지 부록', pageTitle: '부록' },
+  photo_break: { cornerName: '사진 한 장', pageTitle: '사진 한 장' },
+  next_month: { cornerName: '다음 달', pageTitle: '다음 달' },
+  colophon: { cornerName: '판권 · 정오', pageTitle: '판권 정오' },
+}
+
 /** 지면 제목이 지켜야 하는 형식(r41). 라틴 문자·숫자 금지, 7자 이내. */
 export const PAGE_TITLE_PATTERN = /^[가-힣 ]{1,7}$/

@@ -1,4 +1,4 @@
-import { CORNER_TITLES, PAGE_TITLE_PATTERN } from '../../../src/types/corners/cornerTitles'
+import { CORNER_TITLES, NEW_PAGE_TITLES, PAGE_TITLE_PATTERN } from '../../../src/types/corners/cornerTitles'
 import { codePointLength, cornerEnvelopeSchema } from '../../../src/types/corners/storedContent'
 import { z } from 'zod'
 
@@ -73,5 +73,28 @@ describe('저장 봉투가 지면 제목 7자를 스키마에 건다 (§9-7-2)',
       Envelope.safeParse({ ...envelope('함께한 하루'), header: { cornerName: '아주 아주 긴 코너 이름'.repeat(5), title: '함께한 하루', periodLabel: 'x' } })
         .success,
     ).toBe(true)
+  })
+})
+
+describe('2.0-A1 새 지면 제목 (기획서 1절 · R157-7)', () => {
+  it.each(Object.entries(NEW_PAGE_TITLES))('%s의 지면 제목은 ^[가-힣 ]{1,7}$', (_id, titles) => {
+    expect(titles.pageTitle).toMatch(PAGE_TITLE_PATTERN)
+    expect(titles.pageTitle).toMatch(/^[가-힣 ]{1,7}$/)
+  })
+
+  it('제목은 기획서 이름 그대로 - 「판권 · 정오」만 가운뎃점을 뺀 "판권 정오"(형식 규칙)', () => {
+    expect(Object.fromEntries(Object.entries(NEW_PAGE_TITLES).map(([k, v]) => [k, v.pageTitle]))).toEqual({
+      love_dna: '두 사람의 결',
+      rough_guess: '어림짐작',
+      appendix: '부록',
+      photo_break: '사진 한 장',
+      next_month: '다음 달',
+      colophon: '판권 정오',
+    })
+    expect('판권 · 정오').not.toMatch(PAGE_TITLE_PATTERN)
+  })
+
+  it('3코너 표(앱이 읽음)는 그대로 3개', () => {
+    expect(Object.keys(CORNER_TITLES)).toEqual(['date_archive', 'sweet_words', 'this_month'])
   })
 })

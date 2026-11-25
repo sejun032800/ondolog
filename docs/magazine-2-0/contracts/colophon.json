@@ -1,8 +1,8 @@
 {
   "corner_id": "colophon",
   "kind": "부속",
-  "page_title": "판권",
-  "page_title_note": "\"판권 · 정오\" 한 면 - 지면 제목 확정 TBD",
+  "page_title": "판권 정오",
+  "page_title_note": "「판권 · 정오」의 가운뎃점이 지면 제목 형식 ^[가-힣 ]{1,7}$에 걸려 지면 제목은 \"판권 정오\" · 코너 이름(목차)은 \"판권 · 정오\" - PM 확인",
   "pages": {
     "min": 1,
     "max": 1
@@ -12,9 +12,9 @@
   "llm_calls": 0,
   "fields": [
     {
-      "path": "payload.issueLabel",
+      "path": "payload.editionLabel",
       "type": "string",
-      "source": "DB issues (supabase/migrations/009_magazine.sql:4) period_start · issue_type",
+      "source": "issues.period_start -> \"YYYY년 M월호\" (키 이름 issue*는 금지 키 갈래 \"결함지목\" issue와 겹쳐 edition*)",
       "deterministic": true,
       "required": true,
       "extra_rule": "호 번호 · 발행일은 지면에 찍지 않는다(MASTER 16-2 r63 표지 규칙) - 판권도 같은지 TBD"
@@ -27,26 +27,19 @@
       "required": true
     },
     {
-      "path": "payload.engineVersions",
-      "type": "object",
-      "source": "dna_scores.engine_version · stat_snapshots.engine_version · coeffVersion",
-      "deterministic": true,
-      "required": false
-    },
-    {
       "path": "payload.correction",
-      "type": "string",
-      "source": "고정: 정정 창구 \"설정 › 문의\"",
+      "type": "object{path, email}",
+      "source": "고정 경로 \"설정 › 문의\" + 문의 메일 = web/src/legal/consent.ts LEGAL_CONTACT_EMAIL(값을 새로 쓰지 않음)",
       "deterministic": true,
       "required": true,
       "tone": "합니다체"
     },
     {
-      "path": "payload.theme",
-      "type": "string",
-      "source": "issues.theme",
+      "path": "payload.editionNumber",
+      "type": "number|null",
+      "source": "issues.issue_number",
       "deterministic": true,
-      "required": true
+      "required": false
     }
   ],
   "sample": {
@@ -62,5 +55,11 @@
     "\"정오\"는 지난 호 정정 내용을 싣는 칸인지 창구 안내만인지",
     "정정 창구: 지금 앱은 설정 › 앱 정보 › 문의하기(mailto, web/src/features/settings/AboutScreen.tsx:56)뿐 - 기획서 \"설정 › 문의\"와 경로 이름이 다르다. 호 단위 정정 화면은 없다"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "a1_implemented": {
+    "by": "m20-a1 (2026-11-26)",
+    "stored_at": "appendix 행 payload.colophon",
+    "not_printed": "발행일 - 렌더가 발행보다 앞서 값이 없고, 지면 사실 점검(render/local_volumes.py facts_check)이 \"발행일\"을 지면 금지어로 본다(MASTER r63) - PM 확인",
+    "margin_page": "쪽 수 맞춤의 \"판권 여백\" = 정오를 다음 면으로 나눔(tp-colophon-errata)"
+  }
 }

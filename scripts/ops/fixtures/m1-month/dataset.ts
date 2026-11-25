@@ -206,7 +206,8 @@ function buildTablesAtFixtureYear(): Record<string, readonly Row[]> {
   ]
 
   return {
-    couples: [{ id: COUPLE_ID, subscription_tier: 'paid' }],
+    // 2.0-A1: 두 사람 id · 사귄 날짜(합성 - 다음 달 10월에 500일이 든다) · 별명. 3코너 입력 조립은 id · 구독 등급만 읽는다.
+    couples: [{ id: COUPLE_ID, subscription_tier: 'paid', user_a_id: SEJUN_ID, user_b_id: SEOYOUNG_ID, relationship_start_date: '2024-06-01', nickname: null }],
     profiles: [
       { id: SEJUN_ID, display_name: '세준' },
       { id: SEOYOUNG_ID, display_name: '서영' },

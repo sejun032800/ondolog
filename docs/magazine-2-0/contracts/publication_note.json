@@ -76,5 +76,18 @@
     "빠진 코너 문장 7종 확정(PM)",
     "재료 줄이 늘면 note.html 한 면에 들어가는지(높이 표 · R152-2)"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "a1_implemented": {
+    "by": "m20-a1 (2026-11-26)",
+    "rows": [
+      "성격 정보 n명 / 실린 2명·0명",
+      "대화 묶음 n개 / 지표 n개(어림짐작이 실렸을 때)",
+      "부록 사진 n장 / 엽서 n장 · 사진 한 장 n장"
+    ],
+    "where": "「발행 노트 · 이어서」 임시 면(tp-note-more) - 노트 틀(디자인 · 한 면 고정)에 새 줄 3개를 넣으면 AI 안내 줄과 겹친다(실측: 1줄까지) -> R152-2 되받기",
+    "placeholders": "셋로그 · 인터뷰 · 게스트 줄 = 자리만(compose20.PLACEHOLDER_ROWS_20B_C · 지금 줄 0)",
+    "empty_corners": "두 사람의 결 · 어림짐작이 빠지면 노트 \"비어 있는 코너\"에 기획서 문장",
+    "sentence_bar": "두 사람의 결 AI 문장 · 어림짐작 7번 한 줄이 온도록 문장 수에 든다",
+    "source_values": "appendix 행 payload.noteMaterials (숫자만 - 원문 · 메시지 id 0)"
+  }
 }

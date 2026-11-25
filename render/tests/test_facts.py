@@ -394,15 +394,16 @@ class SourceDateAndBack(unittest.TestCase):
         sub = pages(comp, 'sw-quotes')[-1].corner['payload']['sub']
         self.assertEqual(sub[0]['attribution']['at'], '09.11 23:40')
 
-    def test_back_cover_has_no_next_issue_line(self):
+    def test_back_cover_has_no_promise_sentence(self):
+        # R157-7 - 뜻을 바꿨다: 사실(날짜 · 기념일)은 허용, 다음 호를 약속하는 문장("다음 호에서" · "기대해 주세요" · NEXT ISSUE 줄)은 금지
+        from promise_check import promise_violations
         for build in SCENARIOS.values():
             comp = compose(build(), LOCAL)
-            html = text_of(pages(comp, 'back')[0], comp)               # 보이는 글만 - 삭제 사실을 적은 주석은 뺀다
-            self.assertNotRegex(html, r'(?i)next\s*issue')
-            self.assertNotRegex(html, r'(?i)\b(january|october|september)\b')
-        template = TEMPLATES['back']
-        self.assertNotIn('nextMonth', re.sub(r'<!--.*?-->', '', template, flags=re.S))   # v1.2.3 틀은 '쓰지 않는다'는 주석에만 이름이 있다
-        self.assertNotRegex(re.sub(r'<!--.*?-->', '', template, flags=re.S), r'(?i)next\s*issue')
+            html = text_of(pages(comp, 'back')[0], comp)               # 보이는 글만 - 주석은 뺀다
+            self.assertEqual(promise_violations(html), [])
+        template = re.sub(r'<!--.*?-->', '', TEMPLATES['back'], flags=re.S)
+        self.assertNotIn('nextMonth', template)   # 틀은 '쓰지 않는다'는 주석에만 이름이 있다
+        self.assertEqual(promise_violations(template), [])
 
 
 # ---------------------------------------------------------------------------

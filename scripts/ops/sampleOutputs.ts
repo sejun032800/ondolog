@@ -28,6 +28,8 @@ import { inChronologicalOrder } from '../../supabase/functions/_shared/corners/c
 import type { DateArchiveInput } from '../../supabase/functions/_shared/corners/dateArchive.ts'
 import type { SweetWordsInput } from '../../supabase/functions/_shared/corners/sweetWords.ts'
 import type { ThisMonthInput } from '../../supabase/functions/_shared/corners/thisMonth.ts'
+import type { LoveDnaInput } from '../../supabase/functions/_shared/corners/loveDna.ts'
+import type { RoughGuessInput } from '../../supabase/functions/_shared/corners/roughGuess.ts'
 
 /** 샘플 출력으로 저장한 코너 행의 `engine_version`. 실제 생성물과 구별하는 표시다. */
 export const SAMPLE_ENGINE_VERSION = 'sample-output-v1'
@@ -146,4 +148,24 @@ export function sampleThisMonth(input: ThisMonthInput): unknown {
     articles: pool.map((p) => ({ title: p.title, body: p.body, evidence: [p.ref] })),
     closing: '이 기간의 기록은 여기까지입니다.',
   }
+}
+
+/**
+ * 2.0-A1 두 사람의 결 - 숫자를 다시 쓰지 않는 형식 검증용 문장(합니다체 · 판정어 0). 실행 팁은 허용될 때만 하나(해요체).
+ * 재료가 없으면 이 응답은 쓰이지 않는다(골격이 호출 전에 멈춘다).
+ */
+export function sampleLoveDna(input: LoveDnaInput): unknown {
+  const allowed = input.facts?.actionTipsAllowed === true
+  return {
+    explain: '이번 호의 숫자는 두 분의 성격 검사 결과로 냈습니다.',
+    attachmentCombo: { headline: '두 분의 애착 결', body: '두 분이 마음을 표현하는 방식을 성격 검사로 나란히 놓았습니다.' },
+    strengths: ['가까운 축이 지면 왼쪽에 있습니다.', '두 분의 값이 나란히 실렸습니다.'],
+    complements: ['다른 축이 지면 오른쪽에 있습니다.', '서로 다른 결이 함께 실렸습니다.'],
+    tryTogether: allowed ? ['오늘 대화에 다정한 한 마디를 더해 보세요'] : [],
+  }
+}
+
+/** 2.0-A1 어림짐작 7번 - 샘플은 한 줄을 만들지 않는다(날짜만 - MASTER 17-9 "추출 불가 시"와 같은 모양). */
+export function sampleRoughGuess(_input: RoughGuessInput): unknown {
+  return { line: null }
 }

@@ -531,3 +531,87 @@ def batch4_scenario(theme: str = 'basic') -> dict:
     return {'theme': theme, 'materials': {'messages': 40, 'photos': 6, 'dates': 2, 'memos': 0},
             'corners': [corner_row('date_archive', da, seq=1), corner_row('sweet_words', sw, seq=2),
                         corner_row('this_month', None, status='skipped', skip_reason='insufficient_input', seq=3)]}
+
+
+# ---------------------------------------------------------------------------
+# 2.0-A1 (위임 m20-a1 ⑧) - 두 사람의 결 · 어림짐작 · 부록(+ 부속) content. 값은 모두 합성이다(엔진 계산 결과 모양 - 계약 docs/magazine-2-0/contracts/).
+# ---------------------------------------------------------------------------
+
+def love_dna_content(total: float = 65, explain: str = '이번 일치율은 두 분의 성격 검사 결과만으로 냈습니다.') -> dict:
+    axes = [('o', '개방성', 60, 55), ('c', '성실성', 70, 40), ('e', '외향성', 80, 20), ('a', '우호성', 50, 50), ('n', '신경성', 40, 45)]
+    return {'schemaVersion': '1.0', 'header': {'cornerName': '우리의 연애 DNA', 'title': '두 사람의 결', 'periodLabel': '2026년 9월'},
+            'payload': {
+                'score': {'base': total, 'chatDelta': None, 'chatApplied': False, 'total': total, 'coeffVersion': 'dna_base_only',
+                          'previousTotal': None, 'delta': None, 'firstIssue': True},
+                'partners': [{'name': A, 'labelKo': '예시 라벨 가'}, {'name': B, 'labelKo': None}],
+                'bigFive': [{'key': k, 'label': lab, 'a': x, 'b': y, 'gap': abs(x - y), 'relation': 'close' if abs(x - y) < 15 else 'apart'}
+                            for k, lab, x, y in axes],
+                'sternberg': {'intimacy': {'a': 70, 'b': 70, 'shared': 70}, 'passion': {'a': 60, 'b': 30, 'shared': 30},
+                              'commitment': {'a': 80, 'b': 60, 'shared': 60}},
+                'attachment': {'a': 'secure', 'b': 'avoidant'},
+                'explain': explain,
+                'attachmentCombo': {'headline': '자기 세계와 다정함', 'body': '한 분은 조용한 시간을 아끼고 한 분은 마음을 먼저 건넵니다.'},
+                'strengths': ['우호성 값이 같습니다.', '친밀감 값이 70으로 같습니다.'],
+                'complements': ['모이는 쪽과 쉬는 쪽이 번갈아 갑니다.', '계획을 세우는 속도가 서로 다릅니다.'],
+                'actionTips': [],
+            }}
+
+
+def _prob(no: int, key: str, label: str, line: str, subject: str = A, percent: int = 73, similar: bool = False) -> dict:
+    return {'no': no, 'key': key, 'label': label, 'source': 'estimate', 'kind': 'probability', 'similar': similar,
+            'subject': None if similar else subject, 'percent': None if similar else percent, 'line': line}
+
+
+def _pair(name: str, value: float, display: str) -> dict:
+    return {'name': name, 'value': value, 'display': display}
+
+
+def rough_guess_content(line: Optional[str] = '그날은 이사 얘기가 오갔습니다') -> dict:
+    return {'schemaVersion': '1.0', 'header': {'cornerName': '얼렁뚱땅 어림짐작', 'title': '어림짐작', 'periodLabel': '2026년 9월'},
+            'payload': {
+                'disclaimer': '재미로만 봐주세요. 진짜로 재는 건 아닙니다.', 'footnote': '성격 검사와 이번 달 대화 기록으로 계산했습니다',
+                'items': [
+                    _prob(1, 'confess_first', '먼저 고백했을 확률', f'{A}님이 먼저 고백했을 확률 73%'),
+                    _prob(2, 'conflict_step_back', '갈등 회피 지수', f'{A}님과 {B}님이 비슷합니다', similar=True),
+                    _prob(3, 'anniversary_care', '기념일 챙기는 정도', f'{B}님이 기념일을 먼저 챙길 확률 61%', subject=B, percent=61),
+                    {'no': 4, 'key': 'reply_speed', 'label': '답장 속도', 'source': 'measured', 'kind': 'compare', 'similar': False, 'subject': A,
+                     'a': _pair(A, 48, '48초'), 'b': _pair(B, 720, '12분'), 'line': f'{A}님 48초 · {B}님 12분'},
+                    {'no': 5, 'key': 'talk_first', 'label': '먼저 말을 거는 쪽', 'source': 'measured', 'kind': 'gauge', 'similar': False, 'subject': A,
+                     'a': _pair(A, 58, '58%'), 'b': _pair(B, 42, '42%'), 'line': f'먼저 말을 거는 쪽 — {A}님'},
+                    {'no': 6, 'key': 'emoji_more', 'label': '이모지를 더 쓰는 쪽', 'source': 'measured', 'kind': 'gauge', 'similar': True, 'subject': None,
+                     'a': _pair(A, 30, '30%'), 'b': _pair(B, 35, '35%'), 'line': f'{A}님과 {B}님이 비슷합니다'},
+                ],
+                'busiestDay': {'no': 7, 'date': '2026-09-14', 'count': 40, 'source': 'measured', 'line': line},
+                'monthlyTopic': {'id': 1, 'title': '여행 계획을 세운다면',
+                                 'item': _prob(8, 'topic_1', '여행 계획을 세운다면', f'{A}님이 숙소를 먼저 정할 확률 89%', percent=89)},
+            }}
+
+
+def appendix_content(photo_breaks: int = 2, postcards: int = 2, next_month: bool = True, personality: tuple = (True, True),
+                     break_note: Optional[str] = None) -> dict:
+    cards = [photo('e01'), photo('e10')][:postcards]
+    brk = [{'photo': photo('e20', 1600, 1200), 'caption': break_note or '09.07 · 연남동 카페', 'captionSource': 'note' if break_note else 'date_place'},
+           {'photo': photo('e21', 1200, 1600), 'caption': '09.25', 'captionSource': 'date_place'}][:photo_breaks]
+    return {'schemaVersion': '1.0', 'header': {'cornerName': '잡지 부록', 'title': '부록', 'periodLabel': '2026년 9월'},
+            'payload': {
+                'calendar': {'month': '2026-10', 'year': 2026, 'monthNumber': 10, 'days': 31, 'firstWeekday': 4,
+                             'marks': [{'date': '2026-10-13', 'label': '500일'}]},
+                'postcards': cards,
+                'photoBreaks': brk,
+                'nextMonth': ({'month': '2026-10', 'monthNumber': 10, 'milestones': [{'date': '2026-10-13', 'label': '500일'}], 'openingCorners': []}
+                              if next_month else None),
+                'colophon': {'editionLabel': '2026년 9월호', 'editionNumber': 3, 'periodStart': '2026-09-01', 'periodEnd': '2026-09-30', 'maker': '온도록',
+                             'names': f'{A} · {B}', 'nickname': 'test-늘봄', 'correction': {'path': '설정 › 문의', 'email': 'test-contact@example.invalid'}},
+                'noteMaterials': {'personality': {'a': personality[0], 'b': personality[1]}, 'chatSessions': 18, 'chatMessages': 140,
+                                  'chatMetricsVersion': 'chat_metrics_v0', 'photosCollected': 21},
+            }}
+
+
+def m20_scenario(theme: str = 'basic', photo_breaks: int = 2, dna: bool = True, rough: bool = True, next_month: bool = True,
+                 break_note: Optional[str] = None) -> dict:
+    """2.0-A1 권 - 지금 3코너(photo_scenario 그대로) + 두 사람의 결 · 어림짐작 · 부록. 빠진 2.0 코너는 skipped 행."""
+    rows = list(photo_scenario(theme)['corners'])
+    rows.append(corner_row('love_dna', love_dna_content(), seq=4) if dna else corner_row('love_dna', None, 'skipped', 'insufficient_input', seq=4))
+    rows.append(corner_row('rough_guess', rough_guess_content(), seq=5) if rough else corner_row('rough_guess', None, 'skipped', 'insufficient_input', seq=5))
+    rows.append(corner_row('appendix', appendix_content(photo_breaks, next_month=next_month, personality=(dna, dna), break_note=break_note), seq=6))
+    return {'theme': theme, 'corners': rows}

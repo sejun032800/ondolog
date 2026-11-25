@@ -28,7 +28,7 @@
     {
       "path": "payload.score.base",
       "type": "number",
-      "source": "src/engine/dnaScore.ts:161 computeDnaBaseScore + src/engine/typeAffinity.ts:73 resolveTypeAffinity",
+      "source": "src/engine/loveDna.ts computeLoveDnaFacts -> dnaScore.ts computeDnaBaseScore · 계수 DNA_BASE_COEFFICIENTS 61/65/69(코드 상수)",
       "deterministic": true,
       "required": true,
       "range": [
@@ -40,7 +40,7 @@
     },
     {
       "path": "payload.score.chatDelta",
-      "type": "number",
+      "type": "number|null",
       "source": "src/engine/dnaScore.ts:203 computeChatDelta (UNRESOLVED dnaScore.chatDelta)",
       "deterministic": true,
       "required": true,
@@ -49,7 +49,7 @@
         25
       ],
       "decimals": 1,
-      "trace": "TBD - v0 산출식 2.0-A (입력 지표가 아직 없음, survey ③)"
+      "trace": "PM v0 승인 전(⑨)에는 null + chatApplied false(\"채팅 반영 전\") - UNRESOLVED dnaScore.chatDelta 그대로"
     },
     {
       "path": "payload.score.previousTotal",
@@ -69,7 +69,7 @@
     {
       "path": "payload.score.coeffVersion",
       "type": "string",
-      "source": "app_config (값 없음 - TBD) · dna_scores.breakdown.coeffVersion",
+      "source": "코드 상수 src/engine/loveDna.ts (DNA_COEFF_VERSION_BASE_ONLY = dna_base_only · 승인 뒤 dna_v0) - app_config 키 0(PM 결정)",
       "deterministic": true,
       "required": true,
       "sample_value": "dna_v0"
@@ -233,6 +233,46 @@
         "금지어"
       ],
       "extra_rule": "기획서 4절 \"DNA 설명\" 1회 - 산출 설명 문장"
+    },
+    {
+      "path": "payload.score.chatApplied",
+      "type": "boolean",
+      "source": "src/engine/loveDna.ts",
+      "deterministic": true,
+      "required": true,
+      "extra_rule": "false면 지면 · 목차에 \"채팅 반영 전\" 표지"
+    },
+    {
+      "path": "payload.score.firstIssue",
+      "type": "boolean",
+      "source": "지난 달 호 love_dna 코너 content가 없으면 true(\"첫 호\")",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.bigFive[]",
+      "type": "array",
+      "source": "src/engine/loveDna.ts (key · label · a · b · gap · relation close(차이<15)/apart)",
+      "deterministic": true,
+      "required": true,
+      "count": {
+        "min": 5,
+        "max": 5
+      }
+    },
+    {
+      "path": "payload.sternberg",
+      "type": "object",
+      "source": "src/engine/loveDna.ts (성분마다 a · b · shared=작은 값)",
+      "deterministic": true,
+      "required": true
+    },
+    {
+      "path": "payload.attachment",
+      "type": "object",
+      "source": "personality_assessments.attachment (a · b 값만 - 지면에 유형명 0)",
+      "deterministic": true,
+      "required": true
     }
   ],
   "sample": {
@@ -273,5 +313,17 @@
     "bigFiveComparison.relation(aligned/complementary) 판정 기준(차이 몇 이상이면 벌어짐)이 문서에 없다",
     "빅5 5축 · 스턴버그 삼각형은 MASTER 17-2 지면 구성 7요소인데 CORNER_LAYOUT 3-2는 2면 - 스턴버그 삼각형 자리가 지면 매핑 표에 없다"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "a1_implemented": {
+    "by": "m20-a1 (2026-11-26)",
+    "stored_schema": "src/types/corners/storedContent.ts LoveDnaPayloadSchema",
+    "llm_module": "supabase/functions/_shared/corners/loveDna.ts (LLM 1회 - explain · attachmentCombo · strengths · complements · tryTogether)",
+    "renamed": "actionTips의 LLM 출력 키는 tryTogether(금지 키 갈래 \"훈수\" tip 회피 - 17-0-4). 저장 칸은 payload.actionTips 그대로",
+    "not_stored": [
+      "bigFiveComparison(→ payload.bigFive)",
+      "sternbergOverlap(→ payload.sternberg)",
+      "attachmentCombo.pairLabel(유형명 노출 0 - 라벨 칸 없음)"
+    ],
+    "skip_note": "성격 정보가 아직 없어 싣지 않았습니다"
+  }
 }

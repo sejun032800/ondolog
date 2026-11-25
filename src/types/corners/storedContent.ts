@@ -274,3 +274,157 @@ export const ThisMonthStoredSchema = cornerEnvelopeSchema(ThisMonthPayloadSchema
 export type MonthEvidence = z.infer<typeof MonthEvidenceSchema>
 export type ThisMonthPayload = z.infer<typeof ThisMonthPayloadSchema>
 export type ThisMonthStored = z.infer<typeof ThisMonthStoredSchema>
+
+// ---------------------------------------------------------------------------
+// 매거진 2.0-A1 (위임 `m20-a1` · 계약 `docs/magazine-2-0/contracts/`) - 두 사람의 결 · 어림짐작 · 부록(+ 부속 3종 · 발행 노트 재료)
+// 숫자 칸은 엔진(`src/engine/loveDna.ts` · `roughGuess.ts` · `issueSupplements.ts` · `chatMetrics.ts`)이 채우고 문장 칸만 LLM이 쓴다.
+// ---------------------------------------------------------------------------
+
+const Score0to100 = z.number().min(0).max(100)
+const PairNumber = z.object({ a: z.number(), b: z.number() })
+
+/** 두 사람의 결(`love_dna`) - 계약 `love_dna.json`. */
+export const LoveDnaPayloadSchema = z.object({
+  score: z.object({
+    base: z.number().min(50).max(100),
+    /** ⑨ 승인 전에는 null(채팅 반영 전). */
+    chatDelta: z.number().min(-10).max(25).nullable(),
+    chatApplied: z.boolean(),
+    total: z.number().min(50).max(100),
+    coeffVersion: z.string().min(1),
+    previousTotal: z.number().nullable(),
+    delta: z.number().nullable(),
+    firstIssue: z.boolean(),
+  }),
+  partners: z.array(z.object({ name: z.string().min(1), labelKo: z.string().min(1).nullable() })).length(2),
+  bigFive: z
+    .array(
+      z.object({
+        key: z.enum(['o', 'c', 'e', 'a', 'n']),
+        label: z.string().min(1),
+        a: Score0to100,
+        b: Score0to100,
+        gap: Score0to100,
+        relation: z.enum(['close', 'apart']),
+      }),
+    )
+    .length(5),
+  sternberg: z.object({
+    intimacy: PairNumber.extend({ shared: z.number() }),
+    passion: PairNumber.extend({ shared: z.number() }),
+    commitment: PairNumber.extend({ shared: z.number() }),
+  }),
+  attachment: z.object({ a: z.enum(['secure', 'anxious', 'avoidant', 'fearful']), b: z.enum(['secure', 'anxious', 'avoidant', 'fearful']) }),
+  /** LLM 문장 칸(계약 길이 상한 = valueChecks `LOVE_DNA_VALUE_RULES`). */
+  explain: stringMaxCodePoints(120),
+  attachmentCombo: z.object({ headline: stringMaxCodePoints(30), body: stringMaxCodePoints(120) }),
+  strengths: z.array(stringMaxCodePoints(40)).min(2).max(4),
+  complements: z.array(stringMaxCodePoints(40)).min(2).max(4),
+  /** 일치율 60 이하에서만(그 밖에는 빈 배열). */
+  actionTips: z.array(stringMaxCodePoints(40)).max(2),
+})
+
+export const LoveDnaStoredSchema = cornerEnvelopeSchema(LoveDnaPayloadSchema)
+export type LoveDnaPayload = z.infer<typeof LoveDnaPayloadSchema>
+export type LoveDnaStored = z.infer<typeof LoveDnaStoredSchema>
+
+const ProbabilityItemSchema = z.object({
+  no: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(8)]),
+  key: z.string().min(1),
+  label: z.string().min(1),
+  source: z.literal('estimate'),
+  kind: z.literal('probability'),
+  similar: z.boolean(),
+  subject: z.string().min(1).nullable(),
+  percent: z.number().int().min(50).max(100).nullable(),
+  line: z.string().min(1),
+})
+
+const PairItemValueSchema = z.object({ name: z.string().min(1), value: z.number(), display: z.string().min(1) })
+const PairItemSchema = z.object({
+  no: z.union([z.literal(4), z.literal(5), z.literal(6)]),
+  key: z.string().min(1),
+  label: z.string().min(1),
+  source: z.literal('measured'),
+  kind: z.enum(['compare', 'gauge']),
+  similar: z.boolean(),
+  subject: z.string().min(1).nullable(),
+  a: PairItemValueSchema,
+  b: PairItemValueSchema,
+  line: z.string().min(1),
+})
+
+/** 어림짐작(`rough_guess`) - 계약 `rough_guess.json`. 7번 한 줄(`busiestDay.line`)만 LLM. */
+export const RoughGuessPayloadSchema = z.object({
+  disclaimer: z.string().min(1),
+  footnote: z.string().min(1),
+  items: z.array(z.union([ProbabilityItemSchema, PairItemSchema])).min(3).max(6),
+  busiestDay: z
+    .object({
+      no: z.literal(7),
+      date: IsoDate,
+      count: z.number().int().min(1),
+      source: z.literal('measured'),
+      /** "그날은 OO 얘기가 오갔습니다" - 추출 불가면 null(날짜만). */
+      line: stringMaxCodePoints(20).nullable(),
+    })
+    .nullable(),
+  monthlyTopic: z.object({ id: z.number().int().min(1).max(12), title: z.string().min(1), item: ProbabilityItemSchema }),
+})
+
+export const RoughGuessStoredSchema = cornerEnvelopeSchema(RoughGuessPayloadSchema)
+export type RoughGuessPayload = z.infer<typeof RoughGuessPayloadSchema>
+export type RoughGuessStored = z.infer<typeof RoughGuessStoredSchema>
+
+const PrintedPhotoSchema = z.object({ path: z.string().min(1), width: z.number(), height: z.number(), capturedAt: IsoDateTime })
+const CalendarMarkSchema = z.object({ date: IsoDate, label: z.string().min(1) })
+
+/**
+ * 부록(`appendix`) - 계약 `appendix.json` + 부속 3종(`photo_break.json` · `next_issue.json`(→ 「다음 달」) · `colophon.json`)
+ * + 발행 노트 새 재료(`publication_note.json`). 부속은 DB 코너 값(enum)이 없어 이 행에 함께 싣는다(마이그레이션 0).
+ * LLM 0 - 전부 결정론.
+ */
+export const AppendixPayloadSchema = z.object({
+  calendar: z.object({
+    month: z.string().regex(/^\d{4}-\d{2}$/),
+    year: z.number().int(),
+    monthNumber: z.number().int().min(1).max(12),
+    days: z.number().int().min(28).max(31),
+    firstWeekday: z.number().int().min(0).max(6),
+    marks: z.array(CalendarMarkSchema),
+  }),
+  postcards: z.array(PrintedPhotoSchema).max(2),
+  photoBreaks: z
+    .array(z.object({ photo: PrintedPhotoSchema, caption: z.string().min(1), captionSource: z.enum(['note', 'date_place']) }))
+    .max(2),
+  nextMonth: z
+    .object({
+      month: z.string().regex(/^\d{4}-\d{2}$/),
+      monthNumber: z.number().int().min(1).max(12),
+      milestones: z.array(CalendarMarkSchema).min(1),
+      openingCorners: z.array(z.string().min(1)),
+    })
+    .nullable(),
+  colophon: z.object({
+    editionLabel: z.string().min(1),
+    editionNumber: z.number().int().positive().nullable(),
+    periodStart: IsoDate,
+    periodEnd: IsoDate,
+    maker: z.string().min(1),
+    names: z.string().min(1),
+    nickname: z.string().min(1).nullable(),
+    correction: z.object({ path: z.string().min(1), email: z.string().min(1) }),
+  }),
+  /** 발행 노트 새 재료 줄(숫자만 - 원문 · 메시지 id 0). */
+  noteMaterials: z.object({
+    personality: z.object({ a: z.boolean(), b: z.boolean() }),
+    chatSessions: z.number().int().min(0),
+    chatMessages: z.number().int().min(0),
+    chatMetricsVersion: z.string().min(1),
+    photosCollected: z.number().int().min(0),
+  }),
+})
+
+export const AppendixStoredSchema = cornerEnvelopeSchema(AppendixPayloadSchema)
+export type AppendixPayload = z.infer<typeof AppendixPayloadSchema>
+export type AppendixStored = z.infer<typeof AppendixStoredSchema>

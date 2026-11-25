@@ -7,7 +7,7 @@
     "note": "달력 1 + 사진 엽서 1(사진 0장이면 엽서 면만 빠짐)"
   },
   "publish_condition": "매호 (기획서 1절 #11)",
-  "skip_note": "(엽서 면만) TBD 문장",
+  "skip_note": "(엽서 면만) 조용히 빠짐 - 발행 노트 \"부록 사진\" 줄에 엽서 0장",
   "llm_calls": 0,
   "fields": [
     {
@@ -20,7 +20,7 @@
     {
       "path": "payload.calendar.marks[]",
       "type": "array",
-      "source": "src/utils/relationshipDays.ts:29 computeDaysTogetherKst · profiles.birth_date - 달 단위 목록 함수 TBD",
+      "source": "src/engine/issueSupplements.ts relationshipMilestonesInMonth - 관계 기념일만(100일 · 365일 단위) · 생일 0(R157-6)",
       "deterministic": true,
       "required": true,
       "count": {
@@ -31,7 +31,7 @@
     {
       "path": "payload.calendar.marks[].label",
       "type": "string",
-      "source": "결정론(\"500일\" · \"2주년\" · 생일)",
+      "source": "결정론(\"500일\" · \"2주년\") - 생일 0(R157-6)",
       "deterministic": true,
       "required": true,
       "tone": "명사형"
@@ -39,7 +39,7 @@
     {
       "path": "payload.postcards[]",
       "type": "array<PhotoRef>",
-      "source": "TBD 선별: 그달 사진 2장 (data_entries photo)",
+      "source": "src/engine/issueSupplements.ts choosePostcards - 그달 첫 · 마지막 사진(위치 정보 0인 것) · 1장이면 1장",
       "deterministic": true,
       "required": false,
       "count": {
@@ -65,8 +65,12 @@
   },
   "open_questions": [
     "엽서 사진 2장 선별 규칙(결정론)",
-    "인쇄해 붙이는 판형 - 디지털 PDF에서 재단선 표기",
-    "생일 표시 동의 범위(special_guest와 같음)"
+    "인쇄해 붙이는 판형 - 디지털 PDF에서 재단선 표기"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "a1_implemented": {
+    "by": "m20-a1 (2026-11-26)",
+    "stored_schema": "src/types/corners/storedContent.ts AppendixPayloadSchema (calendar · postcards · photoBreaks · nextMonth · colophon · noteMaterials)",
+    "note": "부속 3종(사진 한 장 · 다음 달 · 판권 정오)과 발행 노트 새 재료는 corner_type enum이 없어 이 appendix 행에 함께 싣는다(마이그레이션 0). LLM 0 - validateCornerResponse 정식 검증 길로 저장"
+  }
 }

@@ -504,12 +504,20 @@ class Back(unittest.TestCase):
         self.assertEqual(back['issue']['month'], '9월호')
         self.assertEqual(back['issue']['period'], '9월 1일 ~ 9월 30일')
 
-    def test_no_next_issue_promise_in_any_month(self):
+    def test_no_next_issue_promise_sentence_in_any_month(self):
+        # R157-7 - 뜻을 바꿨다: 사실(날짜 · 기념일)은 허용 · 다음 호를 약속하는 문장은 금지(MASTER r63). 뒤표지에는 지금 사실 줄도 없다
+        from promise_check import promise_violations, visible_strings
         issue = {**fx.ISSUE_ROW, 'period_start': '2026-12-01', 'period_end': '2026-12-31'}
         sc = fx.photo_scenario()
         comp = compose_issue(issue, {**fx.COUPLE_ROW}, NAMES, sc['corners'], None)
-        self.assertNotIn('nextMonth', page(comp, 'back').computed['back'])
-        self.assertEqual(page(comp, 'back').computed['back']['closing'], '12월의 온도를\n여기에 두고 갑니다')
+        back = page(comp, 'back').computed
+        self.assertEqual(promise_violations(' '.join(visible_strings(back))), [])
+        self.assertNotIn('nextMonth', back['back'])
+        self.assertEqual(back['back']['closing'], '12월의 온도를\n여기에 두고 갑니다')
+        # 검사 자체: 약속 꼴은 걸리고 사실 문장은 통과한다
+        self.assertEqual(promise_violations('다음 호에서 만나요'), ['다음 호에서'])
+        self.assertEqual(promise_violations('NEXT ISSUE · October'), ['NEXT ISSUE'])
+        self.assertEqual(promise_violations('10월 13일 · 500일'), [])
 
 
 class Coverage(unittest.TestCase):

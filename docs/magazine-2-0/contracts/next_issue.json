@@ -1,12 +1,12 @@
 {
   "corner_id": "next_issue",
   "kind": "부속",
-  "page_title": "다음 호 예고",
+  "page_title": "다음 달",
   "pages": {
     "min": 1,
     "max": 1
   },
-  "publish_condition": "매호",
+  "publish_condition": "다음 달에 관계 기념일이 1개 이상일 때(없으면 면이 빠짐 - 빈 지면 0, 메인 세션 제안)",
   "skip_note": "없음",
   "llm_calls": 0,
   "fields": [
@@ -20,7 +20,7 @@
     {
       "path": "payload.milestones[]",
       "type": "array",
-      "source": "src/utils/relationshipDays.ts:29 computeDaysTogetherKst 등 - 달 단위 목록 함수 TBD",
+      "source": "src/engine/issueSupplements.ts nextMonthFacts - 관계 기념일만 · 생일 0(R157-6)",
       "deterministic": true,
       "required": true,
       "count": {
@@ -31,7 +31,7 @@
     {
       "path": "payload.openingCorners[]",
       "type": "array",
-      "source": "다음 달 발행 조건 예측(특별 게스트 · 인터뷰 회차)",
+      "source": "지금 늘 [] - 특별 게스트가 아직 없다(2.0-C). 없는 코너를 \"열린다\"고 쓰지 않는다",
       "deterministic": true,
       "required": true,
       "count": {
@@ -56,8 +56,13 @@
     }
   },
   "open_questions": [
-    "MASTER r63 \"다음 호를 약속하는 표시 금지\"(back.html \"NEXT ISSUE\" 줄을 뺀 근거 - render/issue/pages/back.html:24 주석 · render/tests/test_compose.py:507)와 충돌 - PM 정리 필요",
-    "\"열릴 코너\"를 미리 말하면 조건을 못 채웠을 때 약속이 깨진다 - 표현 범위"
+    "열릴 코너(특별 게스트)를 2.0-C 뒤 \"열릴 수 있는 코너\" 사실로 적는 문구"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "page_title_source": "ROADMAP R157-7 - \"다음 호 예고\" -> 「다음 달」 · 사실만(약속 문장 0)",
+  "a1_implemented": {
+    "by": "m20-a1 (2026-11-26)",
+    "stored_at": "appendix 행 payload.nextMonth (null이면 면 없음)",
+    "promise_check": "render/promise_check.py - 뒤표지 · 다음 달 · 발행 노트(이어서 포함)에 약속 꼴이 있으면 렌더 멈춤"
+  }
 }

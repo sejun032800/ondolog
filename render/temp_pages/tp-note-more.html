@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- 임시 — 디자인 v2.0.0 반입 때 교체 (위임 m20-a1 ⑧ · R156-3 "구현 먼저, 모양은 나중").
+     계약 필드(docs/magazine-2-0/contracts/publication_note.json)만 싣는다. 모양은 base.css 글꼴 · 판면 재사용 - 새 디자인 요소 0.
+     넘침 · 잘림 · 겹침은 지면 검사가 실패로 처리한다(R152-2 · 한 면 고정 · 높이 예측 표 없음). -->
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 발행 노트 이어서</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<body class="tp tp-note-more">
+  <div class="ab col" style="top:60px;display:flex;align-items:center;gap:14px">
+    <span class="kk-ko" data-slot="@tp.cornerName">발행 노트</span>
+    <span style="flex:1;height:.6px;background:var(--hair)"></span>
+    <span class="lbl" data-slot="@tp.periodLabel">2026년 9월</span>
+  </div>
+  <div class="ab col rule-heavy" style="top:84px"></div>
+  <div class="ab col" style="top:112px;display:flex;flex-direction:column;gap:18px">
+    <span class="h-lead">이 호는 무엇으로 만들어졌나 · 이어서</span>
+    <span class="lbl sec">수집한 재료</span>
+    <table class="tb">
+      <thead><tr><th>항목</th><th class="n">모은 양</th><th class="n">실제 게재</th></tr></thead>
+      <tbody data-repeat="@tp.rows">
+        <tr><td data-slot=".label">성격 정보</td><td class="n" data-slot=".collected">2명</td><td class="n" data-slot=".used">2명</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">0 4</div>
+</body>
+</html>

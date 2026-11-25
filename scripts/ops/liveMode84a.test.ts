@@ -22,6 +22,9 @@ import {
 import { memoryMedia, memoryStore } from './opsMemoryStore.ts'
 import { OpsStopError } from './opsGuards.ts'
 
+/** 2.0-A1: 3코너 계약(지면 순서 1~3)만 본다 - 그 뒤의 2.0 코너(두 사람의 결 · 어림짐작 · 부록)는 아래 '2.0-A1' 시험이 본다. */
+const three = (report: { corners: readonly { cornerType: string }[] }) => report.corners.slice(0, 3) as never as Awaited<ReturnType<typeof generateIssue>>['corners']
+
 const AGREED = '2026-01-01T00:00:00+09:00'
 // 84-c: 합성 데이터셋 연도(`FIXTURE_YEAR`, 2026 -> 2025)를 따른다.
 const PARAMS: GenerateParams = { coupleId: COUPLE_ID, periodStart: `${FIXTURE_YEAR}-09-01`, periodEndExclusive: `${FIXTURE_YEAR}-10-01`, cadence: 'monthly' }
@@ -172,7 +175,7 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
     expect(report.mode).toBe('live')
     expect(report.model).toBe('claude-opus-5-5')
     expect(report.realApiCalls).toBe(3)
-    expect(report.corners.map((c) => [c.cornerType, c.outcome, c.realApiCalls])).toEqual([
+    expect(three(report).map((c) => [c.cornerType, c.outcome, c.realApiCalls])).toEqual([
       ['date_archive', 'ready', 1],
       ['sweet_words', 'ready', 1],
       ['this_month', 'ready', 1],
@@ -182,7 +185,7 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
 
     const one = { input: 1000, output: 200, cacheWrite: 300, cacheRead: 400 }
     const each = usageCostUsd('claude-opus-5-5', one)
-    for (const c of store.corners) {
+    for (const c of store.corners.slice(0, 3)) {
       expect(c.engine_version).toBe(`${LIVE_ENGINE_VERSION_PREFIX}claude-opus-5-5`)
       expect(c.generation_attempts).toBe(1)
       expect(c.llm_usage).toEqual({ model: 'claude-opus-5-5', ...one, costUsd: each, attempts: 1, latencyMs: 1000, failure: null })
@@ -198,7 +201,7 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
     })
     const report = await generateIssue({ store, media, live: live.deps }, LIVE)
     expect(live.fetchCount()).toBe(1)
-    expect(report.corners.map((c) => c.outcome)).toEqual(['ready', 'halted_pending', 'halted_pending'])
+    expect(three(report).map((c) => c.outcome)).toEqual(['ready', 'halted_pending', 'halted_pending'])
     expect(store.alerts.map((a) => a.detail.stage)).toEqual(['cost_limit', 'cost_limit'])
     expect(store.corners.find((c) => c.corner_type === 'sweet_words')).toMatchObject({ status: 'pending', content: {} })
     expect(report.costUsd).toBeCloseTo(1.99, 10)
@@ -211,7 +214,7 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
       advance: (corner, attempt) => (corner === 0 && attempt === 0 ? 8 * 60_000 : 1000),
     })
     const report = await generateIssue({ store, media, live: live.deps }, LIVE)
-    expect(report.corners.map((c) => c.outcome)).toEqual(['halted_pending', 'ready', 'ready'])
+    expect(three(report).map((c) => c.outcome)).toEqual(['halted_pending', 'ready', 'ready'])
     expect(live.fetchCount()).toBe(3)
     expect(store.alerts.map((a) => a.detail.stage)).toEqual(['corner_time_limit'])
     expect(store.corners.find((c) => c.corner_type === 'date_archive')?.llm_usage).toMatchObject({ attempts: 1, failure: 'corner_time_limit' })
@@ -224,7 +227,7 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
       advance: (corner, attempt) => (corner === 0 && attempt === 0 ? 8 * 60_000 - 1 : 0),
     })
     const report = await generateIssue({ store, media, live: live.deps }, LIVE)
-    expect(report.corners.map((c) => c.outcome)).toEqual(['ready', 'ready', 'ready'])
+    expect(three(report).map((c) => c.outcome)).toEqual(['ready', 'ready', 'ready'])
     expect(report.corners[0].realApiCalls).toBe(2)
   })
 
@@ -234,12 +237,13 @@ describe('84-a 실제 모드 - 가드 안 + fail-closed 통과 -> 실제 클라�
     const report = await generateIssue({ store, media, live: live.deps }, LIVE)
     expect(live.fetchCount()).toBe(1)
     expect(live.created).toHaveLength(1) // 남은 코너는 클라이언트도 만들지 않는다
-    expect(report.corners.map((c) => [c.outcome, c.detail])).toEqual([
+    expect(three(report).map((c) => [c.outcome, c.detail])).toEqual([
       ['ready', null],
       ['halted_pending', 'issue_time_limit'],
       ['halted_pending', 'issue_time_limit'],
     ])
-    expect(store.alerts.map((a) => a.detail.stage)).toEqual(['issue_time_limit', 'issue_time_limit'])
+    // 2.0-A1: 마감은 2.0 LLM 코너(두 사람의 결 · 어림짐작)에도 같이 걸린다 - 시작 0 · 경보 각 1
+    expect(store.alerts.map((a) => a.detail.stage)).toEqual(['issue_time_limit', 'issue_time_limit', 'issue_time_limit', 'issue_time_limit'])
   })
 })
 
@@ -250,12 +254,12 @@ describe('84-a2 실제 모드 - 기록되는 호출 수 = 실제로 보낸 수 (
     const report = await generateIssue({ store, media, live: live.deps }, LIVE)
     expect(live.fetchCount()).toBe(3)
     expect(report.realApiCalls).toBe(3)
-    expect(report.corners.map((c) => [c.outcome, c.realApiCalls])).toEqual([
+    expect(three(report).map((c) => [c.outcome, c.realApiCalls])).toEqual([
       ['failed', 1],
       ['failed', 1],
       ['failed', 1],
     ])
-    for (const c of store.corners) {
+    for (const c of store.corners.slice(0, 3)) {
       expect(c.generation_attempts).toBe(1)
       expect(c.llm_usage).toMatchObject({ attempts: 1, failure: 'generation_failed' })
     }
@@ -267,7 +271,7 @@ describe('84-a2 실제 모드 - 기록되는 호출 수 = 실제로 보낸 수 (
     const { store, media, tables } = world()
     const live = liveDeps(await sampleTexts(tables), { status: (corner, attempt) => (corner === 0 && attempt === 0 ? 429 : 200) })
     const report = await generateIssue({ store, media, live: live.deps }, LIVE)
-    expect(report.corners.map((c) => [c.outcome, c.realApiCalls])).toEqual([
+    expect(three(report).map((c) => [c.outcome, c.realApiCalls])).toEqual([
       ['ready', 2],
       ['ready', 1],
       ['ready', 1],
