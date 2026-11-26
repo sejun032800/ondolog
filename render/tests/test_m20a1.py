@@ -407,5 +407,67 @@ class AttachmentNames(unittest.TestCase):
             self.assertIn(f"'{n}'", ts)
 
 
+
+POOL_MD = ROOT / 'docs' / 'magazine-2-0' / 'interview-question-pool-r157.md'
+
+
+def interview_pool() -> set:
+    """승인 풀 60(R157-9) - 표의 T01~T20 · O01~O20 · R01~R20 질문 칸. 계절 표시(※겨울 등)는 뗀다."""
+    out = set()
+    for m in re.finditer(r'^\| ([TOR]\d{2}) \| (.+?) \|$', POOL_MD.read_text(encoding='utf-8'), flags=re.M):
+        out.add(re.sub(r'\s*※\S+$', '', m.group(2)).strip())
+    return out
+
+
+class InterviewSamplePool(unittest.TestCase):
+    """2.0-D 덧붙임 정정 4(R158-8 ③ · R159) - 견본 인터뷰 질문은 승인 풀 60에서만."""
+
+    def test_pool_has_60(self):
+        self.assertEqual(len(interview_pool()), 60)
+
+    def test_sample_fixed_questions_come_from_the_pool(self):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup((ROOT / 'render' / 'issue' / 'pages' / 'interview.html').read_text(encoding='utf-8'), 'html.parser')
+        fixed = []
+        for q in soup.select('.q'):
+            if q.select_one('.basis'):   # Q4 = AI 질문(그 주의 일에서) - 풀 질문이 아니다
+                continue
+            fixed.append(q.select_one('.qt').get_text(strip=True))
+        self.assertIn('가장 좋아하는 계절은 언제예요?', fixed)        # interview.html:36 - 풀 T03(R158-8 ③ · PE 확인)
+        self.assertIn('요즘 가장 자주 가는 장소는 어디예요?', fixed)   # interview.html:43 - 풀 O17(R159)
+        self.assertNotIn('혼자 있고 싶을 때 주로 어디로 가요?', fixed)
+        self.assertEqual({t for t in fixed if t not in interview_pool()}, set())   # 풀 밖 견본 0 - 예외 없음
+
+    def test_contract_sample_questions_come_from_the_pool(self):
+        import json
+        c = json.loads((ROOT / 'docs' / 'magazine-2-0' / 'contracts' / 'couple_interview.json').read_text(encoding='utf-8'))
+        texts = []
+
+        def walk(x):
+            if isinstance(x, dict):
+                if isinstance(x.get('questions'), list):
+                    texts.extend(q['text'] for q in x['questions'] if isinstance(q, dict) and isinstance(q.get('text'), str) and not q.get('basis'))
+                for v in x.values():
+                    walk(v)
+            elif isinstance(x, list):
+                for v in x:
+                    walk(v)
+        walk(c.get('sample'))
+        self.assertTrue(texts)
+        self.assertEqual({t for t in texts if t not in interview_pool()}, set())
+
+    def test_render_sample_data_and_fixtures_have_no_out_of_pool_interview_question(self):
+        # 렌더 견본 데이터(`render/issue/tools/sample.py`) · 시험 fixture에는 인터뷰 질문 칸이 없다 - 생기면 풀 문장이어야 한다
+        pool = interview_pool()
+        for path in (ROOT / 'render' / 'issue' / 'tools' / 'sample.py', ROOT / 'render' / 'tests' / 'fixtures.py'):
+            text = path.read_text(encoding='utf-8')
+            self.assertNotIn('혼자 있고 싶을 때', text, path.name)
+            # 인터뷰 코너 데이터(`couple_interview` · `rounds`)가 없다 - 데이트 아카이브 세 물음(closingQuestions)은 풀 대상이 아니다.
+            # 견본 PDF의 인터뷰 질문은 틀(interview.html)의 견본 글자 그대로라 위 시험이 본다
+            self.assertNotIn('couple_interview', text, path.name)
+            self.assertNotRegex(text, r"['\"]rounds['\"]", path.name)
+            self.assertTrue(pool)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -11,6 +11,17 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `2.0-D` 덧붙임 - r159 어림짐작 10 · 12 · 짐작 2번 라벨 · 인터뷰 견본 풀 질문 · zip 추적 해제 (메인 세션, 2026-11-26, PM r159 지시문) (미커밋)
+
+시작 확인: **저장소 ROADMAP `r158` · MASTER `r85`**(지시는 r159 · r86 - 문서 갱신 전, 지시문을 따름) · 2.0-D 내용은 커밋 `4b60387`("1126 1806"). LLM 0 · 원격 0 · 마이그레이션 0.
+
+- 어림짐작 12주제(R159-2): `src/constants/roughGuessTopics.ts` 10 「처음 가는 동네에서」 · "골목으로 먼저 들어가 볼 확률" · 12 「비 오는 주말」 · "집에서 볼 영화를 고를 확률"(성향 traits는 그대로). 지면 꼴에 "쯤"이 없었다 → `src/engine/roughGuess.ts` `probabilityItem` 문장 `…{n}%쯤`(짐작 1~3 · 8번 모두). 시험 `m20a1Engines.test.ts` "12주제 문장 고정 … 겹침 없음" · "짐작 지면 꼴 … %쯤 …".
+- 짐작 2번 표시 이름(R158-10): `roughGuess.ts` `probabilityItem(2, 'conflict_step_back', '한발 먼저 물러서는 쪽', …)` - 키 · 성향 · 계산 그대로. 리그 ATT "애정 확인"은 A2.
+- 정정 4(R158-8 ③): 풀 원문 `docs/magazine-2-0/interview-question-pool-r157.md`(PM이 넣음). 틀 문구 한 곳 `render/issue/pages/interview.html:43` "혼자 있고 싶을 때 주로 어디로 가요?" → **"요즘 가장 자주 가는 장소는 어디예요?"(풀 O17 · 견본 답 "집 앞 공원 벤치" · "동네 서점"과 맞음)**. 렌더 견본 데이터(`tools/sample.py`) · fixture에는 인터뷰 질문 없음. **PE 확인 뒤 한 줄 더**: `interview.html:36` "요즘 가장 좋아하는 계절은 언제예요?" → **"가장 좋아하는 계절은 언제예요?"(풀 T03)** · 계약 `couple_interview.json:91` 견본도 같은 문장. 시험 `test_m20a1.InterviewSamplePool` 4(예외 허용 지움 - 틀 · 계약 견본 모두 풀 밖 0). 시험 다시: render `test_m20a1` 43 · jest m20a1Engines · m20a1Corners 43(gate는 PE 지시로 다시 돌리지 않음 - 틀 문구 · 계약 · 시험만 바뀜). 로컬 `samples/*.pdf`(커밋 0)는 옛 견본 그대로.
+- **다음 디자인 묶음 정정 항목**: 보드 그림 L01~L04(`docs/design/nocturne/screens/L0*.jpg` · `N-R20-Magazine-Input.dc.html`)의 견본 질문 "혼자 있고 싶을 때…"를 풀 질문으로(R158-8 ③ - 이번엔 그대로).
+- zip: `git ls-files "*.zip"` = `.claude/state/prompts/phase-7/ONDOLOG_canvas_batch5.zip` · `.claude/state/prompts/phase-7/ONDOLOG_render_issue_v2_0_0.zip` 2개. 무시 규칙 `.gitignore:61` `.claude/state/prompts/**/*.zip`이 두 경로에 걸림(`git check-ignore -v --no-index`) - 줄 추가 0. 커밋 명령에 `git rm --cached --quiet` 2줄(로컬 파일 남음 · 히스토리 재작성 0).
+- 검증: 루트 tsc 0 · jest 136 스위트 / 2448 · deno check `_shared/corners/roughGuess.ts` 0 · 렌더 시험 467 통과(1247초) · `npm run gate`(web) 통과 156.0초(smoke 44/44)
+
 ## `2.0-D` 디자인 묶음 5 반입(매거진 v2.0.0 · 입력 화면 보드) + 2.0-A1 코너를 새 틀에 연결 (메인 세션, 2026-11-26, 위임문 `phase-7/m20-d-dispatch-design-batch5-import.md` · ROADMAP r158 R158-5~11 · R151-3) - 완료 · 멈춤 1(정정 4) (미커밋)
 
 시작 확인: ROADMAP `r158` · A1 2차 내용은 커밋 `ed4f268`("1126 1646" - 메시지는 위임서 기대와 다름, 내용 같음). LLM 0 · 원격 0 · 마이그레이션 0 · 앱 0 · 새 패키지 0.

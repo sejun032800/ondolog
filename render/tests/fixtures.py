@@ -571,9 +571,9 @@ def rough_guess_content(line: Optional[str] = '그날은 이사 얘기가 오갔
             'payload': {
                 'disclaimer': '재미로 보는 지면입니다. 진짜로 잰 값은 아닙니다.', 'footnote': '성격 검사와 이번 달 대화 기록으로 계산했습니다',
                 'items': [
-                    _prob(1, 'confess_first', '먼저 고백했을 확률', f'{A}님이 먼저 고백했을 확률 73%'),
-                    _prob(2, 'conflict_step_back', '갈등 회피 지수', f'{A}님과 {B}님이 비슷합니다', similar=True),
-                    _prob(3, 'anniversary_care', '기념일 챙기는 정도', f'{B}님이 기념일을 먼저 챙길 확률 61%', subject=B, percent=61),
+                    _prob(1, 'confess_first', '먼저 고백했을 확률', f'{A}님이 먼저 고백했을 확률 73%쯤'),
+                    _prob(2, 'conflict_step_back', '한발 먼저 물러서는 쪽', f'{A}님과 {B}님이 비슷합니다', similar=True),
+                    _prob(3, 'anniversary_care', '기념일 챙기는 정도', f'{B}님이 기념일을 먼저 챙길 확률 61%쯤', subject=B, percent=61),
                     {'no': 4, 'key': 'reply_speed', 'label': '답장 속도', 'source': 'measured', 'kind': 'compare', 'similar': False, 'subject': A,
                      'a': _pair(A, 48, '48초'), 'b': _pair(B, 720, '12분'), 'line': f'{A}님 48초 · {B}님 12분'},
                     {'no': 5, 'key': 'talk_first', 'label': '먼저 말을 거는 쪽', 'source': 'measured', 'kind': 'gauge', 'similar': False, 'subject': A,
@@ -583,7 +583,7 @@ def rough_guess_content(line: Optional[str] = '그날은 이사 얘기가 오갔
                 ],
                 'busiestDay': {'no': 7, 'date': '2026-09-14', 'count': 40, 'source': 'measured', 'line': line},
                 'monthlyTopic': {'id': 1, 'title': '여행 계획을 세운다면',
-                                 'item': _prob(8, 'topic_1', '여행 계획을 세운다면', f'{A}님이 숙소를 먼저 정할 확률 89%', percent=89)},
+                                 'item': _prob(8, 'topic_1', '여행 계획을 세운다면', f'{A}님이 숙소를 먼저 정할 확률 89%쯤', percent=89)},
             }}
 
 

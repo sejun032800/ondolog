@@ -189,7 +189,8 @@ function probabilityItem(
     similar,
     subject: similar ? null : subject,
     percent: similar ? null : percent,
-    line: similar ? `${a.name}님과 ${b.name}님이 비슷합니다` : `${subject}님이 ${phrase} ${percent}%`,
+    // 짐작(◇)은 숫자 뒤에 "쯤"(R159-2 · 디자인 v2.0.0 §13-2) - 지면 꼴 "{이름}님이 {phrase} {n}%쯤"
+    line: similar ? `${a.name}님과 ${b.name}님이 비슷합니다` : `${subject}님이 ${phrase} ${percent}%쯤`,
   }
 }
 
@@ -219,7 +220,8 @@ export function computeRoughGuess(params: {
 
   const items: (ProbabilityItem | PairItem)[] = [
     probabilityItem(1, 'confess_first', '먼저 고백했을 확률', '먼저 고백했을 확률', [{ key: 'e' }, { key: 'assertive' }, { key: 'passion' }], a, b),
-    probabilityItem(2, 'conflict_step_back', '갈등 회피 지수', '먼저 한발 물러설 확률', [{ key: 'a' }, { key: 'avoidance' }, { key: 'withdrawn' }], a, b),
+    // 표시 이름만 R158-10("갈등 회피 지수" → "한발 먼저 물러서는 쪽") - 키 · 성향 · 계산 그대로
+    probabilityItem(2, 'conflict_step_back', '한발 먼저 물러서는 쪽', '먼저 한발 물러설 확률', [{ key: 'a' }, { key: 'avoidance' }, { key: 'withdrawn' }], a, b),
     probabilityItem(3, 'anniversary_care', '기념일 챙기는 정도', '기념일을 먼저 챙길 확률', [{ key: 'c' }, { key: 'commitment' }, { key: 'judging' }], a, b),
   ]
 

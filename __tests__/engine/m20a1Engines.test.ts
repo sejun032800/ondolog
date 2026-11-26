@@ -72,7 +72,7 @@ describe('③ 어림짐작', () => {
   it('1번 v0 식: P(A) = 50 + 50(s_A − s_B) · 50 미만은 주어를 바꾼다', () => {
     if (!ok.ok) throw new Error('skip')
     // 가람 s = (0.9 + 1 + 0.9)/3 · 나래 s = (0.2 + 0 + 0.4)/3 -> 50 + 50 × 2.2/3 = 86.67 -> 87
-    expect(ok.facts.items[0]).toMatchObject({ subject: '가람', percent: 87, similar: false, line: '가람님이 먼저 고백했을 확률 87%' })
+    expect(ok.facts.items[0]).toMatchObject({ subject: '가람', percent: 87, similar: false, line: '가람님이 먼저 고백했을 확률 87%쯤' })
     // 2번 갈등 회피: 가람 (0.4 + 0.5 + 0)/3 · 나래 (0.8 + 0.7 + 1)/3 -> P(가람) = 50 + 50(0.3 − 0.8333) = 23.3 -> 나래 77
     expect(ok.facts.items[1]).toMatchObject({ subject: '나래', percent: 77 })
   })
@@ -122,6 +122,36 @@ describe('③ 어림짐작', () => {
     const ids = new Set(Array.from({ length: 12 }, (_, i) => selectMonthlyTopic('couple-x', `2026-${String(i + 1).padStart(2, '0')}`).id))
     expect(ids.size).toBeGreaterThan(1)
     expect(ROUGH_GUESS_TOPICS.map((t) => t.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+  })
+
+  it('12주제 문장 고정(R159-2 - 1~9 · 11 그대로 · 10 · 12 교체) · 제목 · 문장 겹침 없음', () => {
+    expect(ROUGH_GUESS_TOPICS.map((t) => [t.id, t.title, t.phrase])).toEqual([
+      [1, '여행 계획을 세운다면', '숙소를 먼저 정할 확률'],
+      [2, '메뉴 고르는 시간', '메뉴를 먼저 고를 확률'],
+      [3, '영화관에서 앉는 자리', '자리를 먼저 고를 확률'],
+      [4, '짐 싸는 시점', '짐을 먼저 싸 둘 확률'],
+      [5, '길 잃었을 때', '먼저 지도를 켤 확률'],
+      [6, '노래방에서', '먼저 마이크를 잡을 확률'],
+      [7, '사진 찍을 때', '포즈를 먼저 정할 확률'],
+      [8, '장 보러 가면', '목록대로 살 확률'],
+      [9, '리모컨을 쥐는 쪽', '리모컨을 먼저 쥘 확률'],
+      [10, '처음 가는 동네에서', '골목으로 먼저 들어가 볼 확률'],
+      [11, '늦잠 잔 아침', '먼저 일어날 확률'],
+      [12, '비 오는 주말', '집에서 볼 영화를 고를 확률'],
+    ])
+    expect(new Set(ROUGH_GUESS_TOPICS.map((t) => t.title)).size).toBe(12)
+    expect(new Set(ROUGH_GUESS_TOPICS.map((t) => t.phrase)).size).toBe(12)
+  })
+
+  it('짐작 지면 꼴 "{이름}님이 {phrase} {n}%쯤"(R159-2) · 짐작 2번 표시 이름 "한발 먼저 물러서는 쪽"(R158-10 - 키 그대로)', () => {
+    if (!ok.ok) throw new Error('skip')
+    const topic = ok.facts.monthlyTopic
+    if (!topic.item.similar) expect(topic.item.line).toBe(`${topic.item.subject}님이 ${ROUGH_GUESS_TOPICS[topic.id - 1].phrase} ${topic.item.percent}%쯤`)
+    for (const it of ok.facts.items.filter((x) => x.source === 'estimate')) {
+      if (!it.similar) expect(it.line.endsWith('%쯤')).toBe(true)
+    }
+    const second = ok.facts.items.find((x) => x.no === 2)
+    expect(second).toMatchObject({ key: 'conflict_step_back', label: '한발 먼저 물러서는 쪽' })
   })
 
   it('결정론: 두 번 계산 같음', () => {

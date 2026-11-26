@@ -1,7 +1,7 @@
 /**
  * 어림짐작 8번 「이달의 어림짐작」 주제 풀 12종 (MASTER 17-9 "8. 이달의 어림짐작 — 주제 풀" 표 순서 그대로, `id` = 표의 #).
  *
- * **v0 초안 — 문장(`phrase`)과 성향 방향(`traits`)은 PM 승인 대상**(계약 `rough_guess.json` open_questions "주제 풀 12종 문장을
+ * **문장은 PM 승인(ROADMAP r159 R159-2 - 1~9 · 11 그대로 · 10 · 12 교체)** · 성향 방향(`traits`)은 v0(계약 `rough_guess.json` open_questions "주제 풀 12종 문장을
  * 상수 파일로 확정할 PM 승인"). MASTER 표의 입력 열(성향 두 가지)을 그대로 쓰고, 출력은 모든 주제를 **"누가 먼저 ~할 확률"** 한 꼴로
  * 맞췄다 — MASTER 출력 예 가운데 "세준님 2분 · 서영님 11분"처럼 데이터에 없는 시간 · 자리를 지어내는 꼴은 쓰지 않는다(CLAUDE.md
  * "없는 걸 지어내지 않는다").
@@ -35,7 +35,8 @@ export const ROUGH_GUESS_TOPICS: readonly RoughGuessTopic[] = [
   { id: 7, title: '사진 찍을 때', phrase: '포즈를 먼저 정할 확률', traits: [{ key: 'o' }, { key: 'e' }] },
   { id: 8, title: '장 보러 가면', phrase: '목록대로 살 확률', traits: [{ key: 'c' }, { key: 'o', invert: true }] },
   { id: 9, title: '리모컨을 쥐는 쪽', phrase: '리모컨을 먼저 쥘 확률', traits: [{ key: 'assertive' }, { key: 'e' }] },
-  { id: 10, title: '새 카페에 가면', phrase: '메뉴판을 더 오래 볼 확률', traits: [{ key: 'o' }, { key: 'n' }] },
+  // 10 · 12는 ROADMAP r159 R159-2로 문장만 바꿈(성향 방향 traits는 그대로)
+  { id: 10, title: '처음 가는 동네에서', phrase: '골목으로 먼저 들어가 볼 확률', traits: [{ key: 'o' }, { key: 'n' }] },
   { id: 11, title: '늦잠 잔 아침', phrase: '먼저 일어날 확률', traits: [{ key: 'n', invert: true }, { key: 'c' }] },
-  { id: 12, title: '짐 정리 방식', phrase: '물건을 종류별로 나눠 둘 확률', traits: [{ key: 'c' }, { key: 'o', invert: true }] },
+  { id: 12, title: '비 오는 주말', phrase: '집에서 볼 영화를 고를 확률', traits: [{ key: 'c' }, { key: 'o', invert: true }] },
 ]

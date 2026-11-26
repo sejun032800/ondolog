@@ -85,15 +85,15 @@ const GUESS: RoughGuessFactsInput = {
   disclaimer: '재미로만 봐주세요. 진짜로 재는 건 아닙니다.',
   footnote: '성격 검사와 이번 달 대화 기록으로 계산했습니다',
   items: [
-    { no: 1, key: 'confess_first', label: '먼저 고백했을 확률', source: 'estimate', kind: 'probability', similar: false, subject: '세준', percent: 73, line: '세준님이 먼저 고백했을 확률 73%' },
-    { no: 2, key: 'conflict_step_back', label: '갈등 회피 지수', source: 'estimate', kind: 'probability', similar: true, subject: null, percent: null, line: '세준님과 서영님이 비슷합니다' },
-    { no: 3, key: 'anniversary_care', label: '기념일 챙기는 정도', source: 'estimate', kind: 'probability', similar: false, subject: '서영', percent: 61, line: '서영님이 기념일을 먼저 챙길 확률 61%' },
+    { no: 1, key: 'confess_first', label: '먼저 고백했을 확률', source: 'estimate', kind: 'probability', similar: false, subject: '세준', percent: 73, line: '세준님이 먼저 고백했을 확률 73%쯤' },
+    { no: 2, key: 'conflict_step_back', label: '한발 먼저 물러서는 쪽', source: 'estimate', kind: 'probability', similar: true, subject: null, percent: null, line: '세준님과 서영님이 비슷합니다' },
+    { no: 3, key: 'anniversary_care', label: '기념일 챙기는 정도', source: 'estimate', kind: 'probability', similar: false, subject: '서영', percent: 61, line: '서영님이 기념일을 먼저 챙길 확률 61%쯤' },
   ],
   busiestDay: { no: 7, date: '2026-08-14', count: 40, source: 'measured' },
   monthlyTopic: {
     id: 1,
     title: '여행 계획을 세운다면',
-    item: { no: 8, key: 'topic_1', label: '여행 계획을 세운다면', source: 'estimate', kind: 'probability', similar: false, subject: '세준', percent: 89, line: '세준님이 숙소를 먼저 정할 확률 89%' },
+    item: { no: 8, key: 'topic_1', label: '여행 계획을 세운다면', source: 'estimate', kind: 'probability', similar: false, subject: '세준', percent: 89, line: '세준님이 숙소를 먼저 정할 확률 89%쯤' },
   },
 }
 const DAY = [message('m-1', '2026-08-14T09:00:00', '세준', '이사 날짜 정했어?'), message('m-2', '2026-08-14T09:05:00', '서영', '응 이사는 다음 주')]
