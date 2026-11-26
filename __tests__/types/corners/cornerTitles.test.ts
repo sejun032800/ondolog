@@ -82,16 +82,17 @@ describe('2.0-A1 새 지면 제목 (기획서 1절 · R157-7)', () => {
     expect(titles.pageTitle).toMatch(/^[가-힣 ]{1,7}$/)
   })
 
-  it('제목은 기획서 이름 그대로 - 「판권 · 정오」만 가운뎃점을 뺀 "판권 정오"(형식 규칙)', () => {
+  it('제목은 기획서 이름 그대로 - 「판권과 정오」(R158-3의 6 · 코너 이름 = 지면 제목)', () => {
     expect(Object.fromEntries(Object.entries(NEW_PAGE_TITLES).map(([k, v]) => [k, v.pageTitle]))).toEqual({
       love_dna: '두 사람의 결',
       rough_guess: '어림짐작',
       appendix: '부록',
       photo_break: '사진 한 장',
       next_month: '다음 달',
-      colophon: '판권 정오',
+      colophon: '판권과 정오',
     })
-    expect('판권 · 정오').not.toMatch(PAGE_TITLE_PATTERN)
+    expect(NEW_PAGE_TITLES.colophon.cornerName).toBe('판권과 정오')
+    expect('판권과 정오').toMatch(PAGE_TITLE_PATTERN)
   })
 
   it('3코너 표(앱이 읽음)는 그대로 3개', () => {

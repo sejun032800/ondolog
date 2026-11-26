@@ -287,7 +287,7 @@ const PairNumber = z.object({ a: z.number(), b: z.number() })
 export const LoveDnaPayloadSchema = z.object({
   score: z.object({
     base: z.number().min(50).max(100),
-    /** ⑨ 승인 전에는 null(채팅 반영 전). */
+    /** v0(R158-2 · dna_v0). 채팅 지표가 하나라도 없으면 null(채팅 반영 전 · 0으로 채우지 않음). */
     chatDelta: z.number().min(-10).max(25).nullable(),
     chatApplied: z.boolean(),
     total: z.number().min(50).max(100),

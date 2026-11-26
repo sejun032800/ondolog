@@ -141,7 +141,9 @@ describe('2.0-A1 파이프라인 - 실제 모드(가짜 fetch)', () => {
     const dna = store.corners.find((c) => c.corner_type === 'love_dna')
     const dnaContent = LoveDnaStoredSchema.parse(dna?.content)
     expect(dnaContent.header).toMatchObject({ cornerName: '우리의 연애 DNA', title: '두 사람의 결' })
-    expect(dnaContent.payload.score).toMatchObject({ chatApplied: false, chatDelta: null, coeffVersion: 'dna_base_only', firstIssue: true })
+    // 합성 대화(답장 1분 이내 · 고르게 주고받음) -> chatDelta v0 끝값 +25(R158-2) · 계수 버전 dna_v0
+    expect(dnaContent.payload.score).toMatchObject({ chatApplied: true, chatDelta: 25, coeffVersion: 'dna_v0', firstIssue: true })
+    expect(dnaContent.payload.score.total).toBe(Math.min(100, dnaContent.payload.score.base + 25))
     expect(dnaContent.payload.partners.map((p) => p.name)).toEqual(['세준', '서영'])
 
     const guess = RoughGuessStoredSchema.parse(store.corners.find((c) => c.corner_type === 'rough_guess')?.content)
@@ -199,14 +201,18 @@ describe('2.0-A1 파이프라인 - 실제 모드(가짜 fetch)', () => {
     const { store, media } = world()
     await generateIssue({ store, media }, { ...PARAMS, periodStart: `${FIXTURE_YEAR}-08-01`, periodEndExclusive: `${FIXTURE_YEAR}-09-01` })
     const aug = store.corners.find((c) => c.corner_type === 'love_dna')
-    // 8월 호는 샘플 모드 - 메시지가 적어도 두 사람의 결은 성격만으로 실린다
+    // 8월 호는 샘플 모드 - 메시지가 적어도 두 사람의 결은 성격만으로 실린다(채팅 지표 없음 -> 채팅 반영 전 · 0으로 채우지 않음)
     expect(aug?.status).toBe('ready')
+    const augScore = LoveDnaStoredSchema.parse(aug?.content).payload.score
+    expect(augScore).toMatchObject({ chatApplied: false, chatDelta: null, coeffVersion: 'dna_v0', total: augScore.base })
     await generateIssue({ store, media }, PARAMS)
     const sep = store.corners.filter((c) => c.corner_type === 'love_dna')[1]
     const payload = LoveDnaStoredSchema.parse(sep.content).payload
     expect(payload.score.firstIssue).toBe(false)
     expect(payload.score.previousTotal).toBe(LoveDnaStoredSchema.parse(aug?.content).payload.score.total)
-    expect(payload.score.delta).toBe(0)
+    // 지난 호(채팅 반영 전) -> 이번 호(반영 뒤)도 그대로 뺀다 - 기저가 같으니 차이 = 이번 chatDelta
+    expect(payload.score.chatApplied).toBe(true)
+    expect(payload.score.delta).toBe(payload.score.chatDelta)
   })
 
   it('두 사람의 결 엔트리는 2.0 표에 있다', () => {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -16,7 +17,8 @@ import fixtures as fx  # noqa: E402
 import render_issue as r  # noqa: E402
 from compose import ComposeError, compose_issue  # noqa: E402
 from compose20 import LABELS20  # noqa: E402
-from page_plan import BODY_PAGE_CAP, plan_pages  # noqa: E402
+import page_plan  # noqa: E402
+from page_plan import BODY_PAGE_CAP, REDUCE_ORDER, plan_pages, reduce_to_cap  # noqa: E402
 from promise_check import promise_violations, visible_strings  # noqa: E402
 
 NAMES = [fx.A, fx.B]
@@ -55,8 +57,96 @@ class PagePlan(unittest.TestCase):
         self.assertEqual(plan_pages(24, 2).photo_breaks, 0)
 
     def test_over_cap(self):
-        p = plan_pages(37, 2)
-        self.assertEqual((p.over, p.photo_breaks), (1, 0))
+        p = plan_pages(37, 2)   # 줄일 「다음 달」 · 엽서가 없다 -> 실패(over)
+        self.assertEqual((p.over, p.photo_breaks, p.reductions), (1, 0, ()))
+
+
+class ReduceOrder(unittest.TestCase):
+    # R158-5 - 36쪽을 넘을 때 줄이는 순서 ① 사진 한 장 2→1→0 ② 판권과 정오 2→1 ③ 다음 달 ④ 엽서 → ⑦ 실패.
+
+    FULL = {'photo_break': 2, 'colophon': 2, 'next_month': 1, 'postcards': 1}   # 줄일 수 있는 것 6면 중 4면
+
+    def test_order_table_has_seats_for_5_6(self):
+        self.assertEqual([k for k, _ in REDUCE_ORDER], ['photo_break', 'colophon', 'next_month', 'postcards', 'each_day', 'between_us'])
+        self.assertEqual(dict(REDUCE_ORDER), {'photo_break': 0, 'colophon': 1, 'next_month': 0, 'postcards': 0, 'each_day': 1, 'between_us': 1})
+
+    def test_37_takes_one_photo_page_first(self):
+        red = reduce_to_cap(37 - 6, self.FULL)
+        self.assertEqual((red.total, red.over, red.steps), (36, 0, ('photo_break',)))
+        self.assertEqual(red.parts, {'photo_break': 1, 'colophon': 2, 'next_month': 1, 'postcards': 1})
+
+    def test_step_by_step_37_to_41(self):
+        want = {
+            37: ('photo_break',),
+            38: ('photo_break', 'photo_break'),
+            39: ('photo_break', 'photo_break', 'colophon'),
+            40: ('photo_break', 'photo_break', 'colophon', 'next_month'),
+            41: ('photo_break', 'photo_break', 'colophon', 'next_month', 'postcards'),
+        }
+        for total, steps in want.items():
+            red = reduce_to_cap(total - 6, self.FULL)
+            self.assertEqual((red.steps, red.total, red.over), (steps, 36, 0), total)
+
+    def test_nothing_left_fails(self):
+        red = reduce_to_cap(42 - 6, self.FULL)   # 다 줄여도 37
+        self.assertEqual((red.total, red.over), (37, 1))
+        self.assertEqual(red.parts, {'photo_break': 0, 'colophon': 1, 'next_month': 0, 'postcards': 0})
+        red = reduce_to_cap(40, {})   # 줄일 것이 하나도 없음
+        self.assertEqual((red.over, red.steps), (4, ()))
+
+    def test_missing_parts_are_skipped_in_order(self):
+        red = reduce_to_cap(35, {'colophon': 1, 'postcards': 1})   # 37 · 사진 0 · 판권 바닥 · 다음 달 없음 -> 엽서
+        self.assertEqual((red.steps, red.over), (('postcards',), 0))
+        with self.assertRaises(ValueError):
+            reduce_to_cap(30, {'this_month': 2})   # 순서표에 없는 지면은 줄이지 않는다
+
+    def test_plan_pages_over_37_40(self):
+        p = plan_pages(37, 2, next_month_pages=1, postcard_pages=1)
+        self.assertEqual((p.total, p.over, p.drop_next_month, p.drop_postcards, p.photo_breaks, p.colophon_split),
+                         (36, 0, True, False, 0, False))
+        self.assertEqual(p.reductions, ('next_month',))   # ①②는 채우는 면이라 넘치는 호에서는 이미 0면 · 1면
+        p = plan_pages(38, 2, next_month_pages=1, postcard_pages=1)
+        self.assertEqual((p.total, p.over, p.reductions, p.drop_next_month, p.drop_postcards), (36, 0, ('next_month', 'postcards'), True, True))
+        p = plan_pages(37, 0, next_month_pages=0, postcard_pages=1)
+        self.assertEqual((p.total, p.reductions, p.drop_next_month, p.drop_postcards), (36, ('postcards',), False, True))
+        p = plan_pages(40, 2, next_month_pages=1, postcard_pages=1)   # 2면 줄여도 38 -> 실패
+        self.assertEqual((p.total, p.over), (38, 2))
+
+    def test_under_cap_is_unchanged(self):
+        for base in range(4, 37):
+            for nm in (0, 1):
+                for pc in (0, 1):
+                    a, b = plan_pages(base, 2, nm, pc), plan_pages(base, 2)
+                    self.assertEqual((a.photo_breaks, a.colophon_split, a.total, a.short, a.over, a.reductions),
+                                     (b.photo_breaks, b.colophon_split, b.total, b.short, b.over, ()))
+
+    def test_compose_drops_next_month_then_postcards_and_fails_after(self):
+        base = compose20()
+        n = base.report['pagePlan']['base']
+        self.assertEqual(n, base.report['pagePlan']['total'] - base.report['pagePlan']['photoBreaks'] - base.report['pagePlan']['colophonSplit'])
+        stems = [p.stem for p in base.pages]
+        self.assertIn('tp-next-month', stems)
+        self.assertIn('tp-appendix-postcards', stems)
+        with mock.patch.object(page_plan, 'BODY_PAGE_CAP', n - 1):
+            comp = compose20()
+            st = [p.stem for p in comp.pages]
+            self.assertNotIn('tp-next-month', st)
+            self.assertIn('tp-appendix-postcards', st)
+            self.assertNotIn('다음 달', [t['title'] for t in comp.report['toc']])
+            self.assertEqual(comp.report['pagePlan']['reductions'], ['next_month'])
+            self.assertEqual(len(comp.pages), n - 1)
+        with mock.patch.object(page_plan, 'BODY_PAGE_CAP', n - 2):
+            comp = compose20()
+            st = [p.stem for p in comp.pages]
+            self.assertNotIn('tp-next-month', st)
+            self.assertNotIn('tp-appendix-postcards', st)
+            self.assertEqual(comp.report['pagePlan']['reductions'], ['next_month', 'postcards'])
+            rows = comp.pages[3].computed['tp']['rows']
+            self.assertTrue(rows[2]['used'].startswith('엽서 0장'))   # 발행 노트도 실린 만큼만
+        with mock.patch.object(page_plan, 'BODY_PAGE_CAP', n - 3):
+            with self.assertRaises(ComposeError):
+                compose20()
+        self.assertNotIn('reductions', base.report['pagePlan'])
 
 
 class Promise(unittest.TestCase):
@@ -123,8 +213,24 @@ class Compose20(unittest.TestCase):
 
     def test_toc_receives_new_items(self):
         toc = compose20().report['toc']
-        self.assertEqual([t['title'] for t in toc][3:], ['우리의 연애 DNA', '얼렁뚱땅 어림짐작', '잡지 부록', '다음 달', '판권 · 정오'])
+        self.assertEqual([t['title'] for t in toc][3:], ['우리의 연애 DNA', '얼렁뚱땅 어림짐작', '잡지 부록', '다음 달', '판권과 정오'])
         self.assertIn('채팅 반영 전', toc[3]['desc'])
+
+    def test_colophon_title_and_edition_line(self):
+        comp = compose20()
+        col = [p for p in comp.pages if p.stem == 'tp-colophon'][0].computed['tp']
+        self.assertEqual((col['cornerName'], col['pageTitle']), ('판권과 정오', '판권과 정오'))   # R158-3의 6 - 러닝헤드 · 제목
+        self.assertRegex(col['pageTitle'], r'^[가-힣 ]{1,7}$')
+        self.assertEqual(col['editionLine'], '2026년 9월호 · 제 3호')   # 발행일 없음 - 호 라벨 · 호 번호만
+        self.assertNotRegex(' '.join(visible_strings(col)), r'발행일|\d{4}-\d{2}-\d{2}|\d+월 \d+일 발행')
+
+    def test_dna_chat_applied_drops_the_mark(self):
+        sc = fx.m20_scenario()
+        dna = [c for c in sc['corners'] if c['corner_type'] == 'love_dna'][0]['content']['payload']
+        dna['score'].update({'chatDelta': 9.16, 'chatApplied': True, 'total': 74.16, 'coeffVersion': 'dna_v0'})
+        comp = compose_issue(fx.ISSUE_ROW, fx.COUPLE_ROW, NAMES, sc['corners'], None)
+        self.assertNotIn('채팅 반영 전', comp.report['toc'][3]['desc'])
+        self.assertIn('74.16', comp.report['toc'][3]['desc'])
 
     def test_shown_photos_include_appendix(self):
         comp = compose20()

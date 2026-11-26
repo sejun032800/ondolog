@@ -798,17 +798,23 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     p20 = Pages20(b) if is_issue20(b) else None
     plan = None
     if p20 is not None:
-        dna, rough, appx, nxt = p20.dna_pages(), p20.rough_pages(), p20.appendix_pages(), p20.next_month_pages()
+        dna, rough = p20.dna_pages(), p20.rough_pages()
         # ⑥ 새 재료 줄은 발행 노트(디자인 틀 · 한 면 고정)에 넣으면 AI 안내 줄과 겹친다(지면 검사 실패 - 92- 실측: 1줄까지만 들어감) ->
         # 「발행 노트 · 이어서」 임시 면으로 되받는다(R152-2 되받기 · 틀 0). 디자인 묶음 5가 노트 안에 자리를 그리면 없앤다.
         note_more = p20.note_more_page()
-        base_count = 3 + 1 + sum(len(ps) for _, ps in sections) + len(dna) + len(rough) + len(appx) + len(nxt) + 1 + 1   # + 이어서 1 + 판권 1 + 뒤표지 1
-        plan = plan_pages(base_count, len(p20.photo_break_candidates()))
-        if plan.over:
-            raise ComposeError(f'본지가 {BODY_PAGE_CAP}쪽을 {plan.over}쪽 넘는다 - 사진 한 장은 0면이고 이달의 우리는 2면 고정이라 더 줄일 곳이 없다(기획서 3절)')
+        n_postcards = 1 if p20.postcard_cards() else 0
+        n_next = 1 if p20.has_next_month() else 0
+        # + 이어서 1 + 부록 달력 1 · 엽서 + 다음 달 + 판권 1 + 뒤표지 1
+        base_count = 3 + 1 + sum(len(ps) for _, ps in sections) + len(dna) + len(rough) + 1 + n_postcards + n_next + 1 + 1
+        plan = plan_pages(base_count, len(p20.photo_break_candidates()), n_next, n_postcards)
+        if plan.over:   # R158-5 ⑦ - ①~④를 다 줄여도 넘는다(⑤ · ⑥은 2.0-B)
+            raise ComposeError(f'본지가 {BODY_PAGE_CAP}쪽을 {plan.over}쪽 넘는다 - 줄이는 순서(사진 한 장 · 판권과 정오 · 다음 달 · 엽서)를 다 써도 넘는다(R158-5)')
+        # 목차 차례 = 부르는 차례(두 사람의 결 → 어림짐작 → 부록 → 다음 달 → 판권과 정오)라 쪽 수가 정해진 뒤에 부른다
+        appx = p20.appendix_pages(postcards=not plan.drop_postcards)
+        nxt = [] if plan.drop_next_month else p20.next_month_pages()
         breaks = p20.photo_break_pages(plan.photo_breaks)
         colophon = p20.colophon_pages(plan.colophon_split)
-        # 지면 순서(기획서 3절): … 이달의 우리 → [사진 한 장] → 두 사람의 결 → 어림짐작 → [사진 한 장] → 부록 → 다음 달 → 판권 정오 → 뒤표지
+        # 지면 순서(기획서 3절): … 이달의 우리 → [사진 한 장] → 두 사람의 결 → 어림짐작 → [사진 한 장] → 부록 → 다음 달 → 판권과 정오 → 뒤표지
         tail = [('photo_break', breaks[:1]), ('love_dna', dna), ('rough_guess', rough), ('photo_break', breaks[1:2]),
                 ('appendix', appx), ('next_month', nxt), ('colophon', colophon)]
         sections += [(k, ps) for k, ps in tail if ps]
@@ -898,6 +904,8 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     if plan is not None:
         report['pagePlan'] = {'base': plan.base, 'photoBreaks': plan.photo_breaks, 'colophonSplit': plan.colophon_split,
                               'total': plan.total, 'short': plan.short, 'multipleOf4': plan.total % 4 == 0}
+        if plan.reductions:   # R158-5 - 36쪽을 넘어 줄인 차례(없으면 키 0 - 넘치지 않은 호의 보고는 그대로)
+            report['pagePlan']['reductions'] = list(plan.reductions)
     return Composition(pages, b.theme, list(b.shown), b.sentences, report)
 
 

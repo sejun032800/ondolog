@@ -5,8 +5,10 @@ import {
   UnknownUnresolvedKeyError,
   type UnresolvedKey,
 } from '../../src/engine/constants/unresolved'
+import { computeChatDelta } from '../../src/engine/dnaScore'
+import { DNA_CHAT_DELTA_V0 } from '../../src/engine/loveDna'
 
-describe('UNRESOLVED — 등록된 키 3종은 값이 아니라 throw를 낸다', () => {
+describe('UNRESOLVED — 등록된 키 2종은 값이 아니라 throw를 낸다', () => {
   it('leagueStats.shrinkage는 UnresolvedConstantError를 던지고 메시지에 phase(7)와 doc(MASTER Part 10-8-3)을 싣는다', () => {
     try {
       UNRESOLVED({ key: 'leagueStats.shrinkage' })
@@ -35,18 +37,15 @@ describe('UNRESOLVED — 등록된 키 3종은 값이 아니라 throw를 낸다'
     }
   })
 
-  it('dnaScore.chatDelta는 UnresolvedConstantError를 던지고 메시지에 phase(7)와 doc(MASTER Part 17-2)을 싣는다', () => {
-    try {
+  it('dnaScore.chatDelta는 ROADMAP r158 R158-2 v0(A′ · dna_v0) 확정으로 해소돼 레지스트리에 없다 — 호출하면 UnknownUnresolvedKeyError · computeChatDelta는 값을 낸다', () => {
+    expect(Object.keys(UNRESOLVED_REGISTRY)).not.toContain('dnaScore.chatDelta')
+    expect(() => {
+      // @ts-expect-error — 해소·제거된 키는 UnresolvedKey에 속하지 않는다.
       UNRESOLVED({ key: 'dnaScore.chatDelta' })
-      throw new Error('여기 도달하면 안 된다 — UNRESOLVED는 반드시 throw한다')
-    } catch (e) {
-      expect(e).toBeInstanceOf(UnresolvedConstantError)
-      const err = e as UnresolvedConstantError
-      expect(err.message).toContain('7')
-      expect(err.message).toContain('MASTER Part 17-2')
-      expect(err.phase).toBe(7)
-      expect(err.doc).toBe('MASTER Part 17-2')
-    }
+    }).toThrow(UnknownUnresolvedKeyError)
+    // v0 동작: 답장 중앙값 60초 · 주고받기 0.6 -> +25 / 3시간 · 0.2 -> −10 (계수는 호출부 상수)
+    expect(computeChatDelta({ replyGapMedianSeconds: 60, turnTakingRatio: 0.6 }, DNA_CHAT_DELTA_V0)).toBe(25)
+    expect(computeChatDelta({ replyGapMedianSeconds: 10800, turnTakingRatio: 0.2 }, DNA_CHAT_DELTA_V0)).toBe(-10)
   })
 
   it('temperature.activityScore는 r74 v0 확정으로 해소돼 레지스트리에 없다 — 호출하면 UnknownUnresolvedKeyError', () => {
@@ -57,12 +56,11 @@ describe('UNRESOLVED — 등록된 키 3종은 값이 아니라 throw를 낸다'
     }).toThrow(UnknownUnresolvedKeyError)
   })
 
-  it('레지스트리에 정확히 이 3개 키만 등록돼 있다 (Part 16-2 목록과 1:1 대응)', () => {
+  it('레지스트리에 정확히 이 2개 키만 등록돼 있다 (Part 16-2 목록과 1:1 대응 · chatDelta는 r158 해소)', () => {
     expect(Object.keys(UNRESOLVED_REGISTRY).sort()).toEqual(
       [
         'leagueStats.shrinkage',
         'faceMatch.threshold',
-        'dnaScore.chatDelta',
       ].sort(),
     )
   })
@@ -82,11 +80,10 @@ describe('UNRESOLVED — 결정론 계약', () => {
     expect(new Set(messages).size).toBe(1)
   })
 
-  it('세 키 모두 100회 반복해도 매번 throw하며 메시지가 흔들리지 않는다', () => {
+  it('등록 키 모두 100회 반복해도 매번 throw하며 메시지가 흔들리지 않는다', () => {
     const keys: readonly UnresolvedKey[] = [
       'leagueStats.shrinkage',
       'faceMatch.threshold',
-      'dnaScore.chatDelta',
     ]
     for (const key of keys) {
       const messages = Array.from({ length: 100 }, () => {

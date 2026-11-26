@@ -15,7 +15,7 @@
  * ── 구조 (Part 17-2 "base_score 산출 규격") ──
  *
  *   base_score = <온도차> | <중립> | <잘 맞음>     (세 값은 인자로 주입)
- *   chat_delta ∈ [−10, +25]                        (범위 확정, 산출식 미확정)
+ *   chat_delta ∈ [−10, +25]                        (범위 확정, 산출식 v0 = ROADMAP r158 R158-2 "A′")
  *   total      = clamp(base_score + chat_delta, <하한>, <상한>)
  *
  * 이 파일이 구현하는 세 부분:
@@ -24,24 +24,22 @@
  *     `typeAffinity` 범주를 얻고, Part 17-2가 정한 세 값 중 하나를 고른다.
  *     규칙 셋 전부 반영: 세 범주 / 어느 목록에도 없으면 중립 / 양방향
  *     판정이 어긋나면 높은 쪽(비대칭 잘 맞음).
- *   ② 채팅 변동분(`computeChatDelta`) — 범위 `[−10, +25]`만 확정이고
- *     **채팅의 질을 점수로 바꾸는 산출식은 미확정**이다. `UNRESOLVED`
- *     레지스트리의 `dnaScore.chatDelta`(Part 16-2)를 소비한다 — 값을
- *     지어내지 않고 호출 즉시 `UnresolvedConstantError`를 던진다.
- *   ③ 결합(`computeDnaTotalScore`) — ①+②를 합쳐 클램프하는 로직은
- *     구현하지만, 내부에서 ②를 거치므로 **호출 시 `UnresolvedConstantError`로
- *     실패한다**. **이것이 규격이 의도한 정상 상태다**(Part 16-2) — 값이
- *     아니라 throw로 미확정을 표현한다.
+ *   ② 채팅 변동분(`computeChatDelta`) — v0(R158-2 A′): 답장 간격 중앙값 리듬 r
+ *     (로그 척도) · 주고받기 비율 t(직선)의 평균을 `[−10, +25]`로 옮긴다. 앵커 ·
+ *     가중 · 범위는 **인자로만 받는다**(값은 호출부 `loveDna.ts` `DNA_CHAT_DELTA_V0`).
+ *     두 지표가 모두 있을 때만 부른다 — 하나라도 없으면 호출부가 "채팅 반영 전"으로
+ *     둔다(0으로 채우지 않음). `UNRESOLVED('dnaScore.chatDelta')`는 해소 · 제거됐다.
+ *   ③ 결합(`computeDnaTotalScore`) — ①+②를 합쳐 클램프한다.
  *
  * ⚠️ **`chat_delta`는 양이 아니라 질이다.** 다정한 발화 비율, 대화 왕복의
  * 자연스러움, 티키타카 성공률처럼 채팅의 **질**을 재는 값이다. 발화 건수·
  * 메시지 수 같은 **양**이 아니다(Part 17-2 "양이 아니라 질에 가중치",
  * Part 10-7-6 혼동 금지). 연애 온도의 `activityDelta`가 양을 재는 쪽이고,
  * 두 지표를 가르는 것이 정확히 이 차이다. `chat_delta`가 발화량에 반응하기
- * 시작하면 연애 DNA와 연애 온도는 같은 지표가 된다. 산출식이 미확정이므로
- * 이 파일에는 **양 기반 산출을 암시하는 타입·인자·계산이 하나도 없다** —
- * `computeChatDelta`가 받는 `ChatQualitySignals`는 형태를 확정하지 않은
- * 불투명 타입이며, 건수 필드를 갖지 않는다.
+ * 시작하면 연애 DNA와 연애 온도는 같은 지표가 된다. 이 파일에는 **양 기반
+ * 산출을 암시하는 타입·인자·계산이 하나도 없다** — `computeChatDelta`가 받는
+ * `ChatQualitySignals`는 답장 간격 중앙값(분포)과 주고받기 비율(비율) 두 칸뿐이며,
+ * 건수 필드를 갖지 않는다.
  *
  * ── 계수 주입 규칙 (Part 17-2 "계수 출처와 재현성") ──
  * 기저 세 값과 클램프 경계는 **인자로만 받는다.** `src/engine/` 하위에서
@@ -65,8 +63,7 @@
 
 import type { EnneagramCore } from '../constants/enneagram'
 import { resolveTypeAffinity, type TypeAffinityCategory } from './typeAffinity'
-import { UNRESOLVED } from './constants/unresolved'
-import { roundAndClamp, roundTo } from './numeric'
+import { clamp, roundAndClamp, roundTo } from './numeric'
 
 /**
  * dna_scores.engine_version (text not null, SCHEMA.md §8-4)과 대응.
@@ -76,8 +73,11 @@ import { roundAndClamp, roundTo } from './numeric'
  * `computeTotalScore`만 보유). 기존 두 함수의 동작·시그니처는 그대로이고
  * 부가 함수만 추가된 하위 호환 변경이라 마이너를 올렸다
  * (`TEMPERATURE_ENGINE_VERSION` 1.0.0→1.1.0 선례와 동일 패턴).
+ *
+ * 1.2.0: `chat_delta` v0(ROADMAP r158 R158-2 A′) — `computeChatDelta`가 throw 대신
+ * 값을 낸다(두 지표 · 계수 인자). `UNRESOLVED('dnaScore.chatDelta')` 해소.
  */
-export const DNA_SCORE_ENGINE_VERSION = '1.1.0'
+export const DNA_SCORE_ENGINE_VERSION = '1.2.0'
 
 /**
  * 절대평가 하한/상한. `base_score`/`total_score` 둘 다 이 범위를 벗어나지
@@ -108,10 +108,9 @@ export function clampDnaScore(rawScore: number): number {
  * 만드는 공식은 이 함수의 책임이 아니다 — 호출부가 이미 계산된 두
  * 값을 넘긴다. 백분위·상위% 개념은 인자로도 받지 않는다(절대평가).
  *
- * 이 함수는 두 값이 이미 숫자로 주어졌다고 가정하므로 `UNRESOLVED`를
- * 소비하지 않는다 — 그래서 결합 산술(합·클램프) 자체는 임의의 합성
- * 점수로 완전히 단위 테스트할 수 있다. 실제 파이프라인의 진입점은
- * `computeDnaTotalScore`이며, 그쪽은 ②를 거쳐 호출 시 throw한다.
+ * 이 함수는 두 값이 이미 숫자로 주어졌다고 가정한다 — 그래서 결합
+ * 산술(합·클램프) 자체는 임의의 합성 점수로 완전히 단위 테스트할 수 있다.
+ * 성격 · 채팅 신호에서 바로 내는 진입점은 `computeDnaTotalScore`다.
  */
 export function computeTotalScore(
   baseScore: number,
@@ -168,46 +167,72 @@ export function computeDnaBaseScore(
 }
 
 /* ────────────────────────────────────────────────────────────────────
- * ② 채팅 변동분 (Part 17-2) — 범위 [−10, +25]만 확정, 채팅 질 → 점수
- * 산출식은 UNRESOLVED('dnaScore.chatDelta')를 소비한다.
+ * ② 채팅 변동분 (Part 17-2) — 범위 [−10, +25] · v0 산출식 = ROADMAP r158
+ * R158-2 "A′". 앵커 · 가중 · 범위는 전부 인자(`ChatDeltaCoefficients`).
  * ──────────────────────────────────────────────────────────────────── */
 
 /**
- * 채팅의 **질** 신호 묶음. **형태를 확정하지 않은 불투명 타입이다.**
- *
- * Part 17-2가 예시로 든 질 지표(다정한 발화 비율, 대화 왕복의 자연스러움,
- * 티키타카 성공률)를 필드로 고정하는 것조차 `dnaScore.chatDelta` 산출식의
- * 방향을 정하는 일이므로, 해소 전까지는 구조를 비워 둔다.
+ * 채팅의 **질** 신호 — v0는 두 지표(R157-3 · R158-2). 둘 다 `chatMetrics.ts`가
+ * 계산한 **분포 · 비율**이다(R157-4: "양 금지" = 절대량 금지).
  *
  * ⚠️ 이 타입은 발화 건수·메시지 수 같은 **양** 필드를 절대 갖지 않는다.
  * 양에 반응하는 순간 연애 DNA가 연애 온도의 `activityDelta`와 같은 지표가
- * 된다(Part 10-7-6). 온도의 `DailyActivityCounts`(`countA`/`countB` 등)와
- * 대비되는 지점이 바로 여기다.
+ * 된다(Part 10-7-6). 다정한 발화 비율은 채팅 태깅(LLM)이 생긴 뒤 v1에서 더한다.
  */
-export type ChatQualitySignals = Readonly<Record<string, unknown>>
+export interface ChatQualitySignals {
+  /** 왕복 리듬 — 답장 간격 중앙값(초, 0 이상). `chatMetrics` `replyGap.all.median`. */
+  readonly replyGapMedianSeconds: number
+  /** 주고받기 비율(0~1). `chatMetrics` `turnTaking`. */
+  readonly turnTakingRatio: number
+}
+
+/** `computeChatDelta`의 계수 — 값은 호출부가 넘긴다(Part 17-2 "계수 출처"). */
+export interface ChatDeltaCoefficients {
+  /** 리듬 r = 1이 되는 답장 간격(초) 이하 경계. v0 = 60. */
+  readonly rhythmFastSeconds: number
+  /** 리듬 r = 0이 되는 답장 간격(초) 이상 경계. v0 = 10800(3시간). 그 사이는 로그 척도. */
+  readonly rhythmSlowSeconds: number
+  /** 주고받기 t = 0이 되는 비율 이하 경계. v0 = 0.2. */
+  readonly turnLow: number
+  /** 주고받기 t = 1이 되는 비율 이상 경계. v0 = 0.6. 그 사이는 직선. */
+  readonly turnHigh: number
+  /** 리듬 가중(v0 0.5). 주고받기 가중 = 1 − 이 값. */
+  readonly rhythmWeight: number
+  /** 두 지표가 모두 0일 때의 값(v0 −10). */
+  readonly min: number
+  /** 두 지표가 모두 1일 때의 값(v0 +25). */
+  readonly max: number
+}
+
+/** 리듬 r ∈ [0, 1] — 빠를수록 1. `m ≤ fast` → 1 · `m ≥ slow` → 0 · 그 사이 로그 척도(R158-2). */
+export function chatRhythmScore(medianSeconds: number, c: ChatDeltaCoefficients): number {
+  if (medianSeconds <= c.rhythmFastSeconds) return 1
+  if (medianSeconds >= c.rhythmSlowSeconds) return 0
+  const span = Math.log(c.rhythmSlowSeconds) - Math.log(c.rhythmFastSeconds)
+  return clamp(1 - (Math.log(medianSeconds) - Math.log(c.rhythmFastSeconds)) / span, 0, 1)
+}
+
+/** 주고받기 t ∈ [0, 1] — `T ≤ low` → 0 · `T ≥ high` → 1 · 그 사이 직선(R158-2). */
+export function chatTurnScore(ratio: number, c: ChatDeltaCoefficients): number {
+  return clamp((ratio - c.turnLow) / (c.turnHigh - c.turnLow), 0, 1)
+}
 
 /**
- * 채팅의 질을 `chat_delta` 점수(`[−10, +25]`)로 환산한다.
+ * 채팅의 질을 `chat_delta`(`[min, max]` = v0 `[−10, +25]`)로 환산한다.
  *
- * **미확정** (Part 17-2, `UNRESOLVED` 레지스트리 `dnaScore.chatDelta`,
- * Part 16-2). 범위는 확정이지만 "채팅 질을 몇 점으로 바꾸는가"의 산출식은
- * 실사용 채팅 데이터 없이 정하면 근거 없는 값이 되므로, 이 함수는 값을
- * 지어내지 않고 호출 즉시 `UnresolvedConstantError`를 던진다
- * (`temperature.activityScore`와 같은 시점에 다룬다).
- *
- * 해소되면(캘리브레이션 데이터 확보 후) 이 함수 **본문만** 실제 환산식으로
- * 교체한다 — 호출부(`computeDnaTotalScore`)는 그대로 둔다. 그 교체 시점에
- * `ChatQualitySignals`의 실제 형태도 함께 확정된다. **양(발화 건수)에
- * 반응하는 구현을 넣지 않는다** — Part 17-2 / 10-7-6.
+ * `chatDelta = min + (max − min) × (w·r + (1 − w)·t)` — v0: `−10 + 35 × (0.5r + 0.5t)`.
+ * 순수 함수 · 결정론. 반올림은 반환 직전 한 번(소수 2자리 - DB `numeric(5,2)`).
+ * 두 지표가 모두 있을 때만 부른다 — 없는 지표를 0으로 채우지 않는다(호출부가 "채팅 반영 전"으로 둔다).
  */
-export function computeChatDelta(chatQuality: ChatQualitySignals): number {
-  void chatQuality
-  return UNRESOLVED({ key: 'dnaScore.chatDelta' })
+export function computeChatDelta(signals: ChatQualitySignals, c: ChatDeltaCoefficients): number {
+  const r = chatRhythmScore(signals.replyGapMedianSeconds, c)
+  const t = chatTurnScore(signals.turnTakingRatio, c)
+  const mix = c.rhythmWeight * r + (1 - c.rhythmWeight) * t
+  return roundAndClamp(c.min + (c.max - c.min) * mix, DNA_SCORE_DECIMALS, c.min, c.max)
 }
 
 /* ────────────────────────────────────────────────────────────────────
- * ③ 결합 (Part 17-2) — 구현하되, ②가 미확정이므로 호출 시 throw한다.
- * 이것이 규격이 의도한 정상 상태다.
+ * ③ 결합 (Part 17-2)
  * ──────────────────────────────────────────────────────────────────── */
 
 /**
@@ -225,27 +250,16 @@ export interface DnaScoreClampBounds {
 /** `computeDnaTotalScore`가 받는 계수 묶음 — 전부 인자로만 받는다(Part 17-2). */
 export interface DnaTotalScoreCoefficients {
   base: DnaBaseScoreCoefficients
+  chat: ChatDeltaCoefficients
   clamp: DnaScoreClampBounds
 }
 
 /**
- * 연애 DNA 최종 일치율(Part 17-2: `total = clamp(base_score + chat_delta,
- * 50, 100)`).
+ * 연애 DNA 최종 일치율(Part 17-2: `total = clamp(base_score + chat_delta, 50, 100)`).
  *
- * `chat_delta`가 `computeChatDelta`를 거치므로, 이 함수는 **호출되는 즉시
- * `UnresolvedConstantError`를 던진다**. **이것이 이 함수의 정상 상태다** —
- * "채팅 질 → 점수" 산출식(`dnaScore.chatDelta`)이 해소되기 전까지는
- * 실사용 배치에서 이 함수를 호출해 값을 실사용해서는 안 된다(Part 16-2
- * "해소 전까지 호출부에서 이 계수를 실사용하지 말 것"). 기저 점수만
- * 필요하면 `computeDnaBaseScore`를, 이미 계산된 두 값의 결합만 필요하면
- * `computeTotalScore`를 쓴다 — 둘 다 throw하지 않는다.
- *
- * 반올림·클램프는 `roundAndClamp`로 이 함수 반환 직전 단 한 번만
- * 적용한다(numeric.ts 정책). 백분위·상위% 개념은 인자로도 받지 않는다
- * (절대평가).
- *
- * 해소되면 `computeChatDelta` 본문만 실제 환산식으로 교체하면 되고,
- * 이 함수는 손댈 필요가 없다 — 결합 산술은 이미 최종 식대로 구현돼 있다.
+ * 채팅 두 지표가 다 있을 때의 결합이다. 하나라도 없으면 이 함수를 부르지 않고
+ * 기저만 쓴다(`loveDna.ts` — "채팅 반영 전"). 반올림·클램프는 반환 직전 한 번.
+ * 백분위·상위% 개념은 인자로도 받지 않는다(절대평가).
  */
 export function computeDnaTotalScore(
   coreA: EnneagramCore,
@@ -254,7 +268,7 @@ export function computeDnaTotalScore(
   coefficients: DnaTotalScoreCoefficients,
 ): number {
   const baseScore = computeDnaBaseScore(coreA, coreB, coefficients.base)
-  const chatDelta = computeChatDelta(chatQuality)
+  const chatDelta = computeChatDelta(chatQuality, coefficients.chat)
   return roundAndClamp(
     baseScore + chatDelta,
     DNA_SCORE_DECIMALS,

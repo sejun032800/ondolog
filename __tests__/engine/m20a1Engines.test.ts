@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import type { ChatMetrics } from '../../src/engine/chatMetrics'
 import type { PersonProfile } from '../../src/engine/coupleProfile'
-import { DNA_BASE_COEFFICIENTS, DNA_COEFF_VERSION_BASE_ONLY, computeLoveDnaFacts } from '../../src/engine/loveDna'
+import { DNA_BASE_COEFFICIENTS, DNA_CHAT_DELTA_V0, DNA_COEFF_VERSION, DNA_COEFF_VERSION_BASE_ONLY, chatDeltaOf, computeLoveDnaFacts } from '../../src/engine/loveDna'
 import { ROUGH_GUESS_V0, computeRoughGuess, durationLabel, fnv1a32, selectMonthlyTopic } from '../../src/engine/roughGuess'
 import { ROUGH_GUESS_TOPICS } from '../../src/constants/roughGuessTopics'
 import {
@@ -131,23 +131,51 @@ describe('③ 어림짐작', () => {
 })
 
 describe('② 두 사람의 결 - 숫자 칸', () => {
-  it('기저만(채팅 반영 전): total = base · chatDelta null · coeffVersion dna_base_only · 첫 호', () => {
-    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null)
+  it('채팅 반영(v0 dna_v0): 답장 중앙값 120초 · 주고받기 0.5 -> chatDelta 18.29 · total = base + 18.29 · 첫 호', () => {
+    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics())
     if (!r.ok) throw new Error('skip')
     expect([61, 65, 69]).toContain(r.facts.score.base)
-    expect(r.facts.score).toMatchObject({ chatDelta: null, chatApplied: false, total: r.facts.score.base, coeffVersion: DNA_COEFF_VERSION_BASE_ONLY, previousTotal: null, delta: null, firstIssue: true })
+    // r = 1 − ln2/ln180 = 0.8665 · t = 0.75 -> −10 + 35 × 0.8083 = 18.29
+    expect(r.facts.score).toMatchObject({ chatDelta: 18.29, chatApplied: true, coeffVersion: DNA_COEFF_VERSION, previousTotal: null, delta: null, firstIssue: true })
+    expect(r.facts.score.total).toBe(Math.min(100, Math.round((r.facts.score.base + 18.29) * 100) / 100))
     expect(DNA_BASE_COEFFICIENTS).toEqual({ contrast: 61, neutral: 65, best: 69 })
+    expect(DNA_COEFF_VERSION).toBe('dna_v0')
+    expect(DNA_CHAT_DELTA_V0).toEqual({ rhythmFastSeconds: 60, rhythmSlowSeconds: 10800, turnLow: 0.2, turnHigh: 0.6, rhythmWeight: 0.5, min: -10, max: 25 })
+  })
+
+  it('지표가 하나라도 없으면 채팅 반영 전: chatDelta null(0으로 채우지 않음) · total = base · 계수 버전은 dna_v0 그대로', () => {
+    for (const over of [{ replyGap: null }, { turnTaking: null }, { replyGap: null, turnTaking: null }] as Partial<ChatMetrics>[]) {
+      const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics(over))
+      if (!r.ok) throw new Error('skip')
+      expect(r.facts.score).toMatchObject({ chatDelta: null, chatApplied: false, total: r.facts.score.base, coeffVersion: DNA_COEFF_VERSION })
+    }
+    expect(DNA_COEFF_VERSION_BASE_ONLY).toBe('dna_base_only')   // 1차 산출(이미 저장된 호)의 표지 - 새 산출은 쓰지 않는다
+  })
+
+  it('chatDelta 끝값: 빠르고(60초 이하) 잘 주고받으면(0.6 이상) +25 · 느리고(3시간 이상) 한쪽이면(0.2 이하) −10', () => {
+    const top = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics({ replyGap: { all: { count: 9, q1: 10, median: 45, q3: 60 }, byResponder: { a: null, b: null } }, turnTaking: 0.8 }))
+    const low = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics({ replyGap: { all: { count: 9, q1: 10, median: 20000, q3: 30000 }, byResponder: { a: null, b: null } }, turnTaking: 0.1 }))
+    if (!top.ok || !low.ok) throw new Error('skip')
+    expect(top.facts.score.chatDelta).toBe(25)
+    expect(low.facts.score.chatDelta).toBe(-10)
+    expect(low.facts.score.total).toBe(low.facts.score.base - 10)
   })
 
   it('지난 호 대비 = total − 지난 코너 값', () => {
-    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, 60.5)
+    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, 60.5, metrics())
     if (!r.ok) throw new Error('skip')
     expect(r.facts.score.delta).toBe(Math.round((r.facts.score.total - 60.5) * 100) / 100)
     expect(r.facts.score.firstIssue).toBe(false)
   })
 
+  it('chatDeltaOf: 같은 입력 -> 같은 값(결정론)', () => {
+    const m = metrics()
+    expect(chatDeltaOf(m)).toBe(chatDeltaOf(m))
+    expect(chatDeltaOf({ replyGap: null, turnTaking: 0.5 })).toBeNull()
+  })
+
   it('빅5 차이 · 가까움(15 미만)/다름 · 스턴버그 겹침 = 작은 값', () => {
-    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null)
+    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics())
     if (!r.ok) throw new Error('skip')
     expect(r.facts.bigFive.map((x) => [x.key, x.gap, x.relation])).toEqual([
       ['o', 10, 'close'],
@@ -159,18 +187,22 @@ describe('② 두 사람의 결 - 숫자 칸', () => {
     expect(r.facts.sternberg.passion).toEqual({ a: 90, b: 40, shared: 40 })
   })
 
-  it('실행 팁은 60 이하에서만 - 기저만으로는 늘 61 이상이라 꺼져 있다', () => {
-    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null)
+  it('실행 팁은 60 이하에서만 - 기저만이면 늘 61 이상이라 꺼짐 · chatDelta가 내리면 켜질 수 있다', () => {
+    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics({ turnTaking: null }))
     if (!r.ok) throw new Error('skip')
     expect(r.facts.actionTipsAllowed).toBe(false)
+    const low = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics({ replyGap: { all: { count: 9, q1: 10, median: 20000, q3: 30000 }, byResponder: { a: null, b: null } }, turnTaking: 0.1 }))
+    if (!low.ok) throw new Error('skip')
+    expect(low.facts.actionTipsAllowed).toBe(low.facts.score.total <= 60)
   })
 
   it('한쪽이라도 성격 데이터가 없으면 빠짐', () => {
-    expect(computeLoveDnaFacts({ a: null, b: NARAE }, null)).toEqual({ ok: false, skip: 'no_personality' })
+    expect(computeLoveDnaFacts({ a: null, b: NARAE }, null, metrics())).toEqual({ ok: false, skip: 'no_personality' })
   })
 
-  it('UNRESOLVED chatDelta를 부르지 않는다(throw 없음) - ⑨ 승인 전', () => {
-    expect(() => computeLoveDnaFacts({ a: GARAM, b: NARAE }, null)).not.toThrow()
+  it('throw 없음(UNRESOLVED 해소) · 두 번 계산 같음', () => {
+    expect(() => computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics())).not.toThrow()
+    expect(computeLoveDnaFacts({ a: GARAM, b: NARAE }, 61, metrics())).toEqual(computeLoveDnaFacts({ a: GARAM, b: NARAE }, 61, metrics()))
   })
 })
 

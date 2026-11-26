@@ -92,6 +92,7 @@
 | `couple_interview` | `mostDivergent` 삭제 |
 | `over_shoulder` | `ourValue` 삭제 |
 | `publication_note` | **`notUsed`는 이름 그대로**(싣지 않은 재료) · **`skippedCorners`를 새로 더함**(빠진 코너). 틀의 `@note.emptyCorners`는 `skippedCorners`에서 채웁니다 |
+| `colophon` · `love_dna` (A1 2차 보고에서 남은 것) | 옛 표기 정리: "판권 정오" → **「판권과 정오」** · `love_dna`의 chatDelta UNRESOLVED 표기 → **dna_v0 A′**(식 · 상수 위치 `loveDna.ts` `DNA_CHAT_DELTA_V0`) |
 
 **PM이 아직 정하지 않은 디자인 요청**(디자인 §10 ③ 중 위 표 밖)은 계약 파일에 `"design_request_pending_pm": [...]`로만 적고 엔진은 바꾸지 않습니다.
 - `love_dna` `partners[].name` · `bigFive o c e a n` · `sternbergOverlap`

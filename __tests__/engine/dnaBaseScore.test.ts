@@ -7,10 +7,9 @@
  * (`.claude/state/prompts/phase-7/09-engine-dev-dna-base-score.md`)에서 새로
  * 구현한 함수 전용이다.
  *
- * ② 채팅 변동분의 "채팅 질 → 점수" 산출식은
- * `UNRESOLVED('dnaScore.chatDelta')`로 남아 있다(Part 16-2) — 범위
- * `[−10, +25]`만 확정. 그 값을 지어내지 않고, 이를 소비하는 경로(②·③)는
- * "throw를 기대"하는 테스트로만 검증한다.
+ * ② 채팅 변동분은 ROADMAP r158 R158-2 v0(A′ · `dna_v0`)로 해소됐다 —
+ * 과거 throw 기대 시험(②·③)은 v0 동작 시험으로 교체했다(MASTER 16-2 예외 ·
+ * `temperatureBaseline.test.ts` 선례).
  *
  * 기저 세 값(문서 확정 `61 / 65 / 69`)과 클램프 경계(`50 / 100`)는 Part 17-2에서
  * 그대로 옮긴 값이며, **엔진이 아니라 이 테스트가 인자로 주입한다**
@@ -22,12 +21,14 @@ import * as path from 'path'
 import { stripComments } from '../../scripts/lib/stripComments'
 import type { EnneagramCore } from '../../src/constants/enneagram'
 import { COMPATIBILITY } from '../../src/constants/compatibility'
-import { UnresolvedConstantError } from '../../src/engine/constants/unresolved'
 import {
+  type ChatDeltaCoefficients,
   type ChatQualitySignals,
   type DnaBaseScoreCoefficients,
   type DnaScoreClampBounds,
   type DnaTotalScoreCoefficients,
+  chatRhythmScore,
+  chatTurnScore,
   computeChatDelta,
   computeDnaBaseScore,
   computeDnaTotalScore,
@@ -45,13 +46,25 @@ const DNA_BASE_COEFFICIENTS: DnaBaseScoreCoefficients = {
 /** Part 17-2: `total = clamp(base_score + chat_delta, 50, 100)`. */
 const DNA_CLAMP_BOUNDS: DnaScoreClampBounds = { min: 50, max: 100 }
 
+/** ROADMAP r158 R158-2 A′ v0 계수(엔진이 아니라 시험이 주입 - 값은 `loveDna.ts` `DNA_CHAT_DELTA_V0`와 같아야 한다). */
+const CHAT_V0: ChatDeltaCoefficients = {
+  rhythmFastSeconds: 60,
+  rhythmSlowSeconds: 10800,
+  turnLow: 0.2,
+  turnHigh: 0.6,
+  rhythmWeight: 0.5,
+  min: -10,
+  max: 25,
+}
+
 const DNA_TOTAL_COEFFICIENTS: DnaTotalScoreCoefficients = {
   base: DNA_BASE_COEFFICIENTS,
+  chat: CHAT_V0,
   clamp: DNA_CLAMP_BOUNDS,
 }
 
-/** ②·③은 형태를 확정하지 않은 불투명 입력을 받는다 — 빈 객체로 충분하다. */
-const CHAT_QUALITY: ChatQualitySignals = {}
+/** 견본 신호: 답장 중앙값 30분 · 주고받기 0.5 → v0 chatDelta 9.16. */
+const CHAT_QUALITY: ChatQualitySignals = { replyGapMedianSeconds: 1800, turnTakingRatio: 0.5 }
 
 describe('computeDnaBaseScore — 기저 점수 (Part 17-2), 순수 함수, throw 없음', () => {
   it('온도차(contrast) 범주면 contrast 계수를 그대로 쓴다', () => {
@@ -131,84 +144,79 @@ describe('computeDnaBaseScore — 기저 점수 (Part 17-2), 순수 함수, thro
   })
 })
 
-describe('computeChatDelta — 채팅 질 → 점수 산출식은 UNRESOLVED (Part 17-2, Part 16-2)', () => {
-  it('범위만 확정이고 산출식은 미확정 — 값을 지어내지 않고 UnresolvedConstantError를 던진다', () => {
-    expect(() => computeChatDelta(CHAT_QUALITY)).toThrow(UnresolvedConstantError)
+describe('computeChatDelta — v0(ROADMAP r158 R158-2 A′): r 로그 척도 · t 직선 · −10 + 35 × (0.5r + 0.5t)', () => {
+  it('리듬 r: 60초 이하 1 · 3시간(10800초) 이상 0 · 그 사이 1 − (ln m − ln 60)/(ln 10800 − ln 60)', () => {
+    expect(chatRhythmScore(0, CHAT_V0)).toBe(1)
+    expect(chatRhythmScore(60, CHAT_V0)).toBe(1)
+    expect(chatRhythmScore(10800, CHAT_V0)).toBe(0)
+    expect(chatRhythmScore(86400, CHAT_V0)).toBe(0)
+    expect(chatRhythmScore(1800, CHAT_V0)).toBeCloseTo(1 - Math.log(30) / Math.log(180), 12)
+    // 기하 중간(60 × √180 ≈ 805초)에서 0.5
+    expect(chatRhythmScore(60 * Math.sqrt(180), CHAT_V0)).toBeCloseTo(0.5, 12)
   })
 
-  it('에러가 근거 문서(MASTER Part 17-2)·Phase(7)·키를 싣는다', () => {
-    try {
-      computeChatDelta(CHAT_QUALITY)
-      throw new Error('여기 도달하면 안 된다 — UNRESOLVED는 반드시 throw한다')
-    } catch (e) {
-      expect(e).toBeInstanceOf(UnresolvedConstantError)
-      const err = e as UnresolvedConstantError
-      expect(err.key).toBe('dnaScore.chatDelta')
-      expect(err.phase).toBe(7)
-      expect(err.doc).toBe('MASTER Part 17-2')
+  it('주고받기 t: 0.2 이하 0 · 0.6 이상 1 · 그 사이 (T − 0.2)/0.4', () => {
+    expect(chatTurnScore(0, CHAT_V0)).toBe(0)
+    expect(chatTurnScore(0.2, CHAT_V0)).toBe(0)
+    expect(chatTurnScore(0.4, CHAT_V0)).toBeCloseTo(0.5, 12)
+    expect(chatTurnScore(0.6, CHAT_V0)).toBe(1)
+    expect(chatTurnScore(1, CHAT_V0)).toBe(1)
+  })
+
+  it('끝값과 견본: (60초, 0.6) +25 · (3시간, 0.2) −10 · (30분, 0.5) 9.16 · (2시간, 0.5) 4.49', () => {
+    expect(computeChatDelta({ replyGapMedianSeconds: 60, turnTakingRatio: 0.6 }, CHAT_V0)).toBe(25)
+    expect(computeChatDelta({ replyGapMedianSeconds: 10800, turnTakingRatio: 0.2 }, CHAT_V0)).toBe(-10)
+    expect(computeChatDelta({ replyGapMedianSeconds: 1800, turnTakingRatio: 0.5 }, CHAT_V0)).toBe(9.16)
+    expect(computeChatDelta({ replyGapMedianSeconds: 7200, turnTakingRatio: 0.5 }, CHAT_V0)).toBe(4.49)
+  })
+
+  it('범위 [−10, +25]를 넘지 않는다 · 소수 2자리', () => {
+    for (const m of [0, 1, 30, 60, 61, 300, 805, 1800, 3600, 7200, 10799, 10800, 1e6]) {
+      for (const T of [0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.9, 1]) {
+        const v = computeChatDelta({ replyGapMedianSeconds: m, turnTakingRatio: T }, CHAT_V0)
+        expect(v).toBeGreaterThanOrEqual(-10)
+        expect(v).toBeLessThanOrEqual(25)
+        expect(Math.round(v * 100) / 100).toBe(v)
+      }
     }
   })
 
-  it('동일 입력 100회 반복 → 100회 모두 동일하게 throw하며 메시지가 흔들리지 않는다 (결정론)', () => {
-    const messages = Array.from({ length: 100 }, () => {
-      try {
-        computeChatDelta(CHAT_QUALITY)
-        return null
-      } catch (e) {
-        return (e as Error).message
-      }
-    })
-    expect(messages.every((m) => m !== null)).toBe(true)
-    expect(new Set(messages).size).toBe(1)
+  it('답장이 빠를수록 · 주고받기가 고를수록 커진다(단조)', () => {
+    const ms = [30, 60, 120, 600, 1800, 3600, 7200, 10800, 20000]
+    const byM = ms.map((m) => computeChatDelta({ replyGapMedianSeconds: m, turnTakingRatio: 0.4 }, CHAT_V0))
+    for (let i = 1; i < byM.length; i++) expect(byM[i]).toBeLessThanOrEqual(byM[i - 1] as number)
+    const Ts = [0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8]
+    const byT = Ts.map((T) => computeChatDelta({ replyGapMedianSeconds: 600, turnTakingRatio: T }, CHAT_V0))
+    for (let i = 1; i < byT.length; i++) expect(byT[i]).toBeGreaterThanOrEqual(byT[i - 1] as number)
+  })
+
+  it('동일 입력 100회 반복 → 100회 모두 동일 결과 (결정론)', () => {
+    const results = Array.from({ length: 100 }, () => computeChatDelta({ replyGapMedianSeconds: 420, turnTakingRatio: 0.37 }, CHAT_V0))
+    expect(new Set(results).size).toBe(1)
   })
 })
 
-describe('computeDnaTotalScore — 결합 (Part 17-2), ②가 미확정이므로 호출 시 throw', () => {
-  it('현실적인 호출은 UnresolvedConstantError로 실패한다 — 규격이 의도한 정상 상태', () => {
-    expect(() =>
-      computeDnaTotalScore(1, 7, CHAT_QUALITY, DNA_TOTAL_COEFFICIENTS),
-    ).toThrow(UnresolvedConstantError)
-  })
-
-  it('기저 범주와 무관하게 throw한다 (contrast·neutral·best 쌍 모두)', () => {
-    for (const [a, b] of [
-      [1, 8], // contrast
-      [1, 2], // neutral
-      [2, 9], // best(비대칭)
-    ] as [EnneagramCore, EnneagramCore][]) {
-      expect(() =>
-        computeDnaTotalScore(a, b, CHAT_QUALITY, DNA_TOTAL_COEFFICIENTS),
-      ).toThrow(UnresolvedConstantError)
+describe('computeDnaTotalScore — 결합 (Part 17-2): clamp(base + chatDelta, 50, 100)', () => {
+  it('기저 + v0 chatDelta (contrast·neutral·best 쌍 모두)', () => {
+    for (const [a, b, base] of [
+      [1, 8, 61], // contrast
+      [1, 2, 65], // neutral
+      [2, 9, 69], // best(비대칭)
+    ] as [EnneagramCore, EnneagramCore, number][]) {
+      expect(computeDnaTotalScore(a, b, CHAT_QUALITY, DNA_TOTAL_COEFFICIENTS)).toBe(Math.round((base + 9.16) * 100) / 100)
     }
   })
 
-  it('클램프 경계를 인자로 넘겨도 throw를 막지 못한다 (②를 먼저 거친다)', () => {
-    const wideBounds: DnaTotalScoreCoefficients = {
-      base: DNA_BASE_COEFFICIENTS,
-      clamp: { min: 0, max: 1000 },
-    }
-    expect(() =>
-      computeDnaTotalScore(1, 7, CHAT_QUALITY, wideBounds),
-    ).toThrow(UnresolvedConstantError)
+  it('클램프 경계를 인자로 받는다 — 좁히면 그 경계에서 잘린다', () => {
+    const narrow: DnaTotalScoreCoefficients = { ...DNA_TOTAL_COEFFICIENTS, clamp: { min: 50, max: 70 } }
+    expect(computeDnaTotalScore(2, 9, { replyGapMedianSeconds: 30, turnTakingRatio: 0.9 }, narrow)).toBe(70)
+    expect(computeDnaTotalScore(1, 8, { replyGapMedianSeconds: 30, turnTakingRatio: 0.9 }, DNA_TOTAL_COEFFICIENTS)).toBe(86)
+    expect(computeDnaTotalScore(1, 8, { replyGapMedianSeconds: 20000, turnTakingRatio: 0 }, DNA_TOTAL_COEFFICIENTS)).toBe(51)
   })
 
-  it('기저 점수 자체는 (같은 입력으로) throw 없이 계산된다 — throw는 오직 ②에서 온다', () => {
-    // ③이 throw하는 원인이 ①이 아니라 ②임을 대조로 보인다.
-    expect(() => computeDnaBaseScore(1, 7, DNA_BASE_COEFFICIENTS)).not.toThrow()
-    expect(computeDnaBaseScore(1, 7, DNA_BASE_COEFFICIENTS)).toBe(69)
-  })
-
-  it('동일 입력 100회 반복 → 100회 모두 동일하게 throw한다 (결정론)', () => {
-    const messages = Array.from({ length: 100 }, () => {
-      try {
-        computeDnaTotalScore(1, 7, CHAT_QUALITY, DNA_TOTAL_COEFFICIENTS)
-        return null
-      } catch (e) {
-        return (e as Error).message
-      }
-    })
-    expect(messages.every((m) => m !== null)).toBe(true)
-    expect(new Set(messages).size).toBe(1)
+  it('동일 입력 100회 반복 → 100회 모두 동일 결과 (결정론)', () => {
+    const results = Array.from({ length: 100 }, () => computeDnaTotalScore(1, 7, CHAT_QUALITY, DNA_TOTAL_COEFFICIENTS))
+    expect(new Set(results).size).toBe(1)
   })
 })
 

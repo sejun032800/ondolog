@@ -1,4 +1,4 @@
-"""매거진 2.0-A1 지면 짜기 - 두 사람의 결 · 어림짐작 · 부록 · 사진 한 장 · 다음 달 · 판권 정오 (위임 m20-a1 ⑥ ⑦ ⑧).
+"""매거진 2.0-A1 지면 짜기 - 두 사람의 결 · 어림짐작 · 부록 · 사진 한 장 · 다음 달 · 판권과 정오 (위임 m20-a1 ⑥ ⑦ ⑧).
 
 **임시 틀(`render/temp_pages/`)용**이다 - 디자인 v2.0.0 반입 때 틀과 함께 다시 짠다. 계약 필드(`docs/magazine-2-0/contracts/`)만 싣는다.
 
@@ -26,7 +26,7 @@ LABELS20 = {
     'appendix': ('잡지 부록', '부록'),
     'photo_break': ('사진 한 장', '사진 한 장'),
     'next_month': ('다음 달', '다음 달'),
-    'colophon': ('판권 · 정오', '판권 정오'),
+    'colophon': ('판권과 정오', '판권과 정오'),   # R158-3의 6 - 제목 표 · 러닝헤드 모두
 }
 # 빠진 코너 문장 - 기획서 2절 4. 그대로(두 사람의 결). 어림짐작의 채팅 부족 문장은 기획서에 없어 메인 세션 제안(PM 확인 대상).
 SKIP20_NO_PERSONALITY = '성격 정보가 아직 없어 싣지 않았습니다'
@@ -121,7 +121,14 @@ class Pages20:
         self.toc.append(('rough_guess', f'재미 · {n}항목'))
         return [self.PageSpec('tp-rough-guess', None, {'tp': tp}, {}, 'rough_guess')]
 
-    def appendix_pages(self) -> list:
+    def postcard_cards(self) -> list:
+        return [x for x in as_list(self.appendix.get('postcards')) if isinstance(x, dict) and isinstance(x.get('path'), str)]
+
+    def has_next_month(self) -> bool:
+        return bool(as_dict(self.appendix.get('nextMonth')))
+
+    def appendix_pages(self, postcards: bool = True) -> list:
+        """달력 1면 + 엽서 1면(사진이 있을 때). `postcards=False`면 엽서 면을 뺀다(쪽 수 규칙 ④ - 36쪽 넘을 때)."""
         b, p = self.b, self.appendix
         cal = as_dict(p.get('calendar'))
         marks = {m.get('date'): m.get('label') for m in as_list(cal.get('marks')) if isinstance(m, dict)}
@@ -133,7 +140,7 @@ class Pages20:
         tp_cal = {**_base(b, 'appendix', self.period_label), 'monthTitle': f"{cal.get('year')}년 {cal.get('monthNumber')}월",
                   'cells': cells, 'marks': [{'line': f"{_md(d)} · {lab}"} for d, lab in marks.items()]}
         pages = [self.PageSpec('tp-appendix-calendar', None, {'tp': tp_cal}, {}, 'appendix')]
-        cards = [x for x in as_list(p.get('postcards')) if isinstance(x, dict) and isinstance(x.get('path'), str)]
+        cards = self.postcard_cards() if postcards else []
         for x in cards:
             b.show(x['path'])
         if cards:
@@ -155,7 +162,8 @@ class Pages20:
         c = as_dict(self.appendix.get('colophon'))
         corr = as_dict(c.get('correction'))
         number = c.get('editionNumber')
-        edition = f"{c.get('editionLabel')}" + (f' · 제{number}호' if isinstance(number, int) else '')
+        # R158-3의 6 - "○○○○년 ○월호 · 제 n호"만(발행일은 찍지 않는다). 호 번호가 없으면 호 라벨만(지어내지 않음)
+        edition = f"{c.get('editionLabel')}" + (f' · 제 {number}호' if isinstance(number, int) else '')
         ps, pe = str(c.get('periodStart') or ''), str(c.get('periodEnd') or '')
         tp = {**_base(self.b, 'colophon', self.period_label), 'editionLine': edition,
               'periodLine': f'수집 기간 {_md(ps)} ~ {_md(pe)}', 'namesLine': ' · '.join(x for x in [c.get('nickname'), c.get('names')] if x),

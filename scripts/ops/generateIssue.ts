@@ -617,8 +617,8 @@ export async function generateIssue(
       }
     }
 
-    // 두 사람의 결 - 지난 호 값은 저장된 지난 코너에서(첫 호면 null).
-    const dna = computeLoveDnaFacts(profiles, await previousDnaTotal(store, params))
+    // 두 사람의 결 - 지난 호 값은 저장된 지난 코너에서(첫 호면 null). chatDelta v0(R158-2)는 같은 채팅 지표에서 - 없으면 채팅 반영 전.
+    const dna = computeLoveDnaFacts(profiles, await previousDnaTotal(store, params), metrics)
     const dnaInput: LoveDnaInput = { facts: dna.ok ? { ...dna.facts, partners: [...dna.facts.partners], bigFive: [...dna.facts.bigFive] } : null }
     reports.push(await runLlmCorner(LOVE_DNA_ENTRY, rows.get('love_dna') as CornerRow, dnaInput, true))
 

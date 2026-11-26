@@ -8,10 +8,15 @@
  * 기저 61 / 65 / 69 · 클램프 50 / 100은 MASTER 17-2 확정값이다. 엔진 함수(`dnaScore.ts`)는 계수를 인자로만 받는 규칙 그대로이고,
  * 이 파일이 호출부로서 상수를 넘긴다(MASTER 17-2 "계수 출처" 표의 app_config 자리를 코드 상수로 바꾼 것 — 2.0-0 PM 결정 3).
  *
- * ── `chatDelta` ──────────────────────────────────────────────────────
- * PM이 v0 숫자를 승인하기 전(⑨)에는 `UNRESOLVED('dnaScore.chatDelta')` 그대로다. 이 파일은 `computeChatDelta`를 부르지 않고,
- * **기저 점수만으로** 일치율을 낸다: `total = clamp(base + 0)` · `chatDelta = null` · `chatApplied = false`.
- * 지면 · 발행 노트는 `chatApplied`로 "채팅 반영 전" 표지를 단다. 계수 버전도 기저만 쓴 것을 따로 적는다(`dna_base_only`).
+ * ── `chatDelta` v0 (ROADMAP r158 R158-2 "A′") ──────────────────────────
+ * 리듬 r = 답장 간격 중앙값 60초 이하 1 · 3시간(10800초) 이상 0 · 그 사이 로그 척도
+ *   `r = clamp(1 − (ln m − ln 60)/(ln 10800 − ln 60), 0, 1)`
+ * 주고받기 t = 비율 0.2 이하 0 · 0.6 이상 1 · `t = clamp((T − 0.2)/0.4, 0, 1)`
+ * `chatDelta = −10 + 35 × (0.5r + 0.5t)` · 계수 버전 `dna_v0`(기저 61/65/69와 한 묶음 - MASTER 17-2 "하나의 coeffVersion").
+ * **지표가 하나라도 없으면**(채팅 지표 엔진이 null - 묶음 2개 미만 · 한 사람만 말함) `chatDelta = null` · `chatApplied = false` ·
+ * `total = clamp(base)` — 0으로 채우지 않는다. 지면 · 발행 노트는 `chatApplied`로 "채팅 반영 전" 표지를 단다.
+ * 이유(R158-2): 몇 시간 단위 답장을 0점 근처로 몰면 "답장이 느리면 덜 맞는다"로 읽혀 판정 금지(3-7)에 걸린다 → 3시간 앵커.
+ * v1은 실제 분포의 분위수로 다시 맞춘다.
  *
  * ── 지난 호 대비 ──────────────────────────────────────────────────────
  * 저장된 지난 코너 값(`corners.content.payload.score.total`)과 뺀다. 지난 호 코너가 없으면 `firstIssue = true`("첫 호").
@@ -28,17 +33,32 @@ import {
   DNA_SCORE_DECIMALS,
   DNA_SCORE_MAX,
   DNA_SCORE_MIN,
+  computeChatDelta,
   computeDnaBaseScore,
   computeTotalScore,
+  type ChatDeltaCoefficients,
   type DnaBaseScoreCoefficients,
 } from './dnaScore'
 import type { BigFive, CoupleProfiles, PersonProfile } from './coupleProfile'
+import type { ChatMetrics } from './chatMetrics'
 import type { AttachmentType } from '../constants/attachment'
 import { roundTo } from './numeric'
 
 /** MASTER 17-2 확정 기저 세 값. */
 export const DNA_BASE_COEFFICIENTS: DnaBaseScoreCoefficients = { contrast: 61, neutral: 65, best: 69 }
-/** `chatDelta`가 없는(⑨ 승인 전) 산출의 계수 버전. 승인 뒤 `dna_v0`. */
+/** `chatDelta` v0 계수(ROADMAP r158 R158-2 A′). 바꾸면 `DNA_COEFF_VERSION`을 올린다. */
+export const DNA_CHAT_DELTA_V0: ChatDeltaCoefficients = {
+  rhythmFastSeconds: 60,
+  rhythmSlowSeconds: 10800,
+  turnLow: 0.2,
+  turnHigh: 0.6,
+  rhythmWeight: 0.5,
+  min: -10,
+  max: 25,
+}
+/** 기저 세 값 + `chatDelta` v0 한 묶음의 계수 버전(MASTER 17-2 "하나의 coeffVersion으로 함께"). */
+export const DNA_COEFF_VERSION = 'dna_v0'
+/** ⑨ 승인 전(2.0-A1 1차) 산출에 적힌 계수 버전 - 이미 저장된 호를 읽을 때만 만난다. 새 산출은 쓰지 않는다. */
 export const DNA_COEFF_VERSION_BASE_ONLY = 'dna_base_only'
 /** 실행 팁 문턱(이하에서만). */
 export const DNA_ACTION_TIP_MAX_TOTAL = 60
@@ -71,7 +91,7 @@ export interface DnaSternbergPart {
 export interface LoveDnaFacts {
   readonly score: {
     readonly base: number
-    /** ⑨ 승인 전에는 null(채팅 반영 전). */
+    /** 채팅 지표(답장 간격 중앙값 · 주고받기 비율)가 하나라도 없으면 null(채팅 반영 전). */
     readonly chatDelta: number | null
     readonly chatApplied: boolean
     readonly total: number
@@ -103,26 +123,36 @@ function sternbergPart(x: number, y: number): DnaSternbergPart {
   return { a: x, b: y, shared: Math.min(x, y) }
 }
 
+/** `chatDelta`가 읽는 채팅 지표 두 칸(`chatMetrics.ts` 결과의 일부). */
+export type DnaChatInput = Pick<ChatMetrics, 'replyGap' | 'turnTaking'>
+
+/** 두 지표가 모두 있을 때만 v0 값, 하나라도 없으면 null(0으로 채우지 않는다 - R158-2). */
+export function chatDeltaOf(chat: DnaChatInput): number | null {
+  const median = chat.replyGap?.all.median
+  if (median === undefined || chat.turnTaking === null) return null
+  return computeChatDelta({ replyGapMedianSeconds: median, turnTakingRatio: chat.turnTaking }, DNA_CHAT_DELTA_V0)
+}
+
 /**
- * 지면 숫자 칸. `previousTotal`은 지난 호에 저장된 일치율(없으면 null = 첫 호).
+ * 지면 숫자 칸. `previousTotal`은 지난 호에 저장된 일치율(없으면 null = 첫 호). `chat`은 그 기간의 채팅 지표.
  * 두 사람 중 한 명이라도 성격 데이터가 없으면 빠진다(기획서 2절 4.).
  */
-export function computeLoveDnaFacts(profiles: CoupleProfiles, previousTotal: number | null): LoveDnaResult {
+export function computeLoveDnaFacts(profiles: CoupleProfiles, previousTotal: number | null, chat: DnaChatInput): LoveDnaResult {
   const { a, b } = profiles
   if (a === null || b === null) return { ok: false, skip: 'no_personality' }
   const base = computeDnaBaseScore(a.enneagramCore, b.enneagramCore, DNA_BASE_COEFFICIENTS)
-  // ⑨ 승인 전: chatDelta 없이 기저만(computeChatDelta는 부르지 않는다 - UNRESOLVED).
-  const total = computeTotalScore(base, 0)
+  const chatDelta = chatDeltaOf(chat)
+  const total = computeTotalScore(base, chatDelta ?? 0)   // null이면 기저만(채팅 반영 전) - chatDelta 칸은 null 그대로
   const delta = previousTotal === null ? null : roundTo(total - previousTotal, DNA_SCORE_DECIMALS)
   return {
     ok: true,
     facts: {
       score: {
         base,
-        chatDelta: null,
-        chatApplied: false,
+        chatDelta,
+        chatApplied: chatDelta !== null,
         total,
-        coeffVersion: DNA_COEFF_VERSION_BASE_ONLY,
+        coeffVersion: DNA_COEFF_VERSION,
         previousTotal,
         delta,
         firstIssue: previousTotal === null,

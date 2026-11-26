@@ -11,7 +11,7 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
-## `2.0-A1` 매거진 2.0 엔진 1부 - 채팅 지표 · 두 사람의 결 · 어림짐작 · 부록 · 부속 3종 · 발행 노트 줄 · 쪽 수 규칙 · 임시 틀 (메인 세션, 2026-11-26, 위임문 `phase-7/m20-a1-dispatch-engines.md` · ROADMAP r157 R157-3~9 · MASTER r85) - ⑨ 멈춤(chatDelta v0 숫자 PM 승인 대기) (미커밋)
+## `2.0-A1` 매거진 2.0 엔진 1부 - 채팅 지표 · 두 사람의 결 · 어림짐작 · 부록 · 부속 3종 · 발행 노트 줄 · 쪽 수 규칙 · 임시 틀 (메인 세션, 2026-11-26, 위임문 `phase-7/m20-a1-dispatch-engines.md` · ROADMAP r157 R157-3~9 · MASTER r85) - 1차 ①~⑧ 수락(R158-1) · 2차 ⑨ 완료(R158-2~6) (미커밋)
 
 시작 확인: ROADMAP `DOC_REVISION: 2026-11-25-r157` · MASTER `2026-11-25-r85` · 계약 JSON 14 + README - 통과. 기획서 머리말은 아직 r156 표기(내용은 R157 행이 우선 - 생일 0 · 「다음 달」로 읽음).
 LLM 실제 호출 0 · 원격 0 · 마이그레이션 0 · 앱(web) 0 · 새 패키지 0 · 설정 파일 0. **`chatDelta`는 아직 `UNRESOLVED` 그대로**(throw 시험 3곳 그대로 통과).
@@ -46,8 +46,14 @@ LLM 실제 호출 0 · 원격 0 · 마이그레이션 0 · 앱(web) 0 · 새 패
 - 기존 3코너 회귀 0: 시드 11 시나리오 채운 HTML이 HEAD와 바이트 같음(뒤표지만 승인된 주석 한 줄 차이 - 주석 빼면 같음) · ops 시험의 3코너 기대값 그대로 · `m20a1Pipeline.test.ts` "2.0 재료 있든 없든 3코너 같음".
 - 2.0 권 실제 렌더(로컬 · 합성 `vol7-m20a1` 24쪽 · `vol7b-m20a1-ondol` 20쪽): 넘침 · 잘림 · 겹침 0 · 사실 어긋남 0 · 목차 8항목 들어감.
 
-### ⑨ 멈춤 - PM 승인 대기
-chatDelta v0 안(보고서) · 어림짐작 v0 식 · 주제 풀 문장 · 지면 제목 "판권 정오" · 발행일 미표기 · 채팅 부족 빠짐 문장 · 쪽 수 short 처리. 승인 뒤 같은 세션에서 `UNRESOLVED` 해소 → 시험 3곳 v0 시험으로.
+### ⑨ 2차 - PM 승인(ROADMAP r158) 반영
+- **chatDelta v0 = A′(R158-2)**: `src/engine/dnaScore.ts` `chatRhythmScore` · `chatTurnScore` · `computeChatDelta`(계수는 인자 `ChatDeltaCoefficients` - 엔진 하드코딩 0) · 값 `src/engine/loveDna.ts` `DNA_CHAT_DELTA_V0`(60초 · 10800초 · 0.2 · 0.6 · 가중 0.5 · −10 · +25) · `DNA_COEFF_VERSION = 'dna_v0'` · `chatDeltaOf`(답장 간격 중앙값 · 주고받기 비율 둘 다 있을 때만 - 하나라도 null이면 `chatDelta = null` · `chatApplied = false` · total = 기저, 0으로 채우지 않음). `DNA_SCORE_ENGINE_VERSION` 1.1.0 → 1.2.0. 생성 파이프라인은 같은 채팅 지표를 넘김(`generateIssue.ts` `computeLoveDnaFacts(…, metrics)`).
+- `UNRESOLVED` 레지스트리에서 `dnaScore.chatDelta` 제거(2키 남음). throw 기대 시험 3곳 → v0 동작 시험: `unresolved.test.ts`(해소 키 = UnknownUnresolvedKeyError + v0 끝값) · `dnaBaseScore.test.ts` ② r · t · 끝값 · 견본(30분 9.16 · 2시간 4.49) · 범위 · 단조 · 결정론 / ③ 결합 · 클램프 인자. **MASTER 16-2 표(`docs/ONDOLOG_MASTER.md:4089`)에는 아직 chatDelta 줄이 있다 - PM 문서 갱신 대상.**
+- `dna_base_only`는 1차 산출(이미 저장된 호) 표지로만 남김(`DNA_COEFF_VERSION_BASE_ONLY`) - 새 산출은 `dna_v0`.
+- **「판권과 정오」(R158-3의 6)**: `cornerTitles.ts` 코너 이름 · 지면 제목 모두 · `compose20.py` `LABELS20` · 임시 틀 `tp-colophon*.html` 기본 글자 · 판권 줄 "2026년 9월호 · 제 3호"(발행일 없음 · 호 번호 없으면 호 라벨만).
+- **36쪽 줄이는 순서(R158-5)**: `render/page_plan.py` `REDUCE_ORDER`(① 사진 한 장 2→1→0 ② 판권과 정오 2→1 ③ 다음 달 ④ 엽서 ⑤ 각자의 하루 · ⑥ 우리 사이 자리만) · `reduce_to_cap` 한 면씩 · `plan_pages(base, photos, next_month_pages, postcard_pages)` · 다 줄여도 넘으면 `over` → `compose.py`가 실패. 지금 짜임에서 ①②는 채우는 면이라 넘치는 호에서는 이미 0면 · 1면 - 실제로 줄어드는 것은 ③④. 36 이하 호는 동작 그대로(시험). 줄였으면 보고 `pagePlan.reductions`.
+- HANDOFF 생성 명령 3줄에 `--unstable-sloppy-imports`(:717 · :728 · :945).
+- 검증: 루트 tsc 0 · jest 136 스위트 / 2445 · deno check(ops 3 sloppy · `_shared/corners/loveDna.ts`) 0 · 렌더 시험 453 통과(1391초) · `npm run gate`(web) 2회째 통과 227.4초(smoke 44/44 · 1회째 smoke 3건 실패 - 동의 스크롤 · 하늘 칩, web 변경 0 · 부하 흔들림으로 봄) · 시드 11 시나리오 채운 HTML이 HEAD와 바이트 같음(2.0 견본은 목차 · 판권 2면만 다름).
 
 ## `2.0-0` 매거진 2.0 현황 조사 · 코너별 데이터 계약 초안 · iOS 준비 읽기 (메인 세션, 2026-11-25, 위임문 `phase-7/m20-0-dispatch-magazine-2-0-survey.md` · ROADMAP r156 R156-2~10 · R155-3 · R155-4 · MASTER r84) - 완료 · 멈춤 0 · 읽기 전용(코드 0 · 원격 0 · LLM 0) (미커밋)
 
@@ -714,7 +720,7 @@ deno run --no-lock --config supabase/functions/deno.json --allow-read=. --allow-
 
 **3) 두 폰 커플 미리 보기** (쓰기 0 · LLM 0 · 커플 id 치기 0):
 ```
-deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/generateIssueCli.ts --allow-phone-test-couple --dry-run 2>&1 | m
+deno run --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net=$h --allow-read="supabase/.temp/linked-project.json,$al" scripts/ops/generateIssueCli.ts --allow-phone-test-couple --dry-run 2>&1 | m
 ```
 → "두 폰 커플 길(51- ③): … 1개 - 확인됨" · 선행 검사 `통과` · 모델 `허용 - claude-sonnet-5-5` · 달마다 `## YYYY-MM` + 날짜별 개수 · 코너 재료. Proteur가 **기간 한 달**(3일치 기록이 있는 달 · 그 달 호 "없음" 또는 "초안 있음")을 정해 그 줄의 `--period-start` · `--period-end` 값을 아래 변수에 넣는다:
 ```
@@ -725,7 +731,7 @@ $ps = '2026-11-01'; $pe = '2026-12-01'
 
 4-1. 생성(실제 모드 · Sonnet 5.5는 `app_config.llm_provider` · 플래그):
 ```
-deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_LLM_API_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net="$h,api.anthropic.com" --allow-read="supabase/.temp/linked-project.json,scripts/ops/out,$al" --allow-write=scripts/ops/out scripts/ops/generateIssueCli.ts --allow-phone-test-couple --mode live --period-start $ps --period-end $pe 2>&1 | m
+deno run --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_LLM_API_KEY,ONDOLOG_RESET_ALLOWLIST,USERPROFILE,HOME --allow-net="$h,api.anthropic.com" --allow-read="supabase/.temp/linked-project.json,scripts/ops/out,$al" --allow-write=scripts/ops/out scripts/ops/generateIssueCli.ts --allow-phone-test-couple --mode live --period-start $ps --period-end $pe 2>&1 | m
 $iid = (Get-ChildItem scripts\ops\out\generate-*.json | Sort-Object LastWriteTime | Select-Object -Last 1).BaseName -replace '^generate-',''
 $g = Get-Content "scripts\ops\out\generate-$iid.json" -Raw -Encoding UTF8 | ConvertFrom-Json; $g.mode -eq 'live' -and $g.period.start -eq $ps
 ```
@@ -942,7 +948,7 @@ $cid = ((Get-Content scripts\ops\out\seed-m2b-2025.json -Raw -Encoding UTF8 | Co
 
 4-1. 생성(실제 모드 · Sonnet 5.5는 `app_config.llm_provider`가 정함 · 기간 2025-09 = `[2025-09-01, 2025-10-01)` KST):
 ```
-deno run --no-lock --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_LLM_API_KEY --allow-net="$h,api.anthropic.com" --allow-read=supabase/.temp/linked-project.json,scripts/ops/out --allow-write=scripts/ops/out scripts/ops/generateIssueCli.ts --couple-id $cid --period-start 2025-09-01 --period-end 2025-10-01 --mode live 2>&1 | m
+deno run --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json --allow-env=ONDOLOG_SUPABASE_URL,ONDOLOG_SUPABASE_SERVICE_ROLE_KEY,ONDOLOG_LLM_API_KEY --allow-net="$h,api.anthropic.com" --allow-read=supabase/.temp/linked-project.json,scripts/ops/out --allow-write=scripts/ops/out scripts/ops/generateIssueCli.ts --couple-id $cid --period-start 2025-09-01 --period-end 2025-10-01 --mode live 2>&1 | m
 $iid = (Get-ChildItem scripts\ops\out\generate-*.json | Sort-Object LastWriteTime | Select-Object -Last 1).BaseName -replace '^generate-',''
 (Get-Content "scripts\ops\out\generate-$iid.json" -Raw -Encoding UTF8 | ConvertFrom-Json).coupleId -eq $cid
 ```
