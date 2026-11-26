@@ -64,5 +64,11 @@
     "by": "m20-a1 (2026-11-26)",
     "stored_at": "appendix 행 payload.nextMonth (null이면 면 없음)",
     "promise_check": "render/promise_check.py - 뒤표지 · 다음 달 · 발행 노트(이어서 포함)에 약속 꼴이 있으면 렌더 멈춤"
+  },
+  "design_request_pending_pm": {
+    "note": "2.0-D(ROADMAP r158) - 디자인 v2.0.0 README §10 ③ 필드 요청 중 PM이 아직 정하지 않은 것. 엔진 · 저장은 바꾸지 않았다. PE가 PM에게 올림",
+    "items": [
+      "openingCorners[]{text} = 달력 사실로 정해지는 코너의 사실 문장 상수표"
+    ]
   }
 }

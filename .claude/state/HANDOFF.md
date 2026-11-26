@@ -11,6 +11,47 @@
 HANDOFF에 무언가를 더할 때는 끝에 붙이지 말고 "열린 항목"이나 새 섹션에 넣는다.
 > **HANDOFF는 사람이 덮어쓰지 않는다**(R112-4) — 메인 세션이 고친 것을 커밋만.
 
+## `2.0-D` 디자인 묶음 5 반입(매거진 v2.0.0 · 입력 화면 보드) + 2.0-A1 코너를 새 틀에 연결 (메인 세션, 2026-11-26, 위임문 `phase-7/m20-d-dispatch-design-batch5-import.md` · ROADMAP r158 R158-5~11 · R151-3) - 완료 · 멈춤 1(정정 4) (미커밋)
+
+시작 확인: ROADMAP `r158` · A1 2차 내용은 커밋 `ed4f268`("1126 1646" - 메시지는 위임서 기대와 다름, 내용 같음). LLM 0 · 원격 0 · 마이그레이션 0 · 앱 0 · 새 패키지 0.
+
+### ① 반입 (R151-3)
+- 풀기 전 ` D` 0 → 두 압축을 저장소 밖(스크래치)에서 풀고 목록 대조: render 압축 68파일 = 같음 38 · 바뀜 12 · 새 18 · 지울 것 0(저장소에만 있는 것은 `measure.env.json` 하나 - 개발 파일). canvas 압축 36 = 보드 1 · 화면 30 · CHANGES · CURRENT rows · 색인 rows.
+- 옮긴 뒤 `git status` = 압축 목록과 같음 · ` D` 0(뒤에 임시 틀 10개 삭제만 - 위임이 의도한 삭제).
+- `samples/*.pdf` 2개(3.3MB 안팎)는 **처음 생기는 바이너리** → 루트 `.gitignore` `render/issue/samples/*.pdf` · 파일은 로컬만. 압축 줄 `.claude/state/prompts/**/*.zip`도 더함. **두 압축은 이미 커밋 `7677667`로 추적 중** - `.gitignore`로는 빠지지 않음(PM · 사람 판단: `git rm --cached`).
+- 지면 28 · 파일 68 · 렌더러 Python 변경 0(압축은 `render/issue/`만) · 글꼴 해시 같음(`measure.env.json` 글꼴 칸 그대로).
+- v1.2.4 13지면: 시나리오 11개 채운 HTML 차이 = contents 11(변형 묶음 래퍼 · 보이는 변화 0) · note 11(top 300→280 · gap 40→32 · 두 목록 위아래 · "빠진 코너" 라벨) · back 11(바닥 · 맺음 상자 `.col`) · tm-lead 10(표제 `.col` · 요약 `flex:0 1 auto`). 모두 README §10 ① 1~3 · ② 노트의 뜻대로 - 그 밖 차이 0. `overflow-wrap`은 CSS라 HTML 차이 없음.
+
+### ② F1 재측정 (R138)
+- `render/issue/tools/measure.py` 2회(87 · 77초) **바이트 같음** · 판 `v2.0.0` · validation under 0. 디자인 환경판과 다른 칸 990 / 3289(v2 324 · article 233 · timeline 194 · quotes 236 · validation 3). HEAD 렌더 환경판과 비교하면 v2 밖 값 차이 0(판 이름 · `conditions.v2`만) - 높이 표 값 같음. 88- 여유 1줄 설정(`heights.py:32` 9칸 'lines') 그대로 적용. `measure_env.py --write` - `measure.json` 해시 줄만 바뀜 · 환경 경고 0.
+
+### ③ 연결
+- F2: `render_issue.py` `DEV_TEMP_CSS_92` · `prepare_work` 덧붙임 삭제 · 임시 틀 읽기 삭제. 92- 덩어리 시험(`test_92_overset_routes.ChunkWrap`) · 88-b 시험이 임시 CSS 없이 통과.
+- F6: `render/compose20.py`를 v2.0.0 틀용으로 다시 씀 - **저장 content는 그대로, 렌더러가 틀 경로로 옮겨 담는 보기(view)**: dna-figure · dna-axes(`partners[i].bigFive.{o..n}` · `sternbergOverlap` · `attachmentCombo.pairLabel`) · rough-guess(`estimates` · `measured{reply,talkFirst,emoji}`) · appendix-calendar(`@calendar.*`) · appendix-postcard(`@appendix.postcards` 캡션 KST MM.DD) · photo-break · next(`@next.*` · 요일) · colophon(`@colophon.*`). 「발행 노트 · 이어서」 없앰 → 새 재료 줄은 `@note.materials`. `render/temp_pages/` 10개 삭제.
+- F3 · F7: `compose.py` `choose_variant` - contents short/long(8 이하/9 이상) · note rows/grid(5 이하/6 이상) · dna delta/first · chat/chat-pending · photo-break land/port. `@sample.stamp`는 실제 호에서 늘 빈 값(시험).
+- F5: `render_issue.py` `output_promise_violations` - next · colophon · note · back **채운 출력**(틀 고정 문구 포함)에 약속 검사 · 걸리면 `build_pages`가 멈춤. 틀 고정 문구 통과(시험).
+- 「판권과 정오」: 제목 표(A1) · 렌더러 · **틀 러닝헤드 고정 문구 한 곳**(`render/issue/pages/colophon.html:20` "판권 · 정오" → "판권과 정오"). 호 줄 "2026년 9월호 · 제 3호".
+- **판권 한 면**: v2.0.0 colophon 틀은 정오를 다음 면으로 나누는 변형이 없다 → `plan_pages(colophon_split_ok=False)` - 판권 여백으로 채우지 않고 `short`로 남김(2.0 견본 24 → 23쪽 short 1) - PM 확인.
+- F4(되받기 블록 등록)는 하지 않음 - **F4는 그 코너 위임에서 등록**(setlog `.entries` · interview `payload.rounds`/`.questions` · guest `payload.responses` · league-report `payload.statChanges`). 높이 표 = `render/issue/measure.json` `v2`(README §13-3). 셋로그 · 인터뷰 · 게스트 · 어깨너머 · 협찬 · 리그 2면 틀은 반입만.
+
+### ④ 정정
+1. 애착 짝 이름: `src/engine/loveDna.ts` `ATTACHMENT_PAIR_LABELS`(조합 10 · 명사형 · 문장 PM 승인 대상) · `attachmentPairLabel` · facts `attachment.pairLabel` · 저장 스키마 `storedContent.ts` `attachment.pairLabel` optional(이전 호 호환). 렌더러는 AI · 엔진 문장 칸에 유형 이름이 있으면 멈춤(`compose20.py` `ATTACHMENT_TYPE_NAMES`). 시험 `m20a1Engines.test.ts` "애착 짝 이름" · `test_m20a1.AttachmentNames`.
+2. 모든 지면 출력 애착 이름 0 시험: `test_m20a1.AttachmentNames.test_no_attachment_type_name_in_any_page_output`(2.0 견본 + 3코너 6 시나리오).
+3. 면책 문장: `src/engine/roughGuess.ts` `ROUGH_GUESS_DISCLAIMER` = "재미로 보는 지면입니다. 진짜로 잰 값은 아닙니다." - 틀은 슬롯(`payload.disclaimer`)이라 틀 변경 0.
+4. **멈춤** - 승인 질문 풀 60의 원문이 저장소에 없다(MASTER · 기획서는 "r157 승인"만). 견본 질문(`render/issue/pages/interview.html:43` "혼자 있고 싶을 때 주로 어디로 가요?")을 바꾸지 않음. `tools/sample.py`에는 질문 없음. 보드 L01~L04는 다음 디자인 묶음 정정 항목.
+
+### ⑤ 계약 (`docs/magazine-2-0/contracts/`)
+rough_guess(estimates · measured · dateText · topic · 면책 문장 · 저장 모양 노트) · love_dna(chatDelta A′ 식 · dna_v0 · pairLabel 출처 · chatApplied 확인) · couple_interview(mostDivergent 삭제) · over_shoulder(ourValue 삭제) · publication_note(notUsed 뜻 · skippedCorners 추가) · league_monthly(current · matchReport · pages.max 2) · colophon(「판권과 정오」 · 호 줄 규칙 · 한 면 노트). `design_request_pending_pm`: love_dna 3 · couple_interview 2 · offline_setlog 2 · special_guest · sponsored · appendix · next_issue · colophon 2.
+
+### ⑥ 문서 반입
+`docs/design/nocturne/N-R20-Magazine-Input.dc.html` · `screens/` K01 K02 L01~L04 N01 N02 P01~P03 W01~W04(+`__anno`) 30장 · `CHANGES_batch5.md` · `CURRENT.md` §7 · `screens_index.csv` 15줄(중복 0). rows 파일은 저장소에 두지 않음.
+
+### ⑦ 견본 렌더 (로컬 · 합성 · 출력은 저장소 밖)
+시나리오 11 + 2.0 견본 2권 모두 gate 통과: 넘침 · 잘림(원문) · 겹침 0 · 사실 어긋남 0 · 판면 밖 0 · 디자인 audit 같음 · 약속 문장 0 · 애착 이름 0 · 환경 경고 0. 2.0 견본 basic 23쪽(short 1) · ondol 18쪽(short 2 - 사진 0). s11-batch4 da-opener 긴 AI 제목 clamp 기록 1(원문 아님 · 실패 아님).
+
+### 검증
+검증: 루트 tsc 0 · jest 136 스위트 / 2446 · deno check(ops 2 sloppy · `_shared/corners` loveDna · roughGuess) 0 · 렌더 시험 464 통과(1216초 - 첫 전체 실행에서 반입 때문에 3건 실패: `test_facts.NoteEquation`(2.0 재료 줄은 R50-2 정합 대상 밖) · `test_r51` 재소환 줄(표가 변형 묶음 안) · `test_slot_fill` 지면 수 13 → 28 - 시험을 새 구조에 맞춤) · `npm run gate`(web) 통과 157.4초(smoke 44/44) · measure.json 2회 바이트 같음 · 환경 경고 0
+
 ## `2.0-A1` 매거진 2.0 엔진 1부 - 채팅 지표 · 두 사람의 결 · 어림짐작 · 부록 · 부속 3종 · 발행 노트 줄 · 쪽 수 규칙 · 임시 틀 (메인 세션, 2026-11-26, 위임문 `phase-7/m20-a1-dispatch-engines.md` · ROADMAP r157 R157-3~9 · MASTER r85) - 1차 ①~⑧ 수락(R158-1) · 2차 ⑨ 완료(R158-2~6) (미커밋)
 
 시작 확인: ROADMAP `DOC_REVISION: 2026-11-25-r157` · MASTER `2026-11-25-r85` · 계약 JSON 14 + README - 통과. 기획서 머리말은 아직 r156 표기(내용은 R157 행이 우선 - 생일 0 · 「다음 달」로 읽음).

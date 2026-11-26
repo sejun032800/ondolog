@@ -250,11 +250,11 @@ class Order(unittest.TestCase):
 
 
 class RealPages(unittest.TestCase):
-    """디자인이 넘긴 지면 13종이 이 문법으로 채워진다 - 구조는 그대로, 견본 사진 경로는 남지 않는다."""
+    """디자인이 넘긴 지면 28종(v2.0.0 · v1.2.4의 13 + 새 15)이 이 문법으로 채워진다 - 구조는 그대로, 견본 사진 경로는 남지 않는다."""
 
     def test_every_page_fills_with_nothing_and_leaves_no_sample_path(self):
         pages = sorted(PAGES.glob('*.html'))
-        self.assertEqual(len(pages), 13)
+        self.assertEqual(len(pages), 28)   # README v2.0.0 §1
         for page in pages:
             html = page.read_text(encoding='utf-8')
             out = fill(html, {}, {}, {}, None)

@@ -1,8 +1,8 @@
 {
   "corner_id": "colophon",
   "kind": "부속",
-  "page_title": "판권 정오",
-  "page_title_note": "「판권 · 정오」의 가운뎃점이 지면 제목 형식 ^[가-힣 ]{1,7}$에 걸려 지면 제목은 \"판권 정오\" · 코너 이름(목차)은 \"판권 · 정오\" - PM 확인",
+  "page_title": "판권과 정오",
+  "page_title_note": "ROADMAP r158 R158-3의 6 - 코너 이름 · 지면 제목 · 러닝헤드 모두 「판권과 정오」(지면 제목 형식 ^[가-힣 ]{1,7}$ 통과). 디자인 제안 \"판권 정오\" · \"판권 · 정오\"는 쓰지 않음",
   "pages": {
     "min": 1,
     "max": 1
@@ -61,5 +61,14 @@
     "stored_at": "appendix 행 payload.colophon",
     "not_printed": "발행일 - 렌더가 발행보다 앞서 값이 없고, 지면 사실 점검(render/local_volumes.py facts_check)이 \"발행일\"을 지면 금지어로 본다(MASTER r63) - PM 확인",
     "margin_page": "쪽 수 맞춤의 \"판권 여백\" = 정오를 다음 면으로 나눔(tp-colophon-errata)"
+  },
+  "issue_label_rule": "\"○○○○년 ○월호 · 제 n호\"만 - 발행일은 찍지 않는다(R158-3의 6). 호 번호가 없으면 호 라벨만",
+  "template_note": "2.0-D: 디자인 v2.0.0 colophon.html은 한 면(정오를 다음 면으로 나누는 변형 없음) - 쪽 수 규칙의 \"판권 여백 1면\"을 렌더러가 쓰지 않음(PM 확인 대상)",
+  "design_request_pending_pm": {
+    "note": "2.0-D(ROADMAP r158) - 디자인 v2.0.0 README §10 ③ 필드 요청 중 PM이 아직 정하지 않은 것. 엔진 · 저장은 바꾸지 않았다. PE가 PM에게 올림",
+    "items": [
+      "errata[]{where, text} - 지난 호 정정(입력 길은 운영) · 지금은 늘 빈 배열(지면 줄째 빠짐)",
+      "판권 줄 writers · photographers(content에 없음 - 지금은 빈 값으로 줄째 빠짐)"
+    ]
   }
 }

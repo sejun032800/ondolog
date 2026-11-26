@@ -16,14 +16,16 @@
     <img data-src="@back.photo" src="../images/sample/back.jpg" alt="">
   </div>
 
-  <div class="ab" style="left:0;right:0;top:560px;text-align:center">
+  <div class="ab col" style="top:560px;text-align:center">
     <p class="mb clamp2" style="margin:0;font-size:20px;line-height:38px;font-weight:300"
        data-slot="@back.closing">8월의 온도를<br>여기에 두고 갑니다</p>
   </div>
 
-  <!-- v1.2.3 확정(R50-6) · R157-7 — 사실(날짜 · 기념일)은 허용하고 다음 호를 약속하는 문장은 두지 않는다(MASTER r63 - 호가 나오지 않을 수 있다). "NEXT ISSUE · {다음 달}" 줄도 없다. @back.nextMonth는 쓰지 않는다 -->
+  <!-- v1.2.3 확정(R50-6) · v2.0.0 뜻 정정(R157-7) — 다음 호를 **약속하는 문장**은 두지 않는다(MASTER r63 · 호가 안 나올 수 있다). "NEXT ISSUE · {다음 달}" 줄도 약속으로 읽혀 두지 않는다. 다음 달의 **사실**(날짜 · 기념일 · 열릴 코너)은 「다음 달」 지면(next.html)이 싣는다. @back.nextMonth는 쓰지 않는다 -->
 
-  <div class="ab" style="left:0;right:0;bottom:76px;text-align:center">
+  <!-- v2.0.0 (묶음 5 · 3부 1) - 바닥 상자를 판면 폭(.col = 좌우 68px)으로. 전에는 left:0;right:0(종이 폭)이라 긴 별명 · 이름이 판면 밖으로 나갔다.
+       별명 · 이름 줄은 판면 안에서 꺾인다(base.css anywhere). 워드마크는 그대로 가운데 -->
+  <div class="ab col" style="bottom:76px;text-align:center">
     <span class="wm" style="font-size:16px;display:block;margin-left:.5em">ONDOLOG</span>
     <span class="note" style="display:block;margin-top:14px"><span
           data-slot="@issue.nickname">늘봄</span> · <span data-slot="@issue.names">세준 · 서영</span></span>

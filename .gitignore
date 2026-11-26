@@ -56,3 +56,8 @@ web/android/.idea/deploymentTargetSelector.xml
 
 # 78- Firebase Android 설정(키 문자열 포함 - 사람이 web/android/app/에 직접 넣는다, 커밋 0)
 web/android/app/google-services.json
+
+# 디자인 묶음 압축은 커밋하지 않는다(R151-3 · R157-12 F2)
+.claude/state/prompts/**/*.zip
+# 견본 호 PDF는 tools/sample.py로 다시 만든다 - 처음 생기는 큰 바이너리라 커밋 0(2.0-D)
+render/issue/samples/*.pdf

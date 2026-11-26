@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 어깨너머</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 어깨너머(over_shoulder) 1면 — 다른 커플의 **집계 숫자만**. 사람 · 글 · 사진 0. 기획서 2절 10 · 계약 contracts/over_shoulder.json(+ F-OS)
+     문: 활성 100쌍 이상일 때만 이 지면이 있다. 칸마다 20쌍 미만이면 그 칸을 지운다(엔진) → 지운 칸이 있으면 바닥에 한 줄.
+     **이 커플의 값(ourValue)은 나란히 싣지 않는다** — 다른 커플과 견주는 순간 경쟁이 된다(17-2 절대평가). 표 · 순위 · 평균선 0 -->
+<body class="os">
+  <div class="ab col run">
+    <span class="kk-ko">어깨너머</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:86px">
+    <span class="kk">Over the Shoulder</span>
+    <h1 class="h-display" style="margin-top:14px;font-size:38px;line-height:1.2">어깨너머</h1>
+    <p class="body-sub" style="margin:16px 0 0;width:var(--bodyW)">온도록을 함께 쓰는 <span data-slot="@os.activeCouplesText">1,240쌍</span>이 이번 달 남긴 기록을 숫자로만 셌습니다. 어느 커플의 글도, 사진도, 이름도 싣지 않았습니다.</p>
+  </div>
+
+  <div class="ab col" style="top:300px">
+    <div class="grid" data-repeat="payload.cells">
+      <div class="oc"><span class="ol" data-slot=".label">이번 달 데이트를 기록한 날</span><span class="ov" data-slot=".valueText">4일</span><span class="on"><span data-slot=".nText">212쌍</span>에서 셈</span></div>
+      <div class="oc"><span class="ol">사진을 한 장 이상 남긴 데이트</span><span class="ov">82%</span><span class="on"><span>180쌍</span>에서 셈</span></div>
+      <div class="oc"><span class="ol">대화가 가장 많이 오간 요일</span><span class="ov">토요일</span><span class="on"><span>180쌍</span>에서 셈</span></div>
+      <div class="oc"><span class="ol">가장 많이 기록된 시간대</span><span class="ov">저녁 7시 ~ 9시</span><span class="on"><span>180쌍</span>에서 셈</span></div>
+      <div class="oc"><span class="ol">처음 가 본 곳이 있던 데이트</span><span class="ov">37%</span><span class="on"><span>180쌍</span>에서 셈</span></div>
+      <div class="oc"><span class="ol">먼저 말을 건 쪽이 매일 바뀐 커플</span><span class="ov">41%</span><span class="on"><span>180쌍</span>에서 셈</span></div>
+    </div>
+  </div>
+  <div class="ab col" style="bottom:76px">
+    <div class="rule" style="margin-bottom:12px"></div>
+    <span class="note" style="display:block">칸마다 스무 쌍이 넘을 때만 숫자를 싣습니다<span data-optional> · 이번 달 <span data-slot="@os.redactedText">2칸</span>은 커플 수가 적어 지웠습니다</span> · 이 숫자는 우리와 견주기 위한 것이 아닙니다</span>
+  </div>
+  <style>
+    .os .grid{display:grid;grid-template-columns:1fr 1fr;column-gap:58px}
+    .os .oc{padding:26px 0 24px;border-top:.6px solid var(--rule)}
+    .os .ol{display:block;font-size:12px;line-height:1.5;color:var(--ink)}
+    .os .ov{display:block;margin-top:12px;font-family:MaruBuri,serif;font-weight:200;font-size:44px;line-height:1.1;color:var(--acc);letter-spacing:-.02em}
+    .os .on{display:block;margin-top:8px;font-size:9.6px;letter-spacing:.04em;color:var(--sub)}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">2 6</div>
+</body>
+</html>

@@ -90,9 +90,11 @@ class NoteBarSpacing(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             work = Path(d) / 'work'
             r.prepare_work(work)
-            # 92- - 틀 사본 + 개발 임시 CSS 한 덩어리(`DEV_TEMP_CSS_92`)뿐. 그 밖에 덧붙이는 CSS 0
-            self.assertEqual((work / 'base.css').read_bytes(), (r.ISSUE_DIR / 'base.css').read_bytes() + r.DEV_TEMP_CSS_92.encode('utf-8'))
+            # 2.0-D(F2) - 틀 사본 그대로. 92- 개발 임시 CSS(`DEV_TEMP_CSS_92`)는 틀 v2.0.0이 `overflow-wrap:anywhere`를 맡아 지웠다
+            self.assertEqual((work / 'base.css').read_bytes(), (r.ISSUE_DIR / 'base.css').read_bytes())
         self.assertFalse(hasattr(r, 'DEV_TEMP_CSS_84G'))
+        self.assertFalse(hasattr(r, 'DEV_TEMP_CSS_92'))
+        self.assertIn('overflow-wrap:anywhere', (r.ISSUE_DIR / 'base.css').read_text(encoding='utf-8'))
         self.assertIn('word-break:keep-all', (r.ISSUE_DIR / 'base.css').read_text(encoding='utf-8'))
 
     def test_template_gap_and_no_space_in_data(self):

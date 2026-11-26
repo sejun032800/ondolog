@@ -6,13 +6,28 @@
   "pages": {
     "min": 1,
     "max": 2,
-    "note": "기획서 1절 #5 \"1~2면\". CORNER_LAYOUT 3-5(1~2) · 3-6(2~3)과 다름 - open_questions"
+    "note": "기획서 1절 #5 \"1~2면\". CORNER_LAYOUT 3-5(1~2) · 3-6(2~3)과 다름 - open_questions",
+    "r158": "pages.max 2 유지(R157-8 g · R158-9) - 디자인 요청 3(2 → 3)은 받지 않음. 능력치 배분은 2면 안"
   },
   "publish_condition": "채팅이 있는 주가 2주 이상 (기획서 1절 #5)",
   "skip_note": "TBD - 기획서에 문장 없음",
   "llm_calls": 1,
   "base_structure": "docs/ONDOLOG_CORNER_CONTENT.md §4 LeagueWeeklyPayload · §5 LeagueMonthlyPayload",
   "fields": [
+    {
+      "path": "payload.current.cards[2]",
+      "type": "array(2)",
+      "shape": "{name, ovr, ovrDeltaText, stats}",
+      "source": "TBD 엔진(A2) - 그달 마지막 주 카드(문법에 [last]가 없어 따로)",
+      "r158": "R158-9 추가 수락"
+    },
+    {
+      "path": "payload.matchReport",
+      "type": "object",
+      "shape": "{weekLabel, items[11]{term,label,valueText,measured}}",
+      "source": "TBD 엔진(A2) - 마지막 주 매치 리포트",
+      "r158": "R158-9 추가 수락"
+    },
     {
       "path": "payload.season.weekCount",
       "type": "number",

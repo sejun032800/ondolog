@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 두 사람의 결 ② 축 비교면</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 두 사람의 결(love_dna) 2/2 — 축 비교면. MASTER 17-2 지면 구성 3 · 4 · 5 · 7
+     **막대 대신 헤어라인 위 점**(.trk · base.css v2.0.0 공용). 두 사람 = 채운 점(a · partners[0]) / 빈 고리(b · partners[1]) — 모양과 명도로 가른다.
+     두 값이 같으면 고리 안에 점이 들어가 둘 다 보인다. 양 끝 말은 결핍이 아니라 특성으로(3-7) — "신경성"은 "감정의 진폭"으로 부른다 -->
+<body class="dna-ax">
+  <div class="ab col run">
+    <span class="kk-ko">두 사람의 결</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <!-- 3 빅5 다섯 축 -->
+  <div class="ab col" style="top:92px">
+    <div class="sec">
+      <span class="h-sec">다섯 가지 성향</span>
+      <span class="legend"><span><i class="key-a"></i><span data-slot="payload.partners[0].name">세준</span></span><span><i class="key-b"></i><span data-slot="payload.partners[1].name">서영</span></span></span>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <span class="nm">개방성</span>
+        <div class="tw">
+          <div class="trk"><span class="pos a" data-width="payload.partners[0].bigFive.o"><i></i></span><span class="pos b" data-width="payload.partners[1].bigFive.o"><i></i></span></div>
+          <div class="poles"><span>익숙한 것</span><span>새로운 것</span></div>
+        </div>
+        <span class="vals"><span data-slot="payload.partners[0].bigFive.o">62</span> · <span data-slot="payload.partners[1].bigFive.o">48</span></span>
+      </div>
+      <div class="row">
+        <span class="nm">성실성</span>
+        <div class="tw">
+          <div class="trk"><span class="pos a" data-width="payload.partners[0].bigFive.c"><i></i></span><span class="pos b" data-width="payload.partners[1].bigFive.c"><i></i></span></div>
+          <div class="poles"><span>즉흥</span><span>계획</span></div>
+        </div>
+        <span class="vals"><span data-slot="payload.partners[0].bigFive.c">62</span> · <span data-slot="payload.partners[1].bigFive.c">48</span></span>
+      </div>
+      <div class="row">
+        <span class="nm">외향성</span>
+        <div class="tw">
+          <div class="trk"><span class="pos a" data-width="payload.partners[0].bigFive.e"><i></i></span><span class="pos b" data-width="payload.partners[1].bigFive.e"><i></i></span></div>
+          <div class="poles"><span>혼자 충전</span><span>함께 충전</span></div>
+        </div>
+        <span class="vals"><span data-slot="payload.partners[0].bigFive.e">62</span> · <span data-slot="payload.partners[1].bigFive.e">48</span></span>
+      </div>
+      <div class="row">
+        <span class="nm">우호성</span>
+        <div class="tw">
+          <div class="trk"><span class="pos a" data-width="payload.partners[0].bigFive.a"><i></i></span><span class="pos b" data-width="payload.partners[1].bigFive.a"><i></i></span></div>
+          <div class="poles"><span>내 기준</span><span>상대 기준</span></div>
+        </div>
+        <span class="vals"><span data-slot="payload.partners[0].bigFive.a">62</span> · <span data-slot="payload.partners[1].bigFive.a">48</span></span>
+      </div>
+      <div class="row">
+        <span class="nm">감정의 진폭</span>
+        <div class="tw">
+          <div class="trk"><span class="pos a" data-width="payload.partners[0].bigFive.n"><i></i></span><span class="pos b" data-width="payload.partners[1].bigFive.n"><i></i></span></div>
+          <div class="poles"><span>잔잔함</span><span>출렁임</span></div>
+        </div>
+        <span class="vals"><span data-slot="payload.partners[0].bigFive.n">62</span> · <span data-slot="payload.partners[1].bigFive.n">48</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 스턴버그 — 삼각형 겹침 대신 세 축의 점. 면적이 크기 · 우열로 읽히지 않게(README §13) -->
+  <div class="ab" style="left:var(--mX);width:300px;top:548px">
+    <div class="sec"><span class="h-sec">세 가지 마음</span></div>
+    <div class="srows">
+      <div class="srow">
+        <div class="sh"><span class="nm">친밀</span><span class="vals"><span data-slot="payload.sternbergOverlap.intimacy.a">70</span> · <span data-slot="payload.sternbergOverlap.intimacy.b">64</span></span></div>
+        <div class="trk"><span class="pos a" data-width="payload.sternbergOverlap.intimacy.a"><i></i></span><span class="pos b" data-width="payload.sternbergOverlap.intimacy.b"><i></i></span></div>
+      </div>
+      <div class="srow">
+        <div class="sh"><span class="nm">열정</span><span class="vals"><span data-slot="payload.sternbergOverlap.passion.a">70</span> · <span data-slot="payload.sternbergOverlap.passion.b">64</span></span></div>
+        <div class="trk"><span class="pos a" data-width="payload.sternbergOverlap.passion.a"><i></i></span><span class="pos b" data-width="payload.sternbergOverlap.passion.b"><i></i></span></div>
+      </div>
+      <div class="srow">
+        <div class="sh"><span class="nm">헌신</span><span class="vals"><span data-slot="payload.sternbergOverlap.commitment.a">70</span> · <span data-slot="payload.sternbergOverlap.commitment.b">64</span></span></div>
+        <div class="trk"><span class="pos a" data-width="payload.sternbergOverlap.commitment.a"><i></i></span><span class="pos b" data-width="payload.sternbergOverlap.commitment.b"><i></i></span></div>
+      </div>
+    </div>
+    <div data-optional style="margin-top:20px">
+      <span class="ai-l">AI 정리</span>
+      <span class="ai-t" data-slot="payload.sternbergOverlap.note">친밀과 헌신이 두 사람 모두 가까운 자리에 있습니다.</span>
+    </div>
+  </div>
+
+  <!-- 5 애착 조합 — 짝 이름(명사형 · 결정론) + AI 머리말(30자) + AI 풀이(120자) -->
+  <div class="ab" style="left:426px;width:300px;top:548px">
+    <div class="sec"><span class="h-sec">마음을 기대는 방식</span></div>
+    <span class="pair" data-slot="payload.attachmentCombo.pairLabel">안정형과 안정형</span>
+    <span class="ai-l" style="margin-top:18px">AI 정리</span>
+    <span class="ai-t hd" data-slot="payload.attachmentCombo.headline">서로의 속도를 기다려 주는 짝입니다</span>
+    <span class="ai-t" data-slot="payload.attachmentCombo.body">연락이 잠시 뜸해도 마음이 흔들리지 않는 편입니다. 필요할 때는 먼저 손을 내미는 쪽이 정해져 있지 않고, 그날 여유가 있는 사람이 먼저 말을 겁니다.</span>
+  </div>
+
+  <!-- 7 실천 팁 — 일치율 60 이하인 달에만(0~2개 · 해요체 · 40자). 없으면 상자째 빠진다(data-optional).
+       조언서처럼 보이지 않게: 번호 · 체크 상자 · 굵은 제목 · 아이콘 없음. "이번 달 대화에서 해 볼 수 있는 것"으로만 -->
+  <div class="ab col tips" style="bottom:76px" data-optional>
+    <div class="rule" style="margin-bottom:14px"></div>
+    <span class="ai-l">AI 정리 · 다음 대화에서 해 볼 수 있는 것 — 숫자는 대화의 모양을 따라 움직입니다</span>
+    <div class="tl" data-repeat="payload.actionTips"><span class="ai-t" data-slot=".text">답장이 늦어질 때는 짧게라도 먼저 알려 주세요</span><span class="ai-t">하루를 마칠 때 서로의 하루를 한 줄씩 물어보세요</span></div>
+  </div>
+
+  <style>
+    .dna-ax .sec{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:12px;border-bottom:1.6px solid var(--ink)}
+    .dna-ax .legend{display:flex;gap:22px;font-size:11px;color:var(--ink)}
+    .dna-ax .legend > span{display:flex;align-items:center}
+    .dna-ax .rows{margin-top:8px}
+    .dna-ax .row{display:flex;align-items:flex-start;gap:26px;padding:20px 0 14px;border-bottom:.6px solid var(--rule)}
+    .dna-ax .row .nm{flex:0 0 92px;font-size:12.5px;font-weight:500;padding-top:1px}
+    .dna-ax .row .tw{flex:1 1 auto}
+    .dna-ax .poles{display:flex;justify-content:space-between;margin-top:9px;font-size:9.4px;letter-spacing:.04em;color:var(--sub)}
+    .dna-ax .vals{flex:0 0 64px;text-align:right;font-size:11px;color:var(--acc);font-feature-settings:"tnum" 1;padding-top:1px}
+    .dna-ax .srow{padding:16px 0 12px;border-bottom:.6px solid var(--rule)}
+    .dna-ax .sh{display:flex;justify-content:space-between;margin-bottom:10px}
+    .dna-ax .sh .nm{font-size:12.5px;font-weight:500}
+    .dna-ax .sh .vals{flex:none}
+    .dna-ax .pair{display:block;margin-top:20px;font-family:MaruBuri,serif;font-weight:300;font-size:24px;line-height:1.4;color:var(--ink)}
+    .dna-ax .ai-t.hd{font-size:12px;font-weight:500}
+    .dna-ax .tl .ai-t{margin-top:7px}
+    .dna-ax .tl .ai-t::before{content:"— ";}
+  </style>
+  <div class="ab folio folio-r" style="right:var(--mX)" data-slot="@page">2 3</div>
+</body>
+</html>

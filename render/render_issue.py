@@ -59,6 +59,7 @@ from page_audit import (  # noqa: E402
     recorded_clipped, route,
 )
 from slot_fill import fill  # noqa: E402
+from promise_check import promise_violations  # noqa: E402
 from measure_env import env_warnings  # noqa: E402
 from photo_fit import PhotoFitError, fit_photo, load_config as load_render_config, metadata_found, summarize  # noqa: E402
 
@@ -70,7 +71,6 @@ MAGAZINE_BUCKET = 'magazine'
 LINKED_PROJECT_FILE = REPO / 'supabase' / '.temp' / 'linked-project.json'
 ISSUE_DIR = HERE / 'issue'
 PAGES_DIR = ISSUE_DIR / 'pages'
-TEMP_PAGES_DIR = HERE / 'temp_pages'   # 2.0-A1 임시 틀(위임 m20-a1 ⑧)
 TOOLS_DIR = ISSUE_DIR / 'tools'
 ASSETS = ('base.css', 'themes', 'fonts')  # 작업 폴더로 복사하는 것 - 견본 사진(images/)은 복사하지 않는다
 SAMPLE_MARK = 'images/sample'
@@ -383,17 +383,30 @@ def ascii_name(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 def load_templates(pages_dir: Path = PAGES_DIR) -> dict[str, str]:
-    out = {p.stem: p.read_text(encoding='utf-8') for p in sorted(pages_dir.glob('*.html'))}
-    # 2.0-A1 임시 틀(`render/temp_pages/` - 디자인 틀과 섞지 않는 별도 폴더, 이름은 `tp-` 앞머리). 디자인 v2.0.0 반입 때 교체
-    if pages_dir == PAGES_DIR:
-        out.update({p.stem: p.read_text(encoding='utf-8') for p in sorted(TEMP_PAGES_DIR.glob('*.html'))})
-    return out
+    # 2.0-D: 2.0-A1 임시 틀(`render/temp_pages/`)은 디자인 v2.0.0 틀로 바꾸고 폴더째 지웠다 - 틀은 `render/issue/pages/` 한 곳
+    return {p.stem: p.read_text(encoding='utf-8') for p in sorted(pages_dir.glob('*.html'))}
 
 
 # 디자인 v1.2.3에서 틀이 맡게 된 개발 임시 처리 - 렌더러에서 없앴다(README §10 ① · D7 · D8):
 #   - `drop_empty_count_cells`(R50-4 · R51-5, 55-3b/c): 0인 숫자 칸 · `사진 0` 라벨 -> 틀의 칸마다 `data-optional`
 #   - `add_note_recalled_line`(R51-2, 55-3c): 발행 노트 재소환 사진 줄 + 블록 36px 내리기 -> 틀의 `@note.recalledPhotosLine` 자리 + 흐르는 한 단
 #   - `add_note_ai_notice`(84-c2 R134-5 ②): 발행 노트 끝 AI 안내 줄 끼우기 -> 틀의 `@note.aiNotice` 슬롯(#19). 문장은 그대로 `compose.NOTE_AI_NOTICE` 한 곳
+
+
+# 2.0-D F5(README v2.0.0 §10 ④) - 약속 문장 금지(R157-7)를 채운 출력에 거는 지면. 뒤표지는 A1부터 같은 규칙
+PROMISE_CHECKED_STEMS = frozenset({'next', 'colophon', 'note', 'back'})
+
+
+def output_visible_text(html: str) -> str:
+    """채운 지면에서 독자가 보는 글자만(`<style>` · `<title>` · 주석 빼고)."""
+    soup = BeautifulSoup(html, 'html.parser')
+    for t in soup(['style', 'title', 'script', 'head']):
+        t.decompose()
+    return ' '.join(soup.get_text(' ').split())
+
+
+def output_promise_violations(stem: str, html: str) -> list:
+    return promise_violations(output_visible_text(html)) if stem in PROMISE_CHECKED_STEMS else []
 
 
 def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
@@ -414,22 +427,12 @@ def fill_page(spec: PageSpec, theme: str, templates: dict[str, str]) -> str:
 # ① b: `note.html` 막대 `gap:.35em` - 렌더러가 간격을 또 넣으면 두 번 띄워진다, E2).
 
 
-# 92- 개발 임시 수정(틀 수정 전까지 - 2.0 디자인 묶음 정정 항목, 틀 `render/issue/`은 고치지 않는다).
-# 근거: v1.2.4 README §10 ① a 규칙 "띄어쓰기 없는 덩어리만 칸 끝에서 꺾는다"(`base.css` body `overflow-wrap:break-word`).
-# 그런데 위치를 왼쪽만 정한 상자 · 줄 안 상자는 칸 너비를 **가장 긴 덩어리 폭**(min-content - break-word는 이 폭을 줄이지 않는다)으로 잡아,
-# 덩어리(ㅋ×34 · 긴 주소)가 칸 끝에서 꺾이지 않고 판면 밖(safe)으로 나간다(92- 덩어리 탐침). 그런 증상이 나온 **사람 · 온도록이 쓴 글 칸**에만
-# `overflow-wrap:anywhere`를 건다 - 덩어리만 칸 끝에서 꺾이고(낱말 단위 줄바꿈 keep-all은 그대로), 띄어 쓴 글의 줄바꿈은 바뀌지 않는다.
-# 작업 폴더의 `base.css` 사본 끝에만 붙는다(지면 HTML · 틀 0). 이 뒤에도 남는 넘침은 되받기 · 실패 그대로(판면 이탈 판정 예외 0).
-DEV_TEMP_CSS_92 = (
-    '\n/* 92- 개발 임시(틀 수정 전) - v1.2.4 README §10 ① a: 띄어쓰기 없는 덩어리만 칸 끝에서 꺾음. 덩어리가 칸 밖으로 나가던 글 칸에만 */\n'
-    '[data-slot=".userNotes[0].text"],[data-slot=".text"],[data-slot=".basis"],[data-slot="payload.theme.headline"],'
-    '[data-slot=".value"],[data-slot="@issue.names"],[data-slot="@issue.nickname"]{overflow-wrap:anywhere}\n'
-)
+# 92- 개발 임시 CSS(`DEV_TEMP_CSS_92` - 덩어리 글 칸에만 `overflow-wrap:anywhere`)는 2.0-D에서 지웠다:
+# 디자인 v2.0.0이 `base.css` body를 `overflow-wrap:anywhere`로 바꿔 틀이 스스로 덩어리를 꺾는다(README §10 ① 5 · F2).
 
 
 def prepare_work(work: Path) -> None:
-    """작업 폴더에 스타일·테마·폰트를 복사한다. **견본 사진(images/)은 복사하지 않는다.** 틀은 그대로 복사하고,
-    `base.css` 사본 끝에만 92- 개발 임시 CSS(`DEV_TEMP_CSS_92`)를 붙인다(지면 HTML · 틀 원본은 그대로)."""
+    """작업 폴더에 스타일·테마·폰트를 복사한다. **견본 사진(images/)은 복사하지 않는다.** 틀은 그대로 복사한다(덧붙이는 CSS 0)."""
     if work.exists():
         shutil.rmtree(work)
     (work / 'pages').mkdir(parents=True)
@@ -440,8 +443,6 @@ def prepare_work(work: Path) -> None:
             shutil.copytree(src, work / name)
         else:
             shutil.copy2(src, work / name)
-    with open(work / 'base.css', 'a', encoding='utf-8', newline='\n') as fh:
-        fh.write(DEV_TEMP_CSS_92)
 
 
 COVER_QUOTE_MAX_LINES = 2   # README v1.2.3 §11 ⑫ - 표지 이 달의 말은 두 줄까지(넘으면 줄째 지운다 - 원문을 자르지 않는다, R136-2 ③)
@@ -579,6 +580,9 @@ def build_pages(composition: Composition, templates: dict[str, str], work: Path,
             html = html.replace(f'src="{dest}"', f'src="{rel}"')
         if SAMPLE_MARK in html:
             raise StopError(f'결과 HTML에 견본 사진 경로가 남았다 ({spec.stem}) - 견본은 렌더 결과에 들어가면 안 된다')
+        found = output_promise_violations(spec.stem, html)
+        if found:   # 2.0-D F5 · R157-7 - 채운 **출력**(틀 고정 문구 포함)에 다음 호 약속 문장이 있으면 멈춘다
+            raise StopError(f'약속 문장 금지 - {spec.stem}: {found}')
         for src in re.findall(r'<img\b[^>]*\bsrc="([^"]*)"', html):
             if not src.startswith('../photos/') or not (work / 'pages' / src).resolve().exists():
                 raise StopError(f'채운 지면의 이미지 경로가 작업 폴더의 사진이 아니다 ({spec.stem}: {src})')

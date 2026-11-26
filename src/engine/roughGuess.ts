@@ -41,7 +41,8 @@ export const ROUGH_GUESS_V0 = {
   similarRelative: 0.1,
 } as const
 
-export const ROUGH_GUESS_DISCLAIMER = '재미로만 봐주세요. 진짜로 재는 건 아닙니다.'
+/** 면책 문장 - 지면 문장이라 합니다체(ROADMAP r158 R158-8 ② · 2.0-D 정정 3). MASTER 17-9의 "재미로만 봐주세요"를 PM이 바꿈. */
+export const ROUGH_GUESS_DISCLAIMER = '재미로 보는 지면입니다. 진짜로 잰 값은 아닙니다.'
 export const ROUGH_GUESS_FOOTNOTE = '성격 검사와 이번 달 대화 기록으로 계산했습니다'
 
 export type RoughGuessSource = 'estimate' | 'measured'

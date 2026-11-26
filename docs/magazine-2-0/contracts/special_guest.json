@@ -107,5 +107,11 @@
     "웹 페이지 호스팅(Edge Function 서빙 vs 별도) · 응답 상한 10명 확정",
     "싣지 않은 글 정리 시점(호 발행 뒤) - 보관 배치 설계"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "design_request_pending_pm": {
+    "note": "2.0-D(ROADMAP r158) - 디자인 v2.0.0 README §10 ③ 필드 요청 중 PM이 아직 정하지 않은 것. 엔진 · 저장은 바꾸지 않았다. PE가 PM에게 올림",
+    "items": [
+      "responses[].answers[3] 질문별 100자(한 사람 최대 300자)"
+    ]
+  }
 }

@@ -296,7 +296,7 @@ class CleanVolumes(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 class ChunkWrap(unittest.TestCase):
-    """R5 - 92- 개발 임시 CSS(`DEV_TEMP_CSS_92`) 뒤: 덩어리는 칸 끝에서 꺾여 판면 안에 머물고, 꺾여서 늘어난 줄이 예측보다 높으면 되받기가 잡는다."""
+    """R5 - (2.0-D: 임시 CSS 없이 틀 v2.0.0 `base.css` `overflow-wrap:anywhere`만으로) 덩어리는 칸 끝에서 꺾여 판면 안에 머물고, 꺾여서 늘어난 줄이 예측보다 높으면 되받기가 잡는다."""
 
     CHUNKY = ' '.join(['ㅋ' * 34, 'https://example.com/very/long/path/to/a/page/that/never/breaks/anywhere?with=query&and=more',
                        '오늘은진짜로아무말도하지않고그냥계속걷기만했던날이었다'] * 4)

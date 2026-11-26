@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 부록 ② 사진 엽서</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 부록 2/2 — 사진 엽서. 그달 사진 2장(1장이면 한 장만 · 0장이면 이 면째 빠짐). 엽서 = A6 가로 148×105mm(559×397px · 점선) + 재단선(점선 밖 18px 여백의 네 귀 — 상자 안에 두어 지면 검사에 걸리지 않게).
+     사진은 엽서 비율로 가운데 자른다. 캡션은 명사형 한 줄(날짜 · 장소 — 렌더러 조립 · AI 0). 위치 정보 없는 사진만(엔진) -->
+<body class="pcp">
+  <div class="ab col run">
+    <span class="kk-ko">부록</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:92px"><span class="kk">Appendix · Postcards</span>
+    <p class="body-sub" style="margin:12px 0 0">이번 달 사진으로 만든 엽서입니다. 재단선을 따라 잘라 쓰세요.</p></div>
+  <div class="ab" style="left:99px;top:182px;width:595px">
+    <div class="pcs" data-repeat="@appendix.postcards">
+      <div class="pc"><i class="cm tl"></i><i class="cm tr"></i><i class="cm bl"></i><i class="cm br"></i>
+        <div class="ph pp"><img data-src=".path" src="../images/sample/da_open.jpg" alt=""></div>
+        <span class="pcap" data-slot=".caption">09.20 · 예시 산책로</span></div>
+      <div class="pc"><i class="cm tl"></i><i class="cm tr"></i><i class="cm bl"></i><i class="cm br"></i>
+        <div class="ph pp"><img src="../images/sample/da_01.jpg" alt=""></div>
+        <span class="pcap">09.06 · 예시 카페</span></div>
+    </div>
+  </div>
+  <style>
+    .pcp .pcs{display:flex;flex-direction:column;gap:10px}
+    .pcp .pc{position:relative;width:595px;height:433px;padding:32px}
+    .pcp .pc::before{content:"";position:absolute;inset:18px;border:.6px dashed var(--hair)}
+    .pcp .pp{height:330px}
+    .pcp .pcap{display:block;margin-top:9px;font-size:9.6px;letter-spacing:.06em;color:var(--sub)}
+    .pcp .cm{position:absolute;width:12px;height:12px;border-color:var(--ink);border-style:solid;border-width:0}
+    .pcp .cm.tl{left:0;top:0;border-right-width:.8px;border-bottom-width:.8px}
+    .pcp .cm.tr{right:0;top:0;border-left-width:.8px;border-bottom-width:.8px}
+    .pcp .cm.bl{left:0;bottom:0;border-right-width:.8px;border-top-width:.8px}
+    .pcp .cm.br{right:0;bottom:0;border-left-width:.8px;border-top-width:.8px}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">2 9</div>
+</body>
+</html>

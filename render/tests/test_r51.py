@@ -109,7 +109,9 @@ class RecalledPhotosLine(unittest.TestCase):
         self.assertEqual(note['recalledPhotosLine'], want)
         soup = soup_of(pages(comp, 'note')[0], comp)
         table = soup.select_one('table.tb')
-        line = table.find_next_sibling('span')
+        # v2.0.0 - 표는 변형 묶음(`data-variant="rows"`) 안에 있다. 재소환 줄은 그 묶음 바로 아래(표 밖)
+        holder = table.find_parent(attrs={'data-variant': 'rows'}) or table
+        line = holder.find_next_sibling('span')
         self.assertIsNotNone(line)
         self.assertEqual(line.get_text(strip=True), want)                       # 표 바로 아래에 따로
         self.assertNotIn('그때 그 시절', table.get_text())                        # 표 안(이번 기간 줄)에는 섞이지 않는다

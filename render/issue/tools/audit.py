@@ -8,7 +8,8 @@ THEMES=["basic","hip","neon","lovely","night","ondol"]
 AUDIT = r"""
 () => {
   const W=794,H=1123, out=[];
-  const lum=c=>{const m=c.match(/\d+(\.\d+)?/g).map(Number);
+  // v2.0.0 — color-mix 결과는 "color(srgb 0.87 0.85 0.81)"(0~1)로 온다. 0~255로 맞춘다
+  const lum=c=>{let m=c.match(/\d+(\.\d+)?/g).map(Number); if(/^color\(srgb/.test(c)) m=m.map(v=>v*255);
     const f=v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)};
     return 0.2126*f(m[0])+0.7152*f(m[1])+0.0722*f(m[2])};
   const bgOf=el=>{let n=el;while(n&&n!==document.documentElement){
@@ -45,6 +46,15 @@ AUDIT = r"""
           need:el.scrollHeight, have:el.clientHeight});
     }
   });
+  // v2.0.0 — 판면 밖 글자(safe). 허용: 러닝헤드 · 폴리오 · 사진 위 · data-margin(README §6). 렌더러 page_audit.py의 safe와 같은 판정
+  document.querySelectorAll("body *").forEach(el=>{
+    if(el.closest(".run,.folio,.ph,[data-margin]"))return;
+    if(![...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim()))return;
+    const rg=document.createRange(); rg.selectNodeContents(el);
+    for(const q of rg.getClientRects()){ if(q.width<1)continue;
+      if(q.left<67.5||q.right>726.5||q.top<59.5||q.bottom>1047.5){
+        out.push({k:"safe",t:el.tagName+"."+(el.className||""),box:[Math.round(q.left),Math.round(q.top),Math.round(q.right),Math.round(q.bottom)]});break;}}
+  });
   // 형제 겹침 — .ab 끼리만
   const abs=[...document.querySelectorAll("body > .ab")].map(e=>[e,e.getBoundingClientRect()]);
   for(let i=0;i<abs.length;i++)for(let j=i+1;j<abs.length;j++){
@@ -64,7 +74,7 @@ async def main():
         b=await pw.chromium.launch(); pg=await b.new_page(viewport={"width":794,"height":1123})
         for stem,cfg in CFG.items():
             for t in THEMES:
-                await pg.goto(f"file://{R}/pages/{stem}.html", wait_until="networkidle")
+                await pg.goto(f"file://{R}/pages/{cfg.get('page',stem)}.html", wait_until="networkidle")
                 await pg.evaluate(f'document.documentElement.setAttribute("data-theme","{t}")')
                 await pg.add_script_tag(content=JS); await pg.evaluate("c=>window.__resolve(c)",cfg)
                 await pg.wait_for_timeout(60)

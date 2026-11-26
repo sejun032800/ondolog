@@ -27,7 +27,10 @@ html,body{margin:0;padding:0}
 /* v1.2.4 (#e) - 낱말 단위 줄바꿈. 한글 낱말 중간에서 줄이 바뀌지 않게 하고(keep-all),
    띄어쓰기 없이 한 칸보다 긴 덩어리(ㅋㅋㅋ…, 주소)만 칸 끝에서 꺾는다(break-word). **모든 글 칸에 적용** — 틀 하나하나에 넣지 않는다.
    바뀐 칸의 높이 표는 렌더 환경에서 다시 잰다(README §12) */
-body{word-break:keep-all;overflow-wrap:break-word}
+/* v2.0.0 (묶음 5 · 3부 5) - 덩어리 꺾기를 틀이 스스로 한다. break-word → anywhere:
+   줄 수는 같고(낱말 단위 줄바꿈은 keep-all 그대로), 다른 점은 **최소 폭 계산**이다. anywhere는 덩어리를 꺾을 수 있는 것으로 보아
+   폭이 정해지지 않은 상자(flex 항목의 기본 최소 폭 · 폭 없는 절대 상자)도 칸 안에서 꺾인다. 렌더러 임시 CSS(DEV_TEMP_CSS_92)는 이제 지운다(README §10) */
+body{word-break:keep-all;overflow-wrap:anywhere}
 body{
   width:210mm;height:297mm;position:relative;overflow:hidden;
   background:var(--bg);color:var(--ink);
@@ -129,3 +132,29 @@ html[data-theme="ondol"] .cover-type .theme-device{
 .q-list > *{counter-increment:q}
 .q-no{font-size:9.1px;font-weight:700;letter-spacing:.28em;color:var(--acc);display:block}
 .q-no::before{content:counter(q,decimal-leading-zero)}
+
+/* ── v2.0.0 공용 — 매거진 2.0 새 지면이 함께 쓴다 ─────────────────
+   1) 헤어라인 위 점(막대 대신) — 값(0~100)은 data-width가 .pos 폭으로 넣고, 점은 .pos 오른쪽 끝에 앉는다.
+      두 사람은 **모양 + 명도**로 가른다: a = 채운 점(진묵) · b = 빈 고리(지표 잉크, 더 크다). 두 값이 같아도 고리 안에 점이 보인다 */
+.trk{position:relative;height:15px}
+.trk::before{content:"";position:absolute;left:0;right:0;top:7px;height:.6px;background:var(--hair)}
+.trk .pos{position:absolute;left:0;top:0;height:15px}
+.trk .pos > i{position:absolute;right:0;top:7.3px;transform:translate(50%,-50%);border-radius:50%;display:block}
+.trk .pos.a > i{width:9px;height:9px;background:var(--ink);z-index:2}
+.trk .pos.b > i{width:16px;height:16px;border:1.3px solid var(--acc);background:transparent;z-index:1}
+.key-a,.key-b{display:inline-block;vertical-align:middle;border-radius:50%;margin-right:7px}
+.key-a{width:9px;height:9px;background:var(--ink)}
+.key-b{width:14px;height:14px;border:1.3px solid var(--acc)}
+/* 2) AI 문장 — 한 단계 낮춘다(이름 .ai-l · .ai-t — 기존 지면의 .ai-lbl · .ai-txt는 지면마다 따로 정의돼 있어 겹치지 않게 다른 이름): **크기 · 굵기**로(색만으로 가르지 않는다). 라벨 한 줄 + 문장. 원문(사람 글)보다 늘 작다 */
+.ai-l{display:block;font-size:8.8px;font-weight:400;letter-spacing:.1em;color:var(--sub)}
+.ai-t{display:block;margin:6px 0 0;font-size:11px;font-weight:400;line-height:1.62;color:var(--sub)}
+/* 3) 큰 숫자 — 지표 잉크. 표지 · 두 사람의 결의 머리 숫자 */
+.num-hero{font-family:MaruBuri,serif;font-weight:200;line-height:.9;color:var(--acc);
+          font-feature-settings:"tnum" 1;letter-spacing:-.04em}
+/* 4) 별지 — 연애리그만. 지면색을 바꿔 본지와 가른다(테마 지표 잉크를 바탕에 섞는다 — 테마 파일을 늘리지 않는다) */
+body.sheet{background:color-mix(in srgb,var(--acc) 11%,var(--bg));
+  /* 별지 위 서브 잉크는 진묵 쪽으로 30% 당긴다 — 바탕이 어두워진 만큼 대비(3.0 이상)를 되찾는다 */
+  --sub:color-mix(in srgb,var(--sub) 70%,var(--ink))}
+.sheet-tab{position:absolute;right:0;top:118px;width:46px;height:132px;background:var(--ink);color:var(--bg);
+           display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;
+           font-size:11px;font-weight:700;letter-spacing:.42em}

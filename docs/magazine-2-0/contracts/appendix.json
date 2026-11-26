@@ -72,5 +72,11 @@
     "by": "m20-a1 (2026-11-26)",
     "stored_schema": "src/types/corners/storedContent.ts AppendixPayloadSchema (calendar · postcards · photoBreaks · nextMonth · colophon · noteMaterials)",
     "note": "부속 3종(사진 한 장 · 다음 달 · 판권 정오)과 발행 노트 새 재료는 corner_type enum이 없어 이 appendix 행에 함께 싣는다(마이그레이션 0). LLM 0 - validateCornerResponse 정식 검증 길로 저장"
+  },
+  "design_request_pending_pm": {
+    "note": "2.0-D(ROADMAP r158) - 디자인 v2.0.0 README §10 ③ 필드 요청 중 PM이 아직 정하지 않은 것. 엔진 · 저장은 바꾸지 않았다. PE가 PM에게 올림",
+    "items": [
+      "사진 1장이면 엽서 한 장만 싣고 면은 유지"
+    ]
   }
 }

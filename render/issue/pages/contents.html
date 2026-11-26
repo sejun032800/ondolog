@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="../themes/ondol.css">
 </head>
 <body class="contents">
+  <div data-variant="short">
   <div class="ab ph" style="right:0;top:0;width:234px;height:567px" data-optional>
     <img data-src="@contents.photo" src="../images/sample/contents.jpg" alt="">
   </div>
@@ -35,6 +36,43 @@
     </div>
   </div>
 
+  </div>
+  <!-- v2.0.0 (1부 호 전체) — 목차 변형. @toc 8개 이하 short(지금 모양 · 오른쪽 사진) / 9~17개 long(두 단 · 사진 없음).
+       long은 왼쪽 단부터 아래로 채운다(grid-auto-flow:column · 한 단 9줄). 별지 항목(연애리그)도 같은 줄 — 쪽 자리에 "별지" -->
+  <div data-variant="long">
+    <div class="ab col" style="top:62px">
+      <span class="kk">Contents</span>
+      <div class="hair" style="width:120px;margin-top:12px"></div>
+    </div>
+    <div class="ab col" style="top:150px">
+      <div class="tl2" data-repeat="@toc">
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec" data-slot=".title">발행 노트</span><span class="note d" data-optional><span data-slot=".desc">이 호를 만든 재료</span></span></span><span class="pg" data-slot=".page">03</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">데이트 아카이브</span><span class="note d" data-optional><span>화보 · 9월의 하루 2편 · 그때 그 시절 1편</span></span></span><span class="pg">04</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">다정한 말들</span><span class="note d" data-optional><span>주고받은 말 12</span></span></span><span class="pg">08</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">이달의 우리</span><span class="note d" data-optional><span>기사 3편</span></span></span><span class="pg">10</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">각자의 하루</span><span class="note d" data-optional><span>9월 17일</span></span></span><span class="pg">12</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">우리 사이</span><span class="note d" data-optional><span>한 회차 · 질문 3</span></span></span><span class="pg">13</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">특별 게스트</span><span class="note d" data-optional><span>500일 · 글 4편</span></span></span><span class="pg">14</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">두 사람의 결</span><span class="note d" data-optional><span>일치율과 다섯 가지 성향</span></span></span><span class="pg">15</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">어림짐작</span><span class="note d" data-optional><span>짐작 셋 · 셈 넷 · 이 달의 주제</span></span></span><span class="pg">17</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">어깨너머</span><span class="note d" data-optional><span>함께하는 커플들의 숫자</span></span></span><span class="pg">18</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">협찬</span><span class="note d" data-optional><span>견본상점</span></span></span><span class="pg">19</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">부록</span><span class="note d" data-optional><span>다음 달 달력 · 사진 엽서</span></span></span><span class="pg">20</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">다음 달</span><span class="note d" data-optional><span>10월의 날</span></span></span><span class="pg">22</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">판권 · 정오</span></span><span class="pg">23</span></div>
+      <div class="ti"><span class="sq"></span><span class="tt"><span class="h-sec">연애리그</span><span class="note d" data-optional><span>별지 · 스코어보드 · 해설</span></span></span><span class="pg">별지</span></div>
+      </div>
+    </div>
+    <style>
+      .contents .tl2{display:grid;grid-template-rows:repeat(9,auto);grid-auto-flow:column;column-gap:44px}
+      .contents .ti{display:flex;align-items:flex-start;padding:12px 0 13px;border-bottom:.6px solid var(--rule)}
+      .contents .sq{width:7px;height:7px;background:var(--acc);margin:7px 16px 0 0;flex:none}
+      .contents .tt{flex:1 1 auto}
+      .contents .tt .h-sec{display:block;font-size:14px}
+      .contents .tt .d{display:block;margin-top:4px}
+      .contents .pg{flex:none;font-size:11.5px;font-feature-settings:'tnum' 1;color:var(--sub);margin-top:2px;margin-left:10px}
+    </style>
+  </div>
   <div class="ab col" style="top:900px">
     <p class="body-sub" style="margin:0;width:var(--bodyW)">코너마다 잉크 색이 다릅니다. 지표를 다루는 코너는 세이지, 이야기를 다루는 코너는 먹, 두 사람이 실제로 주고받은 말을 그대로 싣는 코너는 가장 옅은 담묵을 씁니다. 색이 옅어질수록 온도록이 문장에 손을 덜 댔다는 뜻입니다.</p>
   </div>

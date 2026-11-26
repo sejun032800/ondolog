@@ -548,7 +548,7 @@ def love_dna_content(total: float = 65, explain: str = '이번 일치율은 두 
                             for k, lab, x, y in axes],
                 'sternberg': {'intimacy': {'a': 70, 'b': 70, 'shared': 70}, 'passion': {'a': 60, 'b': 30, 'shared': 30},
                               'commitment': {'a': 80, 'b': 60, 'shared': 60}},
-                'attachment': {'a': 'secure', 'b': 'avoidant'},
+                'attachment': {'a': 'secure', 'b': 'avoidant', 'pairLabel': '각자의 자리를 지켜 주는 짝'},
                 'explain': explain,
                 'attachmentCombo': {'headline': '자기 세계와 다정함', 'body': '한 분은 조용한 시간을 아끼고 한 분은 마음을 먼저 건넵니다.'},
                 'strengths': ['우호성 값이 같습니다.', '친밀감 값이 70으로 같습니다.'],
@@ -569,7 +569,7 @@ def _pair(name: str, value: float, display: str) -> dict:
 def rough_guess_content(line: Optional[str] = '그날은 이사 얘기가 오갔습니다') -> dict:
     return {'schemaVersion': '1.0', 'header': {'cornerName': '얼렁뚱땅 어림짐작', 'title': '어림짐작', 'periodLabel': '2026년 9월'},
             'payload': {
-                'disclaimer': '재미로만 봐주세요. 진짜로 재는 건 아닙니다.', 'footnote': '성격 검사와 이번 달 대화 기록으로 계산했습니다',
+                'disclaimer': '재미로 보는 지면입니다. 진짜로 잰 값은 아닙니다.', 'footnote': '성격 검사와 이번 달 대화 기록으로 계산했습니다',
                 'items': [
                     _prob(1, 'confess_first', '먼저 고백했을 확률', f'{A}님이 먼저 고백했을 확률 73%'),
                     _prob(2, 'conflict_step_back', '갈등 회피 지수', f'{A}님과 {B}님이 비슷합니다', similar=True),

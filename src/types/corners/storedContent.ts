@@ -314,7 +314,12 @@ export const LoveDnaPayloadSchema = z.object({
     passion: PairNumber.extend({ shared: z.number() }),
     commitment: PairNumber.extend({ shared: z.number() }),
   }),
-  attachment: z.object({ a: z.enum(['secure', 'anxious', 'avoidant', 'fearful']), b: z.enum(['secure', 'anxious', 'avoidant', 'fearful']) }),
+  attachment: z.object({
+    a: z.enum(['secure', 'anxious', 'avoidant', 'fearful']),
+    b: z.enum(['secure', 'anxious', 'avoidant', 'fearful']),
+    /** 지면 짝 이름(엔진 `ATTACHMENT_PAIR_LABELS` · R158-8 ①). 2.0-D 전에 저장된 호에는 없다. */
+    pairLabel: z.string().min(1).optional(),
+  }),
   /** LLM 문장 칸(계약 길이 상한 = valueChecks `LOVE_DNA_VALUE_RULES`). */
   explain: stringMaxCodePoints(120),
   attachmentCombo: z.object({ headline: stringMaxCodePoints(30), body: stringMaxCodePoints(120) }),

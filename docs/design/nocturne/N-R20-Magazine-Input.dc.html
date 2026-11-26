@@ -1,0 +1,246 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>매거진 2.0 입력 화면 R20</title><style>@font-face{font-family:'Pretendard';font-weight:400;src:local('Pretendard Regular'),url('../../../assets/fonts/Pretendard-Regular.otf'),url('../../../assets/fonts/Pretendard-Regular.ttf'),url('../../../assets/fonts/Pretendard-Regular.woff2');}
+@font-face{font-family:'Pretendard';font-weight:500;src:local('Pretendard Medium'),url('../../../assets/fonts/Pretendard-Medium.otf'),url('../../../assets/fonts/Pretendard-Medium.ttf'),url('../../../assets/fonts/Pretendard-Medium.woff2');}
+@font-face{font-family:'Pretendard';font-weight:600;src:local('Pretendard SemiBold'),url('../../../assets/fonts/Pretendard-SemiBold.otf'),url('../../../assets/fonts/Pretendard-SemiBold.ttf'),url('../../../assets/fonts/Pretendard-SemiBold.woff2');}
+@font-face{font-family:'Pretendard';font-weight:700;src:local('Pretendard Bold'),url('../../../assets/fonts/Pretendard-Bold.otf'),url('../../../assets/fonts/Pretendard-Bold.ttf'),url('../../../assets/fonts/Pretendard-Bold.woff2');}
+@font-face{font-family:'MaruBuri';font-weight:300;src:local('MaruBuri Light'),url('../../../assets/fonts/MaruBuri-Light.otf'),url('../../../assets/fonts/MaruBuri-Light.ttf');}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#0A0814;--inkRaise:#14111F;--card:rgba(243,239,247,.05);--hairline:rgba(243,239,247,.10);
+  --text:#F3EFF7;--textSub:#C9C1DA;--textMute:#9C93B4;--textFaint:#6E6688;--lilac:#B9A2F0;--lilacText:#D7C9FA;--rose:#F4B9C8;--moon:#E7D9C3;
+  --anno:#7FE3FF;--annoInk:#062530;--sans:'Pretendard',-apple-system,sans-serif;--serif:'MaruBuri',serif}
+body{background:#05030C;color:var(--text);font-family:var(--sans);padding:64px 72px 120px;min-width:1820px;-webkit-font-smoothing:antialiased;word-break:keep-all}
+b{font-weight:600}
+.hd{border-bottom:1px solid var(--hairline);padding-bottom:30px;margin-bottom:34px;display:grid;grid-template-columns:1fr 460px;gap:48px;align-items:end}
+.kicker{font-size:10.5px;font-weight:600;letter-spacing:.26em;color:var(--textMute);text-transform:uppercase}
+.hd h1{font-size:32px;font-weight:700;letter-spacing:-.02em;margin:10px 0 12px}
+.hd p{font-size:14px;color:var(--textSub);line-height:22px}
+.legend{border:1px solid var(--hairline);border-radius:14px;padding:16px 18px;font-size:12.5px;color:var(--textSub);line-height:20px}
+.sw-pin{display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--anno);color:var(--annoInk);font-size:10.5px;font-weight:700;align-items:center;justify-content:center;margin-right:8px}
+.section{margin-bottom:80px}.sec-hd{display:flex;align-items:baseline;gap:16px;margin-bottom:8px}
+.sec-no{font-size:12px;font-weight:700;letter-spacing:.2em;color:var(--lilacText)}.sec-title{font-size:22px;font-weight:700}
+.sec-desc{font-size:13.5px;color:var(--textSub);line-height:21px;margin-bottom:24px;max-width:1180px}
+.screens{display:flex;gap:30px;flex-wrap:wrap;align-items:flex-start}
+.sw{width:390px;display:flex;flex-direction:column;gap:10px}
+.sid{font-size:10.5px;font-weight:700;letter-spacing:.16em;color:var(--textMute)}.sid em{font-style:normal;color:var(--lilacText)}
+.sname{font-size:14px;font-weight:600;margin-top:-4px}
+.notes{list-style:none;display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.notes li{display:flex;gap:8px;font-size:12px;color:var(--textSub);line-height:18px}
+.notes li .n{flex:none;width:16px;height:16px;border-radius:50%;background:var(--anno);color:var(--annoInk);font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;border:1px solid var(--hairline);border-radius:14px;overflow:hidden;margin-bottom:40px}
+.t th{background:var(--inkRaise);text-align:left;padding:10px 14px;font-size:10.5px;font-weight:700;letter-spacing:.14em;color:var(--textMute);border-bottom:1px solid var(--hairline)}
+.t td{padding:9px 14px;color:var(--textSub);line-height:19px;vertical-align:top;border-bottom:1px solid rgba(243,239,247,.05)}
+.t td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+.t .grp td{background:rgba(185,162,240,.05);font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--lilacText)}
+
+/* ── 앱 화면 ── */
+.phone{position:relative;width:390px;height:844px;border-radius:44px;overflow:hidden;background:var(--ink);flex:none;isolation:isolate}
+.phone::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 50% at 50% 0%,rgba(185,162,240,.10),transparent 60%);pointer-events:none}
+.frame{position:absolute;inset:0;border-radius:44px;box-shadow:inset 0 0 0 1px rgba(243,239,247,.12);z-index:60;pointer-events:none}
+.pin{position:absolute;z-index:50;width:20px;height:20px;border-radius:50%;background:var(--anno);color:var(--annoInk);font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(5,3,12,.75)}
+.scr{position:absolute;left:0;right:0;top:0;bottom:0;padding:56px 20px 0}
+.back{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--textMute);height:24px}
+.kk{display:block;font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--textMute);margin-top:18px}
+.ttl{font-size:23px;font-weight:700;letter-spacing:-.02em;line-height:1.38;margin-top:6px}
+.sub{font-size:12.5px;color:var(--textSub);line-height:1.62;margin-top:8px}
+.lbl{display:block;font-size:10px;font-weight:600;letter-spacing:.18em;color:var(--textMute);margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--hairline);border-radius:16px}
+.row{display:flex;align-items:center;gap:10px;padding:13px 14px;border-top:1px solid var(--hairline)}
+.row:first-child{border-top:none}
+.row .rt{flex:1;min-width:0}.row .rn{display:block;font-size:13.5px;font-weight:500}.row .rs{display:block;font-size:11px;color:var(--textMute);margin-top:3px;line-height:1.45}
+.chip{flex:none;font-size:11px;font-weight:500;padding:5px 10px;border-radius:999px;border:1px solid var(--hairline);color:var(--textSub);white-space:nowrap}
+.chip.go{background:rgba(185,162,240,.16);border-color:rgba(185,162,240,.35);color:var(--lilacText)}
+.chip.ok{color:var(--textSub)}
+.chip.wait{color:var(--textFaint);border-style:dashed}
+.field{background:var(--card);border:1px solid var(--hairline);border-radius:14px;padding:13px 14px;font-size:13px;line-height:1.6;color:var(--text);position:relative}
+.field.ph{color:var(--textFaint)}
+.field .cnt{position:absolute;right:12px;bottom:9px;font-size:10px;color:var(--textFaint)}
+.fl{display:block;font-size:11px;color:var(--textMute);margin:16px 0 7px}
+.btn{position:absolute;left:20px;right:20px;height:52px;border-radius:999px;background:var(--text);color:var(--ink);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.btn2{position:absolute;left:20px;right:20px;height:48px;border-radius:999px;border:1px solid var(--hairline);color:var(--textSub);font-size:13px;display:flex;align-items:center;justify-content:center}
+.foot{position:absolute;left:20px;right:20px;text-align:center;font-size:11px;color:var(--textFaint);line-height:1.5}
+.tab{position:absolute;left:14px;right:14px;bottom:20px;height:64px;border-radius:22px;background:rgba(20,17,31,.92);border:1px solid var(--hairline);display:flex;justify-content:space-around;align-items:center;font-size:10px;color:var(--textMute)}
+.tab span{display:flex;flex-direction:column;align-items:center;gap:5px}.tab i{width:18px;height:18px;border:1.4px solid currentColor;border-radius:5px;display:block}
+.tab .on{color:var(--lilacText)}
+.qa{padding:14px;border-top:1px solid var(--hairline)}.qa:first-child{border-top:none}
+.qa .q{font-size:13px;font-weight:500;line-height:1.5}.qa .q em{font-style:normal;color:var(--lilacText);font-size:10.5px;font-weight:700;letter-spacing:.1em;margin-right:8px}
+.pair{display:flex;gap:12px;margin-top:10px}.pair > div{flex:1}
+.pair .who{display:block;font-size:10px;color:var(--textMute)}
+.pair .a{display:block;font-family:var(--serif);font-weight:300;font-size:14px;line-height:1.55;margin-top:3px}
+.pair .g{display:block;font-size:11px;color:var(--textMute);margin-top:6px;line-height:1.45}
+.lock{display:flex;align-items:center;gap:8px;margin-top:3px;height:34px;border-radius:10px;background:rgba(243,239,247,.035);border:1px dashed var(--hairline);padding:0 10px;font-size:11px;color:var(--textFaint)}
+.big{font-size:30px;font-weight:600;font-feature-settings:"tnum" 1}.big small{font-size:12px;color:var(--textMute);font-weight:400;margin-left:3px}
+.tog{width:44px;height:26px;border-radius:999px;background:rgba(243,239,247,.14);position:relative;flex:none}
+.tog::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:var(--textSub)}
+.tog.on{background:var(--lilac)}.tog.on::after{left:21px;background:#fff}
+.photo{border-radius:16px;background:radial-gradient(60% 60% at 30% 30%,#7d5a8a,transparent),radial-gradient(70% 70% at 70% 70%,#a86b8c,#3a2547);}
+.photo.empty{background:var(--card);border:1px dashed rgba(243,239,247,.2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--textMute)}
+.gcard{padding:14px;border-top:1px solid var(--hairline)}.gcard:first-child{border-top:none}
+.gcard .gt{font-family:var(--serif);font-weight:300;font-size:13.5px;line-height:1.6}.gcard .gn{display:block;font-size:11px;color:var(--textMute);margin-top:6px}
+.gsel{display:flex;gap:8px;margin-top:10px;align-items:center}
+.gsel .s{font-size:11px;padding:6px 11px;border-radius:999px;border:1px solid var(--hairline);color:var(--textSub)}
+.gsel .s.on{background:rgba(185,162,240,.18);border-color:rgba(185,162,240,.4);color:var(--lilacText)}
+.gsel .st{margin-left:auto;font-size:10.5px;color:var(--textMute)}
+/* 웹 */
+.web{background:#0D0B16}
+.url{position:absolute;left:0;right:0;top:0;height:92px;background:#1B1828;padding:50px 16px 0;z-index:5}
+.url div{height:32px;border-radius:10px;background:rgba(243,239,247,.08);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--textSub)}
+.web .scr{top:92px;padding-top:18px}
+.notice{border-radius:14px;padding:12px 14px;background:rgba(185,162,240,.10);border:1px solid rgba(185,162,240,.28);font-size:12px;line-height:1.6;color:var(--text)}
+.notice a{color:var(--lilacText);text-decoration:underline;font-size:11px}
+.wm{font-family:var(--serif);letter-spacing:.4em;font-size:11px;color:var(--textMute)}
+</style></head><body>
+<div class="hd"><div><div class="kicker">ONDOLOG Design · R20 · 묶음 5 · 2부 · 2026-11-26</div><h1>매거진 2.0 — 두 사람이 채우는 화면</h1>
+<p>제작 현황 · 우리 사이 · 각자의 하루 · 특별 게스트(앱) · 게스트 웹 페이지. 토큰 · 카드 · 버튼 · 하단 막대는 지금 앱(patch9b · patch10)을 따릅니다(R125). 예전 시안 D02 · D03 · G01~G11은 흐름만 참고했습니다. 앱 문장은 해요체.</p></div>
+<div class="legend"><span class="sw-pin">1</span>하늘색 번호 = 보드 주석(앱에 그리지 않음). 화면 390×844 · 글꼴 저장소 <b>assets/fonts/</b>. 이름 · 문장은 합성 견본입니다.</div></div>
+<div class="section"><div class="sec-hd"><span class="sec-no">2-1</span><span class="sec-title">매거진 탭 안 "제작 현황"</span></div><div class="sec-desc">서재(지금 매거진 탭) 구조 유지 · 그 안에서 들어감. 코너별 "대기 중" 줄.</div><div class="screens">
+<div class="sw" data-shot="K01"><div class="sid">K01</div><div class="sname">매거진 탭 · 서재</div><div class="phone"><div class="scr">
+  <div class="ttl" style="margin-top:8px;font-size:26px">매거진</div>
+  <span class="lbl">이번 달</span>
+  <div class="card" style="padding:16px">
+    <span style="font-size:11px;color:var(--textMute)">10월호</span>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:4px"><span style="font-size:20px;font-weight:700">만들고 있어요</span><span class="big">41<small>%</small></span></div>
+    <div style="height:3px;border-radius:2px;background:rgba(243,239,247,.1);margin-top:12px"><div style="width:41%;height:100%;border-radius:2px;background:var(--lilac)"></div></div>
+    <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:11.5px;color:var(--textSub)"><span>두 사람이 채울 것 <b style="color:var(--lilacText)">2</b></span><span style="color:var(--lilacText)">제작 현황 ›</span></div>
+  </div>
+  <span class="lbl">서재 · 2권</span>
+  <div style="display:flex;gap:12px">
+    <div style="flex:1"><div class="photo" style="height:200px;border-radius:6px"></div><span style="display:block;font-size:11px;color:var(--textSub);margin-top:8px">VOL.02 · 9월호</span></div>
+    <div style="flex:1"><div class="photo" style="height:200px;border-radius:6px;filter:hue-rotate(160deg)"></div><span style="display:block;font-size:11px;color:var(--textSub);margin-top:8px">VOL.01 · 8월호</span></div>
+  </div>
+</div><div class="tab"><span><i></i>메인</span><span><i></i>채팅</span><span><i></i>피드</span><span class="on"><i></i>매거진</span><span><i></i>설정</span></div><div class="pin" style="left:352px;top:186px">1</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>서재 구조는 그대로 두고 맨 위 "이번 달" 카드 한 장만 더함. 두 사람이 채울 일이 있는 코너 수만 보임(재촉 문구 0). 눌러서 제작 현황으로.</span></li><li><span class="n">2</span><span>현재 매거진 탭 캡처가 이 묶음에 없어 D01 구조 + patch9b 토큰으로 그림 — 반입 전 실제 화면과 대조 필요(PM 요청 목록).</span></li></ul></div>
+<div class="sw" data-shot="K02"><div class="sid">K02</div><div class="sname">제작 현황</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>매거진</div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px"><div class="ttl" style="margin:0">10월호<br>제작 중</div><span class="big" style="font-size:40px;color:var(--lilacText)">41<small>%</small></span></div>
+  <span class="lbl">두 사람이 채우는 것</span>
+  <div class="card"><div class="row"><span class="rt"><span class="rn">우리 사이</span><span class="rs">이번 주 질문 4개 · 내 차례예요</span></span><span class="chip go">답하기 ›</span></div><div class="row"><span class="rt"><span class="rn">각자의 하루</span><span class="rs">이번 달 2건 · 데이트 없던 날의 하루</span></span><span class="chip go">기록하기 ›</span></div><div class="row"><span class="rt"><span class="rn">특별 게스트</span><span class="rs">10월 27일 500일 · 링크를 만들 수 있어요</span></span><span class="chip go">링크 만들기 ›</span></div></div>
+  <span class="lbl">자동으로 모이는 것</span>
+  <div class="card"><div class="row"><span class="rt"><span class="rn">함께한 하루</span><span class="rs">데이트 3 · 사진 18</span></span><span class="chip ok">준비됨</span></div><div class="row"><span class="rt"><span class="rn">다정한 말들</span><span class="rs">대화 412</span></span><span class="chip ok">준비됨</span></div><div class="row"><span class="rt"><span class="rn">두 사람의 결</span><span class="rs">성격 정보 두 사람 모두 있음</span></span><span class="chip ok">준비됨</span></div><div class="row"><span class="rt"><span class="rn">어림짐작</span><span class="rs">대화 기록을 모으는 중</span></span><span class="chip ok">모으는 중</span></div><div class="row"><span class="rt"><span class="rn">연애리그 · 별지</span><span class="rs">대화가 오간 주가 2주 넘으면 실려요</span></span><span class="chip wait">대기 중</span></div><div class="row"><span class="rt"><span class="rn">어깨너머</span><span class="rs">함께하는 커플이 더 모이면 열려요</span></span><span class="chip wait">대기 중</span></div></div>
+</div><div class="pin" style="left:352px;top:296px">2</div><div class="pin" style="left:352px;top:628px">3</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>코너마다 한 줄 + 상태 칩 4가지: 답하기·기록하기(두 사람 차례) · 준비됨 · 모으는 중 · 대기 중(점선 · 이유 한 줄). 대기 중 이유는 발행 노트 빠짐 문장과 같은 뜻을 해요체로.</span></li><li><span class="n">2</span><span>특별 게스트는 기념일 달에만 "링크 만들기", 아닌 달엔 "다음 기념일 12월 5일 · 대기 중".</span></li></ul></div>
+</div></div>
+<div class="section"><div class="sec-hd"><span class="sec-no">2-2</span><span class="sec-title">우리 사이 — 답하기 · 기다림 · 공개</span></div><div class="sec-desc">질문 4 · 내 답 + 상대 답 짐작(각 150자) · 상대가 답하기 전 상대 답 안 보임 · 재촉 0.</div><div class="screens">
+<div class="sw" data-shot="L01"><div class="sid">L01</div><div class="sname">우리 사이 · 이번 주</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>제작 현황</div>
+  <span class="kk">우리 사이 · 10월 2주차</span><div class="ttl">이번 주 네 가지 질문</div>
+  <p class="sub">내 답을 쓰고, 서영님이 뭐라고 답할지 짐작해 보세요. 두 사람이 모두 답하면 함께 열려요.</p>
+  <div class="card" style="margin-top:18px"><div class="row"><span class="rt"><span class="rn">Q1 요즘 가장 좋아하는 계절은 언제예요?</span><span class="rs">내 답 · 짐작 모두 씀</span></span><span class="chip ok">다 씀</span></div><div class="row"><span class="rt"><span class="rn">Q2 혼자 있고 싶을 때 주로 어디로 가요?</span><span class="rs">내 답만 씀</span></span><span class="chip go">이어 쓰기 ›</span></div><div class="row"><span class="rt"><span class="rn">Q3 요즘 하루 중 제일 좋아하는 시간은요?</span><span class="rs">아직</span></span><span class="chip go">쓰기 ›</span></div><div class="row"><span class="rt"><span class="rn">Q4 첫 캠핑에서 제일 기억에 남는 건?</span><span class="rs">AI 질문 · 10월 9일 캠핑 기록에서</span></span><span class="chip go">쓰기 ›</span></div></div>
+  <div class="foot" style="bottom:100px">서영님의 답은 두 사람이 모두 답한 뒤에 보여요</div>
+</div><div class="btn" style="bottom:34px">이어서 답하기</div><div class="pin" style="left:352px;top:460px">4</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>상대의 진행 상태(답했는지)는 보이지 않음 — 재촉이 생기지 않게. 알림 · "콕 찌르기" 버튼 0(R157-8 a).</span></li><li><span class="n">2</span><span>Q4(AI 생성)는 어디서 나온 질문인지 한 줄(계약 basis).</span></li></ul></div>
+<div class="sw" data-shot="L02"><div class="sid">L02</div><div class="sname">우리 사이 · 답하기</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>2 / 4</div>
+  <span class="kk">Q2</span><div class="ttl">혼자 있고 싶을 때<br>주로 어디로 가요?</div>
+  <span class="fl">내 답</span><div class="field" style="height:120px">집 앞 공원 벤치. 이어폰 끼고 한 시간쯤<span class="cnt">22 / 150</span></div>
+  <span class="fl">서영님은 뭐라고 답할까요?</span><div class="field ph" style="height:120px">짐작해서 써 주세요<span class="cnt">0 / 150</span></div>
+  <p class="sub" style="font-size:11.5px;color:var(--textMute)">짐작은 맞히는 게 아니에요. 잡지에는 두 답이 나란히 실려요.</p>
+</div><div class="btn" style="bottom:34px">다음 질문</div><div class="pin" style="left:352px;top:300px">5</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>답 · 짐작 각 150자(R157-9). 글자 수는 입력에서 막음 — 지면은 자르지 않음.</span></li><li><span class="n">2</span><span>"맞혔어요/틀렸어요"가 생길 말 0.</span></li></ul></div>
+<div class="sw" data-shot="L03"><div class="sid">L03</div><div class="sname">우리 사이 · 기다림</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>제작 현황</div>
+  <span class="kk">우리 사이 · 10월 2주차</span><div class="ttl">네 문항 모두 답했어요</div>
+  <p class="sub">서영님도 답하면 두 사람의 답이 함께 열려요. 한쪽만 먼저 열리지 않아요.</p>
+  <div class="card" style="margin-top:18px">
+   <div class="qa"><div class="q"><em>Q1</em>요즘 가장 좋아하는 계절은 언제예요?</div><div class="pair"><div><span class="who">내 답</span><span class="a">가을</span></div><div><span class="who">서영님의 답</span><div class="lock"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>함께 열려요</div></div></div></div>
+   <div class="qa"><div class="q"><em>Q2</em>혼자 있고 싶을 때 주로 어디로 가요?</div><div class="pair"><div><span class="who">내 답</span><span class="a">집 앞 공원 벤치</span></div><div><span class="who">서영님의 답</span><div class="lock"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>함께 열려요</div></div></div></div>
+  </div>
+  <div class="foot" style="bottom:100px">이번 주가 끝날 때까지 답이 모이지 않으면<br>이 회차는 다음 주로 넘어가요</div>
+</div><div class="btn2" style="bottom:36px">내 답 고치기</div><div class="pin" style="left:352px;top:330px">6</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>상대 답 칸 = 잠금(점선 · 자물쇠). DB(RLS)가 revealed 전에는 상대 답 행을 주지 않으므로 앱은 글자 수 · 미리보기도 모름 — 화면에 상대 진행 정보 0.</span></li><li><span class="n">2</span><span>한쪽만 답한 회차 = 이월(R157-8 m) 한 줄 안내. 재촉 0.</span></li></ul></div>
+<div class="sw" data-shot="L04"><div class="sid">L04</div><div class="sname">우리 사이 · 열림</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>제작 현황</div>
+  <span class="kk">우리 사이 · 10월 2주차</span><div class="ttl">서로의 답이 열렸어요</div>
+  <div class="card" style="margin-top:18px">
+   <div class="qa"><div class="q"><em>Q1</em>요즘 가장 좋아하는 계절은 언제예요?</div><div class="pair"><div><span class="who">세준</span><span class="a">가을</span><span class="g">서영님의 짐작 — 가을</span></div><div><span class="who">서영</span><span class="a">여름</span><span class="g">세준님의 짐작 — 가을</span></div></div></div>
+   <div class="qa"><div class="q"><em>Q2</em>혼자 있고 싶을 때 주로 어디로 가요?</div><div class="pair"><div><span class="who">세준</span><span class="a">집 앞 공원 벤치</span><span class="g">서영님의 짐작 — 카페</span></div><div><span class="who">서영</span><span class="a">동네 서점</span><span class="g">세준님의 짐작 — 서점</span></div></div></div>
+   <div class="qa"><div class="q"><em>Q4</em>첫 캠핑에서 제일 기억에 남는 건?</div><div class="pair"><div><span class="who">세준</span><span class="a">새벽에 본 별</span><span class="g">서영님의 짐작 — 모닥불</span></div><div><span class="who">서영</span><span class="a">라면</span><span class="g">세준님의 짐작 — 라면</span></div></div></div>
+  </div>
+  <div class="foot" style="bottom:46px">이 답은 10월호 「우리 사이」에 실려요</div>
+</div><div class="pin" style="left:352px;top:236px">7</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>지면과 같은 짝: 그 사람의 답 + 바로 아래 상대의 짐작. ○ × · 점수 · "몇 개 맞혔어요" 0.</span></li><li><span class="n">2</span><span>"실려요"는 이번 호에 대한 사실(다음 호 약속 아님).</span></li></ul></div>
+</div></div>
+<div class="section"><div class="sec-hd"><span class="sec-no">2-3</span><span class="sec-title">각자의 하루 — 기록하기</span></div><div class="sec-desc">사진 + 한 문장 · "데이트가 없던 날"이 화면에 드러남 · 매일 알림 기본 꺼짐.</div><div class="screens">
+<div class="sw" data-shot="N01"><div class="sid">N01</div><div class="sname">각자의 하루 · 기록하기</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>제작 현황</div>
+  <span class="kk">각자의 하루 · 10월 14일 화요일</span><div class="ttl">데이트가 없던 오늘,<br>세준님의 하루는요?</div>
+  <div style="display:inline-flex;gap:6px;margin-top:10px;font-size:11px;color:var(--textMute);border:1px solid var(--hairline);border-radius:999px;padding:5px 10px">오늘은 함께한 하루 기록이 없어요</div>
+  <div class="photo empty" style="height:260px;margin-top:16px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>오늘 찍은 사진 한 장</div>
+  <span class="fl">한 문장</span><div class="field ph" style="height:72px">퇴근길 하늘이 분홍색이었다<span class="cnt">0 / 60</span></div>
+  <p class="sub" style="font-size:11px;color:var(--textMute)">서영님도 오늘의 하루를 남기면 잡지에 나란히 실려요.</p>
+</div><div class="btn" style="bottom:34px">남기기</div><div class="pin" style="left:240px;top:180px">8</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>"데이트가 없던 날"이 화면 머리말 · 칩으로 드러남. 그날 데이트 기록이 있으면 이 화면 대신 "오늘은 함께한 하루에 담겨요"(셋로그 0).</span></li><li><span class="n">2</span><span>사진 1 + 한 문장 60자(계약 제안 그대로). 얼굴 자동 판정 0.</span></li></ul></div>
+<div class="sw" data-shot="N02"><div class="sid">N02</div><div class="sname">각자의 하루 · 이번 달 + 알림</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>제작 현황</div>
+  <span class="kk">각자의 하루 · 10월</span><div class="ttl">이번 달에 남긴 하루</div>
+  <div class="card" style="margin-top:16px">
+   <div class="row"><div class="photo" style="width:44px;height:44px;border-radius:10px;flex:none"></div><span class="rt"><span class="rn">퇴근하고 혼자 영화 한 편</span><span class="rs">10월 14일 · 밤 9시 12분 · 세준</span></span></div>
+   <div class="row"><div class="photo" style="width:44px;height:44px;border-radius:10px;flex:none;filter:hue-rotate(60deg)"></div><span class="rt"><span class="rn">점심 먹고 회사 앞 산책</span><span class="rs">10월 14일 · 낮 1시 40분 · 서영</span></span></div>
+   <div class="row"><div class="photo" style="width:44px;height:44px;border-radius:10px;flex:none;filter:hue-rotate(200deg)"></div><span class="rt"><span class="rn">필라테스 끝</span><span class="rs">10월 9일 · 저녁 6시 5분 · 서영</span></span></div>
+  </div>
+  <span class="lbl">알림</span>
+  <div class="card"><div class="row"><span class="rt"><span class="rn">매일 한 번 알려 주기</span><span class="rs">데이트가 없던 날에만 · 밤 9시</span></span><span class="tog"></span></div></div>
+  <p class="sub" style="font-size:11px;color:var(--textMute)">처음에는 꺼져 있어요. 켜면 하루 한 번만 보내요.</p>
+</div><div class="btn" style="bottom:34px">오늘 기록하기</div><div class="pin" style="left:352px;top:476px">9</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>매일 알림 **기본 꺼짐**(R157-8 c). 켜도 데이트가 있던 날은 보내지 않음(제안).</span></li><li><span class="n">2</span><span>시각 표기는 patch10 2-4 규칙("밤 9시 12분").</span></li></ul></div>
+</div></div>
+<div class="section"><div class="sec-hd"><span class="sec-no">2-4</span><span class="sec-title">특별 게스트 — 링크 만들기 · 고르기</span></div><div class="sec-desc">기념일과 남은 날 · 만료(7일 또는 그달 말) · 두 사람 모두 승인해야 실림.</div><div class="screens">
+<div class="sw" data-shot="P01"><div class="sid">P01</div><div class="sname">특별 게스트 · 링크 만들기</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>제작 현황</div>
+  <span class="kk">특별 게스트 · 10월 27일 500일</span><div class="ttl">두 사람을 아는 분들께<br>한마디를 받아요</div>
+  <p class="sub">기념일이 있는 달에만 열 수 있어요. 남은 날 <b>13일</b>.</p>
+  <div class="card" style="margin-top:16px"><div class="row"><span class="rt"><span class="rn">① 두 사람을 처음 함께 봤을 때 어땠어요?</span><span class="rs">정해진 질문</span></span><span class="chip ok"></span></div><div class="row"><span class="rt"><span class="rn">② 두 사람 하면 떠오르는 장면이 있나요?</span><span class="rs">정해진 질문</span></span><span class="chip ok"></span></div></div>
+  <span class="fl">③ 우리가 묻고 싶은 것 (선택)</span><div class="field ph" style="height:64px">우리한테 해 주고 싶은 말이 있다면요?<span class="cnt">0 / 60</span></div>
+  <div class="card" style="margin-top:14px;padding:12px 14px;font-size:11.5px;line-height:1.7;color:var(--textSub)">링크는 <b>10월 21일</b>에 닫혀요 — 만든 날부터 7일과 이달 말 중 먼저 오는 날<br>글은 <b>10개</b>까지 받아요 · 두 사람이 모두 고른 글만 실려요</div>
+</div><div class="btn" style="bottom:34px">링크 만들기</div><div class="pin" style="left:352px;top:468px">10</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>만료 = 7일 · 그달 말 중 이른 날(R157-8 b) — 날짜로 계산해 보여 줌. 10개 상한(f). 생일은 기념일 아님(R157-6).</span></li><li><span class="n">2</span><span>질문 G1 · G2 고정(R157-9) + 커플 질문 1(60자).</span></li></ul></div>
+<div class="sw" data-shot="P02"><div class="sid">P02</div><div class="sname">특별 게스트 · 열린 링크</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>제작 현황</div>
+  <span class="kk">특별 게스트</span><div class="ttl">링크가 열려 있어요</div>
+  <div class="card" style="margin-top:16px;padding:16px;display:flex"><div style="flex:1"><span style="font-size:11px;color:var(--textMute)">받은 글</span><div class="big" style="margin-top:4px">3<small>/ 10</small></div></div><div style="flex:1"><span style="font-size:11px;color:var(--textMute)">닫히는 날</span><div class="big" style="margin-top:4px;font-size:22px;padding-top:6px">10월 21일</div></div></div>
+  <div class="field" style="margin-top:12px;font-size:12px;color:var(--textSub)">ondolog.app/g/7Kp2…wQ</div>
+  <div style="display:flex;gap:8px;margin-top:10px"><div class="btn2" style="position:static;flex:1">복사</div><div class="btn" style="position:static;flex:1;height:48px">공유하기</div></div>
+  <span class="lbl">받은 글</span>
+  <div class="card"><div class="row"><span class="rt"><span class="rn">받은 글 고르기</span><span class="rs">세준 2개 고름 · 서영 아직</span></span><span class="chip go">보기 ›</span></div></div>
+</div><div class="btn2" style="bottom:36px">지금 링크 닫기</div><div class="pin" style="left:352px;top:196px">11</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>링크 토큰은 추측 불가(긴 무작위) — 화면은 줄여 보임.</span></li><li><span class="n">2</span><span>받은 글 수 · 닫히는 날만. 누가 썼는지는 고르기 화면에서.</span></li></ul></div>
+<div class="sw" data-shot="P03"><div class="sid">P03</div><div class="sname">특별 게스트 · 함께 고르기</div><div class="phone"><div class="scr"><div class="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>특별 게스트</div>
+  <span class="kk">받은 글 3</span><div class="ttl">실을 글을 함께 골라요</div>
+  <p class="sub">두 사람이 모두 "실을래요"를 고른 글만 잡지에 실려요. 고르지 않은 글은 호가 나온 뒤 지워져요.</p>
+  <div class="card" style="margin-top:14px">
+   <div class="gcard"><p class="gt">① 처음부터 편해 보였어요. 둘이 같이 있으면 말을 안 해도 대화하는 것 같았어요.</p><span class="gn">— 회사 동기 민수</span>
+    <div class="gsel"><span class="s on">실을래요</span><span class="s">싣지 않을래요</span><span class="st">서영 ✓ 실을래요</span></div></div>
+   <div class="gcard"><p class="gt">② 비 오는 날 우산 하나로 걷던 거요.</p><span class="gn">— 고등학교 짝꿍</span>
+    <div class="gsel"><span class="s on">실을래요</span><span class="s">싣지 않을래요</span><span class="st">서영 · 아직 고르지 않음</span></div></div>
+   <div class="gcard"><p class="gt">③ 500일 축하해. 다음엔 우리도 초대해줘</p><span class="gn">— 동생</span>
+    <div class="gsel"><span class="s">실을래요</span><span class="s on">싣지 않을래요</span><span class="st">서영 · 아직 고르지 않음</span></div></div>
+  </div>
+</div><div class="pin" style="left:352px;top:318px">12</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>두 사람 각자 고르고, 상대가 고른 것도 보임(같이 고르는 일이라 진행 표시 허용 — 인터뷰와 다름).</span></li><li><span class="n">2</span><span>1차 거르기(금칙어 · LLM 0)에 걸린 글은 이 목록에 오지 않음(R157-8 e). 글은 고칠 수 없음.</span></li></ul></div>
+</div></div>
+<div class="section"><div class="sec-hd"><span class="sec-no">2-5</span><span class="sec-title">게스트 웹 답변 페이지</span></div><div class="sec-desc">앱 밖 첫 웹 화면 · 휴대폰 브라우저 · 닉네임 + 질문 3 · 안내 + 개인정보 고지 자리 · 이메일 · 전화 0 · 만료 · 가득 참.</div><div class="screens">
+<div class="sw" data-shot="W01"><div class="sid">W01</div><div class="sname">게스트 웹 · 답변</div><div class="phone web"><div class="url"><div>ondolog.app/g/7Kp2…wQ</div></div><div class="scr">
+  <div class="notice">이 글은 <b>세준 · 서영</b> 두 사람의 잡지에 실릴 수 있어요. 두 사람이 함께 고른 글만 실려요.<br><a>개인정보는 이렇게 다뤄요 ›</a> <span style="font-size:10px;color:var(--textFaint)">(고지 문구 자리 · 법무 검토)</span></div>
+  <div class="ttl" style="margin-top:18px;font-size:21px">세준과 서영의 500일에<br>한마디 남겨 주세요</div>
+  <span class="fl">이름 대신 불릴 닉네임</span><div class="field ph" style="padding:11px 14px">예: 회사 동기 민수<span class="cnt">0 / 20</span></div>
+  <span class="fl">① 두 사람을 처음 함께 봤을 때 어땠어요?</span><div class="field" style="height:70px">처음부터 편해 보였어요<span class="cnt">12 / 100</span></div>
+  <span class="fl">② 두 사람 하면 떠오르는 장면이 있나요?</span><div class="field ph" style="height:62px">비워 둬도 괜찮아요<span class="cnt">0 / 100</span></div>
+  <span class="fl">③ 우리한테 해 주고 싶은 말이 있다면요?</span><div class="field ph" style="height:62px">비워 둬도 괜찮아요<span class="cnt">0 / 100</span></div>
+  <div class="btn" style="bottom:52px;left:0;right:0;margin:0 20px;position:absolute">보내기</div><div class="foot" style="bottom:22px">이메일 · 전화번호는 받지 않아요 · <span class="wm">ONDOLOG</span></div></div><div class="pin" style="left:352px;top:100px">13</div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>앱 밖 첫 웹 화면 · 휴대폰 브라우저. 맨 위 안내 + 개인정보 고지 자리(문구는 법무 뒤). 계정 · 이메일 · 전화 입력 0.</span></li><li><span class="n">2</span><span>닉네임 20자 · 질문마다 100자(한 사람 최대 300자 = 계약 제안 300자) · 한 질문 이상 쓰면 보낼 수 있음.</span></li></ul></div>
+<div class="sw" data-shot="W02"><div class="sid">W02</div><div class="sname">게스트 웹 · 보냄</div><div class="phone web"><div class="url"><div>ondolog.app/g/7Kp2…wQ</div></div><div class="scr"><div style="position:absolute;left:20px;right:20px;top:240px;text-align:center">
+  <div style="width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 18px 6px rgba(215,201,250,.6);margin:0 auto 26px"></div>
+  <div class="ttl" style="font-size:22px">보냈어요</div>
+  <p class="sub">세준 · 서영 두 사람이 함께 읽고 골라요.<br>고른 글은 10월호 잡지에 실려요.</p>
+  <p class="sub" style="font-size:11px;color:var(--textMute);margin-top:18px">보낸 글은 고칠 수 없어요. 싣지 않은 글은 호가 나온 뒤 지워져요.</p></div>
+  <div class="foot" style="bottom:22px"><span class="wm">ONDOLOG</span> · 두 사람의 기록이 한 권의 잡지가 돼요</div></div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>앱 설치 유도 버튼 0(게스트는 손님) — 바닥에 한 줄 소개만.</span></li></ul></div>
+<div class="sw" data-shot="W03"><div class="sid">W03</div><div class="sname">게스트 웹 · 닫힌 링크</div><div class="phone web"><div class="url"><div>ondolog.app/g/7Kp2…wQ</div></div><div class="scr"><div style="position:absolute;left:20px;right:20px;top:260px;text-align:center">
+  <div class="ttl" style="font-size:22px">이 링크는 닫혔어요</div>
+  <p class="sub">10월 21일까지 열려 있었어요.<br>남겨 주신 마음은 두 사람에게 잘 전해졌어요.</p></div>
+  <div class="foot" style="bottom:22px"><span class="wm">ONDOLOG</span></div></div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>만료 = 날짜 사실만. "다시 열어 달라고 하세요" 같은 유도 0.</span></li></ul></div>
+<div class="sw" data-shot="W04"><div class="sid">W04</div><div class="sname">게스트 웹 · 가득 참</div><div class="phone web"><div class="url"><div>ondolog.app/g/7Kp2…wQ</div></div><div class="scr"><div style="position:absolute;left:20px;right:20px;top:260px;text-align:center">
+  <div class="ttl" style="font-size:22px">글이 모두 모였어요</div>
+  <p class="sub">이 링크는 글을 10개까지 받아요.<br>지금은 더 남길 수 없어요.</p></div>
+  <div class="foot" style="bottom:22px"><span class="wm">ONDOLOG</span></div></div><div class="frame"></div></div><ul class="notes"><li><span class="n">1</span><span>10개째가 들어오는 순간 닫힘(서버에서 막음 — 동시에 보낸 11번째는 이 화면).</span></li></ul></div>
+</div></div>
+<div class="section"><div class="sec-hd"><span class="sec-no">문구표</span><span class="sec-title">화면별 문구</span></div><div class="sec-desc">{ }는 데이터. 해요체. 재촉 · 약속 · 판정 말 0 — "아직 안 했어요" · "빨리" · "다음 호에서" · "맞혔어요" 같은 말을 쓰지 않습니다.</div><table class="t"><thead><tr><th>화면</th><th>자리</th><th>문구</th></tr></thead><tbody>
+<tr><td>K01</td><td>카드</td><td>10월호 · 만들고 있어요 · 두 사람이 채울 것 N · 제작 현황 ›</td></tr>
+<tr><td>K02</td><td>칩</td><td>답하기 › · 기록하기 › · 링크 만들기 › · 준비됨 · 모으는 중 · 대기 중</td></tr>
+<tr><td>K02</td><td>대기 이유</td><td>대화가 오간 주가 2주 넘으면 실려요 · 함께하는 커플이 더 모이면 열려요 · 성격 정보가 아직 없어요 · 다음 기념일 {날짜}</td></tr>
+<tr><td>L01</td><td>머리</td><td>이번 주 네 가지 질문 / 내 답을 쓰고, {상대}님이 뭐라고 답할지 짐작해 보세요. 두 사람이 모두 답하면 함께 열려요.</td></tr>
+<tr><td>L02</td><td>입력</td><td>내 답 · {상대}님은 뭐라고 답할까요? · 짐작해서 써 주세요 · 짐작은 맞히는 게 아니에요. 잡지에는 두 답이 나란히 실려요.</td></tr>
+<tr><td>L03</td><td>기다림</td><td>네 문항 모두 답했어요 / {상대}님도 답하면 두 사람의 답이 함께 열려요. 한쪽만 먼저 열리지 않아요. · 잠금 칸 &quot;함께 열려요&quot; · 이번 주가 끝날 때까지 답이 모이지 않으면 이 회차는 다음 주로 넘어가요</td></tr>
+<tr><td>L04</td><td>공개</td><td>서로의 답이 열렸어요 · {상대}님의 짐작 — {답} · 이 답은 {N}월호 「우리 사이」에 실려요</td></tr>
+<tr><td>N01</td><td>머리</td><td>데이트가 없던 오늘, {나}님의 하루는요? · 오늘은 함께한 하루 기록이 없어요 · 오늘 찍은 사진 한 장 · 한 문장 · 남기기</td></tr>
+<tr><td>N01</td><td>데이트 있던 날</td><td>오늘은 함께한 하루에 담겨요 (셋로그 대신)</td></tr>
+<tr><td>N02</td><td>알림</td><td>매일 한 번 알려 주기 · 데이트가 없던 날에만 · {시각} · 처음에는 꺼져 있어요. 켜면 하루 한 번만 보내요.</td></tr>
+<tr><td>N02</td><td>알림 본문(제안)</td><td>오늘 하루는 어땠어요? 사진 한 장으로 남겨 보세요</td></tr>
+<tr><td>P01</td><td>머리</td><td>두 사람을 아는 분들께 한마디를 받아요 · 기념일이 있는 달에만 열 수 있어요. 남은 날 N일.</td></tr>
+<tr><td>P01</td><td>규칙</td><td>링크는 {날짜}에 닫혀요 — 만든 날부터 7일과 이달 말 중 먼저 오는 날 · 글은 10개까지 받아요 · 두 사람이 모두 고른 글만 실려요</td></tr>
+<tr><td>P02</td><td>상태</td><td>링크가 열려 있어요 · 받은 글 N / 10 · 닫히는 날 · 복사 · 공유하기 · 지금 링크 닫기</td></tr>
+<tr><td>P03</td><td>고르기</td><td>실을 글을 함께 골라요 · 실을래요 · 싣지 않을래요 · {상대} ✓ 실을래요 · {상대} · 아직 고르지 않음 · 고르지 않은 글은 호가 나온 뒤 지워져요</td></tr>
+<tr><td>W01</td><td>안내</td><td>이 글은 {이름} · {이름} 두 사람의 잡지에 실릴 수 있어요. 두 사람이 함께 고른 글만 실려요. · 개인정보는 이렇게 다뤄요 ›(고지 문구 = 법무)</td></tr>
+<tr><td>W01</td><td>입력</td><td>{이름}과 {이름}의 {기념일}에 한마디 남겨 주세요 · 이름 대신 불릴 닉네임 · 비워 둬도 괜찮아요 · 보내기 · 이메일 · 전화번호는 받지 않아요</td></tr>
+<tr><td>W02</td><td>보냄</td><td>보냈어요 · 두 사람이 함께 읽고 골라요. 고른 글은 {N}월호 잡지에 실려요. · 보낸 글은 고칠 수 없어요. 싣지 않은 글은 호가 나온 뒤 지워져요.</td></tr>
+<tr><td>W03</td><td>만료</td><td>이 링크는 닫혔어요 · {날짜}까지 열려 있었어요.</td></tr>
+<tr><td>W04</td><td>가득 참</td><td>글이 모두 모였어요 · 이 링크는 글을 10개까지 받아요. 지금은 더 남길 수 없어요.</td></tr>
+</tbody></table></div></body></html>

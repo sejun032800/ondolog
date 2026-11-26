@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import type { ChatMetrics } from '../../src/engine/chatMetrics'
 import type { PersonProfile } from '../../src/engine/coupleProfile'
-import { DNA_BASE_COEFFICIENTS, DNA_CHAT_DELTA_V0, DNA_COEFF_VERSION, DNA_COEFF_VERSION_BASE_ONLY, chatDeltaOf, computeLoveDnaFacts } from '../../src/engine/loveDna'
+import { ATTACHMENT_PAIR_LABELS, DNA_BASE_COEFFICIENTS, DNA_CHAT_DELTA_V0, DNA_COEFF_VERSION, DNA_COEFF_VERSION_BASE_ONLY, attachmentPairLabel, chatDeltaOf, computeLoveDnaFacts } from '../../src/engine/loveDna'
 import { ROUGH_GUESS_V0, computeRoughGuess, durationLabel, fnv1a32, selectMonthlyTopic } from '../../src/engine/roughGuess'
 import { ROUGH_GUESS_TOPICS } from '../../src/constants/roughGuessTopics'
 import {
@@ -66,7 +66,7 @@ describe('③ 어림짐작', () => {
     ])
     expect(ok.facts.busiestDay).toEqual({ no: 7, date: '2026-09-14', count: 40, source: 'measured' })
     expect(ok.facts.monthlyTopic.item.source).toBe('estimate')
-    expect(ok.facts.disclaimer).toBe('재미로만 봐주세요. 진짜로 재는 건 아닙니다.')
+    expect(ok.facts.disclaimer).toBe('재미로 보는 지면입니다. 진짜로 잰 값은 아닙니다.')   // R158-8 ② 합니다체
   })
 
   it('1번 v0 식: P(A) = 50 + 50(s_A − s_B) · 50 미만은 주어를 바꾼다', () => {
@@ -194,6 +194,25 @@ describe('② 두 사람의 결 - 숫자 칸', () => {
     const low = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics({ replyGap: { all: { count: 9, q1: 10, median: 20000, q3: 30000 }, byResponder: { a: null, b: null } }, turnTaking: 0.1 }))
     if (!low.ok) throw new Error('skip')
     expect(low.facts.actionTipsAllowed).toBe(low.facts.score.total <= 60)
+  })
+
+  it('애착 짝 이름(R158-8 ①): 조합 10개 · 순서 무관 · 애착 유형 이름 0 · 판정 · 결핍 낱말 0 · facts에 실림', () => {
+    const types = ['secure', 'anxious', 'avoidant', 'fearful'] as const
+    expect(Object.keys(ATTACHMENT_PAIR_LABELS)).toHaveLength(10)
+    for (const x of types) {
+      for (const y of types) {
+        expect(attachmentPairLabel(x, y)).toBe(attachmentPairLabel(y, x))
+        const label = attachmentPairLabel(x, y)
+        for (const bad of ['안정형', '불안형', '회피형', '혼란형', '공포회피형', '형과', '불안', '회피', '부족', '문제', '안 맞', '나쁜', '좋은']) {
+          expect(label).not.toContain(bad)
+        }
+        expect(label.endsWith('짝')).toBe(true)   // 명사형 라벨
+      }
+    }
+    expect(attachmentPairLabel('secure', 'secure')).toBe('서로의 속도를 기다려 주는 짝')   // R158-8 예 그대로
+    const r = computeLoveDnaFacts({ a: GARAM, b: NARAE }, null, metrics())
+    if (!r.ok) throw new Error('skip')
+    expect(r.facts.attachment.pairLabel).toBe(attachmentPairLabel(r.facts.attachment.a, r.facts.attachment.b))
   })
 
   it('한쪽이라도 성격 데이터가 없으면 빠짐', () => {

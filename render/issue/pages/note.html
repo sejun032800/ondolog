@@ -29,15 +29,32 @@
 
   <!-- v1.2.3 — 세 블록을 위에서부터 흐르는 한 단으로(이전: top 300 / 520 / 650 고정).
        재소환 사진 줄이 생겨도 아래 블록이 저절로 내려간다 — 렌더러가 top을 고치던 처리(add_note_recalled_line)는 필요 없다 -->
-  <div class="ab col note-flow" style="top:300px">
+  <div class="ab col note-flow" style="top:280px">
     <section>
       <span class="lbl sec">수집한 재료</span>
+      <!-- v2.0.0 (1부 13) - 재료 줄이 늘면(성격 정보 · 대화 묶음 · 셋로그 · 인터뷰 답 · 게스트 글) 두 단으로.
+           변형: @note.materials 5줄 이하 rows(지금 표 그대로) · 6줄 이상 grid(두 단 목록 · 같은 칸 이름) -->
+      <div data-variant="rows">
       <table class="tb">
-        <thead><tr><th>항목</th><th class="n">모은 양</th><th class="n">실제 게재</th></tr></thead>
-        <tbody data-repeat="@note.materials">
-          <tr><td data-slot=".label">대화</td><td class="n" data-slot=".collected">412개</td><td class="n" data-slot=".used">인용 9개</td></tr>
-        </tbody>
+          <thead><tr><th>항목</th><th class="n">모은 양</th><th class="n">실제 게재</th></tr></thead>
+          <tbody data-repeat="@note.materials">
+            <tr><td data-slot=".label">대화</td><td class="n" data-slot=".collected">412개</td><td class="n" data-slot=".used">인용 9개</td></tr>
+          </tbody>
       </table>
+      </div>
+      <div data-variant="grid">
+        <div class="mg-h"><span>항목</span><span class="n">모은 양</span><span class="n">실제 게재</span><span>항목</span><span class="n">모은 양</span><span class="n">실제 게재</span></div>
+        <div class="mg" data-repeat="@note.materials">
+          <div class="mr"><span data-slot=".label">대화</span><span class="n" data-slot=".collected">412개</span><span class="n" data-slot=".used">인용 9개</span></div>
+          <div class="mr"><span>사진</span><span class="n">48장</span><span class="n">12장</span></div>
+          <div class="mr"><span>데이트 기록</span><span class="n">6회</span><span class="n">2회</span></div>
+          <div class="mr"><span>메모</span><span class="n">9개</span><span class="n">5개</span></div>
+          <div class="mr"><span>성격 정보</span><span class="n">2명</span><span class="n">2명</span></div>
+          <div class="mr"><span>대화 묶음</span><span class="n">64묶음</span><span class="n">지표 계산</span></div>
+          <div class="mr"><span>셋로그</span><span class="n">5건</span><span class="n">4건</span></div>
+          <div class="mr"><span>인터뷰 답</span><span class="n">32칸</span><span class="n">24칸</span></div>
+        </div>
+      </div>
       <!-- 55-3c 확정 — 재소환 사진은 이번 기간 표에 섞지 않고 표 아래 따로 한 줄. 0이면 줄째 빠진다 -->
       <span class="note" style="display:block;margin-top:12px" data-optional><span
             data-slot="@note.recalledPhotosLine">그때 그 시절 · 지난 기록에서 다시 실은 사진 3장</span></span>
@@ -60,14 +77,16 @@
       <span class="note" style="display:block;margin-top:12px">두 사람이 쓴 문장 <span data-slot="@note.sentencesPeople">31개</span> · 온도록이 쓴 문장 <span data-slot="@note.sentencesOndolog">43개</span> · 집계 수치는 세지 않음</span>
     </section>
 
-    <section style="display:flex;gap:40px">
-      <div style="flex:1">
+    <!-- v2.0.0 (1부 13) - 빠진 코너는 "코너 — 이유" 한 줄씩(기획서 문장 그대로). 줄이 길어 두 단 대신 위아래로 쌓는다.
+         줄마다 판면 폭(658px) 한 줄 · 넘치면 두 줄로 꺾이고(내어쓰기) 지면이 넘치면 렌더 실패(R152-2) -->
+    <section class="lists">
+      <div data-optional>
         <span class="lbl sec">싣지 않은 것</span>
-        <div data-repeat="@note.notUsed"><span class="note" style="display:block;margin-bottom:6px">사진 17장 — 지면 상한 초과</span></div>
+        <div data-repeat="@note.notUsed"><span class="note li">사진 17장 — 지면 상한 초과</span></div>
       </div>
-      <div style="flex:1">
-        <span class="lbl sec">비어 있는 코너</span>
-        <div data-repeat="@note.emptyCorners"><span class="note" style="display:block;margin-bottom:6px">이번 호에는 없습니다</span></div>
+      <div data-optional>
+        <span class="lbl sec">빠진 코너</span>
+        <div data-repeat="@note.emptyCorners"><span class="note li">각자의 하루 — 이번 달에는 셋로그가 없어 싣지 않았습니다</span><span class="note li">어깨너머 — 어깨너머는 함께하는 커플이 더 모이면 열립니다</span><span class="note li">두 사람의 결 — 성격 정보가 아직 없어 싣지 않았습니다</span></div>
       </div>
     </section>
   </div>
@@ -81,7 +100,16 @@
     <p class="note" style="margin:0">정정 요청 — 잘못 실린 문장이 있으면 앱의 <b>설정 › 문의</b>로 알려 주십시오.</p>
   </div>
   <style>
-    .note-flow{display:flex;flex-direction:column;gap:40px}
+    .note-flow{display:flex;flex-direction:column;gap:32px}
+    .note .mg-h,.note .mg{display:grid;grid-template-columns:1fr auto auto 1fr auto auto;column-gap:16px}
+    .note .mg-h{font-size:11px;font-weight:700;letter-spacing:.04em;padding-bottom:8px;border-bottom:1.6px solid var(--ink)}
+    .note .mg-h span:nth-child(4){padding-left:24px}
+    .note .mg .mr{display:contents}
+    .note .mg .mr > span{font-size:12px;padding:8px 0;border-bottom:.6px solid var(--rule)}
+    .note .mg .mr:nth-child(even) > span:first-child{padding-left:24px}
+    .note .n{text-align:right;font-feature-settings:"tnum" 1}
+    .note .lists{display:flex;flex-direction:column;gap:20px}
+    .note .li{display:block;margin-bottom:5px;padding-left:1em;text-indent:-1em}
     .note-flow .sec{font-weight:700;display:block;margin-bottom:12px}
     .note .ai-notice{font-size:11px;line-height:1.65;color:var(--ink)}
   </style>

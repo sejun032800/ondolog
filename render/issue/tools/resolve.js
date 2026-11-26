@@ -10,17 +10,22 @@ window.__resolve = (cfg) => {
     groups.get(p).push(el);
   });
   groups.forEach(list => {
-    const keep = list.find(e => e.dataset.variant === cfg.variant) || list[0];
+    // v2.0.0 — 한 지면에 변형 묶음이 여럿이면 cfg.variants(배열)에서 그 묶음의 이름을 찾는다
+    const want = [cfg.variant, ...(cfg.variants || [])];
+    const keep = list.find(e => want.includes(e.dataset.variant)) || list[0];
     list.forEach(e => { if (e !== keep) e.remove(); });
   });
 
   // 2. repeat — 첫 자식이 틀, 나머지 견본은 지우고 n개로 전개
   document.querySelectorAll("[data-repeat]").forEach(box => {
     const path = box.dataset.repeat;
+    if ((cfg.keep || []).includes(path)) return;   // 미리보기 — 견본 항목을 그대로 둔다(달력처럼 견본이 곧 정답인 칸)
     const n = cfg.repeat?.[path] ?? cfg.repeat?.["*"] ?? 3;
     const tpl = box.firstElementChild;
     if (!tpl) return;
     while (box.children.length > 1) box.lastElementChild.remove();
+    // v2.0.0 — 빈 배열(0개): 항목 틀까지 지운다 → 둘러싼 data-optional이 비어 상자째 빠진다
+    if (n === 0) { tpl.querySelectorAll("[data-slot]").forEach(e => e.textContent = ""); tpl.textContent = ""; return; }
     for (let i = 1; i < n; i++) box.appendChild(tpl.cloneNode(true));
   });
 

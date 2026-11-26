@@ -47,13 +47,20 @@
     {
       "path": "payload.notUsed[]",
       "type": "array",
-      "source": "빠진 코너와 이유 - 기획서 문장 그대로",
+      "source": "render/compose.py _note_values notUsed(재료 집계 - 모은 양 − 실제 게재)",
       "deterministic": true,
       "required": true,
       "count": {
         "min": 0,
         "max": 12
-      }
+      },
+      "meaning": "싣지 않은 재료(기존 @note.notUsed 그대로 - 이름 바꾸지 않음 · R158-9)"
+    },
+    {
+      "path": "payload.skippedCorners[]",
+      "type": "string[]",
+      "meaning": "빠진 코너 - \"코너 — 이유\" 한 줄씩(기획서 문장 그대로) · 틀 @note.emptyCorners에서 채움",
+      "source": "render/compose.py _note_values emptyCorners + render/compose20.py Pages20.empty_lines (R158-9 새로 더함)"
     }
   ],
   "skip_sentences_from_plan": {

@@ -78,13 +78,6 @@
       "original": true,
       "original_rule": "원문 불변 · 자르지 않음(R29-3)",
       "input_limit_suggestion": "제안 100자"
-    },
-    {
-      "path": "payload.mostDivergent",
-      "type": "string|null",
-      "source": "TBD 엔진 - \"가장 크게 갈린 문항\"(MASTER 17-6 지면 예시) 판정식 없음",
-      "deterministic": true,
-      "required": false
     }
   ],
   "sample": {
@@ -120,5 +113,15 @@
     "공개 전 차단 RLS: interview_answers 상대 행은 round.status = revealed 일 때만 - 정책 · 시험 설계",
     "한쪽만 답한 회차 \"다음 주로 이월\"(MASTER) - 월간 호에서는 빠짐인지 이월인지"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "r158_removed": [
+    "payload.mostDivergent - 어긋남을 순위 매기지 않음(R158-9)"
+  ],
+  "design_request_pending_pm": {
+    "note": "2.0-D(ROADMAP r158) - 디자인 v2.0.0 README §10 ③ 필드 요청 중 PM이 아직 정하지 않은 것. 엔진 · 저장은 바꾸지 않았다. PE가 PM에게 올림",
+    "items": [
+      "answers[]{name, own, partnerName, predictedByPartner} - 지면은 그 사람의 답 + 상대가 짐작한 그 사람의 답을 짝지어 실음(렌더러가 짝 바꾸기)",
+      "pages.max 3(문항 단위 되받기) - R158-5(우리 사이 2→1면)와 어긋남: 2가 맞음, 확인용"
+    ]
+  }
 }

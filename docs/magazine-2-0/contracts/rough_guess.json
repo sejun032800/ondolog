@@ -12,50 +12,39 @@
     {
       "path": "payload.disclaimer",
       "type": "string",
-      "source": "고정 문구(MASTER 17-9 \"재미로만 봐주세요\")",
+      "source": "고정 문구 src/engine/roughGuess.ts ROUGH_GUESS_DISCLAIMER - 지면 문장이라 합니다체(R158-8 ②): \"재미로 보는 지면입니다. 진짜로 잰 값은 아닙니다.\"",
       "deterministic": true,
       "required": true,
       "tone": "합니다체"
     },
     {
-      "path": "payload.items[]",
-      "type": "array",
-      "source": "src/engine/roughGuess.ts computeRoughGuess (1~6번 - 8번은 monthlyTopic.item · 7번은 busiestDay)",
-      "deterministic": true,
-      "required": true,
-      "count": {
-        "min": 3,
-        "max": 6
-      },
-      "extra_rule": "채팅 30건 미만이면 1·2·3·8만(4개)"
+      "path": "payload.estimates[]",
+      "type": "array(3)",
+      "shape": "{key, label, subject, percent, similar}",
+      "source": "짐작 ◇ - src/engine/roughGuess.ts 1~3번(성격만 · estimate)",
+      "r158": "R158-9 짐작/셈 나누기 수락"
     },
     {
-      "path": "payload.items[].subject",
+      "path": "payload.measured",
+      "type": "object|null",
+      "shape": "{reply:{a:{name,text},b:{name,text},similar}, talkFirst:{a:{name,percent,percentText},b:{name,percentText},similar}, emoji:(talkFirst와 같은 꼴)}",
+      "source": "셈 ◆ - src/engine/roughGuess.ts 4~6번(src/engine/chatMetrics.ts) · 채팅 30건 미만이면 코너째 빠짐 · 지표 하나가 없으면 그 칸만 빔",
+      "r158": "R158-9"
+    },
+    {
+      "path": "payload.busiestDay.dateText",
+      "type": "string|null",
+      "source": "busiestDay.date -> \"9월 14일\"(렌더러 계산)"
+    },
+    {
+      "path": "payload.monthlyTopic.title",
       "type": "string",
-      "source": "DB profiles.display_name",
-      "deterministic": true,
-      "required": true,
-      "extra_rule": "50% 미만이면 주체를 바꿔 표기 · 차이 10%p 미만이면 \"비슷합니다\"(기획서 2절 6.)"
+      "source": "src/constants/roughGuessTopics.ts title"
     },
     {
-      "path": "payload.items[].percent",
-      "type": "number",
-      "source": "TBD 엔진 (성격 벡터 기반 1·2·3 · 채팅 실측 4·5·6)",
-      "deterministic": true,
-      "required": true,
-      "range": [
-        50,
-        100
-      ],
-      "decimals": 0
-    },
-    {
-      "path": "payload.items[].source",
-      "type": "'estimate'|'measured'",
-      "source": "1~3 · 8 = estimate(성격만) · 4~6 = measured(src/engine/chatMetrics.ts)",
-      "deterministic": true,
-      "required": true,
-      "extra_rule": "표기로 구분(기획서 2절 6.)"
+      "path": "payload.monthlyTopic.text",
+      "type": "string",
+      "source": "monthlyTopic.item.line(엔진이 완성한 문장 · LLM 0)"
     },
     {
       "path": "payload.busiestDay.date",
@@ -94,7 +83,6 @@
   ],
   "sample": {
     "payload": {
-      "disclaimer": "재미로만 봐주세요. 진짜로 재는 건 아닙니다.",
       "items": [
         {
           "key": "confess_first",
@@ -116,7 +104,8 @@
       },
       "monthlyTopic": {
         "id": 3
-      }
+      },
+      "disclaimer": "재미로 보는 지면입니다. 진짜로 잰 값은 아닙니다."
     }
   },
   "open_questions": [
@@ -140,5 +129,6 @@
       "payload.busiestDay.count",
       "payload.footnote"
     ]
-  }
+  },
+  "stored_shape_note": "2.0-D: 지면 계약은 estimates · measured로 나눴다(R158-9). 저장된 content는 아직 payload.items[](1~6)이고 렌더러 render/compose20.py Pages20.rough_pages가 지면 모양으로 옮겨 담는다. 저장 모양을 바꾸는 일은 다음 엔진 위임"
 }

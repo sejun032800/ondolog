@@ -41,7 +41,7 @@
     {
       "path": "payload.score.chatDelta",
       "type": "number|null",
-      "source": "src/engine/dnaScore.ts:203 computeChatDelta (UNRESOLVED dnaScore.chatDelta)",
+      "source": "src/engine/dnaScore.ts computeChatDelta · 계수 src/engine/loveDna.ts DNA_CHAT_DELTA_V0 (ROADMAP r158 R158-2 A′)",
       "deterministic": true,
       "required": true,
       "range": [
@@ -49,7 +49,7 @@
         25
       ],
       "decimals": 1,
-      "trace": "PM v0 승인 전(⑨)에는 null + chatApplied false(\"채팅 반영 전\") - UNRESOLVED dnaScore.chatDelta 그대로"
+      "trace": "r = 답장 간격 중앙값 60초 이하 1 · 10800초 이상 0 · 그 사이 1 − (ln m − ln 60)/(ln 10800 − ln 60) / t = clamp((주고받기 비율 − 0.2)/0.4, 0, 1) / chatDelta = −10 + 35 × (0.5r + 0.5t) · 소수 2자리 · 지표 하나라도 없으면 null + chatApplied false(\"채팅 반영 전\" - 0으로 채우지 않음)"
     },
     {
       "path": "payload.score.previousTotal",
@@ -69,10 +69,11 @@
     {
       "path": "payload.score.coeffVersion",
       "type": "string",
-      "source": "코드 상수 src/engine/loveDna.ts (DNA_COEFF_VERSION_BASE_ONLY = dna_base_only · 승인 뒤 dna_v0) - app_config 키 0(PM 결정)",
+      "source": "src/engine/loveDna.ts DNA_COEFF_VERSION = dna_v0 (기저 61/65/69 + chatDelta v0 한 묶음)",
       "deterministic": true,
       "required": true,
-      "sample_value": "dna_v0"
+      "sample_value": "dna_v0",
+      "trace": "2.0-A1 1차 호에 저장된 dna_base_only는 읽을 때만(DNA_COEFF_VERSION_BASE_ONLY)"
     },
     {
       "path": "payload.partners[]",
@@ -124,10 +125,11 @@
     {
       "path": "payload.attachmentCombo.pairLabel",
       "type": "string",
-      "source": "DB personality_assessments (supabase/migrations/004_personality.sql:4) attachment",
+      "source": "src/engine/loveDna.ts ATTACHMENT_PAIR_LABELS · attachmentPairLabel -> 저장 payload.attachment.pairLabel (렌더러가 지면 attachmentCombo.pairLabel로 옮김)",
       "deterministic": true,
       "required": true,
-      "tone": "명사형"
+      "tone": "명사형",
+      "rule": "R158-8 ① - 애착 유형 이름(안정형 · 불안형 · 회피형 · 혼란형 등) 0 · 명사형 짝 이름 · 판정 · 결핍 표현 0. 조합 10개 문장은 PM 승인 대상"
     },
     {
       "path": "payload.attachmentCombo.headline",
@@ -237,7 +239,7 @@
     {
       "path": "payload.score.chatApplied",
       "type": "boolean",
-      "source": "src/engine/loveDna.ts",
+      "source": "src/engine/loveDna.ts computeLoveDnaFacts - chatDelta가 있으면 true (R158-9 수락 · A1부터 있음 - 확인)",
       "deterministic": true,
       "required": true,
       "extra_rule": "false면 지면 · 목차에 \"채팅 반영 전\" 표지"
@@ -270,7 +272,7 @@
     {
       "path": "payload.attachment",
       "type": "object",
-      "source": "personality_assessments.attachment (a · b 값만 - 지면에 유형명 0)",
+      "source": "personality_assessments.attachment (a · b 코드값 + pairLabel - 지면에 유형명 0)",
       "deterministic": true,
       "required": true
     }
@@ -325,5 +327,13 @@
       "attachmentCombo.pairLabel(유형명 노출 0 - 라벨 칸 없음)"
     ],
     "skip_note": "성격 정보가 아직 없어 싣지 않았습니다"
+  },
+  "design_request_pending_pm": {
+    "note": "2.0-D(ROADMAP r158) - 디자인 v2.0.0 README §10 ③ 필드 요청 중 PM이 아직 정하지 않은 것. 엔진 · 저장은 바꾸지 않았다. PE가 PM에게 올림",
+    "items": [
+      "partners[].name 등재(지금은 렌더러가 partners 순서로 이름을 씀)",
+      "partners[].bigFive 키 o c e a n(정수) 확정 - 지금 저장은 bigFive[]{key,a,b,gap,relation}, 렌더러가 옮겨 담음",
+      "sternbergOverlap = {intimacy:{a,b}, passion:{a,b}, commitment:{a,b}, note} - 지금 저장은 sternberg{k:{a,b,shared}}, note(AI)는 없음(지면 줄째 빠짐)"
+    ]
   }
 }

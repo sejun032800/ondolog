@@ -116,5 +116,12 @@
     "LLM 0~1회의 캡션이 무엇인지(MASTER 17-7 AI 역할은 배치만 - 사진 설명 금지)",
     "매일 알림(기본 꺼짐) 설정 저장 위치 - notification_settings에 칸 추가 필요"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "design_request_pending_pm": {
+    "note": "2.0-D(ROADMAP r158) - 디자인 v2.0.0 README §10 ③ 필드 요청 중 PM이 아직 정하지 않은 것. 엔진 · 저장은 바꾸지 않았다. PE가 PM에게 올림",
+    "items": [
+      "dayText(\"9월 17일 수요일\")",
+      "한 열 최대 조각 6(2면 × 3)"
+    ]
+  }
 }

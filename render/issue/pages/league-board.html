@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 연애리그 별지 ① 스코어보드</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 연애리그(league_monthly) 별지 1/2 — 스코어보드. MASTER 17-3 · 기획서 2절 5 · 계약 contracts/league_monthly.json(+ 필드 요청 F-LG)
+     **별지**: 지면색(body.sheet = 테마 지표 잉크 16%를 바탕에 섞음) + 오른쪽 "별지" 꼬리표(data-margin). 본지 쪽 수 · 4의 배수 · 36쪽 상한 밖.
+     **게임 문법(OVR · 영문 스탯 약어 · ▲▼ · 카드)은 이 지면에만** 쓴다. 본지 지면에는 0.
+     두 사람 막대는 **명도로도** 가른다 — a = 진묵 막대 · b = 지표 잉크 45% 막대(색만이 아니라 밝기 차이) + 범례 -->
+<body class="lg sheet">
+  <div class="sheet-tab" data-margin>별지</div>
+  <div class="ab col run">
+    <span class="kk-ko">연애리그 · 별지</span>
+    <span class="kk-ko" data-slot="payload.season.label">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:86px">
+    <span class="kk">Love League · Season Review</span>
+    <h1 class="h-display" style="margin-top:14px;font-size:44px;line-height:1.2">연애리그</h1>
+    <span class="note" style="display:block;margin-top:8px"><span data-slot="payload.season.label">2026년 9월</span> 시즌 · <span data-slot="payload.season.weekCount">4</span>주 · 성격 검사로 시작해 이번 달 대화로 고친 값</span>
+  </div>
+
+  <!-- 시즌 마지막 주 카드 2장 — OVR만 크게. 포지션 라벨은 이름 체계가 정해질 때까지 없음(position_code null) -->
+  <div class="ab col" style="top:250px">
+    <div class="cards">
+      <div class="fc fa">
+        <span class="ovr" data-slot="payload.current.cards[0].ovr">88</span>
+        <span class="ol">OVR</span>
+        <span class="od" data-slot="payload.current.cards[0].ovrDeltaText">지난달보다 ▲2</span>
+        <span class="fn" data-slot="payload.current.cards[0].name">세준</span>
+      </div>
+      <div class="fc fb">
+        <span class="ovr" data-slot="payload.current.cards[1].ovr">84</span>
+        <span class="ol">OVR</span>
+        <span class="od" data-slot="payload.current.cards[1].ovrDeltaText">지난달보다 ▲2</span>
+        <span class="fn" data-slot="payload.current.cards[1].name">서영</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6각 스탯 — 시즌 마지막 주 값. 막대 폭 = 값(0~100 · data-width) -->
+  <div class="ab col" style="top:440px">
+    <div class="sh"><span class="h-sec">여섯 가지 스탯</span>
+      <span class="legend"><span><i class="ka"></i><span data-slot="payload.current.cards[0].name">세준</span></span><span><i class="kb"></i><span data-slot="payload.current.cards[1].name">서영</span></span></span></div>
+    <div class="bars">
+      <div class="br">
+        <span class="sk"><b>PUS</b>연애 추진력</span>
+        <div class="bb">
+          <div class="bl"><span class="bar a" data-width="payload.current.cards[0].stats.pus"></span><span class="bv" data-slot="payload.current.cards[0].stats.pus">61</span></div>
+          <div class="bl"><span class="bar b" data-width="payload.current.cards[1].stats.pus"></span><span class="bv" data-slot="payload.current.cards[1].stats.pus">72</span></div>
+        </div>
+      </div>
+      <div class="br">
+        <span class="sk"><b>EMP</b>감정 공감력</span>
+        <div class="bb">
+          <div class="bl"><span class="bar a" data-width="payload.current.cards[0].stats.emp"></span><span class="bv" data-slot="payload.current.cards[0].stats.emp">61</span></div>
+          <div class="bl"><span class="bar b" data-width="payload.current.cards[1].stats.emp"></span><span class="bv" data-slot="payload.current.cards[1].stats.emp">72</span></div>
+        </div>
+      </div>
+      <div class="br">
+        <span class="sk"><b>ATT</b>질투 · 집착력</span>
+        <div class="bb">
+          <div class="bl"><span class="bar a" data-width="payload.current.cards[0].stats.att"></span><span class="bv" data-slot="payload.current.cards[0].stats.att">61</span></div>
+          <div class="bl"><span class="bar b" data-width="payload.current.cards[1].stats.att"></span><span class="bv" data-slot="payload.current.cards[1].stats.att">72</span></div>
+        </div>
+      </div>
+      <div class="br">
+        <span class="sk"><b>DEF</b>멘탈 회복력</span>
+        <div class="bb">
+          <div class="bl"><span class="bar a" data-width="payload.current.cards[0].stats.def"></span><span class="bv" data-slot="payload.current.cards[0].stats.def">61</span></div>
+          <div class="bl"><span class="bar b" data-width="payload.current.cards[1].stats.def"></span><span class="bv" data-slot="payload.current.cards[1].stats.def">72</span></div>
+        </div>
+      </div>
+      <div class="br">
+        <span class="sk"><b>TAC</b>밀당 지능</span>
+        <div class="bb">
+          <div class="bl"><span class="bar a" data-width="payload.current.cards[0].stats.tac"></span><span class="bv" data-slot="payload.current.cards[0].stats.tac">61</span></div>
+          <div class="bl"><span class="bar b" data-width="payload.current.cards[1].stats.tac"></span><span class="bv" data-slot="payload.current.cards[1].stats.tac">72</span></div>
+        </div>
+      </div>
+      <div class="br">
+        <span class="sk"><b>REA</b>현실 타협력</span>
+        <div class="bb">
+          <div class="bl"><span class="bar a" data-width="payload.current.cards[0].stats.rea"></span><span class="bv" data-slot="payload.current.cards[0].stats.rea">61</span></div>
+          <div class="bl"><span class="bar b" data-width="payload.current.cards[1].stats.rea"></span><span class="bv" data-slot="payload.current.cards[1].stats.rea">72</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 그달의 주간 카드 — 주마다 두 사람 OVR. 2~6주 -->
+  <div class="ab col" style="top:770px">
+    <div class="sh"><span class="h-sec">주마다</span></div>
+    <div class="wk" data-repeat="payload.weeklyCards">
+      <div class="wc"><span class="lbl" data-slot=".weekLabel">9월 1주차</span>
+        <span class="wo"><b data-slot=".cards[0].ovr">86</b><i>·</i><b class="b" data-slot=".cards[1].ovr">83</b></span></div>
+      <div class="wc"><span class="lbl">9월 2주차</span><span class="wo"><b>87</b><i>·</i><b class="b">83</b></span></div>
+      <div class="wc"><span class="lbl">9월 3주차</span><span class="wo"><b>86</b><i>·</i><b class="b">84</b></span></div>
+      <div class="wc"><span class="lbl">9월 4주차</span><span class="wo"><b>88</b><i>·</i><b class="b">84</b></span></div>
+    </div>
+  </div>
+
+  <div class="ab col" style="bottom:76px">
+    <span class="note">스탯은 성격 검사 5문항에서 시작하고 이번 달 대화로 고칩니다. OVR은 6각 스탯을 합성 규준(<span data-slot="payload.normVersion">norm-synthetic-v3</span>)의 백분위로 옮긴 값입니다 · 계산 기준 <span data-slot="payload.coeffVersion">league_v0</span></span>
+  </div>
+
+  <style>
+    .lg .cards{display:flex;gap:30px}
+    .lg .fc{flex:1 1 0;position:relative;height:160px;border:1.2px solid var(--ink);padding:18px 22px}
+    .lg .fc::after{content:"";position:absolute;inset:5px;border:.6px solid var(--ink);opacity:.35;pointer-events:none}
+    .lg .fb{border-color:color-mix(in srgb,var(--acc) 55%,var(--bg))}
+    .lg .ovr{display:block;font-weight:300;font-size:64px;line-height:1;color:var(--ink);font-feature-settings:"tnum" 1;letter-spacing:-.03em}
+    .lg .fb .ovr{color:var(--acc)}
+    .lg .ol{position:absolute;left:24px;top:88px;font-size:9.9px;font-weight:700;letter-spacing:.3em;color:var(--sub)}
+    .lg .od{position:absolute;right:22px;top:24px;font-size:11px;color:var(--sub)}
+    .lg .fn{position:absolute;left:22px;bottom:18px;font-family:MaruBuri,serif;font-weight:300;font-size:22px;color:var(--ink)}
+    .lg .sh{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:10px;border-bottom:1.6px solid var(--ink)}
+    .lg .legend{display:flex;gap:20px;font-size:11px}
+    .lg .legend > span{display:flex;align-items:center}
+    .lg .ka,.lg .kb{display:inline-block;width:16px;height:6px;margin-right:7px}
+    .lg .ka{background:var(--ink)}
+    .lg .kb{background:color-mix(in srgb,var(--acc) 45%,var(--bg))}
+    .lg .br{display:flex;align-items:center;gap:20px;padding:10px 0;border-bottom:.6px solid var(--rule)}
+    .lg .sk{flex:0 0 150px;font-size:11.5px}
+    .lg .sk b{display:inline-block;width:40px;font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--sub)}
+    .lg .bb{flex:1 1 auto}
+    .lg .bl{display:flex;align-items:center;gap:10px;height:12px}
+    .lg .bar{display:block;height:6px}
+    .lg .bar.a{background:var(--ink)}
+    .lg .bar.b{background:color-mix(in srgb,var(--acc) 45%,var(--bg))}
+    .lg .bv{font-size:10.5px;font-feature-settings:"tnum" 1;color:var(--sub);flex:none}
+    .lg .wk{display:flex;margin-top:14px}
+    .lg .wc{flex:1 1 0;padding:0 12px}
+    .lg .wc + .wc{border-left:.6px solid var(--rule)}
+    .lg .wc:first-child{padding-left:0}
+    .lg .wo{display:flex;align-items:baseline;gap:8px;margin-top:10px}
+    .lg .wo b{font-weight:300;font-size:26px;line-height:1;color:var(--ink);font-feature-settings:"tnum" 1}
+    .lg .wo b.b{color:var(--acc)}
+    .lg .wo i{font-style:normal;color:var(--sub)}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">별지 1</div>
+</body>
+</html>

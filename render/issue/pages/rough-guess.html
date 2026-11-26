@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 어림짐작</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 어림짐작(rough_guess) 1면 — 가십 · 운세면의 결. MASTER 17-9 · 기획서 2절 6 · 계약 contracts/rough_guess.json(+ 필드 요청 F-RG)
+     **추정과 실측을 표기로 가른다** — 짐작(성격 검사로 어림) = ◇ + 숫자 뒤 "쯤" / 셈(이번 달 대화에서 센 값) = ◆ + 숫자 그대로.
+     **비슷함**(두 값 차이 10%p 미만): 그 칸의 ".similar"가 참이면 "두 사람 비슷합니다"만 보이고 이름 · 숫자는 숨는다(CSS .sim + *).
+     계산된 지표처럼 보이지 않게: 표 · 축 · 눈금 0, 가운데 정렬, 마루부리 숫자. 따뜻한 소재만(17-9 톤 원칙) -->
+<body class="rg">
+  <div class="ab col run">
+    <span class="kk-ko">어림짐작</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:92px;text-align:center">
+    <span class="kk">Rough Guess</span>
+    <h1 class="h-display" style="margin-top:18px;font-size:46px;line-height:1.2;letter-spacing:.32em;padding-left:.32em">어림짐작</h1>
+    <!-- 면책 문구 자리 — 필수(17-9). 문구는 계약 payload.disclaimer(고정 문구) -->
+    <p class="disc" data-slot="payload.disclaimer">재미로만 봐주세요. 진짜로 재는 건 아닙니다.</p>
+    <p class="legend"><span><i class="mk">◇</i>짐작 — 성격 검사로 어림한 값, 숫자 뒤에 "쯤"</span><span><i class="mk">◆</i>셈 — 이번 달 대화에서 센 값</span></p>
+  </div>
+
+  <!-- 1 · 2 · 3 짐작 — 확률 배지. 50% 미만이면 주어를 바꿔 쓴다(엔진이 subject · percent를 이미 바꿔 준다) -->
+  <!-- 짐작 · 셈 · 이 달의 어림짐작은 한 상자로 흐른다 — 셈이 빠지면(채팅 30건 미만) 아래가 올라온다 -->
+  <div class="ab col flow" style="top:318px">
+    <div class="est" data-repeat="payload.estimates">
+      <div class="card">
+        <span class="ttl"><i class="mk">◇</i><span data-slot=".label">먼저 고백했을 확률</span></span>
+        <div class="sim-wrap">
+          <span class="sim" data-if=".similar">두 사람 비슷합니다</span>
+          <span class="who"><span class="nm"><span data-slot=".subject">세준</span>님</span><span class="pc"><span data-slot=".percent">71</span><small>%쯤</small></span></span>
+        </div>
+      </div>
+      <div class="card"><span class="ttl"><i class="mk">◇</i><span>한발 먼저 물러서는 쪽</span></span><div class="sim-wrap"><span class="sim">두 사람 비슷합니다</span><span class="who"><span class="nm">서영님</span><span class="pc">64<small>%쯤</small></span></span></div></div>
+      <div class="card"><span class="ttl"><i class="mk">◇</i><span>기념일을 챙기는 정도</span></span><div class="sim-wrap"><span class="who"><span class="nm">서영님</span><span class="pc">82<small>%쯤</small></span></span></div></div>
+    </div>
+
+  <!-- 4 · 5 · 6 · 7 셈 — 채팅 30건 미만이면 엔진이 payload.measured를 비운다 → 상자째 빠진다(17-9 데이터 부족 시) -->
+  <div class="meas" data-optional>
+    <div class="dots"></div>
+    <div class="grid">
+        <div class="cell" data-optional>
+          <span class="ttl"><i class="mk">◆</i>답장 속도 <small>· 가운데 값</small></span>
+          <div class="sim-wrap">
+            <span class="sim" data-if="payload.measured.reply.similar">두 사람 비슷합니다</span>
+            <div class="pair"><span><span class="lbl" data-slot="payload.measured.reply.a.name">세준</span><b data-slot="payload.measured.reply.a.text">3분</b></span><span class="vs">·</span><span><span class="lbl" data-slot="payload.measured.reply.b.name">서영</span><b data-slot="payload.measured.reply.b.text">7분</b></span></div>
+          </div>
+        </div>
+        <div class="cell" data-optional>
+          <span class="ttl"><i class="mk">◆</i>먼저 말을 거는 쪽</span>
+          <div class="sim-wrap">
+            <span class="sim" data-if="payload.measured.talkFirst.similar">두 사람 비슷합니다</span>
+            <div class="gz">
+              <div class="gn"><span><span data-slot="payload.measured.talkFirst.a.name">세준</span> <b data-slot="payload.measured.talkFirst.a.percentText">58%</b></span><span><b data-slot="payload.measured.talkFirst.b.percentText">42%</b> <span data-slot="payload.measured.talkFirst.b.name">서영</span></span></div>
+              <div class="trk"><span class="pos a" data-width="payload.measured.talkFirst.a.percent"><i></i></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="cell" data-optional>
+          <span class="ttl"><i class="mk">◆</i>이모지를 더 쓰는 쪽</span>
+          <div class="sim-wrap">
+            <span class="sim" data-if="payload.measured.emoji.similar">두 사람 비슷합니다</span>
+            <div class="gz">
+              <div class="gn"><span><span data-slot="payload.measured.emoji.a.name">세준</span> <b data-slot="payload.measured.emoji.a.percentText">58%</b></span><span><b data-slot="payload.measured.emoji.b.percentText">42%</b> <span data-slot="payload.measured.emoji.b.name">서영</span></span></div>
+              <div class="trk"><span class="pos a" data-width="payload.measured.emoji.a.percent"><i></i></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="cell" data-optional>
+          <span class="ttl"><i class="mk">◆</i>가장 말이 많았던 날</span>
+          <b class="day" data-slot="payload.busiestDay.dateText">9월 14일</b>
+          <!-- 7번 한 줄만 AI(LLM 1회 · 20자). 추출 불가 · 다툼이 있던 날이면 null → 날짜만(17-9) -->
+          <div data-optional style="margin-top:8px"><span class="ai-l">AI 정리</span><span class="ai-t" data-slot="payload.busiestDay.line">그날은 이사 얘기가 오갔습니다</span></div>
+        </div>
+    </div>
+  </div>
+
+  <!-- 8 이 달의 어림짐작 — 주제 풀 12종 중 hash(couple_id + period) % 12. 결과 문장은 주제마다 꼴이 달라 엔진이 완성해 준다(계산 값만 · LLM 0) -->
+  <div class="topicb">
+    <div class="dots"></div>
+    <span class="ttl" style="justify-content:center;margin-top:26px"><i class="mk">◇</i>이 달의 어림짐작<span class="sep">—</span><span data-slot="payload.monthlyTopic.title">여행 계획을 세운다면</span></span>
+    <p class="topic" data-slot="payload.monthlyTopic.text">세준님이 숙소를 먼저 정할 확률 89%쯤</p>
+  </div>
+  </div>
+
+  <div class="ab col" style="bottom:76px;text-align:center">
+    <span class="note">성격 검사와 이번 달 대화 기록으로 계산했습니다 · 맞히려는 것이 아니라 웃자고 하는 셈입니다</span>
+  </div>
+
+  <style>
+    .rg .disc{margin:20px auto 0;display:inline-block;padding:7px 18px;border:.6px dashed var(--hair);border-radius:20px;font-size:11.5px;color:var(--ink)}
+    .rg .legend{margin:16px 0 0;display:flex;justify-content:center;gap:26px;font-size:9.6px;letter-spacing:.03em;color:var(--sub)}
+    .rg .mk{font-style:normal;color:var(--acc);margin-right:6px;font-size:9px}
+    .rg .ttl{display:flex;align-items:baseline;font-size:11px;font-weight:500;letter-spacing:.04em;color:var(--ink)}
+    .rg .ttl small{font-size:9.4px;font-weight:400;color:var(--sub);margin-left:4px}
+    .rg .est{display:flex}
+    .rg .card{flex:1 1 0;text-align:center;padding:4px 10px 0}
+    .rg .card + .card{border-left:.6px solid var(--rule)}
+    .rg .card .ttl{justify-content:center}
+    .rg .who{display:block;margin-top:18px}
+    .rg .nm{display:block;font-size:12.5px;color:var(--ink)}
+    .rg .pc{display:block;margin-top:6px;font-family:MaruBuri,serif;font-weight:200;font-size:54px;line-height:1;color:var(--acc);font-feature-settings:"tnum" 1}
+    .rg .pc small{font-size:16px;font-weight:300;margin-left:3px;letter-spacing:.02em}
+    /* 비슷함 — .sim이 있으면 같은 칸의 이름 · 숫자를 숨긴다 */
+    .rg .sim{display:block;margin-top:24px;font-family:MaruBuri,serif;font-weight:300;font-size:19px;color:var(--ink)}
+    .rg .sim ~ *{display:none}
+    .rg .dots{height:0;border-top:1.4px dotted var(--hair)}
+    .rg .meas{margin-top:68px}
+    .rg .sep{margin:0 .5em;color:var(--sub)}
+    .rg .topicb{margin-top:64px;text-align:center}
+    .rg .grid{display:grid;grid-template-columns:1fr 1fr;column-gap:58px;row-gap:34px;margin-top:30px}
+    .rg .pair{display:flex;align-items:flex-end;gap:18px;margin-top:16px}
+    .rg .pair .lbl{display:block;margin-bottom:6px}
+    .rg .pair b,.rg .gn b,.rg .day{font-family:MaruBuri,serif;font-weight:300;color:var(--acc)}
+    .rg .pair b{font-size:30px;line-height:1}
+    .rg .pair .vs{color:var(--sub);padding-bottom:6px}
+    .rg .gz{margin-top:18px}
+    .rg .gn{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;margin-bottom:9px}
+    .rg .gn b{font-size:20px}
+    .rg .day{display:block;margin-top:14px;font-size:26px;line-height:1.1}
+    .rg .topic{margin:14px 0 0;font-family:MaruBuri,serif;font-weight:300;font-size:22px;line-height:1.5;color:var(--ink)}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">2 4</div>
+</body>
+</html>

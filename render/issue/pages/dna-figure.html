@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 두 사람의 결 ① 숫자면</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 두 사람의 결(love_dna) 1/2 — 대형 숫자면. 계약 contracts/love_dna.json · MASTER 17-2 지면 구성 1 · 2 · 6
+     잉크: 숫자 = 지표 잉크(acc) · 유형 이름 = 진묵 · AI 문장 = 한 단계 낮춤(.ai-t) -->
+<body class="dna-fig">
+  <div class="ab col run">
+    <span class="kk-ko">두 사람의 결</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:96px">
+    <span class="kk">Two of Us</span>
+    <div class="hair" style="width:120px;margin-top:12px"></div>
+  </div>
+
+  <!-- 1 머리 숫자 — 이달의 일치율. 판정 · 등급 표시 0(/100 · 상위 % · 별점 없음 · MASTER 17-2 절대평가) -->
+  <div class="ab col" style="top:196px">
+    <span class="lbl">이달의 일치율</span>
+    <div style="display:flex;align-items:flex-end;gap:44px;margin-top:22px">
+      <span class="num-hero" style="font-size:176px;line-height:1.1;flex:none" data-slot="payload.score.total">71.4</span>
+      <div style="flex:1;padding-bottom:12px">
+        <!-- 변형 묶음 ①: 지난 호 값이 있으면 delta, 없으면 first(첫 호). previousTotal = null → first -->
+        <div>
+        <div data-variant="delta">
+          <span class="lbl" style="display:block">지난 호와 나란히</span>
+          <span class="mid">지난 호 <span data-slot="payload.score.previousTotal">69.3</span> <span class="ar">→</span> 이번 호 <span data-slot="payload.score.total">71.4</span></span>
+        </div>
+        <div data-variant="first">
+          <span class="lbl" style="display:block">첫 호</span>
+          <span class="mid">견줄 지난 호가 아직 없습니다</span>
+        </div>
+        </div>
+        <div class="rule" style="margin:18px 0 14px"></div>
+        <div>
+        <!-- 변형 묶음 ②: 숫자가 어디서 왔는지(P4) — 성격 기저 + 대화 반영. chatDelta가 null이면(2.0-A1 ⑨ 승인 전) chat-pending -->
+        <div data-variant="chat">
+          <div class="parts">
+            <span><span class="lbl">성격에서</span><span class="pn" data-slot="payload.score.base">65</span></span>
+            <span class="plus">+</span>
+            <span><span class="lbl">이번 달 대화에서</span><span class="pn" data-slot="@dna.chatDeltaText">+6.4</span></span>
+          </div>
+        </div>
+        <div data-variant="chat-pending">
+          <div class="parts">
+            <span><span class="lbl">성격에서</span><span class="pn" data-slot="payload.score.base">65</span></span>
+          </div>
+          <span class="note" style="display:block;margin-top:10px">대화 반영 전 — 이번 호의 숫자는 성격 정보만으로 계산했습니다</span>
+        </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 두 사람의 유형 대조 — 라벨은 성격 검사 결과 그대로(36종 유형 라벨) -->
+  <div class="ab col" style="top:500px">
+    <div class="hair"></div>
+    <div class="types" data-repeat="payload.partners">
+      <div class="type">
+        <span class="lbl" data-slot=".name">세준</span>
+        <span class="tl" data-slot=".labelKo">조용히 오래 보는 사람</span>
+      </div>
+    </div>
+
+    <!-- 6 닮은 점 / 다른 결 — AI 문장(각 40자 · 2~4개). "부족" · "안 맞음" 금지(CORNER_CONTENT 3-2).
+         유형 대조와 한 상자 — 유형 이름이 길어져도 밀려 내려갈 뿐 겹치지 않는다. 아래 산출 설명과 닿으면 겹침 = 렌더 실패(R152-2) -->
+    <span class="ai-l" style="margin-top:72px">AI 정리 · 성격 검사 결과를 문장으로 옮겼습니다</span>
+    <div class="two">
+      <div>
+        <span class="h-sec">닮은 점</span>
+        <div class="li" data-repeat="payload.strengths"><span class="ai-t">둘 다 조용한 시간을 편하게 여깁니다</span><span class="ai-t">계획을 말로 먼저 맞춥니다</span><span class="ai-t">약속 시간보다 조금 일찍 도착하는 편입니다</span></div>
+      </div>
+      <div>
+        <span class="h-sec">다른 결</span>
+        <div class="li" data-repeat="payload.complements"><span class="ai-t">결정의 속도가 서로 다릅니다</span><span class="ai-t">쉬는 방식이 다릅니다</span><span class="ai-t">새로운 곳을 반기는 정도가 다릅니다</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 산출 설명(LLM 1회 · 120자) — 숫자를 다시 말하지 않고 읽는 법만 -->
+  <div class="ab col" style="bottom:128px" data-optional>
+    <div class="rule" style="margin-bottom:14px"></div>
+    <span class="ai-l">AI 정리 · 이 숫자를 읽는 법</span>
+    <span class="ai-t" style="width:var(--bodyW)" data-slot="payload.explain">성격 검사로 정한 기저에 이번 달 대화의 왕복 리듬과 주고받기 비율을 더했습니다. 대화가 오간 모양이 바뀌면 숫자도 달마다 움직입니다.</span>
+  </div>
+  <div class="ab col" style="bottom:76px">
+    <span class="note">성격 검사 5문항과 이번 달 대화 기록으로 계산했습니다 · 다른 커플과 견주지 않습니다 · 계산 기준 <span data-slot="payload.score.coeffVersion">dna_v0</span></span>
+  </div>
+
+  <style>
+    .dna-fig .mid{display:block;margin-top:9px;font-family:MaruBuri,serif;font-weight:300;font-size:17px;line-height:1.5;color:var(--ink)}
+    .dna-fig .mid .ar{color:var(--sub);margin:0 .2em}
+    .dna-fig .parts{display:flex;align-items:flex-end;gap:16px}
+    .dna-fig .parts .lbl{display:block}
+    .dna-fig .pn{display:block;margin-top:8px;font-size:22px;font-weight:400;line-height:1;color:var(--acc);font-feature-settings:"tnum" 1}
+    .dna-fig .plus{font-size:16px;color:var(--sub);padding-bottom:2px}
+    .dna-fig .types{display:flex;margin-top:26px}
+    .dna-fig .type{flex:1 1 0}
+    .dna-fig .type + .type{padding-left:34px;border-left:.6px solid var(--rule)}
+    .dna-fig .tl{display:block;margin-top:12px;font-family:MaruBuri,serif;font-weight:300;font-size:24px;line-height:1.4;color:var(--ink)}
+    .dna-fig .two{display:flex;gap:58px;margin-top:16px}
+    .dna-fig .two > div{flex:1 1 0}
+    .dna-fig .li{margin-top:10px}
+    .dna-fig .li .ai-t{margin-top:8px;padding-left:12px;text-indent:-12px}
+    .dna-fig .li .ai-t::before{content:"·";display:inline-block;width:12px;text-indent:0}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">2 2</div>
+</body>
+</html>

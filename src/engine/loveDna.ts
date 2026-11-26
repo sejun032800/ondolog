@@ -104,8 +104,36 @@ export interface LoveDnaFacts {
   readonly partners: readonly [DnaPartner, DnaPartner]
   readonly bigFive: readonly DnaAxis[]
   readonly sternberg: { readonly intimacy: DnaSternbergPart; readonly passion: DnaSternbergPart; readonly commitment: DnaSternbergPart }
-  readonly attachment: { readonly a: AttachmentType; readonly b: AttachmentType }
+  /** `pairLabel` = 지면 짝 이름(`ATTACHMENT_PAIR_LABELS`) - 애착 유형 이름 대신. */
+  readonly attachment: { readonly a: AttachmentType; readonly b: AttachmentType; readonly pairLabel: string }
   readonly actionTipsAllowed: boolean
+}
+
+/**
+ * 애착 조합 → 지면 짝 이름(R158-8 ① · 2.0-D 정정 1). 지면 「마음을 기대는 방식」의 표제 자리에 싣는다.
+ * **애착 유형 이름(안정형 · 불안형 · 회피형 · 혼란형 등)을 쓰지 않는다** - MASTER 10-5-3 재프레이밍. 명사형 라벨 · 판정 · 결핍 표현 0
+ * (좋다/나쁘다 · 부족 · 문제 · 안 맞음 없음). 순서가 없는 조합 10개(키 = 코드값 두 개를 사전순으로 `+`로 이음).
+ * 문장은 메인 세션 안 - PM 승인 대상(첫 줄 "서로의 속도를 기다려 주는 짝"만 R158-8 예).
+ */
+export const ATTACHMENT_PAIR_LABELS: Readonly<Record<string, string>> = {
+  'secure+secure': '서로의 속도를 기다려 주는 짝',
+  'anxious+secure': '건넨 마음이 든든하게 닿는 짝',
+  'avoidant+secure': '각자의 자리를 지켜 주는 짝',
+  'fearful+secure': '출렁이는 마음을 함께 건너는 짝',
+  'anxious+anxious': '마음을 자주 건네는 짝',
+  'anxious+avoidant': '다가가는 마음과 쉬어 가는 마음이 만나는 짝',
+  'anxious+fearful': '마음이 크게 오가는 짝',
+  'avoidant+avoidant': '혼자의 시간을 서로 아껴 주는 짝',
+  'avoidant+fearful': '조용함과 밀물썰물이 만나는 짝',
+  'fearful+fearful': '밀물과 썰물을 함께 지나는 짝',
+}
+
+/** 두 사람의 애착 코드값 → 짝 이름(순서 무관 · 결정론). */
+export function attachmentPairLabel(x: AttachmentType, y: AttachmentType): string {
+  const key = [x, y].sort().join('+')
+  const label = ATTACHMENT_PAIR_LABELS[key]
+  if (label === undefined) throw new RangeError(`애착 조합 표에 없는 짝 (${key})`)
+  return label
 }
 
 export interface DnaPartner {
@@ -167,7 +195,7 @@ export function computeLoveDnaFacts(profiles: CoupleProfiles, previousTotal: num
         passion: sternbergPart(a.sternberg.passion, b.sternberg.passion),
         commitment: sternbergPart(a.sternberg.commitment, b.sternberg.commitment),
       },
-      attachment: { a: a.attachment, b: b.attachment },
+      attachment: { a: a.attachment, b: b.attachment, pairLabel: attachmentPairLabel(a.attachment, b.attachment) },
       actionTipsAllowed: total <= DNA_ACTION_TIP_MAX_TOTAL,
     },
   }

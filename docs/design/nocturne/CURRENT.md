@@ -97,3 +97,11 @@ patch8로 앱에 남아 있던 마지막 합니다체 두 문장(A15 · B01)을 
 | `N-R17b-Our-Sky-3.dc.html` | C08_front · C08_turning · C08_back · C08_alt · C01_stars · C01_meteor | patch10 | 하늘 감성 고도화. patch9b 보드와 겹치는 곳(층 분리 · 방위 · 별 · 유성 모양 · 모션)은 이 보드가 이김. 360° 원본 `sky/sky_pano_360.jpg` |
 
 새 토큰 없음. 새 아이콘 없음(네 방향 점은 4px 원). 변경 기록 `CHANGES_patch10.md`. patch9b 보드 `N-R17-Our-Sky-2.dc.html`은 그대로 둔다(겹치지 않는 C01 머리 · ✕ · 라벨 · 지평선 · D+ · C03 · 설정 OUR SKY · 버튼은 patch9b).
+
+## 7. 묶음 5 — 매거진 2.0 입력 화면 (2026-11-26)
+
+| 보드 | 화면 | 패치 | 비고 |
+|---|---|---|---|
+| `N-R20-Magazine-Input.dc.html` | K01 · K02 · L01~L04 · N01 · N02 · P01~P03 · W01~W04 | batch5 | 매거진 2.0 입력 화면(제작 현황 · 우리 사이 · 각자의 하루 · 특별 게스트 · 게스트 웹). 예전 D02 · D03 · G01~G11을 대체(흐름만 참고) |
+
+새 토큰 0. 새 글꼴 0. 화면 id는 기존 A~I와 겹치지 않게 K · L · N · P · W. 변경 기록 `CHANGES_batch5.md`.

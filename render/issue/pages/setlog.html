@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 각자의 하루</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 각자의 하루(offline_setlog) 1~2면 — 데이트가 없던 날, 두 사람 각자의 하루를 나란히. MASTER 17-7 · 기획서 2절 7 · 계약 contracts/offline_setlog.json
+     한 사람 = 한 열(columns[0] 왼쪽 · [1] 오른쪽). 한 조각 = 시각 + 사진 + 한 문장(**원문 · 자르지 않음** R29-3 · 마루부리 진묵).
+     변형: 두 사람 다 있으면 two · 한쪽만 있으면 one(한 열을 가운데 넓게 — 비어 있는 쪽 열은 그리지 않는다 · 17-7).
+     넘치면 조각(entries · repeat 블록)째 다음 면으로 되받기(R152-2) → 최대 2면. AI는 배치만(사진 설명 0 · 17-7) -->
+<body class="sl">
+  <div class="ab col run">
+    <span class="kk-ko">각자의 하루</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:86px">
+    <span class="kk">Our Separate Days</span>
+    <div class="hd">
+      <h1 class="h-display" data-slot="payload.dayText">9월 17일 수요일</h1>
+      <span class="note" style="text-align:right">만나지 않은 날,<br>각자 남긴 하루</span>
+    </div>
+    <!-- 같은 시간대(overlaps) — 렌더러가 한 줄로 조립: "같은 시간대 · 08:20 · 19:40". 없으면 줄째 빠짐 -->
+    <span class="ov" data-optional><span data-slot="@setlog.overlapLine">같은 시간대 · 08:20 · 19:40</span></span>
+  </div>
+
+  <div class="ab col" style="top:262px">
+    <div data-variant="two" class="cols">
+      <div class="cl">
+        <span class="who" data-slot=".name">세준</span>
+        <div class="es" data-repeat=".entries">
+        <div class="en"><span class="tm" data-slot=".time">08:20</span><div class="ph sp"><img data-src=".photo.path" src="../images/sample/da_02.jpg" alt=""></div><p class="tx" data-slot=".text">지하철에서 책 읽는 중. 오늘은 앉아서 갔다</p></div>
+        <div class="en"><span class="tm" data-slot=".time">12:40</span><div class="ph sp"><img data-src=".photo.path" src="../images/sample/da_04.jpg" alt=""></div><p class="tx" data-slot=".text">점심은 회사 앞 국수</p></div>
+        <div class="en"><span class="tm" data-slot=".time">19:40</span><div class="ph sp"><img data-src=".photo.path" src="../images/sample/da_06.jpg" alt=""></div><p class="tx" data-slot=".text">퇴근길 하늘이 분홍색이었다</p></div>
+        </div>
+      </div>
+      <div class="cl">
+        <span class="who" data-slot=".name">서영</span>
+        <div class="es" data-repeat=".entries">
+        <div class="en"><span class="tm" data-slot=".time">08:20</span><div class="ph sp"><img data-src=".photo.path" src="../images/sample/da_03.jpg" alt=""></div><p class="tx" data-slot=".text">출근 전 커피 한 잔</p></div>
+        <div class="en"><span class="tm" data-slot=".time">15:10</span><div class="ph sp"><img data-src=".photo.path" src="../images/sample/da_05.jpg" alt=""></div><p class="tx" data-slot=".text">오후 회의 끝나고 창밖</p></div>
+        <div class="en"><span class="tm" data-slot=".time">19:40</span><div class="ph sp"><img data-src=".photo.path" src="../images/sample/p_park0.jpg" alt=""></div><p class="tx" data-slot=".text">같은 하늘 보고 있었으려나</p></div>
+        </div>
+      </div>
+    </div>
+    <div data-variant="one" class="cols one">
+      <div class="cl">
+        <span class="who" data-slot=".name">세준</span>
+        <div class="es" data-repeat=".entries">
+        <div class="en"><span class="tm" data-slot=".time">08:20</span><div class="ph sp"><img data-src=".photo.path" src="../images/sample/da_02.jpg" alt=""></div><p class="tx" data-slot=".text">지하철에서 책 읽는 중. 오늘은 앉아서 갔다</p></div>
+        <div class="en"><span class="tm" data-slot=".time">19:40</span><div class="ph sp"><img data-src=".photo.path" src="../images/sample/da_06.jpg" alt=""></div><p class="tx" data-slot=".text">퇴근길 하늘이 분홍색이었다</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .sl .hd{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px;padding-bottom:16px;border-bottom:1.6px solid var(--ink)}
+    .sl .hd h1{font-size:38px;line-height:1.2}
+    .sl .ov{display:block;margin-top:12px;font-size:10.1px;letter-spacing:.06em;color:var(--acc)}
+    .sl .cols{display:flex;gap:44px}
+    .sl .cl{flex:1 1 0}
+    .sl .one .cl{flex:0 0 400px;margin:0 auto}
+    .sl .who{display:block;font-family:MaruBuri,serif;font-weight:400;font-size:17px;padding-bottom:10px;border-bottom:.6px solid var(--rule)}
+    .sl .en{padding:16px 0 4px}
+    .sl .tm{display:block;font-size:10.7px;letter-spacing:.12em;color:var(--acc);font-feature-settings:"tnum" 1}
+    .sl .sp{margin-top:8px;height:168px}
+    .sl .one .sp{height:240px}
+    .sl .tx{margin:10px 0 0;font-family:MaruBuri,serif;font-weight:300;font-size:14px;line-height:1.6;color:var(--ink)}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">1 2</div>
+</body>
+</html>

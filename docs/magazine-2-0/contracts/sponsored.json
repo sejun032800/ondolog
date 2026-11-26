@@ -67,5 +67,11 @@
     "협찬 문구에도 84-c 검사(말투 · 금지어)를 거는지",
     "커플 데이터로 고르지 않음 - \"전 커플 동일 슬롯\"인지 확인"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "design_request_pending_pm": {
+    "note": "2.0-D(ROADMAP r158) - 디자인 v2.0.0 README §10 ③ 필드 요청 중 PM이 아직 정하지 않은 것. 엔진 · 저장은 바꾸지 않았다. PE가 PM에게 올림",
+    "items": [
+      "skip_note 없음(협찬 없음은 독자에게 사유가 아님)"
+    ]
+  }
 }

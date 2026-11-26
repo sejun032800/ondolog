@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 특별 게스트</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 특별 게스트(special_guest) 1면 — 방명록의 결. MASTER 17-8 · R157-8 · 계약 contracts/special_guest.json(+ F-SG)
+     지인이 웹 페이지에 남긴 글 중 **두 사람이 모두 승인한 것만**(1~10개). 닉네임 + 메시지 **원문**(자르지 않음). AI 0.
+     한 사람의 글 = 질문 번호(①②③) + 답. 답하지 않은 질문은 줄째 빠진다. 글이 많아 넘치면 글(responses)째 다음 면으로 되받기 → 최대 2면 -->
+<body class="gb">
+  <div class="ab col run">
+    <span class="kk-ko">특별 게스트</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:86px;text-align:center">
+    <span class="kk">Guest Book</span>
+    <span class="ms" data-slot="payload.milestone.label">500일</span>
+    <span class="note" style="display:block;margin-top:10px">두 사람의 <span data-slot="payload.milestone.label">500일</span>에 <span data-slot="payload.responderCount">4</span>명이 글을 남겼습니다</span>
+    <ol class="gqs" data-repeat="payload.questions"><li data-slot=".text">두 사람을 처음 함께 봤을 때 어땠어요?</li><li>두 사람 하면 떠오르는 장면이 있나요?</li><li>둘에게 해 주고 싶은 말이 있다면요?</li></ol>
+  </div>
+
+  <div class="ab col" style="top:330px">
+    <div class="gw" data-repeat="payload.responses">
+      <div class="gc"><p class="ga" data-optional><span class="gq">①</span><span data-slot=".answers[0].text">처음부터 편해 보였어요. 둘이 같이 있으면 말을 안 해도 대화하는 것 같았어요.</span></p><p class="ga" data-optional><span class="gq">②</span><span data-slot=".answers[1].text">둘이 비 오는 날 우산 하나로 걷던 거요.</span></p><p class="ga" data-optional><span class="gq">③</span><span data-slot=".answers[2].text"></span></p><span class="sig">— <span data-slot=".nickname">예시 동기</span></span></div>
+      <div class="gc"><p class="ga" data-optional><span class="gq">①</span><span>솔직히 처음엔 둘이 안 어울린다고 생각했는데, 지금은 둘 말고 다른 그림이 안 그려져요.</span></p><span class="sig">— <span>고등학교 짝꿍</span></span></div>
+      <div class="gc"><p class="ga" data-optional><span class="gq">②</span><span> 점심시간마다 전화하면서 웃던 얼굴이요. 축하해요!</span></p><span class="sig">— <span>회사 옆자리</span></span></div>
+      <div class="gc"><p class="ga" data-optional><span class="gq">①</span><span>언니가 이렇게 많이 웃는 거 처음 봤어.</span></p><span class="sig">— <span>동생</span></span></div>
+    </div>
+  </div>
+  <div class="ab col" style="bottom:76px;text-align:center">
+    <span class="note">링크를 받은 분들이 남긴 글을 두 사람이 함께 골라 실었습니다 · 글은 고치지 않았습니다</span>
+  </div>
+
+  <style>
+    .gb .ms{display:block;margin-top:16px;font-family:MaruBuri,serif;font-weight:200;font-size:64px;line-height:1.05;color:var(--acc);letter-spacing:-.02em}
+    .gb .gqs{list-style:none;margin:22px auto 0;padding:14px 0 0;border-top:.6px solid var(--rule);counter-reset:gq;display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--sub);width:var(--bodyW)}
+    .gb .gqs li{counter-increment:gq}
+    .gb .gqs li::before{content:counter(gq,decimal);display:inline-block;width:16px;height:16px;line-height:15px;border:.6px solid var(--sub);border-radius:50%;font-size:9px;margin-right:8px;text-align:center}
+    .gb .gw{column-count:2;column-gap:44px}
+    .gb .gc{break-inside:avoid;padding:20px 22px 18px;margin-bottom:22px;border:.6px solid var(--rule);border-radius:2px}
+    .gb .ga{margin:0 0 10px;font-family:MaruBuri,serif;font-weight:300;font-size:13.5px;line-height:1.7;color:var(--ink);padding-left:22px;text-indent:-22px}
+    .gb .gq{display:inline-block;width:22px;text-indent:0;font-family:Pretendard,sans-serif;font-size:10px;color:var(--acc)}
+    .gb .sig{display:block;margin-top:4px;text-align:right;font-family:MaruBuri,serif;font-weight:400;font-size:13px;color:var(--sub)}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">1 6</div>
+</body>
+</html>

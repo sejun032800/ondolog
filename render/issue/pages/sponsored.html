@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 협찬</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 협찬(sponsored) 1면 — "협찬" 표기가 첫눈에 보이게 · 본지 지면과 헷갈리지 않게. 기획서 2절 12 · 계약 contracts/sponsored.json
+     본지와 다른 점 4가지: ① 맨 위 띠 "협찬"(진묵 바탕 · 지면 폭 전체) ② 지면 전체 테 ③ 러닝헤드 대신 "협찬 지면" ④ 마루부리 · 지표 잉크 · 폴리오 장식 없이 고딕만.
+     커플 데이터 0(전 커플 같은 지면) · 가짜 · 예시 광고로 채우지 않는다(협찬 없으면 코너째 빠짐). 견본 브랜드는 지어낸 이름 + "견본" 표시 -->
+<body class="spn">
+  <div class="ab col run"><span class="kk-ko">협찬 지면 · 본지 기사와 따로 만들었습니다</span><span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span></div>
+  <div class="ab col frame" style="top:60px;bottom:76px"></div>
+  <div class="ab col band" style="top:60px"><span class="bl" data-slot="payload.label">협찬</span><span class="bs">이 면은 <b data-slot="payload.brand">견본상점</b>의 협찬으로 실었습니다</span>
+    <!-- 견본 표시 — 견본 HTML/PDF에서만 "견본". 실제 호는 @sample.stamp가 빈 값 → 요소째 빠진다(data-optional) -->
+    <span class="smp" data-optional><span data-slot="@sample.stamp">견본</span></span></div>
+  <div class="ab col" style="top:150px;padding:0 34px" data-variant="with-image">
+    <div class="ph" style="height:400px"><img data-src="payload.image.path" src="../images/sample/tm_01.jpg" alt=""></div>
+    <span class="br" data-slot="payload.brand">견본상점</span>
+    <h2 class="hl" data-slot="payload.headline">견본상점이 이 지면을 함께합니다</h2>
+    <p class="bd" data-slot="payload.body">이 문단은 협찬 문구가 들어가는 자리를 보여 주기 위한 견본입니다. 실제 지면에는 운영자가 넣은 문구만 들어가며, 커플의 기록으로 고르거나 바꾸지 않습니다.</p>
+  </div>
+  <div class="ab col" style="top:150px;padding:0 34px" data-variant="type-only">
+    <span class="br" style="margin-top:60px" data-slot="payload.brand">견본상점</span>
+    <h2 class="hl" style="font-size:34px;line-height:1.4" data-slot="payload.headline">견본상점이 이 지면을 함께합니다</h2>
+    <p class="bd" data-slot="payload.body">이 문단은 협찬 문구가 들어가는 자리를 보여 주기 위한 견본입니다.</p>
+  </div>
+  <div class="ab col" style="bottom:96px;padding:0 34px"><span class="note">협찬 지면은 두 사람의 기록과 상관없이 같은 달의 모든 호에 같은 내용으로 실립니다</span></div>
+  <style>
+    .spn{font-family:Pretendard,sans-serif}
+    .spn .frame{border:1.2px solid var(--ink)}
+    .spn .band{height:58px;background:var(--ink);color:var(--bg);display:flex;align-items:center;gap:18px;padding:0 22px}
+    .spn .bl{font-size:22px;font-weight:700;letter-spacing:.3em}
+    .spn .bs{font-size:11.5px;opacity:.92}
+    .spn .bs b{font-weight:700}
+    .spn .br{display:block;margin-top:30px;font-size:11px;font-weight:700;letter-spacing:.2em;color:var(--sub)}
+    .spn .hl{margin-top:12px;font-family:Pretendard,sans-serif;font-weight:700;font-size:26px;line-height:1.45;color:var(--ink)}
+    .spn .bd{margin:16px 0 0;font-size:12.5px;line-height:1.75;color:var(--ink);max-width:var(--bodyW)}
+    .spn .smp{margin-left:auto;font-size:12px;font-weight:700;letter-spacing:.4em;border:1.2px solid var(--bg);padding:4px 6px 4px 11px}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">2 7</div>
+</body>
+</html>

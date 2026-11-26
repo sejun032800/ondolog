@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 다음 달</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 다음 달(next_issue) 1면 — **사실만**(R157-7). 다음 달의 날짜 · 관계 기념일 · 열 수 있는 코너. 계약 contracts/next_issue.json(+ F-NX)
+     **약속 문장 0**: "다음 호에서 만나요" · "다음 호에 실립니다" · "기대해 주세요" · "NEXT ISSUE" 같은 줄을 두지 않는다. 지면의 고정 문구도 모두 달력 사실이다.
+     "열 수 있는 코너"는 **할 수 있다는 사실**로만 적는다("특별 게스트 링크를 만들 수 있는 달입니다") — 실리는 것을 약속하지 않는다.
+     기념일 · 열 코너가 모두 없으면 그 상자째 빠지고 달 이름 + "표시할 기념일이 없습니다"(@next.emptyLine)만 남는다. 생일 0 -->
+<body class="nx">
+  <div class="ab col run">
+    <span class="kk-ko">다음 달</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:120px">
+    <span class="kk">Next Month</span>
+    <div class="big"><span class="mo" data-slot="@next.monthNum">10</span><span class="mw">월</span></div>
+    <span class="body-sub" data-slot="@next.monthLine">2026년 10월 · 31일 · 일요일 5번</span>
+  </div>
+  <div class="ab col" style="top:470px">
+    <div class="ms" data-optional>
+      <span class="lbl sec">다음 달의 날</span>
+      <div data-repeat="payload.milestones">
+        <div class="mr"><span class="md" data-slot=".dateText">10월 27일 화요일</span><span class="mlab" data-slot=".label">500일</span></div>
+        <div class="mr"><span class="md">10월 7일 수요일</span><span class="mlab">함께한 지 480일</span></div>
+      </div>
+    </div>
+    <div class="oc" data-optional>
+      <span class="lbl sec">다음 달에 할 수 있는 것</span>
+      <div data-repeat="payload.openingCorners"><p class="ol" data-slot=".text">기념일이 있는 달이라 특별 게스트 링크를 만들 수 있습니다</p></div>
+    </div>
+    <p class="empty" data-optional><span data-slot="@next.emptyLine"></span></p>
+  </div>
+  <div class="ab col" style="bottom:76px"><span class="note">날짜와 기념일만 적었습니다 · 기념일은 두 사람이 사귄 날에서 셉니다</span></div>
+  <style>
+    .nx .big{display:flex;align-items:flex-end;gap:6px;margin-top:20px}
+    .nx .mo{font-family:MaruBuri,serif;font-weight:200;font-size:200px;line-height:.85;color:var(--ink);letter-spacing:-.05em}
+    .nx .mw{font-family:MaruBuri,serif;font-weight:300;font-size:40px;padding-bottom:12px}
+    .nx .big + .body-sub{display:block;margin-top:22px}
+    .nx .sec{display:block;font-weight:700;margin-bottom:10px}
+    .nx .mr{display:flex;align-items:baseline;gap:30px;padding:14px 0;border-top:.6px solid var(--rule)}
+    .nx .md{flex:0 0 180px;font-size:12.5px;font-feature-settings:"tnum" 1}
+    .nx .mlab{font-family:MaruBuri,serif;font-weight:300;font-size:24px;color:var(--acc)}
+    .nx .oc{margin-top:44px}
+    .nx .ol{margin:0;padding:12px 0;border-top:.6px solid var(--rule);font-size:12.5px;line-height:1.6}
+    .nx .empty{margin:0;font-family:MaruBuri,serif;font-weight:300;font-size:18px;color:var(--sub)}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">3 0</div>
+</body>
+</html>

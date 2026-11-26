@@ -74,6 +74,8 @@ def note_equation(note):
                 sums[label] += int(m.group(1))
     out = {}
     for row in note['materials']:
+        if row['label'] not in sums:   # 2.0-D - 2.0 새 재료 줄(성격 정보 · 대화 묶음 · 부록 사진)은 R50-2 정합 대상이 아니다(싣지 않은 것 줄이 없다)
+            continue
         out[row['label']] = (int(re.search(r'\d+', row['collected']).group()), int(re.search(r'\d+', row['used']).group()), sums[row['label']])
     return out
 

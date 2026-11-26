@@ -63,6 +63,11 @@ SKIP_REASON_KO = {  # CORNER_LAYOUT §3-0 "스킵 사유를 유저 언어로" - 
     ('this_month', 'insufficient_input'): '실을 만한 기록을 찾지 못했습니다',
 }
 SKIP_REASON_OTHER = '이번 호에 싣지 못했습니다'
+# 2.0-D 변형 기준(README v2.0.0 §3) - 목차 short는 8항목까지 · 발행 노트 rows는 재료 5줄까지
+CONTENTS_SHORT_MAX = 8
+NOTE_ROWS_MAX = 5
+# 판권 '조판' 줄 - 틀 판(디자인 `measure.py`가 `measure.json`에 적는 판 이름)
+TEMPLATE_VERSION = str(heights.MEASURE.get('version') or '')
 
 
 class ComposeError(Exception):
@@ -794,26 +799,26 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     ordered = [t for t in CORNER_ORDER if body_pages[t]]
     sections = [(t, body_pages[t]) for t in ordered]
 
-    # 2.0-A1(위임 m20-a1 ⑦ ⑧): `appendix` 코너가 ready인 호만 - 새 지면(임시 틀) · 쪽 수 규칙(4의 배수 · 36쪽). 그 밖의 호는 이 가지를 지나지 않는다.
+    # 2.0-A1(위임 m20-a1 ⑦ ⑧) · 2.0-D(디자인 v2.0.0 틀): `appendix` 코너가 ready인 호만 - 새 지면 · 쪽 수 규칙(4의 배수 · 36쪽).
+    # 그 밖의 호는 이 가지를 지나지 않는다.
     p20 = Pages20(b) if is_issue20(b) else None
     plan = None
     if p20 is not None:
         dna, rough = p20.dna_pages(), p20.rough_pages()
-        # ⑥ 새 재료 줄은 발행 노트(디자인 틀 · 한 면 고정)에 넣으면 AI 안내 줄과 겹친다(지면 검사 실패 - 92- 실측: 1줄까지만 들어감) ->
-        # 「발행 노트 · 이어서」 임시 면으로 되받는다(R152-2 되받기 · 틀 0). 디자인 묶음 5가 노트 안에 자리를 그리면 없앤다.
-        note_more = p20.note_more_page()
         n_postcards = 1 if p20.postcard_cards() else 0
         n_next = 1 if p20.has_next_month() else 0
-        # + 이어서 1 + 부록 달력 1 · 엽서 + 다음 달 + 판권 1 + 뒤표지 1
-        base_count = 3 + 1 + sum(len(ps) for _, ps in sections) + len(dna) + len(rough) + 1 + n_postcards + n_next + 1 + 1
-        plan = plan_pages(base_count, len(p20.photo_break_candidates()), n_next, n_postcards)
+        # 2.0-D: 새 재료 줄은 발행 노트 `@note.materials`에 그대로 든다(틀 `grid` 변형 - 「발행 노트 · 이어서」 임시 면은 없앴다)
+        # + 부록 달력 1 · 엽서 + 다음 달 + 판권과 정오 1 + 뒤표지 1
+        base_count = 3 + sum(len(ps) for _, ps in sections) + len(dna) + len(rough) + 1 + n_postcards + n_next + 1 + 1
+        # 판권과 정오는 v2.0.0 틀이 한 면뿐이라(정오를 다음 면으로 나누는 변형 없음) 판권 여백으로 채우지 않는다 - PM 확인 대상
+        plan = plan_pages(base_count, len(p20.photo_break_candidates()), n_next, n_postcards, colophon_split_ok=False)
         if plan.over:   # R158-5 ⑦ - ①~④를 다 줄여도 넘는다(⑤ · ⑥은 2.0-B)
             raise ComposeError(f'본지가 {BODY_PAGE_CAP}쪽을 {plan.over}쪽 넘는다 - 줄이는 순서(사진 한 장 · 판권과 정오 · 다음 달 · 엽서)를 다 써도 넘는다(R158-5)')
         # 목차 차례 = 부르는 차례(두 사람의 결 → 어림짐작 → 부록 → 다음 달 → 판권과 정오)라 쪽 수가 정해진 뒤에 부른다
         appx = p20.appendix_pages(postcards=not plan.drop_postcards)
         nxt = [] if plan.drop_next_month else p20.next_month_pages()
         breaks = p20.photo_break_pages(plan.photo_breaks)
-        colophon = p20.colophon_pages(plan.colophon_split)
+        colophon = p20.colophon_pages(b.theme, p20.coeff_versions(), TEMPLATE_VERSION)
         # 지면 순서(기획서 3절): … 이달의 우리 → [사진 한 장] → 두 사람의 결 → 어림짐작 → [사진 한 장] → 부록 → 다음 달 → 판권과 정오 → 뒤표지
         tail = [('photo_break', breaks[:1]), ('love_dna', dna), ('rough_guess', rough), ('photo_break', breaks[1:2]),
                 ('appendix', appx), ('next_month', nxt), ('colophon', colophon)]
@@ -821,7 +826,7 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
 
     # 쪽 번호(README §11 ⑦) - **표지를 뺀 본문 기준 1부터**: 목차 01, 발행 노트 02, 이후 지면 순서. 표지 2종과 뒤표지에는 폴리오가 없다.
     # 빠진 코너는 번호를 다시 매긴다. (쪽 번호 = 표지부터 센 장 번호 - 1)
-    stems = ['cover', 'contents', 'note'] + (['body'] if p20 is not None else [])
+    stems = ['cover', 'contents', 'note']
     first_page = {}
     for t, ps in sections:
         first_page.setdefault(t, len(stems))   # 이 코너 첫 지면의 쪽 번호 = (len(stems) + 1) - 1
@@ -851,8 +856,6 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     pages.append(PageSpec('contents', None, {**base, 'contents': {'photo': contents_photo or ''}}, {}, None))
     note_index = len(pages)
     pages.append(PageSpec('note', None, {}, {}, None))  # 발행 노트는 마지막에 채운다(실린 것을 센 뒤)
-    if p20 is not None:
-        pages.append(note_more)   # 2.0-A1 「발행 노트 · 이어서」 - 아래에서 채운다
     for _t, ps in sections:
         pages.extend(ps)
     pages.append(PageSpec('back', None, {**base, 'back': {
@@ -865,13 +868,13 @@ def compose_issue(issue: dict, couple: dict, names: list, corners: list, materia
     assert len(pages) == len(stems)
 
     note = _note_values(b, pages)
-    if p20 is not None:   # ⑥ 발행 노트 새 줄 - 재료 표 · 빠진 코너
-        note_more.computed['tp']['rows'] = p20.note_rows(plan.photo_breaks if plan else 0)
+    if p20 is not None:   # ⑥ 발행 노트 새 줄 - 재료 표(`@note.materials`에 더함 · 6줄 이상이면 틀 `grid`) · 빠진 코너
+        note['materials'] = list(note['materials']) + p20.note_rows(plan.photo_breaks if plan else 0)
         lines = p20.empty_lines()
         if lines:
             note['emptyCorners'] = [x for x in note['emptyCorners'] if x != '이번 호에는 없습니다'] + lines
     # R157-7 약속 문장 금지 - 뒤표지 · 발행 노트 · 다음 달(사실은 허용, 약속 문장은 0). 걸리면 렌더를 멈춘다
-    for page_ in [pages[-1], *[p_ for p_ in pages if p_.stem in ('tp-next-month', 'tp-note-more')]]:
+    for page_ in [pages[-1], *[p_ for p_ in pages if p_.stem in ('next', 'colophon')]]:
         found = promise_violations(' '.join(visible_strings(page_.computed)))
         if found:
             raise ComposeError(f'약속 문장 금지 - {page_.stem}: {found}')
@@ -1120,6 +1123,21 @@ def choose_variant(page: PageSpec, names: frozenset, scope: Any) -> Optional[str
         i = as_dict(page.bind).get('i')
         arts = as_list(as_dict(as_dict(page.corner).get('payload')).get('articles'))
         return 'hero-photo' if isinstance(i, int) and 0 <= i < len(arts) and has_photo(as_dict(arts[i])) else 'hero-none'
+    # 2.0-D(README v2.0.0 §3) - 목차 · 발행 노트 · 새 지면 변형
+    if names == frozenset({'short', 'long'}):   # 목차 - @toc 8개 이하 short(v1.2.4 모양) · 9개 이상 long
+        return 'long' if len(as_list(as_dict(page.computed).get('toc'))) > CONTENTS_SHORT_MAX else 'short'
+    if names == frozenset({'rows', 'grid'}):    # 발행 노트 - 재료 5줄 이하 rows · 6줄 이상 grid
+        return 'grid' if len(as_list(as_dict(as_dict(page.computed).get('note')).get('materials'))) > NOTE_ROWS_MAX else 'rows'
+    if names == frozenset({'delta', 'first'}):  # 두 사람의 결 - 지난 호 값이 없으면 first
+        s = as_dict(as_dict(as_dict(page.corner).get('payload')).get('score'))
+        return 'first' if s.get('previousTotal') is None else 'delta'
+    if names == frozenset({'chat', 'chat-pending'}):   # 두 사람의 결 - chatApplied false면 chat-pending
+        s = as_dict(as_dict(as_dict(page.corner).get('payload')).get('score'))
+        return 'chat' if s.get('chatApplied') is True else 'chat-pending'
+    if names == frozenset({'land', 'port'}):    # 사진 한 장 - 사진 가로 ≥ 세로면 land
+        ph = as_dict(as_dict(as_dict(page.corner).get('payload')).get('photo'))
+        w, h = ph.get('width'), ph.get('height')
+        return 'land' if isinstance(w, (int, float)) and isinstance(h, (int, float)) and w >= h else 'port'
     if names == frozenset({'with-photo', 'type-only'}):
         # 오프너 사진은 지면마다 원천이 다르다 - 데이트 아카이브는 대표 기사 전체 stop의 첫 사진, 다정한 말들은 쓰지 않은 첫 사진(README §3)
         group = 'da' if page.stem == 'da-opener' else 'sw'

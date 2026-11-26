@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 부록 ① 다음 달 달력</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 부록(appendix) 1/2 — 다음 달 달력. 기획서 2절 11 · R157-6 · 계약 contracts/appendix.json(+ F-AP)
+     **관계 기념일만**(100일 단위 · 연 단위) — 생일 0. 사귄 날이 없으면 표시 0으로 달력만.
+     **인쇄해서 쓰는 판형**: 가운데 A5 가로(210×148mm) 한 장 + 네 귀 재단선. 잘라서 붙이는 용도라 재단선 안에는 폴리오 · 러닝헤드가 없다.
+     칸은 렌더러가 계산(@calendar.weeks[].days[] · 일요일 시작 · 다른 달 칸은 빈 값 · 4~6주 — 6주 달도 재단선 안에 든다). 기념일 칸만 지표 잉크 -->
+<body class="ap">
+  <div class="ab col run">
+    <span class="kk-ko">부록</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:92px">
+    <span class="kk">Appendix · Calendar</span>
+    <p class="body-sub" style="margin:12px 0 0">다음 달 달력입니다. 재단선을 따라 잘라 쓰세요. 두 사람의 기념일만 표시했습니다.</p>
+  </div>
+  <!-- 재단선 안 = A5 가로 794×560px 중 판면 안쪽 658×466 -->
+  <!-- 재단선 표시(네 귀)는 상자 안쪽 20px 여백에 둔다 — 상자 밖으로 내밀면 지면 검사(overset)에 걸린다 -->
+  <div class="ab cut" style="left:48px;top:230px;width:698px;height:506px">
+    <i class="ln"></i><i class="cm tl"></i><i class="cm tr"></i><i class="cm bl"></i><i class="cm br"></i>
+    <div class="cin">
+      <div class="ch"><span class="mo" data-slot="@calendar.monthNum">10</span><span class="ml"><span data-slot="@calendar.yearText">2026</span><br><span data-slot="@calendar.monthEn">OCTOBER</span></span>
+        <span class="ms" data-optional><span data-slot="@calendar.milestoneLine">10월 27일 · 500일</span></span></div>
+      <div class="dw"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+      <div data-repeat="@calendar.weeks">
+        <div class="wk" data-repeat=".days"><div class="dc"><span class="dn" data-slot=".day"></span><span class="mk" data-optional><span data-slot=".mark"></span></span></div><div class="dc"><span class="dn"></span></div><div class="dc"><span class="dn"></span></div><div class="dc"><span class="dn"></span></div><div class="dc"><span class="dn">1</span></div><div class="dc"><span class="dn">2</span></div><div class="dc"><span class="dn">3</span></div></div>
+        <div class="wk"><div class="dc"><span class="dn">4</span></div><div class="dc"><span class="dn">5</span></div><div class="dc"><span class="dn">6</span></div><div class="dc"><span class="dn">7</span></div><div class="dc"><span class="dn">8</span></div><div class="dc"><span class="dn">9</span></div><div class="dc"><span class="dn">10</span></div></div>
+        <div class="wk"><div class="dc"><span class="dn">11</span></div><div class="dc"><span class="dn">12</span></div><div class="dc"><span class="dn">13</span></div><div class="dc"><span class="dn">14</span></div><div class="dc"><span class="dn">15</span></div><div class="dc"><span class="dn">16</span></div><div class="dc"><span class="dn">17</span></div></div>
+        <div class="wk"><div class="dc"><span class="dn">18</span></div><div class="dc"><span class="dn">19</span></div><div class="dc"><span class="dn">20</span></div><div class="dc"><span class="dn">21</span></div><div class="dc"><span class="dn">22</span></div><div class="dc"><span class="dn">23</span></div><div class="dc"><span class="dn">24</span></div></div>
+        <div class="wk"><div class="dc"><span class="dn">25</span></div><div class="dc"><span class="dn">26</span></div><div class="dc"><span class="dn">27</span><span class="mk" data-optional><span>500일</span></span></div><div class="dc"><span class="dn">28</span></div><div class="dc"><span class="dn">29</span></div><div class="dc"><span class="dn">30</span></div><div class="dc"><span class="dn">31</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="ab col" style="top:760px">
+    <span class="note">기념일은 두 사람이 사귄 날에서 셉니다(100일 단위 · 해 단위)<span data-optional> · <span data-slot="@calendar.noStartNote"></span></span></span>
+  </div>
+  <style>
+    .ap .ln{position:absolute;inset:20px;border:.6px dashed var(--hair)}
+    .ap .cm{position:absolute;width:14px;height:14px;border-color:var(--ink);border-style:solid;border-width:0}
+    .ap .cm.tl{left:0;top:0;border-right-width:.8px;border-bottom-width:.8px}
+    .ap .cm.tr{right:0;top:0;border-left-width:.8px;border-bottom-width:.8px}
+    .ap .cm.bl{left:0;bottom:0;border-right-width:.8px;border-top-width:.8px}
+    .ap .cm.br{right:0;bottom:0;border-left-width:.8px;border-top-width:.8px}
+    .ap .cin{position:absolute;inset:46px 50px}
+    .ap .ch{display:flex;align-items:flex-end;gap:16px;padding-bottom:12px;border-bottom:1.2px solid var(--ink)}
+    .ap .mo{font-family:MaruBuri,serif;font-weight:200;font-size:64px;line-height:.9;color:var(--ink)}
+    .ap .ml{font-size:9.9px;font-weight:700;letter-spacing:.28em;color:var(--sub);line-height:1.6}
+    .ap .ms{margin-left:auto;font-size:11.5px;color:var(--acc)}
+    .ap .dw,.ap .wk{display:grid;grid-template-columns:repeat(7,1fr)}
+    .ap .dw{margin-top:10px;font-size:9.4px;letter-spacing:.1em;color:var(--sub)}
+    .ap .dw span{padding-left:6px}
+    .ap .dc{height:46px;border-top:.6px solid var(--rule);padding:6px 6px 0}
+    .ap .dn{display:block;font-size:12px;font-feature-settings:"tnum" 1;color:var(--ink)}
+    .ap .mk{display:block;margin-top:4px;font-size:9.6px;font-weight:700;color:var(--acc)}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">2 8</div>
+</body>
+</html>

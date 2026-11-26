@@ -66,13 +66,6 @@
         1
       ],
       "decimals": 2
-    },
-    {
-      "path": "payload.ourValue",
-      "type": "number|null",
-      "source": "이 커플 값(자기 데이터) - 비교 표기 여부 TBD",
-      "deterministic": true,
-      "required": false
     }
   ],
   "sample_synthetic_aggregate": {
@@ -102,5 +95,8 @@
     "집계 표 이름 · 갱신 주기 · \"활성 커플\" 정의",
     "처리방침 익명 통계 조항(법무 검토 2)"
   ],
-  "common_rules": "contracts/README.md"
+  "common_rules": "contracts/README.md",
+  "r158_removed": [
+    "payload.ourValue - 다른 커플과 견주지 않음(R158-9 · 17-2 절대평가)"
+  ]
 }

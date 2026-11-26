@@ -1,9 +1,10 @@
-# `render/issue/` v1.2.4 — 발행물 조판 템플릿
+# `render/issue/` v2.0.0 — 발행물 조판 템플릿
 
 ONDOLOG 발행물의 지면 틀이다. **이 HTML이 곧 렌더 템플릿**이고, 렌더 코드는
 구조를 고치지 않고 `data-*` 표시만 채운다. 지면을 고치면 이 묶음을 다시 넘겨 덮어쓰면 된다.
 
 - 기준: `ONDOLOG_MASTER.md` 9-5, `ONDOLOG_CORNER_LAYOUT.md`, **`ONDOLOG_CORNER_CONTENT.md`**, ROADMAP r25(R25-1~8), P1 보드(patch2), 남은 6테마 × 19면 PDF
+- **v2.0.0에서 바뀐 것:** §10 맨 위 · §13 전부. 핵심 — **매거진 2.0 새 지면 15틀**(두 사람의 결 2 · 어림짐작 · 연애리그 별지 2 · 각자의 하루 · 우리 사이 · 특별 게스트 · 어깨너머 · 협찬 · 부록 2 · 사진 한 장 · 다음 달 · 판권 · 정오) · 목차 17항목(`long` 변형) · 발행 노트 재료 두 단(`grid` 변형) · 빠진 코너 줄 · **덩어리 꺾기를 틀이 스스로**(`overflow-wrap:anywhere` → 렌더러 `DEV_TEMP_CSS_92` 삭제) · 뒤표지 바닥 상자 판면 폭 · 높이 표에 새 원문 칸(`measure.json` `v2`) · 견본 호 PDF(`samples/`)
 - **v1.2.4에서 바뀐 것:** §10 맨 위 표. 핵심 — **모든 글 칸 낱말 단위 줄바꿈**(`base.css`) · 높이 표에 여유 한 줄 · 0인 조각 규칙 · 근거 날짜는 발췌마다 · 이달의 우리 없는 호의 표지
 - **v1.2.3에서 바뀐 것:** §10 표가 전부다. 핵심 — 높이는 **규칙 문장이 아니라 실측 표(`measure.json`)가 원본**(§12) · 기사 지면 `hero-photo` / `hero-none`(사진 0인 기사도 싣는다) · 기사 사진 캡션에 AI 캡션 라벨 줄 · 이달의 우리 소기사 사진(근거가 사진인 기사만) · 발행 노트 AI 안내 한 줄 슬롯 · 판면 밖 글자 0 · 0인 칸 `data-optional`
 - **v1.2.2에서 바뀐 것:** `55-3` 지시서 대조용 두 가지 — `tools/resolve.js`의 `data-width`가 **값 없음·범위 밖이면 요소를 지운다**(PM 규칙에 맞춤) · §8이 48개 **전수 목록** · `.gitignore` 추가
@@ -11,12 +12,12 @@ ONDOLOG 발행물의 지면 틀이다. **이 HTML이 곧 렌더 템플릿**이�
 - **v1.2에서 바뀐 것:** §10이 대조표다. 사실과 어긋나던 표시 7건 · 원문에서 줄 수 제한 제거 · `data-width` 표시 추가 · 임시 7건 확정(§11)
 - **v1.1.1에서 바뀐 것:** R26-4(재소환 사유 표기) · R26-5(`@da.lead` 집계 기준)를 §9-②에 반영. `tools/__pycache__` 제거. 지면 구조는 `da-article`의 사유 줄 하나만 바뀌었다 — 라벨을 `data-optional` 안으로 넣었다
 - **v1.1에서 바뀐 것:** 코너 안 슬롯 이름을 `CORNER_CONTENT`에 맞춰 전부 다시 판정했다 — §9 대조표. 사진 자리에 `data-optional`. 다정한 말들 오프너에 변형 2종. `tools/` 추가
-- 범위: **MVP 지면만.** 연애 DNA(M3) · 연애리그(출시 후) · 참여형 코너는 없다
+- 범위: **매거진 2.0 전 지면**(기획서 `ONDOLOG_magazine_2_0_plan.md` r157 · 계약 `docs/magazine-2-0/contracts/`). v1.2.4까지는 MVP 3코너만이었다
 - 전제: **JS 없음 · 외부 URL 없음 · ASCII 파일명 · A4 210×297mm · `@page{margin:0}`**
 
 ---
 
-## 1. 지면 종류 — 13개
+## 1. 지면 종류 — 28개 (v1.2.4의 13 + v2.0.0 새 15 · 아래 두 번째 표)
 
 | 파일 | 지면 | 기존 PDF | 비고 |
 |---|---|---|---|
@@ -33,6 +34,27 @@ ONDOLOG 발행물의 지면 틀이다. **이 HTML이 곧 렌더 템플릿**이�
 | `tm-lead.html` | 이달의 우리 ① 저중심면 | p13 | |
 | `tm-articles.html` | 이달의 우리 ② 소기사 | p14 | `articles` 개수별 변형 3종. 사진은 근거가 사진인 기사에만 — 섞이면 격자, 하나도 없으면 한 단 |
 | `back.html` | 뒤표지 | p19 | Vol 표기 삭제(R21) |
+
+
+**v2.0.0 새 지면 15틀** — 계약 파일은 `docs/magazine-2-0/contracts/`. 경로는 계약 + §13 필드 요청 기준.
+
+| 파일 | 지면 | 계약 | 쪽 | 비고 |
+|---|---|---|---|---|
+| `dna-figure.html` | 두 사람의 결 ① 숫자면 | `love_dna` | 1 | 변형 묶음 둘: `delta`/`first`(지난 호 값 유무) · `chat`/`chat-pending`(`chatApplied`) |
+| `dna-axes.html` | 두 사람의 결 ② 축 비교면 | `love_dna` | 1 | 헤어라인 위 점(빅5 · 스턴버그) · 실천 팁(≤60인 달만, `data-optional`) |
+| `rough-guess.html` | 어림짐작 | `rough_guess` | 1 | 짐작 ◇ "쯤" / 셈 ◆ · 비슷함 · 채팅 30건 미만이면 셈 칸째 빠짐 |
+| `league-board.html` | 연애리그 별지 ① 스코어보드 | `league_monthly` | 1 | `body.sheet` 별지 지면색 · 꼬리표 · 폴리오 "별지 N" |
+| `league-report.html` | 연애리그 별지 ② 해설 | `league_monthly` | 1 | 매치 리포트 · 능력치 배분 · 변동 해설(넘치면 되받기) |
+| `setlog.html` | 각자의 하루 | `offline_setlog` | 1~2 | 변형 `two`/`one`(한쪽만 기록) · 조각째 되받기 |
+| `interview.html` | 우리 사이 | `couple_interview` | 1~2 | 답 + 상대의 짐작 · 판정 표시 0 · 회차 · 문항째 되받기 |
+| `guest.html` | 특별 게스트 | `special_guest` | 1~2 | 방명록 두 단 · 글째 되받기 |
+| `over-shoulder.html` | 어깨너머 | `over_shoulder` | 1 | 집계 숫자만 · 이 커플 값 나란히 0 |
+| `sponsored.html` | 협찬 | `sponsored` | 1 | 변형 `with-image`/`type-only` · 맨 위 "협찬" 띠 · 지면 테 |
+| `appendix-calendar.html` | 부록 ① 다음 달 달력 | `appendix` | 1 | A5 가로 재단선 · 관계 기념일만 |
+| `appendix-postcard.html` | 부록 ② 사진 엽서 | `appendix` | 1 | A6 엽서 1~2장 + 재단선 · 0장이면 면째 빠짐 |
+| `photo-break.html` | 사진 한 장 | `photo_break` | 1 | 변형 `land`/`port`(사진 비율) · 쪽 수 맞춤 |
+| `next.html` | 다음 달 | `next_issue` | 1 | 사실만 · 약속 문장 0 |
+| `colophon.html` | 판권 · 정오 | `colophon` | 1 | 정오(errata · 있을 때만) + 창구 |
 
 ---
 
@@ -95,6 +117,19 @@ ONDOLOG 발행물의 지면 틀이다. **이 HTML이 곧 렌더 템플릿**이�
 
 `@da.*` · `@sw.*`는 **코너 안 값에서 결정론으로 계산되는 것**이다. 계산 방법은 §9-②에 적었다.
 
+### 코너 밖 값 — v2.0.0 새 지면 (렌더러가 계산해 넣는다)
+
+| 이름 | 값 | 지면 |
+|---|---|---|
+| `@dna.chatDeltaText` | `payload.score.chatDelta`에 부호를 붙인 글자 "+6.4" · "−3.0" · "0.0"(마이너스는 U+2212) | 두 사람의 결 ① |
+| `@setlog.overlapLine` | `"같은 시간대 · 08:20 · 19:40"` — `overlaps[]`가 비면 빈 값(줄째 빠짐) | 각자의 하루 |
+| `@os.activeCouplesText` · `@os.redactedText` | `"1,240쌍"` · 지운 칸 수 `"2칸"`(0이면 빈 값 → 그 조각째 빠짐) | 어깨너머 |
+| `@calendar.monthNum` · `.yearText` · `.monthEn` · `.milestoneLine` · `.noStartNote` · `.weeks[].days[]{day, mark}` | 다음 달 달력. 일요일 시작 · 다른 달 칸 `day` 빈 값 · `mark` = 그날 관계 기념일 라벨("500일") 아니면 빈 값 · 사귄 날이 없으면 `noStartNote`="사귄 날을 적으면 기념일이 표시됩니다" | 부록 ① |
+| `@appendix.postcards[]{path, caption}` | 엽서 사진 1~2장 · 캡션 "09.20 · 장소"(장소 없으면 날짜만) | 부록 ② |
+| `@next.monthNum` · `.monthLine` · `.emptyLine` | "10" · "2026년 10월 · 31일 · 일요일 5번" · 기념일 · 열 코너가 모두 없을 때만 "다음 달에는 표시할 기념일이 없습니다"(아니면 빈 값) | 다음 달 |
+| `@colophon.issueLabel` · `.names` · `.writers` · `.photographers` · `.maker` · `.typeset` · `.fonts` · `.themeLabel` · `.versions` | 판권 줄. 빈 값이면 그 줄째 빠짐. `versions` = 그 호에 쓴 `coeffVersion` · `normVersion`을 " · "로 | 판권 · 정오 |
+| `@sample.stamp` | 견본 PDF에서만 "견본". **실제 호는 빈 값**(요소째 빠짐) | 협찬 |
+
 ### 코너 안 값
 
 **경로는 코너 봉투(`CornerEnvelope`) 기준이다** — `header.*` / `payload.*`(`CORNER_CONTENT` §0-3).
@@ -112,6 +147,13 @@ ONDOLOG 발행물의 지면 틀이다. **이 HTML이 곧 렌더 템플릿**이�
 | `da-opener.html` | `with-photo` `type-only` | `@da.openerPhoto`가 비면 `type-only`. 대표 기사 전체 stop에 사진이 하나도 없을 때다 |
 | `da-article.html` | `hero-photo` `hero-none` | 그 기사 전체 stop에 사진이 하나라도 있으면 `hero-photo`, 0이면 `hero-none`. **사진 0인 기사를 빼지 않는다**(v1.2.3) |
 | `sw-opener.html` | `with-photo` `type-only` | `@sw.openerPhoto`가 비면 `type-only`. 사진 없는 지면에 밝은 활자를 두지 않기 위한 것이다 |
+| `dna-figure.html` | `delta` `first` · `chat` `chat-pending` | 묶음이 둘(§2 문법 — 같은 부모 아래 형제끼리). `previousTotal` null → `first` · `chatApplied` false → `chat-pending` |
+| `rough-guess.html` | (없음) | 비슷함은 변형이 아니라 `data-if=".similar"` + CSS(`.sim ~ *` 숨김) |
+| `setlog.html` | `two` `one` | `columns.length` |
+| `sponsored.html` | `with-image` `type-only` | `payload.image` 유무 |
+| `photo-break.html` | `land` `port` | 사진 `width ≥ height` → `land` |
+| `contents.html` | `short` `long` | `@toc.length` 8 이하 `short`(v1.2.4 모양 그대로) · 9~18 `long` |
+| `note.html` | `rows` `grid` | `@note.materials.length` 5 이하 `rows`(v1.2.4 표 그대로) · 6~10 `grid` |
 
 **AI가 고르는 게 아니라 개수가 결정한다**(§3-1). `grid-4`는 2×2,
 `grid-2`·`grid-3`은 한 줄이다.
@@ -212,25 +254,22 @@ v1.2.2까지 판면 밖에 있던 `bottom:62px` 줄(타임라인 경로 · 합�
 3. **`.evidence`(tm-articles) 한 줄 조립**은 `CORNER_LAYOUT` §3-4 규칙을 렌더러가 수행한다.
    지면은 완성된 한 줄을 받는다.
 
-## 8. 파일 — 50개
+## 8. 파일 — 68개 (v2.0.0)
 
 반입 뒤 **개수와 이름을 이 표로 대조**한다. 글롭이 아니라 전부 적었다.
 
-> v1.2.4 — 디자인 압축에는 **`measure.json`이 빠져 49개**다(저장소의 환경 실측판을 덮지 않으려고). 반입 뒤 `tools/measure.py`가 다시 쓰면 50개. 개발의 `measure.env.json`(잰 환경 기록)은 개발 파일이라 이 표에 세지 않는다.
+> v2.0.0 — 이번 압축에는 **`measure.json`이 들어 있다**(새 지면 칸 `v2`가 처음 생겨서). 값은 디자인 환경(Linux · Chromium) 실측이다 — **저장소의 환경 실측판을 덮으므로 같은 커밋에서 `tools/measure.py`를 렌더 PC에서 다시 돌린다**(R138 · §10 ④ F1). 개발의 `measure.env.json`은 개발 파일이라 세지 않는다.
 
 | 자리 | 개수 | 파일 |
 |---|---|---|
 | `(루트)` | 4 | `.gitignore` · `README.md` · `base.css` · `measure.json` |
-| `pages` | 13 | `back.html` · `contents.html` · `cover-photo.html` · `cover-type.html` · `da-article.html` · `da-opener.html` · `da-places.html` · `da-timeline.html` · `note.html` · `sw-opener.html` · `sw-quotes.html` · `tm-articles.html` · `tm-lead.html` |
+| `pages` | 28 | `appendix-calendar.html` · `appendix-postcard.html` · `back.html` · `colophon.html` · `contents.html` · `cover-photo.html` · `cover-type.html` · `da-article.html` · `da-opener.html` · `da-places.html` · `da-timeline.html` · `dna-axes.html` · `dna-figure.html` · `guest.html` · `interview.html` · `league-board.html` · `league-report.html` · `next.html` · `note.html` · `over-shoulder.html` · `photo-break.html` · `rough-guess.html` · `setlog.html` · `sponsored.html` · `sw-opener.html` · `sw-quotes.html` · `tm-articles.html` · `tm-lead.html` |
 | `themes` | 6 | `basic.css` · `hip.css` · `lovely.css` · `neon.css` · `night.css` · `ondol.css` |
-| `tools` | 6 | `README.md` · `audit.py` · `measure.py` · `preview.py` · `resolve.js` · `sweep.py` |
+| `tools` | 7 | `README.md` · `audit.py` · `measure.py` · `preview.py` · `resolve.js` · `sample.py` · `sweep.py` |
 | `fonts` | 8 | `LICENSES.md` · `MaruBuri-ExtraLight.otf` · `MaruBuri-Light.otf` · `MaruBuri-Regular.otf` · `MaruBuri-SemiBold.otf` · `Pretendard-Bold.otf` · `Pretendard-Medium.otf` · `Pretendard-Regular.otf` |
 | `images/sample` | 13 | `back.jpg` · `contents.jpg` · `cover.jpg` · `da_01.jpg` · `da_02.jpg` · `da_03.jpg` · `da_04.jpg` · `da_05.jpg` · `da_06.jpg` · `da_open.jpg` · `p_park0.jpg` · `sw_open.jpg` · `tm_01.jpg` |
-| **합계** | **50** | 디렉터리 항목은 세지 않는다 — `unzip -l`의 합계는 디렉터리 8개를 포함한다 |
-
-> **v1.1.1 → v1.2.1에서는 파일이 늘거나 줄지 않았다**(모두 기존 파일 안의 변경).
-> **v1.2.2에서 `.gitignore` 하나만 늘었다**(47 → 48). **v1.2.3에서 `measure.json` · `tools/measure.py` 둘이 늘었다**(48 → 50).
-> **지울 잔여 파일은 없다** — 덮어쓰면 끝이다. `measure.json`은 렌더러가 읽는다(§12) — 틀의 활자 · 폭을 바꾸면 `tools/measure.py`로 다시 잰다.
+| `samples` | 2 | `sample_issue_basic.pdf` · `sample_issue_night.pdf` — 견본 호(본지 24쪽 + 별지 2). **렌더 결과가 아니라 틀의 견본 글자 그대로** |
+| **합계** | **68** | v1.2.4 50 → +15 지면 · +1 `tools/sample.py` · +2 견본 PDF. 지울 파일 0 |
 
 장식 이미지는 쓰지 않는다. `images/`에 있는 것은 전부 미리보기용 견본이다.
 `images/sample/`은 렌더 결과에 들어가면 안 된다.
@@ -329,7 +368,59 @@ v1.2.2까지 판면 밖에 있던 `bottom:62px` 줄(타임라인 경로 · 합�
 
 ---
 
-## 10. v1.2.3 → v1.2.4 바뀐 것
+## 10. v1.2.4 → v2.0.0 바뀐 것 (묶음 5 · 2026-11-26)
+
+> 근거: `PM_request_design_batch5_2026-11-25.md` · 기획서 r157 · ROADMAP R157 · 계약 `docs/magazine-2-0/contracts/`(초안). **계약에 없는 칸은 그리지 않고 ③ 필드 요청으로 적었다.**
+
+### ① 정정 묶음 (요청서 3부)
+
+| # | 항목 | 처리 | 근거 · 검증 |
+|---|---|---|---|
+| 1 | 뒤표지 바닥 상자가 판면보다 넓음(`back.html` `left:0;right:0`) | **고침** — 바닥 상자 · 맺음 상자 모두 `.col`(판면 폭) | ㅋ×60 별명 · 긴 이름+URL: 판면 밖 글자 7 → 0 |
+| 2 | tm-lead 표제 상자 폭 없음 | **고침** — `.col` | ㅋ×70 표제: 2,588px까지 나감 → 0 |
+| 3 | tm-lead 요약 숫자 `flex:none` | **고침** — `0 1 auto`(최소 96px) · 라벨이 꺾임 | |
+| 4 | 발행 노트 막대 안 퍼센트가 13% 미만에서 숨음 | **그대로** — 아래 문장 수 줄에 두 숫자가 다 있다. 제안만: 퍼센트를 막대 **위 줄 양 끝**("두 사람 8%" 왼쪽 · "온도록 92%" 오른쪽)으로 옮기면 폭과 상관없이 늘 보인다(막대는 그림만) | 요청서 "지금대로 둬도 됨" |
+| 5 | 덩어리를 틀이 스스로 꺾기 | **고침** — `base.css` `overflow-wrap:break-word` → `anywhere`(keep-all 그대로) | 28지면 글 칸 전부 ㅋ×80: 판면 밖 0 · v1.2.4 13지면 견본 **픽셀 같음** · 높이 표 **값 같음** → **`DEV_TEMP_CSS_92` 삭제 가능** |
+| 6 | 예전 D1 남은 것 | `measure.py` 판 이름 **v2.0.0** · README 재소환 사진 셈(R51-2 · R138-3) · "두 사람 48%" · 표지 겹침(R145-6) · 0인 조각 · 낱말 단위 줄바꿈 + 높이 표 = **v1.2.4에서 이미 처리**(§10-1 · §11 ⑬ ⑭) — 바꿀 것 없음 | §10-1 |
+
+### ② 새 지면 · 호 전체
+
+- 새 15틀 = §1 두 번째 표. 규칙은 §13.
+- **목차** — `long` 변형(두 단 · 한 단 9줄 · 18항목까지). 8항목 이하는 v1.2.4 모양 그대로(`short`).
+- **발행 노트** — 재료 6줄 이상이면 두 단(`grid`). "비어 있는 코너" → **"빠진 코너"**: "코너 — 이유" 한 줄씩 위아래로(기획서 문장 그대로). 흐르는 한 단이라 줄이 늘면 아래가 밀리고, 지면을 넘으면 렌더 실패(R152-2).
+- **뒤표지** 주석 — R157-7 뜻("사실은 허용 · 약속 문장 금지")으로 정정. 다음 달의 사실은 「다음 달」 지면이 싣는다.
+- **쪽 수** — 견본 호 = 본지 24쪽(4의 배수) + 별지 2. 사진 한 장은 `land` · `port` 두 변형이라 어느 사진으로도 한 쪽을 채운다. 판권 · 정오는 아래 여백을 비워 두는 지면이라 "판권 여백" 순서에 맞다.
+
+### ③ 필드 요청 (계약에 넣을지 PM 결정)
+
+| 계약 | 요청 |
+|---|---|
+| `love_dna` | `partners[].name` 등재 · `partners[].bigFive` 키 `o c e a n`(정수) 확정 — 축 비교면이 바로 읽으므로 **`bigFiveComparison[]`은 지면에서 안 씀**(relation 판정 기준 질문도 닫힘) · `sternbergOverlap` = `{intimacy:{a,b}, passion:{a,b}, commitment:{a,b}, note}`(삼각형 대신 세 축) · `score.chatApplied: boolean`(A1 ⑨ 전 "채팅 반영 전") |
+| `rough_guess` | `items[]`를 꼴별로 나눔 — `estimates[3]{key,label,subject,percent,similar}` · `measured`(채팅 30건 미만 null)`{reply:{a:{name,text},b:{name,text},similar}, talkFirst:{a:{name,percent,percentText},b:{name,percentText},similar}, emoji:(같은 꼴)}` · `busiestDay.dateText`(null 허용) · `monthlyTopic.title` · `.text` · 라벨 승인: 1 먼저 고백했을 확률 · **2 한발 먼저 물러서는 쪽**(MASTER "갈등 회피 지수"를 따뜻한 말로) · 3 기념일을 챙기는 정도 · 비슷함 규칙을 4 · 5 · 6에도(4번 시간은 작은 값 ÷ 큰 값 ≥ 0.9 제안) · `skip_note` = DNA와 같은 문장 |
+| `league_monthly` | `current.cards[2]{name, ovr, ovrDeltaText, stats}`(문법에 `[last]` 없음) · `matchReport{weekLabel, items[11]{term,label,valueText,measured}}`(마지막 주만) · `statChanges[]{name,statLabel,changeText,explanation,evidence[]{dateText,excerpt}}` · `statBreakdown[6]{statKey,a,b}` · `normVersion` · `coeffVersion` · **`pages.max` 2 → 3**(변동 해설 원문이 길면 되받기) · `skip_note` "연애리그는 대화가 오간 주가 두 주 이상인 달에 실립니다" |
+| `offline_setlog` | `dayText`("9월 17일 수요일") · 한 열 최대 조각 **6**(2면 × 3) · `overlaps[]` → `@setlog.overlapLine` · `skip_note` "이번 달에는 셋로그가 없어 싣지 않았습니다" |
+| `couple_interview` | `answers[]{name, own, partnerName, predictedByPartner}` — 지면은 **그 사람의 답 + 상대가 짐작한 그 사람의 답**을 짝지어 싣는다(저장은 "내가 짐작한 상대 답"이니 렌더러가 짝을 바꿔 넣음) · `rounds[].label` · **`mostDivergent` 삭제**(판정에 가까움 · 지면에 안 실음) · `pages.max` 3(문항 단위 되받기) · `skip_note` "이번 달에는 두 사람이 모두 답한 회차가 없어 싣지 않았습니다" |
+| `special_guest` | `responses[].answers[3]{text}`(질문별 · 빈 질문 빠짐) — 웹은 질문마다 **100자**(한 사람 최대 300자 = 계약 제안 300) · 닉네임 20자 · `skip_note`는 **기념일 달인데 실을 글이 0일 때만** "실을 글이 없어 싣지 않았습니다"(기념일 없는 달마다 적으면 소음) |
+| `over_shoulder` | `cells[]{label, valueText, nText}` · `redactedCount` · `activeCouples` · **`ourValue` 삭제**(나란히 싣지 않음 — 17-2 절대평가) |
+| `sponsored` | `image{path,width,height}` · `skip_note`: **적지 않음**(협찬 없음은 독자에게 사유가 아님 — 계약 열린 질문에 답) |
+| `appendix` | 달력 값은 렌더러 계산(§2 `@calendar.*`) · `postcards[]{path, caption}` · 사진 1장이면 엽서 한 장만(면 유지) |
+| `next_issue` | `milestones[]{label, dateText}` · `openingCorners[]{text}` = **사실 문장 상수표**(예: 특별 게스트 → "기념일이 있는 달이라 특별 게스트 링크를 만들 수 있습니다") — 달력 사실로 정해지는 코너만 |
+| `colophon` | 판권 줄 9개(§2 `@colophon.*`) · `errata[]{where, text}`(지난 호 정정 · 없으면 빠짐 — 입력 길은 운영) · 호 번호 · 발행일은 찍지 않음(표지 규칙과 같게) |
+| `publication_note` | 계약 `payload.notUsed[]`(빠진 코너 문장)는 이름이 기존 `@note.notUsed`(싣지 않은 재료)와 겹친다 → **`skippedCorners`로** 바꾸고 틀은 `@note.emptyCorners`에 "코너 — 이유" 한 줄로 받는다 · 새 재료 줄은 `@note.materials[]{label,collected,used}`에 그대로 더함 |
+
+### ④ 개발이 할 일 (반입 위임 — R157-12 ⑨)
+
+| # | 할 일 |
+|---|---|
+| F1 | **`render/issue/tools/measure.py`를 렌더 PC에서 다시 돌려 `measure.json`을 같은 커밋에** — 이 압축의 값은 디자인 환경 실측이다(R138) |
+| F2 | 렌더러 `DEV_TEMP_CSS_92` 삭제(§10 ① 5) · `.gitignore`에 `*.zip` 한 줄(R157-12) |
+| F3 | 새 변형 고르기(§3 v2.0.0 줄) · 새 계산 값(§2 v2.0.0 표) · `@sample.stamp`는 실제 호에서 **늘 빈 값** |
+| F4 | 되받기 대상 반복 블록 등록(R152-2): `setlog` `.entries` · `interview` `payload.rounds` / `.questions` · `guest` `payload.responses` · `league-report` `payload.statChanges`. 높이는 `measure.json` `v2`(§13-3) |
+| F5 | 약속 문장 금지 검사(R157-7)를 `next.html` · `colophon.html` · `note.html` 출력에 건다 — 틀의 고정 문구는 모두 통과하게 썼다 |
+| F6 | 2.0-A1 임시 틀(`render/temp_pages/`)을 이 틀로 교체 · 지면 제목 표에 새 제목(「두 사람의 결」 · 「어림짐작」 · 「각자의 하루」 · 「우리 사이」 · 「특별 게스트」 · 「어깨너머」 · 「협찬」 · 「부록」 · 「사진 한 장」 · 「다음 달」 · 「판권 정오」*) — *「판권 · 정오」의 가운뎃점은 정규식 `^[가-힣 ]{1,7}$` 밖이다 → 제목 표는 "판권 정오", 지면 러닝헤드만 "판권 · 정오"(PM 확인) |
+| F7 | 목차 `long` 변형 · 발행 노트 `grid` 변형 선택 · 빠진 코너 문장 = "코너 — 이유" |
+
+## 10-0. v1.2.3 → v1.2.4 바뀐 것
 
 > 바탕: 디자인 보관 v1.2.3(저장소에 들어간 판과 같은 틀). 요청 번호는 `PM_request_design_batch4_2026-11-23.md` 1부.
 
@@ -733,3 +824,43 @@ AI 캡션(10.9/1.6 · 545px) · 인용 정황(9.5/1.6 · 446px)은 20~150자에�
 - 지면을 나눌 때 위 식으로 높이를 더한다(`measure.json`을 읽는다 — 값을 코드에 옮겨 적지 않는다).
 - 한 구간 · 한 대화가 가용 높이를 넘으면 렌더 실패(원문을 자르지 않는다). 타임라인 2면 상한을 넘는 구간은 싣지 않고 발행 노트에 적는다(그대로).
 - 렌더 뒤 지면 검사(`overset`)가 마지막 방어다 — 식이 어긋나도 넘친 지면은 나가지 않는다.
+
+## 13. v2.0.0 새 지면 규칙
+
+### 13-1. 모든 새 지면
+
+- **잉크** — 원문(두 사람의 글) = 마루부리 · 진묵 · 자르지 않음 · AI 문장 = `.ai-l`(라벨 한 줄) + `.ai-t` — **크기 11px · 굵기 400**으로 한 단계 낮춤(색만으로 가르지 않음) · 계산된 숫자 = 지표 잉크(`--acc`).
+- **판정 0** — `/100` · 등급 · 순위 · 상위 % · ○× · "맞혔다" · "가장 크게 갈린" · 평균선 · 다른 커플과 나란히 0. 숫자 옆에는 그 숫자가 어디서 왔는지(바닥 줄 · "성격에서 65 + 대화에서 +6.4").
+- **두 사람 구분** — 점: 채운 점(진묵) / 빈 고리(지표 잉크 · 더 큼) · 막대: 진묵 / 지표 잉크 45% — **모양 · 명도**로. 범례 늘 같이. 같은 값이면 고리 안에 점이 보인다.
+- **AI 칸 길이** — 계약 `max_chars` 그대로 받게 그렸다(이름 10자 · AI 칸 상한 · ㅋ×34 덩어리로 판면 밖 · 겹침 0 확인). 그래서 AI 칸은 높이 표가 없다.
+- **별지** — `body.sheet`(지면색 = 지표 잉크 11%를 바탕에 · 서브 잉크를 진묵 쪽으로 30% 당겨 대비 3.0 이상) + `.sheet-tab`(`data-margin`) + 폴리오 "별지 N". 게임 문법(OVR · 영문 약어 · ▲▼ · 카드)은 별지에만.
+- **견본 이름** — 세준 · 서영(v1.2.4 견본과 같은 합성 이름). 협찬 견본 브랜드는 지어낸 "견본상점" + "견본" 표시.
+
+### 13-2. 지면별
+
+| 지면 | 정한 것 |
+|---|---|
+| 두 사람의 결 | 스턴버그 삼각형 겹침 → **세 축의 점**(두 삼각형 면적이 크기 · 우열로 읽힘) · "신경성" → **"감정의 진폭"**(잔잔함—출렁임) · 양 끝 말은 특성 · 실천 팁은 번호 · 체크 · 굵은 제목 없이 "— " 문장 · 바닥 "다른 커플과 견주지 않습니다" |
+| 어림짐작 | 짐작 = ◇ + "쯤" / 셈 = ◆ · 비슷함 = "두 사람 비슷합니다"(이름 · 숫자 숨김) · 면책 점선 테 · 표 · 축 · 눈금 0 |
+| 연애리그 | 1면 스코어보드(카드 · 여섯 스탯 막대 · 주마다) · 2면 매치 리포트 · 능력치 배분 · 왜 움직였나. 하락 해설은 상황 귀속(17-3) |
+| 각자의 하루 | 한 사람 = 한 열 · 한쪽만이면 `one`(빈 열을 그리지 않음) · 같은 시간대는 한 줄 · 시각은 §11 ③ `08:20` |
+| 우리 사이 | 답 아래 "{상대}의 짐작 — …"(원문 · 한 단계 작게) · Q4는 "AI 질문 · 그 주의 일에서" 한 줄 · 질문 번호는 CSS 카운터 |
+| 특별 게스트 | 방명록 두 단 · 질문 번호 ①②③ · 서명 "— 닉네임" · 글 고치지 않음 |
+| 어깨너머 | 칸 = 라벨 · 큰 값 · "N쌍에서 셈" · 지운 칸이 있으면 바닥 줄 · 이 커플 값 0 |
+| 협찬 | 맨 위 진묵 띠 "협찬" + "이 면은 {브랜드}의 협찬으로 실었습니다" · 지면 전체 테 · 고딕만 · 러닝헤드 "협찬 지면 · 본지 기사와 따로 만들었습니다" |
+| 부록 | 달력 A5 가로 재단선 · 일요일 시작 · 기념일만 지표 잉크 · 엽서 A6(148×105mm) 재단선 |
+| 다음 달 | 큰 달 숫자 · "다음 달의 날" · "다음 달에 할 수 있는 것" · 고정 문구도 사실뿐("날짜와 기념일만 적었습니다") |
+| 판권 · 정오 | 호 · 만든 이 · 글 · 사진 · 만든 곳 · 조판 · 서체 · 테마 · 계산 기준 · 정오(있을 때) · 창구(설정 › 문의) |
+
+### 13-3. 높이 — `measure.json` `v2` (디자인 환경 · 렌더 PC에서 다시 잼)
+
+원문 칸만. 줄 수 표는 §12와 같은 방식(위 덮개 + 여유 한 줄). **블록 높이 = `blockBase` + Σ 칸마다 (줄 수 − 1) × 그 칸 `perLine`.**
+
+| 지면 | 칸(줄 수 표 · perLine px) | 블록 바닥 | 첫 면 쓸 수 있는 높이 |
+|---|---|---|---|
+| 각자의 하루 | `entryTwoLines` · 22.4 (한 열 `entryOneLines`) | 조각 240.4 | 785 — 한 열 1줄 조각 3개 |
+| 우리 사이 | `questionLines` 19.5 · `ownLines` 23.2 · `predictedLines` 19.2 — 두 사람 중 큰 쪽 | 문항 135.9 | 815 |
+| 특별 게스트 | `answerLines` · 23.0 | 글 = 91.9 + (답 수 − 1) × 32.9 + 줄 | 두 단 × 684.2 |
+| 연애리그 ② | `explanationLines` 17.9 · `excerptLines` 21.5 | 해설 142.2 | 514 |
+| 발행 노트 | `emptyCornerLines` · 16.4 | — | 지면 검사(overset)로 |
+| 판권 · 정오 | `errataLines` · 19.2 | — | 지면 검사로 |

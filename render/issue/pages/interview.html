@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 우리 사이</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 우리 사이(couple_interview) 1~2면 — 회차(revealed만) × 질문 3~4. MASTER 17-6 · R157-9 · 계약 contracts/couple_interview.json
+     한 칸 = 그 사람의 답(원문 · 마루부리) + 바로 아래 **상대가 짐작한 그 사람의 답**("서영의 짐작 — 가을" · 원문 · 한 단계 작게). 두 줄이 붙어 있어 어긋남이 그대로 보인다.
+     **맞았다/틀렸다 표시 0** — ○ × · 색 강조 · 개수 집계 · "가장 크게 갈린 문항" 0(17-6 정오 판정 금지 · mostDivergent는 싣지 않는다).
+     일부 문항만 답한 회차는 둘 다 답한 문항만 온다(질문 3개 이하) · 질문 번호는 CSS로 센다. 넘치면 회차(rounds) · 문항(questions)째 다음 면으로 되받기 -->
+<body class="iv">
+  <div class="ab col run">
+    <span class="kk-ko">우리 사이</span>
+    <span class="kk-ko" data-slot="header.periodLabel">2026년 9월</span>
+  </div>
+
+  <div class="ab col" style="top:86px">
+    <span class="kk">Between Us</span>
+    <div class="hd"><h1 class="h-display">우리 사이</h1>
+      <span class="note" style="text-align:right">각자 자기 답을 쓰고,<br>상대의 답을 짐작했습니다</span></div>
+  </div>
+
+  <div class="ab col" style="top:232px">
+    <div class="rounds" data-repeat="payload.rounds">
+      <section class="rd">
+        <span class="rl" data-slot=".label">9월 3주차</span>
+        <div class="qs" data-repeat=".questions">
+          <div class="q">
+            <p class="qt"><span class="qn"></span><span data-slot=".text">요즘 가장 좋아하는 계절은 언제예요?</span></p>
+            <div class="ans" data-repeat=".answers">
+              <div class="an"><span class="nm" data-slot=".name">세준</span><p class="own" data-slot=".own">가을. 아침 공기가 차가워지는 게 좋아</p><p class="pr" data-optional><span class="pl"><span data-slot=".partnerName">서영</span>의 짐작</span><span data-slot=".predictedByPartner">가을</span></p></div>
+              <div class="an"><span class="nm">서영</span><p class="own">여름</p><p class="pr"><span class="pl">세준의 짐작</span><span>가을</span></p></div>
+            </div>
+          </div>
+          <div class="q">
+            <p class="qt"><span class="qn"></span><span data-slot=".text">혼자 있고 싶을 때 주로 어디로 가요?</span></p>
+            <div class="ans" data-repeat=".answers">
+              <div class="an"><span class="nm" data-slot=".name">세준</span><p class="own" data-slot=".own">집 앞 공원 벤치</p><p class="pr" data-optional><span class="pl"><span data-slot=".partnerName">서영</span>의 짐작</span><span data-slot=".predictedByPartner">카페</span></p></div>
+              <div class="an"><span class="nm">서영</span><p class="own">동네 서점</p><p class="pr"><span class="pl">세준의 짐작</span><span>서점</span></p></div>
+            </div>
+          </div>
+          <div class="q">
+            <p class="qt"><span class="qn"></span><span data-slot=".text">우리가 처음으로 같이 한 캠핑에서 제일 기억에 남는 건?</span></p><span class="basis" data-optional><span class="ai-l">AI 질문 · 그 주의 일에서</span><span class="ai-t" data-slot=".basis">9월 셋째 주 첫 캠핑</span></span>
+            <div class="ans" data-repeat=".answers">
+              <div class="an"><span class="nm" data-slot=".name">세준</span><p class="own" data-slot=".own">새벽에 텐트 밖으로 나왔을 때 별</p><p class="pr" data-optional><span class="pl"><span data-slot=".partnerName">서영</span>의 짐작</span><span data-slot=".predictedByPartner">모닥불</span></p></div>
+              <div class="an"><span class="nm">서영</span><p class="own">라면이 그렇게 맛있을 줄 몰랐어</p><p class="pr"><span class="pl">세준의 짐작</span><span>라면</span></p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <style>
+    .iv .hd{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px;padding-bottom:16px;border-bottom:1.6px solid var(--ink)}
+    .iv .hd h1{font-size:38px;line-height:1.2}
+    .iv .rl{display:block;font-size:10.1px;font-weight:700;letter-spacing:.2em;color:var(--sub);margin-bottom:4px}
+    .iv .rd + .rd{margin-top:30px}
+    .iv .qs{counter-reset:iq}
+    .iv .q{counter-increment:iq;padding:16px 0 18px;border-bottom:.6px solid var(--rule)}
+    .iv .qn::before{content:"Q" counter(iq);font-size:9.4px;font-weight:700;letter-spacing:.14em;color:var(--acc);margin-right:10px}
+    .iv .qt{margin:0;font-size:13px;font-weight:500;line-height:1.5}
+    .iv .basis{display:block;margin-top:6px}
+    .iv .basis .ai-t{display:inline;margin:0 0 0 6px}
+    .iv .basis .ai-l{display:inline}
+    .iv .ans{display:flex;gap:44px;margin-top:12px}
+    .iv .an{flex:1 1 0}
+    .iv .nm{display:block;font-size:10.1px;letter-spacing:.06em;color:var(--sub)}
+    .iv .own{margin:5px 0 0;font-family:MaruBuri,serif;font-weight:300;font-size:14.5px;line-height:1.6;color:var(--ink)}
+    .iv .pr{margin:7px 0 0;font-family:MaruBuri,serif;font-weight:300;font-size:12px;line-height:1.6;color:var(--sub)}
+    .iv .pl{font-family:Pretendard,sans-serif;font-size:9.4px;letter-spacing:.06em;color:var(--sub);margin-right:8px}
+    .iv .pl::after{content:" —"}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">1 4</div>
+</body>
+</html>

@@ -81,9 +81,11 @@ class PagePlan:
     reductions: tuple = ()          # 한 면씩 줄인 차례(R158-5 순서표 이름)
 
 
-def plan_pages(base: int, photo_breaks_available: int, next_month_pages: int = 0, postcard_pages: int = 0) -> PagePlan:
+def plan_pages(base: int, photo_breaks_available: int, next_month_pages: int = 0, postcard_pages: int = 0,
+               colophon_split_ok: bool = True) -> PagePlan:
     """`base` = 사진 한 장 · 판권 여백 없이 짠 면 수(「다음 달」 · 엽서 면 · 판권 1면 포함).
-    `photo_breaks_available` = 쓸 수 있는 사진 한 장 후보 수. `next_month_pages` · `postcard_pages` = `base`에 든 그 면 수(뺄 수 있는 것)."""
+    `photo_breaks_available` = 쓸 수 있는 사진 한 장 후보 수. `next_month_pages` · `postcard_pages` = `base`에 든 그 면 수(뺄 수 있는 것).
+    `colophon_split_ok` = 판권과 정오를 두 면으로 나눌 수 있는가 - 디자인 v2.0.0 틀은 한 면뿐이라 렌더러는 False(2.0-D · PM 확인 대상)."""
     if base < 1:
         raise ValueError('면 수는 1 이상')
     if not (0 <= next_month_pages and 0 <= postcard_pages and next_month_pages + postcard_pages + 1 <= base):
@@ -99,7 +101,7 @@ def plan_pages(base: int, photo_breaks_available: int, next_month_pages: int = 0
                         reductions=red.steps)
     need = (-base) % PAGE_MULTIPLE
     photos = min(need, PHOTO_BREAK_MAX, max(0, photo_breaks_available))
-    split = need - photos >= 1
+    split = colophon_split_ok and need - photos >= 1
     total = base + photos + (1 if split else 0)
     short = need - photos - (1 if split else 0)
     if total > BODY_PAGE_CAP:   # 4의 배수로 올리다 36을 넘는 일은 없다(36은 4의 배수) - 방어

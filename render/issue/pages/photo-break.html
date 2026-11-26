@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko" data-theme="basic">
+<head>
+  <meta charset="utf-8">
+  <title>ONDOLOG — 사진 한 장</title>
+  <link rel="stylesheet" href="../base.css">
+  <link rel="stylesheet" href="../themes/basic.css">
+  <link rel="stylesheet" href="../themes/hip.css">
+  <link rel="stylesheet" href="../themes/neon.css">
+  <link rel="stylesheet" href="../themes/lovely.css">
+  <link rel="stylesheet" href="../themes/night.css">
+  <link rel="stylesheet" href="../themes/ondol.css">
+</head>
+<!-- v2.0.0 · 사진 한 장(photo_break) — 쉼 지면 · 쪽 수 맞춤(4의 배수)에 쓰인다. 계약 contracts/photo_break.json
+     변형: 사진이 가로면 land(위 2/3 풀블리드) · 세로면 port(오른쪽 풀블리드 세로 띠). 사진 비율(width · height)로 렌더러가 고른다.
+     캡션 한 줄(명사형 · 날짜 · 장소 · 메모 원문이 있으면 메모) — AI 0. 러닝헤드 · 코너 제목 없음(쉼) -->
+<body class="pb">
+  <div data-variant="land">
+    <div class="ab ph" style="left:0;right:0;top:0;height:760px"><img data-src="payload.photo.path" src="../images/sample/da_open.jpg" alt=""></div>
+    <div class="ab col" style="top:800px"><span class="cap1" data-slot="payload.caption">09.20 · 예시 산책로</span></div>
+  </div>
+  <div data-variant="port">
+    <div class="ab ph" style="right:0;top:0;bottom:0;width:470px"><img data-src="payload.photo.path" src="../images/sample/cover.jpg" alt=""></div>
+    <div class="ab" style="left:var(--mX);width:200px;bottom:120px"><span class="cap1" data-slot="payload.caption">09.20 · 예시 산책로</span></div>
+  </div>
+  <style>
+    .pb .cap1{display:block;font-family:MaruBuri,serif;font-weight:300;font-size:14px;line-height:1.6;color:var(--ink)}
+    .pb .cap1::before{content:"";display:block;width:40px;height:.6px;background:var(--hair);margin-bottom:12px}
+  </style>
+  <div class="ab folio" style="left:var(--mX)" data-slot="@page">1 8</div>
+</body>
+</html>

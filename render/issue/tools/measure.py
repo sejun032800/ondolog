@@ -1,5 +1,5 @@
 import sys; sys.dont_write_bytecode = True  # tools/ 에 __pycache__ 를 남기지 않는다
-"""높이 실측 — README §12의 표(`measure.json`)를 만든다. v1.2.3
+"""높이 실측 — README §12의 표(`measure.json`)를 만든다. v1.2.3 · v2.0.0(새 지면 원문 칸 `v2` · 판 이름 v2.0.0)
 
 지면을 **실제 틀 그대로** 채워(개발의 `render/slot_fill.py`) Chromium에서 잰다. 규칙 문장이 아니라 이 결과가 원본이다(#5).
 
@@ -254,6 +254,62 @@ def article(page) -> dict:
     return out
 
 
+# ── v2.0.0 · 매거진 2.0 새 지면의 원문 칸 (묶음 5) ───────────────────────────
+# 새 지면은 렌더러 채움(slot_fill) 없이 **틀의 견본 그대로** 연다 — 견본 항목의 글자만 바꿔 잰다(새 코너 계약이 렌더러에 아직 없다).
+# 원문 칸만 잰다: AI 칸은 계약의 max_chars로 틀이 이미 최대 길이를 받게 그렸다(README §13).
+V2 = {
+    # 지면: [(이름, 글자 칸 선택자, 상자 선택자, 최대 글자)]
+    'setlog.html': [('entryTwo', '.sl [data-variant="two"] .tx', '.sl [data-variant="two"] .en', 120),
+                    ('entryOne', '.sl [data-variant="one"] .tx', '.sl [data-variant="one"] .en', 120)],
+    'interview.html': [('question', '.iv .qt [data-slot=".text"]', None, 60),
+                       ('own', '.iv .own', None, 200), ('predicted', '.iv .pr', None, 200)],
+    'guest.html': [('answer', '.gb .ga', '.gb .gc', 400)],
+    'league-report.html': [('explanation', '.lg2 .ch .ai-t', None, 160), ('excerpt', '.lg2 .ex', None, 300)],
+    'note.html': [('emptyCorner', '.note .lists .li', None, 120)],
+    'colophon.html': [('errata', '.co .el', None, 160)],
+}
+# 반복 블록이 쓸 수 있는 높이(첫 면) = 반복 상자 위 끝 ~ 판면 아래 끝(1047px)에서 바닥 줄 상자를 뺀 값
+# 블록 한 개의 바닥 높이 — 블록 안 글 칸을 모두 한 줄('가')로 두고 잰다. 실제 높이 = 바닥 + Σ 칸마다 (줄 수 - 1) x 그 칸 perLine
+BLOCK = {
+    'setlog.html': ('.sl [data-variant="two"] .en', ['.tx']),
+    'interview.html': ('.iv .q', ['.qt [data-slot=".text"]', '.own', '.pr > span:last-child']),
+    'league-report.html': ('.lg2 .ch', ['.ai-t', '.ex > span:last-child', '.cw', '.cv']),
+}
+GUEST_JS = """() => { const c = document.querySelector('.gb .gc'); const ga = [...c.querySelectorAll('.ga')];
+  ga.forEach(g => g.lastElementChild.textContent = '가');
+  const h3 = c.getBoundingClientRect().height; ga[2].remove(); const h2 = c.getBoundingClientRect().height; ga[1].remove();
+  const h1 = c.getBoundingClientRect().height; return [h1, h2, h3]; }"""
+ROOM = {'setlog.html': '.sl .cols', 'interview.html': '.iv .rounds', 'guest.html': '.gb .gw', 'league-report.html': '.lg2 .sc'}
+
+
+def v2(page) -> dict:
+    out = {}
+    for tpl, cells in V2.items():
+        page.goto((PAGES / tpl).as_uri(), wait_until='networkidle')
+        page.evaluate('document.fonts.ready.then(() => true)')
+        o = {}
+        for name, sel, box, mx in cells:
+            o[name + 'Lines'] = line_table(page, sel, max_chars=mx)
+            o[name] = fit_box(page, sel, box or sel, '가')
+        # 줄 수 표 · 상자 식이 견본 글자를 바꿔 놓았으니 다시 연다
+        page.goto((PAGES / tpl).as_uri(), wait_until='networkidle')
+        page.evaluate('document.fonts.ready.then(() => true)')
+        if tpl in BLOCK:
+            blk, cells_ = BLOCK[tpl]
+            o['blockBase'] = round(page.evaluate("""([b, cs]) => { const e = document.querySelector(b);
+                cs.forEach(c => e.querySelectorAll(c).forEach(x => x.textContent = '가')); return e.getBoundingClientRect().height; }""", [blk, cells_]), 1)
+        if tpl == 'guest.html':
+            h1, h2, h3 = page.evaluate(GUEST_JS)
+            o['card'] = {'oneAnswer': round(h1, 1), 'perAnswer': round(h2 - h1, 1), 'measured1to3': [round(h1, 1), round(h2, 1), round(h3, 1)]}
+        if tpl in ROOM:
+            o['room'] = round(page.evaluate("""s => { const r = document.querySelector(s).getBoundingClientRect();
+                let lim = 1047; document.querySelectorAll('body > .ab').forEach(e => { const q = e.getBoundingClientRect();
+                  if (getComputedStyle(e).bottom !== 'auto' && q.top > r.top && e.textContent.trim() && !e.classList.contains('folio')) lim = Math.min(lim, q.top - 16); });
+                return lim - r.top; }""", ROOM[tpl]), 1)
+        out[tpl.replace('.html', '')] = o
+    return out
+
+
 def validate(page, m: dict) -> dict:
     """무작위 견본(길이 · 줄바꿈 섞음)으로 식의 예측과 실제를 맞댄다."""
     rnd = random.Random(20261119)
@@ -331,14 +387,15 @@ def main() -> int:
         b = p.chromium.launch()
         page = b.new_context(viewport={'width': 794, 'height': 1123}).new_page()
         try:
-            m = {'version': 'v1.2.3', 'conditions': {
+            m = {'version': 'v2.0.0', 'conditions': {
                      'engine': 'Chromium (Playwright) · 794x1123 @96dpi · 글꼴 render/issue/fonts (Pretendard · MaruBuri otf)',
                      'timelineMemo': 'MaruBuri 16.7px / 29px · 폭 545px', 'timelineCaption': 'Pretendard 10.9px / 1.6 · 폭 545px',
                      'timelinePlace': 'Pretendard 11.5px · 폭 68px', 'quoteTurn': 'MaruBuri 12.5px / 1.75 · 폭 446px(홀수 턴) · 404px(짝수 턴)',
                      'quoteContext': 'Pretendard 9.5px / 1.6 · 폭 446px', 'articleStopMemo': 'MaruBuri 15px / 26px · 폭 545px',
                      'articlePhotoMemo': 'Pretendard 10.1px / 1.5 · 폭 = 사진 칸(1장 658 · 2장 320 · 3장 208px)',
-                     'samples': '글자 수 칸마다 견본 문장 여러 개의 최대 줄 수(위 덮개). 줄바꿈은 줄 하나로 따로 센다'},
-                 'timeline': timeline(page), 'quotes': quotes(page), 'article': article(page)}
+                     'samples': '글자 수 칸마다 견본 문장 여러 개의 최대 줄 수(위 덮개). 줄바꿈은 줄 하나로 따로 센다',
+                     'v2': 'v2.0.0 새 지면 원문 칸 — 틀의 견본 항목 글자만 바꿔 잼(README §13-3)'},
+                 'timeline': timeline(page), 'quotes': quotes(page), 'article': article(page), 'v2': v2(page)}
             m['validation'] = validate(page, m)
         finally:
             b.close()
